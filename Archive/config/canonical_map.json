@@ -1,0 +1,60 @@
+{
+  "mappings": [
+    {
+      "client_id": "client1",
+      "event_name": "Deposit",
+      "canonical_event": "money.deposit"
+    },
+    {
+      "client_id": "client2",
+      "event_name": "MoneyTransferred",
+      "canonical_event": "money.deposit"
+    },
+    {
+      "client_id": "client3",
+      "event_name": "credited",
+      "canonical_event": "money.deposit"
+    },
+    {
+      "client_id": "client1",
+      "event_name": "KYCInitiated",
+      "canonical_event": "kyc.initiated"
+    },
+    {
+      "client_id": "client1",
+      "event_name": "KYCUploaded",
+      "canonical_event": "kyc.uploaded"
+    },
+    {
+      "client_id": "client1",
+      "event_name": "KYCCompleted",
+      "canonical_event": "kyc.completed"
+    },
+    {
+      "client_id": "client1",
+      "event_name": "KYCCancelled",
+      "canonical_event": "kyc.cancelled"
+    },
+    {
+      "client_id": "client2",
+      "event_name": "VerificationStarted",
+      "canonical_event": "kyc.initiated"
+    },
+    {
+      "client_id": "client2",
+      "event_name": "DocumentsUploaded",
+      "canonical_event": "kyc.uploaded"
+    },
+    {
+      "client_id": "client2",
+      "event_name": "VerificationComplete",
+      "canonical_event": "kyc.completed"
+    },
+    {
+      "client_id": "client2",
+      "event_name": "VerificationCancelled",
+      "canonical_event": "kyc.cancelled"
+    }
+  ],
+  "fallback": "custom.{event_name_lower}"
+}
