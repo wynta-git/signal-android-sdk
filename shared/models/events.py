@@ -1,0 +1,78 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
+from pydantic import BaseModel, Field, model_validator
+
+
+class SdkInfo(BaseModel):
+    name: str
+    version: str
+
+
+class DeviceInfo(BaseModel):
+    platform: str | None = None
+    os: str | None = None
+    ua: str | None = None
+
+
+# --- Per-event property models ---
+
+class AppOpenedProperties(BaseModel):
+    from_background: bool = False
+
+
+class ScreenViewedProperties(BaseModel):
+    screen_name: str
+    referrer: str | None = None
+
+
+class UserIdentifiedProperties(BaseModel):
+    previous_id: str
+    traits: dict[str, Any] = Field(default_factory=dict)
+
+
+class PurchaseItem(BaseModel):
+    sku: str
+    qty: int
+    price: float
+
+
+class PurchaseCompletedProperties(BaseModel):
+    order_id: str
+    amount: float
+    currency: str  # ISO 4217
+    items: list[PurchaseItem] = Field(default_factory=list)
+
+
+# Registry — add new events here and mirror in docs/event-schema.md (use /add-event)
+REGISTERED_EVENTS: dict[str, type[BaseModel]] = {
+    "app_opened": AppOpenedProperties,
+    "screen_viewed": ScreenViewedProperties,
+    "user_identified": UserIdentifiedProperties,
+    "purchase_completed": PurchaseCompletedProperties,
+}
+
+
+class EventEnvelope(BaseModel):
+    event_id: UUID
+    event_name: str
+    schema_version: int = 1
+    project_id: str | None = None       # injected by api-service; clients must not send
+    user_id: str
+    session_id: str | None = None
+    timestamp: datetime
+    received_at: datetime | None = None  # set server-side by api-service
+    sdk: SdkInfo
+    device: DeviceInfo | None = None
+    properties: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_event_name_and_properties(self) -> EventEnvelope:
+        props_cls = REGISTERED_EVENTS.get(self.event_name)
+        if props_cls is None:
+            raise ValueError(f"unknown_event: {self.event_name!r}")
+        props_cls.model_validate(self.properties)
+        return self
