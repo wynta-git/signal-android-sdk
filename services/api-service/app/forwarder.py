@@ -34,5 +34,16 @@ class EventForwarder:
     async def send_identify(self, payload: dict) -> None:
         await self._post("/internal/identify", payload)
 
+    async def send_alias(self, payload: dict) -> None:
+        await self._post("/internal/alias", payload)
+
+    async def ping(self) -> None:
+        try:
+            resp = await self._client.get("/internal/health")
+            resp.raise_for_status()
+        except Exception:
+            log.warning("forwarder_ping_failed")
+            raise
+
     async def aclose(self) -> None:
         await self._client.aclose()

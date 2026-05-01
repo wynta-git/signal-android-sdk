@@ -9,7 +9,9 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.forwarder import EventForwarder
 from app.logging_config import configure_logging
+from app.routes.alias import router as alias_router
 from app.routes.identify import router as identify_router
+from app.routes.ready import router as ready_router
 from app.routes.track import router as track_router
 from shared.clients.mongo import make_mongo_client
 from shared.clients.redis import make_redis_client
@@ -69,6 +71,8 @@ async def body_size_limit(request: Request, call_next: object) -> Response:
 
 app.include_router(track_router)
 app.include_router(identify_router)
+app.include_router(alias_router)
+app.include_router(ready_router)
 
 
 @app.get("/v1/health", include_in_schema=False)
