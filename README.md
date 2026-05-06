@@ -4,12 +4,11 @@ A MoEngage-style customer engagement platform. Ingests events from client SDKs, 
 
 ## Services
 
-This is a Python monorepo with six independently deployable services:
+This is a Python monorepo with five independently deployable services:
 
 | Service | Responsibility | Stack |
 |---|---|---|
-| `api-service` | Public ingestion API. Handles auth, token validation, rate limiting. Forwards valid requests to `event-handler`. | FastAPI |
-| `event-handler` | Receives events from `api-service`, normalizes payloads, publishes to Kafka. | FastAPI / aiokafka |
+| `api-service` | Public ingestion API. Handles auth, token validation, rate limiting. Publishes validated events directly to Kafka. | FastAPI / aiokafka |
 | `event-processor` | Consumes Kafka topics, validates against the event schema, writes to ClickHouse. | aiokafka / clickhouse-driver |
 | `segmentation-engine` | Evaluates segment rules against user/event data. Persists segments in MongoDB. | FastAPI / motor |
 | `campaign-engine` | Defines and triggers campaigns based on events and segments. Persists in MongoDB. | FastAPI / motor |

@@ -157,8 +157,8 @@ Total: **48 tests** across 6 files.
 | `test_project_id_injected_from_token` | Forwarded payload carries `project_id` from token, not from request body |
 | `test_received_at_set_server_side` | `received_at` in forwarded payload is within before/after bounds |
 | `test_over_100_events_raises_400` | 101 events → 400 with `payload_too_large` |
-| `test_forwarder_not_called_when_all_rejected` | `send_events` not called if no events pass validation |
-| `test_forwarder_failure_raises_502` | Forwarder exception → 502 with `internal_error` |
+| `test_producer_not_called_when_all_rejected` | `publish_events` not called if no events pass validation |
+| `test_producer_failure_raises_503` | Producer exception → 503 with `internal_error` |
 
 ---
 
@@ -174,8 +174,8 @@ Total: **48 tests** across 6 files.
 | `test_event_id_generated` | `event_id` is server-generated UUID (36 chars) |
 | `test_anonymous_id_forwarded` | `anonymous_id` from request body is forwarded as-is |
 | `test_anonymous_id_optional` | Request without `anonymous_id` succeeds; forwarded as `null` |
-| `test_traits_forwarded` | `traits` dict forwarded unchanged (PII hashed downstream) |
-| `test_forwarder_failure_raises_502` | Forwarder exception → 502 with `internal_error` |
+| `test_traits_forwarded` | `traits` dict published unchanged (PII hashed downstream by event-processor) |
+| `test_producer_failure_raises_503` | Producer exception → 503 with `internal_error` |
 | `test_rate_limited_user_raises_429` | User counter over limit → 429 |
 
 ---
@@ -188,10 +188,10 @@ Total: **48 tests** across 6 files.
 |---|---|
 | `test_valid_request_returns_both_ids` | 202 response contains both `previous_user_id` and `user_id` |
 | `test_project_id_injected_from_token` | Forwarded payload has `project_id` from token |
-| `test_both_user_ids_forwarded` | Both IDs forwarded correctly to event-handler |
-| `test_event_id_generated` | Server-generated UUID present in forwarded payload |
-| `test_received_at_set_server_side` | `received_at` present in forwarded payload |
-| `test_forwarder_failure_raises_502` | Forwarder exception → 502 with `internal_error` |
+| `test_both_user_ids_published` | Both IDs present in Kafka payload |
+| `test_event_id_generated` | Server-generated UUID present in published payload |
+| `test_received_at_set_server_side` | `received_at` present in published payload |
+| `test_producer_failure_raises_503` | Producer exception → 503 with `internal_error` |
 
 ---
 
@@ -201,9 +201,9 @@ Total: **48 tests** across 6 files.
 
 | Test | What it checks |
 |---|---|
-| `test_all_healthy_returns_200` | Both Redis and event-handler ok → 200, status="ok" |
+| `test_all_healthy_returns_200` | Both Redis and Kafka ok → 200, status="ok" |
 | `test_redis_down_returns_503` | Redis ping fails → 503, status="degraded", redis="unreachable" |
-| `test_event_handler_down_returns_503` | Forwarder ping fails → 503, status="degraded", event_handler="unreachable" |
+| `test_kafka_down_returns_503` | Kafka ping fails → 503, status="degraded", kafka="unreachable" |
 | `test_both_down_returns_503` | Both fail → 503, both checks="unreachable" |
 | `test_version_included` | `version` field present in all responses |
 
@@ -211,7 +211,7 @@ Total: **48 tests** across 6 files.
 
 ## Mocking strategy
 
-All tests mock at the **dependency boundary** — Redis, MongoDB, and the forwarder are replaced with `AsyncMock` / `MagicMock`. No real infrastructure is needed to run the suite.
+All tests mock at the **dependency boundary** — Redis, MongoDB, and the Kafka producer are replaced with `AsyncMock` / `MagicMock`. No real infrastructure is needed to run the suite.
 
 ### Mock Redis pipeline
 
@@ -246,14 +246,14 @@ To simulate a missing/revoked token:
 collection.find_one = AsyncMock(return_value=None)
 ```
 
-### Mock forwarder
+### Mock Kafka producer
 
 ```python
-forwarder = AsyncMock()
-forwarder.send_events = AsyncMock()    # success by default
+producer = AsyncMock()
+producer.publish_events = AsyncMock()    # success by default
 
-# To simulate forwarder failure:
-forwarder.send_events = AsyncMock(side_effect=Exception("down"))
+# To simulate producer failure:
+producer.publish_events = AsyncMock(side_effect=Exception("kafka down"))
 ```
 
 ---
@@ -266,7 +266,7 @@ forwarder.send_events = AsyncMock(side_effect=Exception("down"))
 | Real Redis / MongoDB | Unit tests should not require infrastructure. Integration tests against real infra belong in a separate `tests/integration/` suite (not yet built) |
 | `last_used_at` DB write result | Fire-and-forget — only that `create_task` is called is verified, not the actual MongoDB write |
 | Token generation | Not part of api-service — tokens are created by a future admin/project management workflow |
-| PII hashing | Hashing is event-handler's responsibility — api-service forwards traits raw |
+| PII hashing | Hashing is event-processor's responsibility — api-service publishes traits raw |
 
 ---
 

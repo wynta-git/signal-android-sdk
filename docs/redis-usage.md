@@ -8,7 +8,7 @@ Redis is used for ephemeral state only. **Nothing in Redis should be the source 
 |---|---|---|
 | Rate limiting | api-service | yes |
 | Token validation cache | api-service | yes |
-| Idempotency keys (recent `event_id`s) | event-handler | yes |
+| Idempotency keys (recent `event_id`s) | api-service | yes |
 | Per-user campaign send dedupe | notifications-engine | yes |
 | Segment membership cache (hot reads) | campaign-engine | yes |
 | Pub/Sub for real-time triggers (optional) | various | yes |

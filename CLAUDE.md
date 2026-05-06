@@ -4,12 +4,11 @@ This file is loaded into every Claude Code session. Keep it tight — bloat cost
 
 ## What this project is
 
-PAM is a player analytics & marketing platform (MoEngage-style). Six Python services in one monorepo.
+PAM is a player analytics & marketing platform (MoEngage-style). Five Python services in one monorepo.
 
 ## Services and where they live
 
-- `services/api-service` — Public ingestion API. Auth, token validation, rate limiting. **Entry point for all client SDK calls.**
-- `services/event-handler` — Normalizes events, publishes to Kafka.
+- `services/api-service` — Public ingestion API. Auth, token validation, rate limiting, **publishes validated events directly to Kafka**. Entry point for all client SDK calls.
 - `services/event-processor` — Kafka consumer → ClickHouse writer.
 - `services/segmentation-engine` — Segment rules over events/users → MongoDB.
 - `services/campaign-engine` — Campaigns triggered by events and segments → MongoDB.
@@ -35,7 +34,7 @@ Shared code: `shared/` (event Pydantic models, Kafka client wrapper, DB clients)
 
 ## Hard rules
 
-- Never write event payloads directly to ClickHouse from `api-service` or `event-handler`. **Always go through Kafka** so we can replay and scale consumers independently.
+- Never write event payloads directly to ClickHouse from `api-service`. **Always go through Kafka** so we can replay and scale consumers independently.
 - Never read/write MongoDB from `event-processor`. It writes ClickHouse only.
 - Never define event schemas inline in a service. Use `shared/models/events.py`.
 - Never log raw PII (email, phone). Hash or redact first.

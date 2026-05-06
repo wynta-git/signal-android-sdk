@@ -4,6 +4,7 @@ from typing import AsyncIterator
 
 import structlog
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
@@ -50,12 +51,26 @@ app = FastAPI(
     redoc_url=None,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Client-Id"],
+    expose_headers=["X-Request-Id"],
+)
+
 
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next: object) -> Response:
     structlog.contextvars.clear_contextvars()
-    structlog.contextvars.bind_contextvars(request_id=str(uuid.uuid4()))
-    return await call_next(request)  # type: ignore[operator]
+    request_id = str(uuid.uuid4())
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id,
+        client_id=request.headers.get("X-Client-Id"),
+    )
+    response: Response = await call_next(request)  # type: ignore[operator]
+    response.headers["X-Request-Id"] = request_id
+    return response
 
 
 @app.middleware("http")

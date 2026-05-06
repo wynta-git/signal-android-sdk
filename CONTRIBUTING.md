@@ -16,7 +16,7 @@ Examples:
 - `fix(event-processor): retry on clickhouse timeout`
 - `docs(event-schema): add purchase event`
 
-Scopes: `api-service`, `event-handler`, `event-processor`, `segmentation-engine`, `campaign-engine`, `notifications-engine`, `shared`, `infra`, `docs`.
+Scopes: `api-service`, `event-processor`, `segmentation-engine`, `campaign-engine`, `notifications-engine`, `shared`, `infra`, `docs`.
 
 ## Adding a new event type
 

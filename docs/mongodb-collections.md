@@ -8,8 +8,8 @@ Database: `pam`
 |---|---|---|---|
 | `projects` | api-service | all | Project metadata, API keys (hashed), settings. |
 | `tokens` | api-service | api-service only | API tokens (hashed). Status: active / revoked. |
-| `users` | event-handler | segmentation-engine, campaign-engine, notifications-engine | User profiles. Identified ids, traits, last_seen. |
-| `anonymous_to_user` | event-handler | event-handler | Mapping from anonymous device id → user_id (set by `user_identified`). |
+| `users` | event-processor | segmentation-engine, campaign-engine, notifications-engine | User profiles. Identified ids, traits, last_seen. |
+| `anonymous_to_user` | event-processor | event-processor | Mapping from anonymous device id → user_id (set by `user_identified`). |
 | `segments` | segmentation-engine | campaign-engine | Segment definitions and metadata. |
 | `segment_memberships` | segmentation-engine | campaign-engine | `{segment_id, user_id, joined_at}`. |
 | `campaigns` | campaign-engine | notifications-engine | Campaign definitions, schedule, audience, channel, template. |

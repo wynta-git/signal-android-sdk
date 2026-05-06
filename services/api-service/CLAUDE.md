@@ -1,24 +1,24 @@
 # api-service — Claude Code context
 
 ## One-line responsibility
-Public ingress. Authenticate, rate-limit, validate envelope, forward to `event-handler`.
+Public ingress. Authenticate, rate-limit, validate envelope, publish to Kafka.
 
 ## Inputs
 - HTTP from public internet (`/v1/track`, `/v1/identify`, `/v1/alias`, `/v1/health`, `/v1/ready`)
 
 ## Outputs
-- HTTP forward to `event-handler` (internal)
+- Publishes to Kafka topic `pam.events.raw.v1` (events, identify, alias payloads)
 - Reads/writes Redis (rate limit, token cache)
 - Reads MongoDB (`projects`, `tokens` collections)
 
 ## Hard rules (NEVER do these)
 
-- NEVER write to Kafka. Forward to `event-handler` and let it publish.
 - NEVER write to ClickHouse.
 - NEVER read or write `users`, `segments`, `campaigns` collections.
 - NEVER trust `project_id` from the request body — derive from the validated token.
 - NEVER log `Authorization` headers, raw tokens, or token hashes.
 - NEVER cache token validation longer than 5 minutes.
+- NEVER buffer events in-process when Kafka is unavailable — fail fast with 503.
 
 ## Key files (once built)
 
@@ -26,13 +26,14 @@ Public ingress. Authenticate, rate-limit, validate envelope, forward to `event-h
 - `app/routes/track.py`, `identify.py`, `alias.py`, `health.py`
 - `app/auth/token.py` — token validation + Redis cache
 - `app/middleware/ratelimit.py` — per-project per-user rate limit
-- `app/forwarder.py` — HTTPX client to event-handler
+- `app/kafka_producer.py` — aiokafka producer wrapper
 
 ## Dependencies on `shared/`
 
 - `shared.models.events` — envelope validation
 - `shared.clients.mongo` — Mongo client setup
 - `shared.clients.redis` — Redis client setup
+- `shared.clients.kafka` — Kafka producer setup
 
 ## Token authentication
 

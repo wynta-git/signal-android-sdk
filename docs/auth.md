@@ -51,7 +51,7 @@ Every DB query in every service must filter by `project_id`. The `project_id` co
 
 ## Internal service-to-service auth
 
-Services inside the cluster (api-service → event-handler, campaign-engine → segmentation-engine) authenticate with mTLS or shared service-to-service JWTs. **No public tokens flow internally.** Internal calls do not pass through `api-service`'s public endpoint.
+Services inside the cluster (campaign-engine → segmentation-engine, etc.) authenticate with mTLS or shared service-to-service JWTs. **No public tokens flow internally.** Internal calls do not pass through `api-service`'s public endpoint.
 
 ## Don'ts
 

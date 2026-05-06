@@ -41,7 +41,6 @@ Per service (they each have their own `pyproject.toml`):
 
 ```bash
 cd services/api-service && uv sync
-cd ../event-handler && uv sync
 # ...etc
 ```
 
@@ -72,19 +71,16 @@ In separate terminals:
 # Terminal 1: api-service
 cd services/api-service && uv run uvicorn app.main:app --reload --port 8001
 
-# Terminal 2: event-handler
-cd services/event-handler && uv run uvicorn app.main:app --reload --port 8002
-
-# Terminal 3: event-processor (Kafka consumer)
+# Terminal 2: event-processor (Kafka consumer)
 cd services/event-processor && uv run python -m app.main
 
-# Terminal 4: segmentation-engine
+# Terminal 3: segmentation-engine
 cd services/segmentation-engine && uv run uvicorn app.main:app --reload --port 8003
 
-# Terminal 5: campaign-engine
+# Terminal 4: campaign-engine
 cd services/campaign-engine && uv run uvicorn app.main:app --reload --port 8004
 
-# Terminal 6: notifications-engine
+# Terminal 5: notifications-engine
 cd services/notifications-engine && uv run python -m app.main
 ```
 
@@ -132,6 +128,7 @@ uv run python infra/seed.py
 ## Common issues
 
 - **Kafka consumer lag building up**: check `event-processor` is running. Check Kafka UI at `localhost:8080`.
+- **Kafka publish error in api-service**: check Kafka container is up and `KAFKA_BOOTSTRAP_SERVERS` is set correctly.
 - **ClickHouse "Cannot insert"**: migrations haven't run, or column mismatch with new event property.
 - **MongoDB "no primary"**: replica set not initialized; restart the mongo container.
 - **Redis connection refused**: container not up, or port collision. `docker compose ps`.

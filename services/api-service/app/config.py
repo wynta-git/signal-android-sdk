@@ -14,6 +14,8 @@ class Settings(BaseSettings):
 
     event_handler_url: str = "http://localhost:8002"
 
+    cors_origins: list[str] = ["*"]
+
     debug: bool = False
     version: str = "0.1.0"
 

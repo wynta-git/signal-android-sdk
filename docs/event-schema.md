@@ -54,7 +54,7 @@ A screen / page view.
 | `referrer` | string | no | Previous screen name. |
 
 ### `user_identified`
-Maps an anonymous id to a known user id. Special — handled by `event-handler` to merge profiles.
+Maps an anonymous id to a known user id. Published to Kafka by `api-service`; `event-processor` merges the profiles in MongoDB.
 
 | Property | Type | Required | Notes |
 |---|---|---|---|

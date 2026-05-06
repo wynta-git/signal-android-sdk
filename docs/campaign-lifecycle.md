@@ -121,4 +121,4 @@ Each transition also emits to `pam.notifications.delivery.v1` so it appears in a
 
 - Do not send the same campaign to the same user twice unless rate limit explicitly allows.
 - Do not block event ingestion on campaign processing — campaign-engine is a separate consumer group.
-- Do not call provider APIs from `api-service` or `event-handler`.
+- Do not call provider APIs from `api-service` or `event-processor`.

@@ -14,7 +14,7 @@ Complete description of every feature implemented in this service, including req
 6. [POST /v1/alias](#6-post-v1alias)
 7. [GET /v1/health](#7-get-v1health)
 8. [GET /v1/ready](#8-get-v1ready)
-9. [Event Forwarder](#9-event-forwarder)
+9. [Kafka Event Producer](#9-kafka-event-producer)
 10. [Global Middleware](#10-global-middleware)
 
 ---
@@ -29,7 +29,7 @@ On startup the app initialises three shared resources and stores them on `app.st
 |---|---|---|
 | Motor MongoDB client | `mongo` | Token lookups, project config |
 | Redis client | `redis` | Token cache, rate limit counters |
-| EventForwarder | `forwarder` | HTTP client to event-handler |
+| KafkaEventProducer | `producer` | aiokafka producer for event publishing |
 
 On shutdown all three are cleanly closed in the `lifespan` context manager.
 
@@ -38,7 +38,7 @@ Process start
     │
     ├─ make_mongo_client(url, pool_size)  → app.state.mongo
     ├─ make_redis_client(url, max_conns)  → app.state.redis
-    └─ EventForwarder(event_handler_url)  → app.state.forwarder
+    └─ KafkaEventProducer(bootstrap)      → app.state.producer
     │
     ▼
 Serve requests
@@ -47,7 +47,7 @@ Serve requests
 Process shutdown
     ├─ mongo.close()
     ├─ redis.aclose()
-    └─ forwarder.aclose()
+    └─ producer.stop()
 ```
 
 **Config** (`app/config.py`, all overridable via env vars):
@@ -60,7 +60,8 @@ Process shutdown
 | `MONGO_MAX_POOL_SIZE` | `50` | Max Motor connection pool |
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
 | `REDIS_MAX_CONNECTIONS` | `20` | Redis connection pool size |
-| `EVENT_HANDLER_URL` | `http://localhost:8002` | event-handler base URL |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka broker(s) |
+| `KAFKA_EVENTS_TOPIC` | `pam.events.raw.v1` | Topic for all ingested events |
 | `DEBUG` | `false` | Enables `/docs`, console logging |
 | `VERSION` | `0.1.0` | Reported in health/ready responses |
 
@@ -197,7 +198,7 @@ HTTP 429
 
 **File:** `app/routes/track.py`
 
-Core ingestion endpoint. Accepts a batch of analytics events, validates each one, and forwards accepted events to event-handler.
+Core ingestion endpoint. Accepts a batch of analytics events, validates each one, and publishes accepted events to Kafka.
 
 ### Request
 
@@ -253,8 +254,8 @@ POST /v1/track
                    → add to accepted[]
     │
     ├─ accepted not empty?
-    │       forwarder.send_events(accepted) → POST event-handler /internal/events
-    │       failure → 502 internal_error
+    │       producer.publish_events(accepted) → Kafka pam.events.raw.v1
+    │       failure → 503 internal_error
     │
     └─ 202 { accepted: N, rejected: M, errors: [...] }
 ```
@@ -290,7 +291,7 @@ Defined in `shared/models/events.py`. Unknown `event_name` → `unknown_event` e
 | `invalid_type` | Field has wrong type |
 | `rate_limited` | User rate limit exceeded |
 | `payload_too_large` | > 100 events or > 1MB body |
-| `internal_error` | event-handler unreachable (502) |
+| `internal_error` | Kafka unavailable (503) |
 
 ---
 
@@ -298,7 +299,7 @@ Defined in `shared/models/events.py`. Unknown `event_name` → `unknown_event` e
 
 **File:** `app/routes/identify.py`
 
-Maps an anonymous device ID to a known user ID, and/or sets profile traits. event-handler handles the actual MongoDB profile merge.
+Maps an anonymous device ID to a known user ID, and/or sets profile traits. Publishes the identify payload to Kafka for downstream processing.
 
 ### Request
 
@@ -312,7 +313,7 @@ Authorization: Bearer pam_live_...
   "traits": {                      ← optional, any key-value pairs
     "name": "Asha",
     "plan": "pro",
-    "email": "asha@example.com"    ← PII — hashed by event-handler before storage
+    "email": "asha@example.com"    ← PII — hashed by event-processor before storage
   },
   "timestamp": "2026-05-01T10:00:00Z"
 }
@@ -337,10 +338,10 @@ POST /v1/identify
     │     project_id  = ctx.project_id   ← from token
     │     received_at = now(UTC)         ← server clock
     │     anonymous_id = body.anonymous_id (may be null)
-    │     traits = body.traits (raw — PII hashed downstream by event-handler)
+    │     traits = body.traits (raw — PII hashed downstream by event-processor)
     │
-    ├─ forwarder.send_identify(payload)  → POST event-handler /internal/identify
-    │     failure → 502
+    ├─ producer.publish_identify(payload) → Kafka pam.events.raw.v1
+    │     failure → 503
     │
     └─ 202 { user_id }
 ```
@@ -393,8 +394,8 @@ POST /v1/alias
     │     project_id       = ctx.project_id
     │     received_at      = now(UTC)
     │
-    ├─ forwarder.send_alias(payload)  → POST event-handler /internal/alias
-    │     failure → 502
+    ├─ producer.publish_alias(payload)  → Kafka pam.events.raw.v1
+    │     failure → 503
     │
     └─ 202 { previous_user_id, user_id }
 ```
@@ -428,39 +429,39 @@ Readiness probe. No auth required. Checks whether this instance can actually ser
 GET /v1/ready
 
 200 OK — all dependencies reachable
-{ "status": "ok", "version": "0.1.0", "checks": { "redis": "ok", "event_handler": "ok" } }
+{ "status": "ok", "version": "0.1.0", "checks": { "redis": "ok", "kafka": "ok" } }
 
 503 Service Unavailable — one or more dependencies down
-{ "status": "degraded", "version": "0.1.0", "checks": { "redis": "unreachable", "event_handler": "ok" } }
+{ "status": "degraded", "version": "0.1.0", "checks": { "redis": "unreachable", "kafka": "ok" } }
 ```
 
 | Check | How | Why |
 |---|---|---|
 | `redis` | `redis.ping()` | Can't do auth or rate limiting without Redis |
-| `event_handler` | `GET /internal/health` on event-handler | Can't forward events if event-handler is down |
+| `kafka` | producer metadata fetch | Can't publish events if Kafka is unreachable |
 
 Used by: Kubernetes readiness probe → removes pod from load balancer when degraded, re-adds when recovered.
 
 ---
 
-## 9. Event Forwarder
+## 9. Kafka Event Producer
 
-**File:** `app/forwarder.py`
+**File:** `app/kafka_producer.py`
 
-Shared HTTPX async client that forwards processed payloads to event-handler. Initialised once at startup, stored at `app.state.forwarder`.
+Thin aiokafka wrapper that publishes validated payloads to Kafka. Initialised once at startup, stored at `app.state.producer`.
 
 ### Methods
 
-| Method | Calls | Used by |
+| Method | Topic | Used by |
 |---|---|---|
-| `send_events(events)` | `POST /internal/events` | `/v1/track` |
-| `send_identify(payload)` | `POST /internal/identify` | `/v1/identify` |
-| `send_alias(payload)` | `POST /internal/alias` | `/v1/alias` |
-| `ping()` | `GET /internal/health` | `/v1/ready` |
+| `publish_events(events)` | `pam.events.raw.v1` | `/v1/track` |
+| `publish_identify(payload)` | `pam.events.raw.v1` | `/v1/identify` |
+| `publish_alias(payload)` | `pam.events.raw.v1` | `/v1/alias` |
+| `ping()` | — (metadata fetch) | `/v1/ready` |
 
-All methods share a single private `_post()` that handles HTTP errors, timeouts, and connection errors with structured logging. Errors are re-raised — route handlers catch them and return 502.
+All messages are keyed by `user_id` (encoded as UTF-8 bytes) to preserve per-user ordering across Kafka partitions. Payloads are JSON-serialised. Errors are re-raised — route handlers catch them and return 503.
 
-**Timeout:** 5 seconds (configurable). Connections reuse the same HTTPX `AsyncClient` — no per-request TCP handshake overhead.
+**Acks:** `acks="all"` — producer waits for all in-sync replicas to acknowledge before returning, preventing silent message loss.
 
 ---
 

@@ -25,7 +25,7 @@ Every accepted event, immediately after `api-service` validation.
 | Retention | 7 days |
 | Key | `user_id` (preserves per-user ordering) |
 | Compression | `lz4` |
-| Producer | `event-handler` |
+| Producer | `api-service` |
 | Consumers | `event-processor` (group: `event-processor`), `campaign-engine` (group: `campaign-trigger`) |
 
 ### `pam.events.invalid.v1`
