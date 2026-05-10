@@ -1,4 +1,5 @@
 import time
+from typing import Annotated
 
 import structlog
 from fastapi import Depends, HTTPException, Request
@@ -48,3 +49,7 @@ async def user_rate_limit(project_id: str, user_id: str, redis: Redis) -> None:
     """Utility called directly from route handlers where user_id is known."""
     key = f"pam:rate:user:{project_id}:{user_id}:min:{_epoch_min()}"
     await _incr_and_check(redis, key, USER_LIMIT_PER_MIN)
+
+
+# Auth + project rate limit combined — the standard dep for all ingestion routes
+RateLimitedDep = Annotated[TokenContext, Depends(project_rate_limit)]

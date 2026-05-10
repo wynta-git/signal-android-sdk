@@ -57,9 +57,3 @@ class RequireScope:
 #   async def track(ctx: EventsWriteDep, ...):
 EventsWriteDep = Annotated[TokenContext, Depends(RequireScope("events:write"))]
 AdminDep = Annotated[TokenContext, Depends(RequireScope("admin"))]
-
-# Imported here to avoid circular imports — ratelimit depends on get_token_context above
-from app.middleware.ratelimit import project_rate_limit  # noqa: E402
-
-# Auth + project rate limit combined — the standard dep for all ingestion routes
-RateLimitedDep = Annotated[TokenContext, Depends(project_rate_limit)]
