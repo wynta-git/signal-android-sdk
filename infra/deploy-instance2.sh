@@ -57,6 +57,10 @@ section "1. Checking repo"
 [ -d "$REPO/shared" ]                    || die "shared dir missing in $REPO"
 ok "Repo found at $REPO"
 
+info "Setting repo ownership to $APP_USER..."
+chown -R "$APP_USER:$APP_USER" "$REPO"
+ok "Ownership set"
+
 # ── 2. check python ───────────────────────────────────────────────────────────
 section "2. Checking Python"
 
