@@ -124,21 +124,26 @@ ok "event-processor/.env written"
 # ── 5. install dependencies ───────────────────────────────────────────────────
 section "5. Installing Python dependencies"
 
-info "api-service..."
-as_user bash -c "
-    cd '$REPO/services/api-service'
-    '$UV' venv .venv --python python3.12 --quiet
-    '$UV' pip install -e '../../shared' . --quiet
-"
-ok "api-service venv ready"
+# Single venv for the whole repo — no per-service builds needed
+VENV="$REPO/.venv"
+info "Creating venv at $VENV..."
+as_user "$UV" venv "$VENV" --python python3.12 --quiet
+ok "Venv created"
 
-info "event-processor..."
-as_user bash -c "
-    cd '$REPO/services/event-processor'
-    '$UV' venv .venv --python python3.12 --quiet
-    '$UV' pip install -e '../../shared' . --quiet
-"
-ok "event-processor venv ready"
+info "Installing shared (editable) + all service dependencies..."
+as_user "$UV" pip install --python "$VENV/bin/python" \
+    -e "$REPO/shared" \
+    "fastapi>=0.115.0" \
+    "uvicorn[standard]>=0.30.0" \
+    "motor>=3.5.0" \
+    "redis[asyncio]>=5.0.0" \
+    "pydantic>=2.7.0" \
+    "pydantic-settings>=2.3.0" \
+    "structlog>=24.2.0" \
+    "aiokafka>=0.10.0" \
+    "clickhouse-connect>=0.7.0" \
+    --quiet
+ok "All dependencies installed"
 
 # ── 6. run clickhouse migration ───────────────────────────────────────────────
 section "6. Running ClickHouse migration"
@@ -146,18 +151,17 @@ section "6. Running ClickHouse migration"
 info "Connecting to ClickHouse at localhost:8123 and running migrations..."
 as_user bash -c "
     cd '$REPO/services/event-processor'
-    .venv/bin/python -m migrations.run
+    PYTHONPATH='$REPO/services/event-processor' '$VENV/bin/python' -m migrations.run
 "
 ok "Migration complete — pam database and pam.events table created"
 
 # ── 7. seed mongodb ───────────────────────────────────────────────────────────
 section "7. Seeding MongoDB"
 
-# api-service venv has motor which brings in pymongo as a dependency
 info "Running seed.py against MongoDB at $INSTANCE1_IP:27017..."
 SEED_OUTPUT=$(as_user bash -c "
     cd '$REPO'
-    services/api-service/.venv/bin/python infra/seed.py \
+    '$VENV/bin/python' infra/seed.py \
         --mongo 'mongodb://$INSTANCE1_IP:27017' \
         --db pam \
         --project-id '$PROJECT_ID' \
@@ -195,7 +199,8 @@ StartLimitBurst=5
 Type=simple
 User=$APP_USER
 WorkingDirectory=$REPO/services/api-service
-ExecStart=$REPO/services/api-service/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+Environment="PYTHONPATH=$REPO/services/api-service"
+ExecStart=$REPO/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -219,7 +224,8 @@ StartLimitBurst=5
 Type=simple
 User=$APP_USER
 WorkingDirectory=$REPO/services/event-processor
-ExecStart=$REPO/services/event-processor/.venv/bin/python -m app.main
+Environment="PYTHONPATH=$REPO/services/event-processor"
+ExecStart=$REPO/.venv/bin/python -m app.main
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
