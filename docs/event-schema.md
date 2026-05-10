@@ -36,6 +36,12 @@ Every event has the same outer envelope, regardless of type:
 | `device` | object | no | client SDK | Best-effort. |
 | `properties` | object | depends on event | client SDK | Per-event payload. See below. |
 
+## Validation policy
+
+`event_name` is **not enforced at ingestion** — events with an unregistered name are accepted and flow through to ClickHouse. `api-service` logs a `warning` (`unknown_event_name`) so unknown events are observable. This ensures no event is ever dropped due to a schema gap.
+
+Envelope fields (`event_id`, `user_id`, `timestamp`, `sdk`) are still required — an event without them cannot be keyed, ordered, or associated with a user.
+
 ## Defined events
 
 ### `app_opened`

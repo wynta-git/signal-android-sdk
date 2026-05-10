@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAM Test Client</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d14;
+      --surface: #13131f;
+      --surface2: #1a1a2e;
+      --border: #252538;
+      --accent: #e94560;
+      --text: #dde1ea;
+      --text-dim: #5c6478;
+      --green: #4caf50;
+      --red: #f44336;
+      --orange: #ff9800;
+      --blue: #5dade2;
+      --mono: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Config bar ── */
+    .config-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      flex-shrink: 0;
+    }
+
+    .config-bar h1 {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: 1px;
+      padding-bottom: 6px;
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+
+    .cfg-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cfg-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .cfg-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: var(--mono);
+      transition: border-color 0.15s;
+    }
+
+    .cfg-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .cfg-input.wide  { width: 300px; }
+    .cfg-input.med   { width: 200px; }
+    .cfg-input.small { width: 130px; }
+
+    /* ── Layout ── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 195px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 14px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    .sidebar-group {}
+
+    .sidebar-group-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 0 8px 6px;
+    }
+
+    .ep-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 10px;
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+      text-align: left;
+      transition: background 0.12s, border-color 0.12s;
+      font-family: inherit;
+    }
+
+    .ep-btn:hover { background: var(--surface2); }
+    .ep-btn.active {
+      background: var(--surface2);
+      border-color: var(--border);
+      color: #fff;
+    }
+
+    .badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-family: var(--mono);
+      flex-shrink: 0;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-get  { background: #112233; color: var(--blue); }
+    .badge-post { background: #112211; color: #58d68d; }
+
+    /* ── Content ── */
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 16px;
+      gap: 12px;
+    }
+
+    .ep-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      min-height: 32px;
+    }
+
+    .ep-url {
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+
+    .ep-url span { color: var(--text); }
+
+    .ep-hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-left: 4px;
+    }
+
+    .panels {
+      display: flex;
+      gap: 12px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .panel-body {
+      flex: 1;
+      overflow: auto;
+    }
+
+    textarea.req-body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 14px;
+      resize: none;
+      outline: none;
+      line-height: 1.65;
+    }
+
+    .no-body {
+      padding: 14px;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-style: italic;
+    }
+
+    .response-body {
+      padding: 14px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ── Send button ── */
+    .send-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 7px 18px;
+      border-radius: 5px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+
+    .send-btn:hover:not(:disabled) { opacity: 0.85; }
+    .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Status badges ── */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--mono);
+    }
+
+    .s2xx { background: #0d2b0d; color: var(--green); }
+    .s4xx { background: #2b0d0d; color: var(--red); }
+    .s5xx { background: #2b1a0d; color: var(--orange); }
+
+    .elapsed {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-left: 8px;
+    }
+
+    /* ── Placeholder ── */
+    .placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      width: 100%;
+      color: var(--text-dim);
+      font-size: 14px;
+    }
+
+    /* ── JSON highlight ── */
+    .jk { color: #9cdcfe; }
+    .js { color: #ce9178; }
+    .jn { color: #b5cea8; }
+    .jb { color: #569cd6; }
+    .jl { color: #569cd6; }
+  </style>
+</head>
+<body>
+
+  <!-- Config bar -->
+  <div class="config-bar">
+    <h1>PAM</h1>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Base URL</span>
+      <input class="cfg-input med" id="cfg-url" value="http://localhost:8001" placeholder="http://localhost:8001">
+    </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Token (Bearer)</span>
+      <input class="cfg-input wide" id="cfg-token" placeholder="pam_live_...">
+    </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">X-Client-Id</span>
+      <input class="cfg-input small" id="cfg-client" value="web-test">
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Health</div>
+        <button class="ep-btn" onclick="select('health', this)">
+          <span class="badge badge-get">GET</span>/v1/health
+        </button>
+        <button class="ep-btn" onclick="select('ready', this)">
+          <span class="badge badge-get">GET</span>/v1/ready
+        </button>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Ingestion</div>
+        <button class="ep-btn" onclick="select('identify', this)">
+          <span class="badge badge-post">POST</span>/v1/identify
+        </button>
+        <button class="ep-btn" onclick="select('track', this)">
+          <span class="badge badge-post">POST</span>/v1/track
+        </button>
+        <button class="ep-btn" onclick="select('alias', this)">
+          <span class="badge badge-post">POST</span>/v1/alias
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <div class="ep-header" id="ep-header">
+        <div class="placeholder">← Select an endpoint to begin</div>
+      </div>
+
+      <div class="panels" id="panels" style="display:none">
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Request Body</span>
+            <button class="send-btn" id="send-btn" onclick="sendRequest()">Send</button>
+          </div>
+          <div class="panel-body" id="req-panel"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-title">Response</span>
+            <span id="res-meta"></span>
+          </div>
+          <div class="panel-body">
+            <div class="response-body" id="res-body">
+              <span style="color:#252538">Hit Send to see the response.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ── Helpers ─────────────────────────────────────────────
+
+    function uuidv4() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+
+    function randHex(n) {
+      return [...Array(n)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+    }
+
+    function nowIso() {
+      return new Date().toISOString();
+    }
+
+    // ── Endpoint definitions ─────────────────────────────────
+
+    const ENDPOINTS = {
+      health: {
+        method: 'GET',
+        path: '/v1/health',
+        auth: false,
+        sample: null,
+      },
+      ready: {
+        method: 'GET',
+        path: '/v1/ready',
+        auth: false,
+        sample: null,
+      },
+      identify: {
+        method: 'POST',
+        path: '/v1/identify',
+        auth: true,
+        sample: () => ({
+          user_id: 'user_001',
+          anonymous_id: 'anon_' + randHex(8),
+          traits: {
+            name: 'Rathish Kumar',
+            email: 'rathish@example.com',
+            plan: 'pro',
+          },
+          timestamp: nowIso(),
+        }),
+      },
+      track: {
+        method: 'POST',
+        path: '/v1/track',
+        auth: true,
+        sample: () => ({
+          events: [
+            {
+              event_id: uuidv4(),
+              event_name: 'screen_viewed',
+              schema_version: 1,
+              user_id: 'user_001',
+              session_id: 'sess_' + randHex(8),
+              timestamp: nowIso(),
+              sdk: { name: 'pam-web', version: '1.0.0' },
+              device: { platform: 'web', os: navigator.platform, ua: navigator.userAgent },
+              properties: { screen_name: 'home', referrer: null },
+            },
+          ],
+        }),
+      },
+      alias: {
+        method: 'POST',
+        path: '/v1/alias',
+        auth: true,
+        sample: () => ({
+          previous_user_id: 'anon_' + randHex(8),
+          user_id: 'user_001',
+        }),
+      },
+    };
+
+    // ── State ───────────────────────────────────────────────
+
+    let currentEndpoint = null;
+
+    // ── Endpoint selection ───────────────────────────────────
+
+    function select(name, btn) {
+      currentEndpoint = name;
+      const ep = ENDPOINTS[name];
+
+      // Active state
+      document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Header
+      const methodClass = ep.method === 'GET' ? 'badge-get' : 'badge-post';
+      const authHint = ep.auth
+        ? '<span class="ep-hint">🔑 requires token</span>'
+        : '<span class="ep-hint">no auth</span>';
+      document.getElementById('ep-header').innerHTML = `
+        <span class="badge ${methodClass}">${ep.method}</span>
+        <span class="ep-url"><span>${ep.path}</span></span>
+        ${authHint}
+      `;
+
+      // Show panels
+      document.getElementById('panels').style.display = 'flex';
+
+      // Request panel
+      const reqPanel = document.getElementById('req-panel');
+      if (ep.sample) {
+        const body = JSON.stringify(ep.sample(), null, 2);
+        reqPanel.innerHTML = `<textarea class="req-body" id="req-textarea" spellcheck="false">${escHtml(body)}</textarea>`;
+      } else {
+        reqPanel.innerHTML = `<div class="no-body">No request body — ${ep.method} request.</div>`;
+      }
+
+      // Reset response
+      document.getElementById('res-body').innerHTML = '<span style="color:#252538">Hit Send to see the response.</span>';
+      document.getElementById('res-meta').innerHTML = '';
+    }
+
+    // ── Send ────────────────────────────────────────────────
+
+    async function sendRequest() {
+      if (!currentEndpoint) return;
+      const ep = ENDPOINTS[currentEndpoint];
+
+      const base    = document.getElementById('cfg-url').value.replace(/\/$/, '');
+      const token   = document.getElementById('cfg-token').value.trim();
+      const clientId = document.getElementById('cfg-client').value.trim();
+
+      const headers = {};
+      if (ep.sample) headers['Content-Type'] = 'application/json';
+      if (ep.auth && token) headers['Authorization'] = `Bearer ${token}`;
+      if (clientId) headers['X-Client-Id'] = clientId;
+
+      const ta = document.getElementById('req-textarea');
+      const bodyText = ta ? ta.value : undefined;
+
+      const btn = document.getElementById('send-btn');
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+
+      const t0 = performance.now();
+      try {
+        const res = await fetch(base + ep.path, {
+          method: ep.method,
+          headers,
+          body: bodyText || undefined,
+        });
+        const ms = Math.round(performance.now() - t0);
+
+        let data = null;
+        try { data = await res.json(); } catch (_) {}
+
+        const cls = res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx';
+        document.getElementById('res-meta').innerHTML = `
+          <span class="status-badge ${cls}">${res.status} ${res.statusText}</span>
+          <span class="elapsed">${ms}ms</span>
+        `;
+        document.getElementById('res-body').innerHTML = data !== null
+          ? highlight(JSON.stringify(data, null, 2))
+          : '<span style="color:#5c6478">(empty body)</span>';
+
+      } catch (err) {
+        document.getElementById('res-meta').innerHTML =
+          `<span class="status-badge s4xx">Network Error</span>`;
+        document.getElementById('res-body').textContent = String(err) +
+          '\n\nIs the server running? Check CORS settings.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send';
+      }
+    }
+
+    // ── JSON syntax highlight ───────────────────────────────
+
+    function highlight(json) {
+      return escHtml(json).replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+        match => {
+          if (/^"/.test(match)) {
+            if (/:$/.test(match)) return `<span class="jk">${match}</span>`;
+            return `<span class="js">${match}</span>`;
+          }
+          if (/true|false/.test(match)) return `<span class="jb">${match}</span>`;
+          if (/null/.test(match)) return `<span class="jl">${match}</span>`;
+          return `<span class="jn">${match}</span>`;
+        }
+      );
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  </script>
+
+</body>
+</html>

@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 from app.auth.token import TokenContext
 from fastapi import Depends
-from shared.models.events import EventEnvelope
+from shared.models.events import REGISTERED_EVENTS, EventEnvelope
 
 router = APIRouter()
 log = structlog.get_logger()
@@ -34,11 +34,8 @@ class TrackResponse(BaseModel):
 
 
 def _map_validation_error(e: ValidationError) -> tuple[str, str]:
-    """Map a Pydantic ValidationError to a (code, message) pair."""
     first = e.errors(include_url=False)[0]
     msg: str = first.get("msg", "Validation error")
-    if "unknown_event" in msg:
-        return "unknown_event", msg
     error_type: str = first.get("type", "")
     if error_type == "missing":
         field = " -> ".join(str(loc) for loc in first.get("loc", []))
@@ -71,13 +68,24 @@ async def track(
     for i, raw in enumerate(body.events):
         event_id = raw.get("event_id") if isinstance(raw, dict) else None
 
-        # Validate envelope + event-specific properties
+        # Validate envelope fields (user_id, event_id, timestamp, sdk are required)
         try:
             event = EventEnvelope.model_validate(raw)
         except ValidationError as e:
             code, message = _map_validation_error(e)
             errors.append(EventError(index=i, event_id=event_id, code=code, message=message))
             continue
+
+        # Warn on unregistered event names — accept anyway, never drop events
+        if event.event_name not in REGISTERED_EVENTS:
+            log.warning(
+                "unknown_event_name",
+                event_name=event.event_name,
+                event_id=str(event.event_id),
+                user_id=event.user_id,
+                project_id=ctx.project_id,
+                index=i,
+            )
 
         # Per-user rate limit — checked now that we have user_id from the payload
         try:
@@ -105,11 +113,11 @@ async def track(
 
     if accepted:
         try:
-            await request.app.state.forwarder.send_events(accepted)
+            await request.app.state.producer.publish_events(accepted)
         except Exception:
             raise HTTPException(
-                status_code=502,
-                detail={"code": "internal_error", "message": "Failed to forward events"},
+                status_code=503,
+                detail={"code": "internal_error", "message": "Failed to publish events"},
             )
 
     log.info("track", accepted=len(accepted), rejected=len(errors))

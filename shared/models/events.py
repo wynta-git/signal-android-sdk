@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 
 class SdkInfo(BaseModel):
@@ -68,11 +68,3 @@ class EventEnvelope(BaseModel):
     sdk: SdkInfo
     device: DeviceInfo | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def _validate_event_name_and_properties(self) -> EventEnvelope:
-        props_cls = REGISTERED_EVENTS.get(self.event_name)
-        if props_cls is None:
-            raise ValueError(f"unknown_event: {self.event_name!r}")
-        props_cls.model_validate(self.properties)
-        return self

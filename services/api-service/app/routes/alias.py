@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.auth.token import TokenContext
+from app.config import settings
 from app.middleware.ratelimit import project_rate_limit
 
 router = APIRouter()
@@ -32,20 +33,26 @@ async def alias(
     body: AliasRequest,
     ctx: TokenContext = Depends(project_rate_limit),
 ) -> AliasResponse:
+    now = datetime.now(timezone.utc).isoformat()
+
     payload = {
         "event_id": str(uuid4()),
-        "previous_user_id": body.previous_user_id,
+        "event_name": "user_alias",
+        "schema_version": 1,
         "user_id": body.user_id,
         "project_id": ctx.project_id,
-        "received_at": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now,
+        "received_at": now,
+        "sdk": {"name": "pam-server", "version": settings.version},
+        "properties": {"previous_user_id": body.previous_user_id},
     }
 
     try:
-        await request.app.state.forwarder.send_alias(payload)
+        await request.app.state.producer.publish_alias(payload)
     except Exception:
         raise HTTPException(
-            status_code=502,
-            detail={"code": "internal_error", "message": "Failed to forward alias"},
+            status_code=503,
+            detail={"code": "internal_error", "message": "Failed to publish alias"},
         )
 
     log.info("alias", previous_user_id=body.previous_user_id, user_id=body.user_id)

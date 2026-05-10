@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     redis_max_connections: int = 20
 
-    event_handler_url: str = "http://localhost:8002"
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_events_topic: str = "pam.events.raw.v1"
 
     cors_origins: list[str] = ["*"]
 

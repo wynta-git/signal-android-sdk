@@ -20,11 +20,11 @@ async def ready(request: Request) -> JSONResponse:
         checks["redis"] = "unreachable"
 
     try:
-        await request.app.state.forwarder.ping()
-        checks["event_handler"] = "ok"
+        await request.app.state.producer.ping()
+        checks["kafka"] = "ok"
     except Exception:
-        log.warning("readiness_check_failed", component="event_handler")
-        checks["event_handler"] = "unreachable"
+        log.warning("readiness_check_failed", component="kafka")
+        checks["kafka"] = "unreachable"
 
     all_ok = all(v == "ok" for v in checks.values())
 

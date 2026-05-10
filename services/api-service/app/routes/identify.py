@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.auth.token import TokenContext
+from app.config import settings
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 
 router = APIRouter()
@@ -36,22 +37,30 @@ async def identify(
 ) -> IdentifyResponse:
     await user_rate_limit(ctx.project_id, body.user_id, request.app.state.redis)
 
+    # Build EventEnvelope-compatible payload so event-processor handles it uniformly.
+    props: dict[str, Any] = {}
+    if body.anonymous_id:
+        props["anonymous_id"] = body.anonymous_id
+    props.update(body.traits)
+
     payload: dict[str, Any] = {
         "event_id": str(uuid4()),
+        "event_name": "user_identified",
+        "schema_version": 1,
         "user_id": body.user_id,
-        "anonymous_id": body.anonymous_id,
-        "traits": body.traits,
         "project_id": ctx.project_id,
         "timestamp": body.timestamp.isoformat(),
         "received_at": datetime.now(timezone.utc).isoformat(),
+        "sdk": {"name": "pam-server", "version": settings.version},
+        "properties": props,
     }
 
     try:
-        await request.app.state.forwarder.send_identify(payload)
+        await request.app.state.producer.publish_identify(payload)
     except Exception:
         raise HTTPException(
-            status_code=502,
-            detail={"code": "internal_error", "message": "Failed to forward identify"},
+            status_code=503,
+            detail={"code": "internal_error", "message": "Failed to publish identify"},
         )
 
     log.info("identify", user_id=body.user_id)

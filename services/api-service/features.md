@@ -271,13 +271,15 @@ Invalid events are rejected individually — valid events in the same batch stil
 | `project_id` | api-service | Derived from token — never trusted from request body |
 | `received_at` | api-service | `datetime.now(UTC)` at the moment of processing |
 
-### Registered events
+### Event name handling
 
-Defined in `shared/models/events.py`. Unknown `event_name` → `unknown_event` error. Unknown properties on a known event → accepted (forward compatibility).
+Events with an unregistered `event_name` are **accepted and forwarded** — they are never dropped. A `warning` log line (`unknown_event_name`) is emitted with `event_name`, `event_id`, `user_id`, and `project_id` so unknown events are observable without blocking ingestion.
 
-| Event | Required properties |
+Well-known events are defined in `shared/models/events.py`:
+
+| Event | Notable properties |
 |---|---|
-| `app_opened` | none |
+| `app_opened` | none required |
 | `screen_viewed` | `screen_name` |
 | `user_identified` | `previous_id` |
 | `purchase_completed` | `order_id`, `amount`, `currency` |
@@ -286,9 +288,8 @@ Defined in `shared/models/events.py`. Unknown `event_name` → `unknown_event` e
 
 | Code | Cause |
 |---|---|
-| `unknown_event` | `event_name` not in `REGISTERED_EVENTS` |
-| `missing_required` | Required envelope field or property missing |
-| `invalid_type` | Field has wrong type |
+| `missing_required` | Required envelope field missing (`user_id`, `event_id`, `timestamp`, `sdk`) |
+| `invalid_type` | Envelope field has wrong type |
 | `rate_limited` | User rate limit exceeded |
 | `payload_too_large` | > 100 events or > 1MB body |
 | `internal_error` | Kafka unavailable (503) |

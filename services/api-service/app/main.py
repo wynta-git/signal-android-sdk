@@ -8,12 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.forwarder import EventForwarder
+from app.kafka_producer import KafkaEventProducer
 from app.logging_config import configure_logging
 from app.routes.alias import router as alias_router
 from app.routes.identify import router as identify_router
 from app.routes.ready import router as ready_router
 from app.routes.track import router as track_router
+from shared.clients.kafka import make_kafka_producer
 from shared.clients.mongo import make_mongo_client
 from shared.clients.redis import make_redis_client
 
@@ -34,12 +35,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.redis_url,
         max_connections=settings.redis_max_connections,
     )
-    app.state.forwarder = EventForwarder(settings.event_handler_url)
+    raw_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+    app.state.producer = KafkaEventProducer(raw_producer, settings.kafka_events_topic)
     log.info("startup_complete", version=settings.version)
     yield
     app.state.mongo.close()
     await app.state.redis.aclose()
-    await app.state.forwarder.aclose()
+    await raw_producer.stop()
     log.info("shutdown_complete")
 
 
