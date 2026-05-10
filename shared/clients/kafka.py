@@ -5,7 +5,7 @@ async def make_kafka_producer(
     bootstrap_servers: str,
     *,
     acks: str | int = "all",
-    compression_type: str = "lz4",
+    compression_type: str = "gzip",
 ) -> AIOKafkaProducer:
     producer = AIOKafkaProducer(
         bootstrap_servers=bootstrap_servers,
