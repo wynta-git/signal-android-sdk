@@ -26,7 +26,7 @@ set -euo pipefail
 
 INSTANCE1_IP="172.31.6.243"
 INSTANCE2_IP="172.31.44.32"
-REPO="/home/ubuntu/PAM"
+REPO="/home/ubuntu/pam"
 APP_USER="ubuntu"
 PROJECT_ID="proj_demo"
 PROJECT_NAME="Demo App"
