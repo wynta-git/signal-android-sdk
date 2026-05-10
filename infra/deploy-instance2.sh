@@ -130,9 +130,8 @@ info "Creating venv at $VENV..."
 as_user "$UV" venv "$VENV" --python python3.12 --quiet
 ok "Venv created"
 
-info "Installing shared (editable) + all service dependencies..."
+info "Installing all service dependencies..."
 as_user "$UV" pip install --python "$VENV/bin/python" \
-    -e "$REPO/shared" \
     "fastapi>=0.115.0" \
     "uvicorn[standard]>=0.30.0" \
     "motor>=3.5.0" \
@@ -151,7 +150,7 @@ section "6. Running ClickHouse migration"
 info "Connecting to ClickHouse at localhost:8123 and running migrations..."
 as_user bash -c "
     cd '$REPO/services/event-processor'
-    PYTHONPATH='$REPO/services/event-processor' '$VENV/bin/python' -m migrations.run
+    PYTHONPATH='$REPO/services/event-processor:$REPO' '$VENV/bin/python' -m migrations.run
 "
 ok "Migration complete — pam database and pam.events table created"
 
@@ -199,7 +198,7 @@ StartLimitBurst=5
 Type=simple
 User=$APP_USER
 WorkingDirectory=$REPO/services/api-service
-Environment="PYTHONPATH=$REPO/services/api-service"
+Environment="PYTHONPATH=$REPO/services/api-service:$REPO"
 ExecStart=$REPO/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
 Restart=on-failure
 RestartSec=5
@@ -224,7 +223,7 @@ StartLimitBurst=5
 Type=simple
 User=$APP_USER
 WorkingDirectory=$REPO/services/event-processor
-Environment="PYTHONPATH=$REPO/services/event-processor"
+Environment="PYTHONPATH=$REPO/services/event-processor:$REPO"
 ExecStart=$REPO/.venv/bin/python -m app.main
 Restart=on-failure
 RestartSec=5
