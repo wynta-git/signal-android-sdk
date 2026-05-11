@@ -35,7 +35,7 @@ async def main() -> None:
     log.info("redis_connected", url=settings.redis_url)
 
     schema_mgr = SchemaManager(redis=redis_client, ch_client=ch_client)
-    writer = ClickHouseWriter(ch_client, schema_mgr)
+    writer = ClickHouseWriter(ch_client, schema_mgr, redis=redis_client)
     consumer_task = asyncio.create_task(run_consumer(writer))
 
     loop = asyncio.get_running_loop()

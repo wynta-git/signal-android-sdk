@@ -41,6 +41,7 @@
       gap: 16px;
       align-items: flex-end;
       flex-shrink: 0;
+      flex-wrap: wrap;
     }
 
     .config-bar h1 {
@@ -78,12 +79,8 @@
       transition: border-color 0.15s;
     }
 
-    .cfg-input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .cfg-input.wide  { width: 300px; }
+    .cfg-input:focus { outline: none; border-color: var(--accent); }
+    .cfg-input.wide  { width: 320px; }
     .cfg-input.med   { width: 200px; }
     .cfg-input.small { width: 130px; }
 
@@ -96,7 +93,7 @@
 
     /* ── Sidebar ── */
     .sidebar {
-      width: 195px;
+      width: 205px;
       background: var(--surface);
       border-right: 1px solid var(--border);
       padding: 14px 8px;
@@ -106,8 +103,6 @@
       flex-shrink: 0;
       overflow-y: auto;
     }
-
-    .sidebar-group {}
 
     .sidebar-group-label {
       font-size: 10px;
@@ -173,19 +168,32 @@
       min-height: 32px;
     }
 
-    .ep-url {
-      font-family: var(--mono);
-      font-size: 14px;
-      color: var(--text-dim);
-    }
-
+    .ep-url { font-family: var(--mono); font-size: 14px; color: var(--text-dim); }
     .ep-url span { color: var(--text); }
+    .ep-hint { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
 
-    .ep-hint {
-      font-size: 11px;
-      color: var(--text-dim);
-      margin-left: 4px;
+    /* ── Bulk count row (only shown for bulk endpoints) ── */
+    .bulk-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
     }
+
+    .bulk-row label { font-size: 12px; color: var(--text-dim); }
+    .bulk-count {
+      width: 60px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: var(--mono);
+      text-align: center;
+    }
+    .bulk-count:focus { outline: none; border-color: var(--accent); }
+    .bulk-hint { font-size: 11px; color: var(--text-dim); }
 
     .panels {
       display: flex;
@@ -221,10 +229,7 @@
       color: var(--text-dim);
     }
 
-    .panel-body {
-      flex: 1;
-      overflow: auto;
-    }
+    .panel-body { flex: 1; overflow: auto; }
 
     textarea.req-body {
       width: 100%;
@@ -288,14 +293,8 @@
     .s4xx { background: #2b0d0d; color: var(--red); }
     .s5xx { background: #2b1a0d; color: var(--orange); }
 
-    .elapsed {
-      font-size: 11px;
-      color: var(--text-dim);
-      font-family: var(--mono);
-      margin-left: 8px;
-    }
+    .elapsed { font-size: 11px; color: var(--text-dim); font-family: var(--mono); margin-left: 8px; }
 
-    /* ── Placeholder ── */
     .placeholder {
       display: flex;
       align-items: center;
@@ -322,17 +321,20 @@
 
     <div class="cfg-field">
       <span class="cfg-label">Base URL</span>
-      <input class="cfg-input med" id="cfg-url" value="http://localhost:8001" placeholder="http://localhost:8001">
+      <input class="cfg-input med" id="cfg-url" value="http://localhost:8001" placeholder="http://server2:8001"
+             oninput="saveConfig()">
     </div>
 
     <div class="cfg-field">
       <span class="cfg-label">Token (Bearer)</span>
-      <input class="cfg-input wide" id="cfg-token" placeholder="pam_live_...">
+      <input class="cfg-input wide" id="cfg-token" placeholder="pam_live_..."
+             oninput="saveConfig()">
     </div>
 
     <div class="cfg-field">
-      <span class="cfg-label">X-Client-Id</span>
-      <input class="cfg-input small" id="cfg-client" value="web-test">
+      <span class="cfg-label">Default User ID</span>
+      <input class="cfg-input small" id="cfg-user" value="user_001"
+             oninput="saveConfig()">
     </div>
   </div>
 
@@ -343,24 +345,86 @@
 
       <div class="sidebar-group">
         <div class="sidebar-group-label">Health</div>
-        <button class="ep-btn" onclick="select('health', this)">
+        <button class="ep-btn" onclick="selectEp('health', this)">
           <span class="badge badge-get">GET</span>/v1/health
         </button>
-        <button class="ep-btn" onclick="select('ready', this)">
+        <button class="ep-btn" onclick="selectEp('ready', this)">
           <span class="badge badge-get">GET</span>/v1/ready
         </button>
       </div>
 
       <div class="sidebar-group">
         <div class="sidebar-group-label">Ingestion</div>
-        <button class="ep-btn" onclick="select('identify', this)">
+        <button class="ep-btn" onclick="selectEp('identify', this)">
           <span class="badge badge-post">POST</span>/v1/identify
         </button>
-        <button class="ep-btn" onclick="select('track', this)">
+        <button class="ep-btn" onclick="selectEp('track', this)">
           <span class="badge badge-post">POST</span>/v1/track
         </button>
-        <button class="ep-btn" onclick="select('alias', this)">
+        <button class="ep-btn" onclick="selectEp('alias', this)">
           <span class="badge badge-post">POST</span>/v1/alias
+        </button>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Quick presets</div>
+        <button class="ep-btn" onclick="selectEp('deposit', this)">
+          <span class="badge badge-post">POST</span>deposit
+        </button>
+        <button class="ep-btn" onclick="selectEp('bulk_deposits', this)">
+          <span class="badge badge-post">POST</span>bulk deposits
+        </button>
+        <button class="ep-btn" onclick="selectEp('screen_viewed', this)">
+          <span class="badge badge-post">POST</span>screen_viewed
+        </button>
+        <button class="ep-btn" onclick="selectEp('app_opened', this)">
+          <span class="badge badge-post">POST</span>app_opened
+        </button>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Deposit</div>
+        <button class="ep-btn" onclick="selectEp('deposit_initiated', this)">
+          <span class="badge badge-post">POST</span>initiated
+        </button>
+        <button class="ep-btn" onclick="selectEp('deposit_success', this)">
+          <span class="badge badge-post">POST</span>success
+        </button>
+        <button class="ep-btn" onclick="selectEp('deposit_failed', this)">
+          <span class="badge badge-post">POST</span>failed
+        </button>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Withdraw</div>
+        <button class="ep-btn" onclick="selectEp('withdraw_initiated', this)">
+          <span class="badge badge-post">POST</span>initiated
+        </button>
+        <button class="ep-btn" onclick="selectEp('withdraw_success', this)">
+          <span class="badge badge-post">POST</span>success
+        </button>
+        <button class="ep-btn" onclick="selectEp('withdraw_failed', this)">
+          <span class="badge badge-post">POST</span>failed
+        </button>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Bonus</div>
+        <button class="ep-btn" onclick="selectEp('bonus_applied', this)">
+          <span class="badge badge-post">POST</span>applied
+        </button>
+        <button class="ep-btn" onclick="selectEp('bonus_credited', this)">
+          <span class="badge badge-post">POST</span>credited
+        </button>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Session</div>
+        <button class="ep-btn" onclick="selectEp('login', this)">
+          <span class="badge badge-post">POST</span>login
+        </button>
+        <button class="ep-btn" onclick="selectEp('logout', this)">
+          <span class="badge badge-post">POST</span>logout
         </button>
       </div>
 
@@ -371,6 +435,12 @@
 
       <div class="ep-header" id="ep-header">
         <div class="placeholder">← Select an endpoint to begin</div>
+      </div>
+
+      <div id="bulk-row" class="bulk-row" style="display:none">
+        <label for="bulk-count">Count:</label>
+        <input type="number" id="bulk-count" class="bulk-count" value="5" min="1" max="100">
+        <span class="bulk-hint">events per send — each gets a unique event_id and random amount</span>
       </div>
 
       <div class="panels" id="panels" style="display:none">
@@ -401,7 +471,7 @@
   </div>
 
   <script>
-    // ── Helpers ─────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────
 
     function uuidv4() {
       return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -414,127 +484,440 @@
       return [...Array(n)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
     }
 
-    function nowIso() {
-      return new Date().toISOString();
+    function nowIso() { return new Date().toISOString(); }
+
+    function userId() { return document.getElementById('cfg-user').value.trim() || 'user_001'; }
+
+    function randomAmount() {
+      return parseFloat((Math.random() * 9900 + 100).toFixed(2));
+    }
+
+    function makeDeposit(uid) {
+      return {
+        event_id: uuidv4(),
+        event_name: 'purchase_completed',
+        schema_version: 1,
+        user_id: uid || userId(),
+        session_id: 'sess_' + randHex(8),
+        timestamp: nowIso(),
+        sdk: { name: 'pam-web', version: '1.0.0' },
+        device: { platform: 'web', os: navigator.platform },
+        properties: {
+          order_id: 'dep_' + randHex(12),
+          amount: randomAmount(),
+          currency: 'INR',
+          items: [],
+        },
+      };
     }
 
     // ── Endpoint definitions ─────────────────────────────────
 
     const ENDPOINTS = {
       health: {
-        method: 'GET',
-        path: '/v1/health',
-        auth: false,
-        sample: null,
+        method: 'GET', path: '/v1/health', auth: false, bulk: false, sample: null,
       },
       ready: {
-        method: 'GET',
-        path: '/v1/ready',
-        auth: false,
-        sample: null,
+        method: 'GET', path: '/v1/ready', auth: false, bulk: false, sample: null,
       },
       identify: {
-        method: 'POST',
-        path: '/v1/identify',
-        auth: true,
+        method: 'POST', path: '/v1/identify', auth: true, bulk: false,
         sample: () => ({
-          user_id: 'user_001',
+          user_id: userId(),
           anonymous_id: 'anon_' + randHex(8),
-          traits: {
-            name: 'Rathish Kumar',
-            email: 'rathish@example.com',
-            plan: 'pro',
-          },
+          traits: { name: 'Test User', plan: 'pro' },
           timestamp: nowIso(),
         }),
       },
       track: {
-        method: 'POST',
-        path: '/v1/track',
-        auth: true,
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
         sample: () => ({
-          events: [
-            {
-              event_id: uuidv4(),
-              event_name: 'screen_viewed',
-              schema_version: 1,
-              user_id: 'user_001',
-              session_id: 'sess_' + randHex(8),
-              timestamp: nowIso(),
-              sdk: { name: 'pam-web', version: '1.0.0' },
-              device: { platform: 'web', os: navigator.platform, ua: navigator.userAgent },
-              properties: { screen_name: 'home', referrer: null },
-            },
-          ],
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'screen_viewed',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: { screen_name: 'home', referrer: null },
+          }],
         }),
       },
       alias: {
-        method: 'POST',
-        path: '/v1/alias',
-        auth: true,
+        method: 'POST', path: '/v1/alias', auth: true, bulk: false,
         sample: () => ({
           previous_user_id: 'anon_' + randHex(8),
-          user_id: 'user_001',
+          user_id: userId(),
+        }),
+      },
+
+      // ── Quick presets ──
+      deposit: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'deposit → /v1/track',
+        sample: () => ({ events: [makeDeposit()] }),
+      },
+      bulk_deposits: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: true,
+        label: 'bulk deposits → /v1/track',
+        sample: (n = 5) => ({
+          events: Array.from({ length: n }, () => makeDeposit()),
+        }),
+      },
+      screen_viewed: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'screen_viewed → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'screen_viewed',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: { screen_name: 'home', referrer: null },
+          }],
+        }),
+      },
+      app_opened: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'app_opened → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'app_opened',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: { from_background: false },
+          }],
+        }),
+      },
+
+      // ── Deposit events ──
+      deposit_initiated: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'deposit_initiated → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'deposit_initiated',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              order_id: 'dep_' + randHex(12),
+              amount: randomAmount(),
+              currency: 'INR',
+              payment_method: 'upi',
+            },
+          }],
+        }),
+      },
+      deposit_success: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'deposit_success → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'deposit_success',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              order_id: 'dep_' + randHex(12),
+              amount: randomAmount(),
+              currency: 'INR',
+              payment_method: 'upi',
+              transaction_id: 'txn_' + randHex(16),
+            },
+          }],
+        }),
+      },
+      deposit_failed: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'deposit_failed → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'deposit_failed',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              order_id: 'dep_' + randHex(12),
+              amount: randomAmount(),
+              currency: 'INR',
+              payment_method: 'upi',
+              error_code: 'INSUFFICIENT_FUNDS',
+              error_message: 'Payment declined by bank',
+            },
+          }],
+        }),
+      },
+
+      // ── Withdraw events ──
+      withdraw_initiated: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'withdraw_initiated → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'withdraw_initiated',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              order_id: 'wdr_' + randHex(12),
+              amount: randomAmount(),
+              currency: 'INR',
+              payment_method: 'bank_transfer',
+            },
+          }],
+        }),
+      },
+      withdraw_success: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'withdraw_success → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'withdraw_success',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              order_id: 'wdr_' + randHex(12),
+              amount: randomAmount(),
+              currency: 'INR',
+              payment_method: 'bank_transfer',
+              transaction_id: 'txn_' + randHex(16),
+            },
+          }],
+        }),
+      },
+      withdraw_failed: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'withdraw_failed → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'withdraw_failed',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              order_id: 'wdr_' + randHex(12),
+              amount: randomAmount(),
+              currency: 'INR',
+              payment_method: 'bank_transfer',
+              error_code: 'BANK_REJECTED',
+              error_message: 'Withdrawal rejected by bank',
+            },
+          }],
+        }),
+      },
+
+      // ── Bonus events ──
+      bonus_applied: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'bonus_applied → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'bonus_applied',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              bonus_id: 'bon_' + randHex(10),
+              bonus_type: 'first_deposit',
+              amount: parseFloat((Math.random() * 500 + 50).toFixed(2)),
+              currency: 'INR',
+            },
+          }],
+        }),
+      },
+      bonus_credited: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'bonus_credited → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'bonus_credited',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              bonus_id: 'bon_' + randHex(10),
+              bonus_type: 'first_deposit',
+              amount: parseFloat((Math.random() * 500 + 50).toFixed(2)),
+              currency: 'INR',
+              expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            },
+          }],
+        }),
+      },
+
+      // ── Session events ──
+      login: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'login → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'login',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              method: 'email',
+              success: true,
+            },
+          }],
+        }),
+      },
+      logout: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'logout → /v1/track',
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'logout',
+            schema_version: 1,
+            user_id: userId(),
+            session_id: 'sess_' + randHex(8),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            device: { platform: 'web', os: navigator.platform },
+            properties: {
+              session_duration_seconds: Math.floor(Math.random() * 3600 + 60),
+            },
+          }],
         }),
       },
     };
 
-    // ── State ───────────────────────────────────────────────
+    // ── State ────────────────────────────────────────────────
 
     let currentEndpoint = null;
 
+    // ── Persist config in localStorage ──────────────────────
+
+    function saveConfig() {
+      localStorage.setItem('pam_url',   document.getElementById('cfg-url').value);
+      localStorage.setItem('pam_token', document.getElementById('cfg-token').value);
+      localStorage.setItem('pam_user',  document.getElementById('cfg-user').value);
+    }
+
+    function loadConfig() {
+      const url   = localStorage.getItem('pam_url');
+      const token = localStorage.getItem('pam_token');
+      const user  = localStorage.getItem('pam_user');
+      if (url)   document.getElementById('cfg-url').value   = url;
+      if (token) document.getElementById('cfg-token').value = token;
+      if (user)  document.getElementById('cfg-user').value  = user;
+    }
+
     // ── Endpoint selection ───────────────────────────────────
 
-    function select(name, btn) {
+    function selectEp(name, btn) {
       currentEndpoint = name;
       const ep = ENDPOINTS[name];
 
-      // Active state
       document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
       // Header
       const methodClass = ep.method === 'GET' ? 'badge-get' : 'badge-post';
       const authHint = ep.auth
-        ? '<span class="ep-hint">🔑 requires token</span>'
+        ? '<span class="ep-hint">requires token</span>'
         : '<span class="ep-hint">no auth</span>';
+      const displayLabel = ep.label || ep.path;
       document.getElementById('ep-header').innerHTML = `
         <span class="badge ${methodClass}">${ep.method}</span>
-        <span class="ep-url"><span>${ep.path}</span></span>
+        <span class="ep-url"><span>${displayLabel}</span></span>
         ${authHint}
       `;
+
+      // Bulk row
+      const bulkRow = document.getElementById('bulk-row');
+      bulkRow.style.display = ep.bulk ? 'flex' : 'none';
 
       // Show panels
       document.getElementById('panels').style.display = 'flex';
 
       // Request panel
-      const reqPanel = document.getElementById('req-panel');
-      if (ep.sample) {
-        const body = JSON.stringify(ep.sample(), null, 2);
-        reqPanel.innerHTML = `<textarea class="req-body" id="req-textarea" spellcheck="false">${escHtml(body)}</textarea>`;
-      } else {
-        reqPanel.innerHTML = `<div class="no-body">No request body — ${ep.method} request.</div>`;
-      }
+      refreshBody();
 
       // Reset response
       document.getElementById('res-body').innerHTML = '<span style="color:#252538">Hit Send to see the response.</span>';
       document.getElementById('res-meta').innerHTML = '';
     }
 
-    // ── Send ────────────────────────────────────────────────
+    function refreshBody() {
+      if (!currentEndpoint) return;
+      const ep = ENDPOINTS[currentEndpoint];
+      const reqPanel = document.getElementById('req-panel');
+
+      if (ep.sample) {
+        const n = ep.bulk ? (parseInt(document.getElementById('bulk-count').value) || 5) : undefined;
+        const body = JSON.stringify(ep.sample(n), null, 2);
+        reqPanel.innerHTML = `<textarea class="req-body" id="req-textarea" spellcheck="false">${escHtml(body)}</textarea>`;
+      } else {
+        reqPanel.innerHTML = `<div class="no-body">No request body — ${ep.method} request.</div>`;
+      }
+    }
+
+    // Refresh body when bulk count changes
+    document.getElementById('bulk-count').addEventListener('change', refreshBody);
+
+    // ── Send ─────────────────────────────────────────────────
 
     async function sendRequest() {
       if (!currentEndpoint) return;
       const ep = ENDPOINTS[currentEndpoint];
 
-      const base    = document.getElementById('cfg-url').value.replace(/\/$/, '');
-      const token   = document.getElementById('cfg-token').value.trim();
-      const clientId = document.getElementById('cfg-client').value.trim();
+      const base     = document.getElementById('cfg-url').value.replace(/\/$/, '');
+      const token    = document.getElementById('cfg-token').value.trim();
 
       const headers = {};
       if (ep.sample) headers['Content-Type'] = 'application/json';
       if (ep.auth && token) headers['Authorization'] = `Bearer ${token}`;
-      if (clientId) headers['X-Client-Id'] = clientId;
 
       const ta = document.getElementById('req-textarea');
       const bodyText = ta ? ta.value : undefined;
@@ -568,14 +951,14 @@
         document.getElementById('res-meta').innerHTML =
           `<span class="status-badge s4xx">Network Error</span>`;
         document.getElementById('res-body').textContent = String(err) +
-          '\n\nIs the server running? Check CORS settings.';
+          '\n\nIs the server running? CORS may block file:// origins — serve via HTTP (see below).';
       } finally {
         btn.disabled = false;
         btn.textContent = 'Send';
       }
     }
 
-    // ── JSON syntax highlight ───────────────────────────────
+    // ── JSON syntax highlight ────────────────────────────────
 
     function highlight(json) {
       return escHtml(json).replace(
@@ -595,6 +978,9 @@
     function escHtml(s) {
       return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
+
+    // ── Init ─────────────────────────────────────────────────
+    loadConfig();
   </script>
 
 </body>

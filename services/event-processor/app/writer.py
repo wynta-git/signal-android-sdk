@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
+from redis.asyncio import Redis
 
 from .schema_manager import SchemaManager
 
@@ -94,12 +95,40 @@ def _to_row(
     return _base_values(event) + [prop_vals.get(col) for col in prop_cols]
 
 
+_DEDUP_TTL = 86400  # 24 hours — covers any realistic client retry window
+
+
 class ClickHouseWriter:
-    def __init__(self, client: Any, schema_mgr: SchemaManager) -> None:
+    def __init__(self, client: Any, schema_mgr: SchemaManager, redis: Redis) -> None:
         self._client = client
         self._schema_mgr = schema_mgr
+        self._redis = redis
+
+    async def _filter_duplicates(
+        self, project_id: str, events: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        if not events:
+            return events
+
+        keys = [f"pam:dedup:{project_id}:{e['event_id']}" for e in events]
+
+        # Pipeline: SET NX EX for each event_id. Returns True if key was newly set.
+        pipe = self._redis.pipeline()
+        for key in keys:
+            pipe.set(key, "1", nx=True, ex=_DEDUP_TTL)
+        results = await pipe.execute()
+
+        fresh = [e for e, is_new in zip(events, results) if is_new]
+        dupes = len(events) - len(fresh)
+        if dupes:
+            log.warning("dedup_events_dropped", project_id=project_id, count=dupes)
+        return fresh
 
     async def write_batch(self, project_id: str, events: list[dict[str, Any]]) -> None:
+        events = await self._filter_duplicates(project_id, events)
+        if not events:
+            return
+
         # Ensure the per-client table exists (no-op after first call per instance).
         await self._schema_mgr.bootstrap_table(project_id)
 
