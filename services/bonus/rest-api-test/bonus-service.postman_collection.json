@@ -18,6 +18,11 @@
       "key": "bonus_subhead_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "bonus_configure_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -1226,6 +1231,500 @@
               "script": {
                 "exec": [
                   "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bonus Configures",
+      "item": [
+        {
+          "name": "Create — valid payload (sets bonus_configure_id)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100pct First Deposit\",\n  \"description\": \"Full 100% match on first deposit, capped at ₹5,000.\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 2.00,\n  \"no_of_chunks\": 5,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"chunk_expiry_days\": 30,\n  \"wager_chip_type\": \"CASH\",\n  \"credit_chip_type\": \"CASH\",\n  \"bonus_amount_max\": 5000.00,\n  \"priority\": 1,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('has subhead_id', () => pm.expect(body.subhead_id).to.eql(1));",
+                  "pm.test('name matches', () => pm.expect(body.name).to.eql('100pct First Deposit'));",
+                  "pm.test('bonus_type is CHUNK', () => pm.expect(body.bonus_type).to.eql('CHUNK'));",
+                  "pm.test('product is POKER', () => pm.expect(body.product).to.eql('POKER'));",
+                  "pm.test('active is true', () => pm.expect(body.active).to.be.true);",
+                  "pm.collectionVariables.set('bonus_configure_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — instant bonus, no wagering",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 3,\n  \"site_id\": 1,\n  \"name\": \"Weekend Flat 500\",\n  \"bonus_type\": \"INSTANT\",\n  \"release_mode\": \"INSTANT\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 0,\n  \"no_of_chunks\": 1,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"bonus_amount_default\": 500.00,\n  \"bonus_amount_max\": 500.00,\n  \"priority\": 1,\n  \"created_by\": \"ops.team\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('bonus_type INSTANT', () => pm.expect(body.bonus_type).to.eql('INSTANT'));",
+                  "pm.test('wager_multiplier is 0', () => pm.expect(parseFloat(body.wager_multiplier)).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — parent subhead not found → 404",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 999999,\n  \"site_id\": 1,\n  \"name\": \"Orphan Configure\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — duplicate (subhead_id + name) → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100% First Deposit up to 5000\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 2,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — end_date before start_date → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Dates\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-12-31\",\n  \"end_date\": \"2026-01-01\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — invalid bonus_type → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Type\",\n  \"bonus_type\": \"WEEKLY\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — invalid product → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Product\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"SPORTS\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — missing required field → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Incomplete\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable (missing product/dates)', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — numeric created_by → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Numeric Actor\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"12345\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('field is created_by', () => {",
+                  "    pm.expect(pm.response.json().detail[0].field).to.eql('created_by');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — blank description → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-configures",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Blank Desc\",\n  \"description\": \"   \",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — existing configure (with codes)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('has subhead_id', () => pm.expect(body.subhead_id).to.be.a('number'));",
+                  "pm.test('has codes array', () => pm.expect(body.codes).to.be.an('array'));",
+                  "pm.test('has bonus_type', () => pm.expect(body.bonus_type).to.be.oneOf(['CHUNK', 'INSTANT']));",
+                  "pm.test('has product', () => pm.expect(body.product).to.be.oneOf(['POKER', 'CASINO', 'RUMMY']));",
+                  "pm.test('codes have required fields', () => {",
+                  "    body.codes.forEach(c => pm.expect(c).to.include.all.keys('id', 'code', 'active', 'auto_apply', 'display_order'));",
+                  "});",
+                  "const autoCode = body.codes.find(c => c.code.startsWith('AUTO-'));",
+                  "pm.test('default AUTO code present', () => pm.expect(autoCode).to.not.be.undefined);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — hardcoded id 1 (seed data)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-configures/1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('subhead_id is 1', () => pm.expect(body.subhead_id).to.eql(1));",
+                  "pm.test('bonus_type is CHUNK', () => pm.expect(body.bonus_type).to.eql('CHUNK'));",
+                  "pm.test('has codes', () => pm.expect(body.codes.length).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — not found → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-configures/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — change name and deactivate",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"100pct First Deposit v2\",\n  \"active\": false,\n  \"updated_by\": \"ops.team\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('name updated', () => pm.expect(body.name).to.eql('100pct First Deposit v2'));",
+                  "pm.test('active is false', () => pm.expect(body.active).to.be.false);",
+                  "pm.test('updated_by set', () => pm.expect(body.updated_by).to.eql('ops.team'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — change mechanics fields",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wager_multiplier\": 3.00,\n  \"no_of_chunks\": 3,\n  \"chunk_expiry_days\": 45,\n  \"bonus_amount_max\": 7500.00,\n  \"priority\": 2,\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('wager_multiplier updated', () => pm.expect(parseFloat(body.wager_multiplier)).to.eql(3));",
+                  "pm.test('no_of_chunks updated', () => pm.expect(body.no_of_chunks).to.eql(3));",
+                  "pm.test('priority updated', () => pm.expect(body.priority).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — clear description",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": null,\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('description is null', () => pm.expect(pm.response.json().description).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — extend date window",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"end_date\": \"2027-12-31\",\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('end_date extended', () => pm.expect(pm.response.json().end_date).to.eql('2027-12-31'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — not found → 404",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/999999",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — end_date before start_date → 422",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start_date\": \"2026-12-01\",\n  \"end_date\": \"2026-01-01\",\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — negative wager_multiplier → 422",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"wager_multiplier\": -1,\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — zero no_of_chunks → 422",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"no_of_chunks\": 0,\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
                 ]
               }
             }

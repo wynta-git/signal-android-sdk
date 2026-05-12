@@ -54,5 +54,31 @@ class BonusSubheadNotFoundError(BonusServiceError):
         super().__init__(f"Bonus subhead {subhead_id} not found")
 
 
+class BonusConfigureValidationError(BonusServiceError):
+    """Raised when input data fails business-rule validation for a bonus_configure."""
+
+    def __init__(self, field: str, message: str) -> None:
+        self.field = field
+        self.message = message
+        super().__init__(f"{field}: {message}")
+
+
+class BonusConfigureDuplicateError(BonusServiceError):
+    """Raised when (subhead_id, name) already exists in bonus_configure."""
+
+    def __init__(self, subhead_id: int, name: str) -> None:
+        self.subhead_id = subhead_id
+        self.name = name
+        super().__init__(f"Bonus configure '{name}' already exists for subhead {subhead_id}")
+
+
+class BonusConfigureNotFoundError(BonusServiceError):
+    """Raised when a requested bonus_configure row does not exist."""
+
+    def __init__(self, configure_id: int) -> None:
+        self.configure_id = configure_id
+        super().__init__(f"Bonus configure {configure_id} not found")
+
+
 class DatabaseError(BonusServiceError):
     """Raised when a database operation fails unexpectedly."""
