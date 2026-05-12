@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:apiapp.wynta.com)",
+      "Bash(uv venv *)",
+      "Bash(uv pip *)"
+    ]
+  }
+}
