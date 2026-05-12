@@ -305,6 +305,54 @@
       font-size: 14px;
     }
 
+    /* ── Step number badge ── */
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-dim);
+      flex-shrink: 0;
+      font-family: var(--mono);
+    }
+
+    .ep-btn.active .step-num {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* ── Step hint bar ── */
+    .step-hint {
+      flex-shrink: 0;
+      background: #0d1a2b;
+      border: 1px solid #1a3050;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+      color: #7ab8e8;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+    }
+
+    .step-hint-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #4a8ab5;
+      white-space: nowrap;
+      padding-top: 1px;
+    }
+
     /* ── JSON highlight ── */
     .jk { color: #9cdcfe; }
     .js { color: #ce9178; }
@@ -428,6 +476,37 @@
         </button>
       </div>
 
+      <div class="sidebar-group">
+        <div class="sidebar-group-label">Test Flow</div>
+        <button class="ep-btn" onclick="selectEp('step_health', this)">
+          <span class="step-num">1</span>Health
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_ready', this)">
+          <span class="step-num">2</span>Readiness
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_identify', this)">
+          <span class="step-num">3</span>Identify user
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_track', this)">
+          <span class="step-num">4</span>Track event
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_deposit', this)">
+          <span class="step-num">5</span>Deposit event
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_bulk', this)">
+          <span class="step-num">6</span>Bulk send (10)
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_dedup', this)">
+          <span class="step-num">7</span>Dedup (same ID)
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_bad_token', this)">
+          <span class="step-num">8</span>Bad token → 401
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_over_limit', this)">
+          <span class="step-num">9</span>Over limit → 400
+        </button>
+      </div>
+
     </div>
 
     <!-- Content -->
@@ -435,6 +514,11 @@
 
       <div class="ep-header" id="ep-header">
         <div class="placeholder">← Select an endpoint to begin</div>
+      </div>
+
+      <div id="step-hint" class="step-hint" style="display:none">
+        <span class="step-hint-label">Verify</span>
+        <span id="step-hint-text"></span>
       </div>
 
       <div id="bulk-row" class="bulk-row" style="display:none">
@@ -790,6 +874,69 @@
         }),
       },
 
+      // ── Edge-case test endpoints ──
+      bad_token: {
+        method: 'POST', path: '/v1/track', auth: false, bulk: false,
+        label: 'bad token → /v1/track',
+        customHeaders: () => ({ 'Authorization': 'Bearer pam_bad_invalid_token', 'Content-Type': 'application/json' }),
+        sample: () => ({
+          events: [{
+            event_id: uuidv4(),
+            event_name: 'screen_viewed',
+            schema_version: 1,
+            user_id: userId(),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            properties: { screen_name: 'home' },
+          }],
+        }),
+      },
+      over_limit: {
+        method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'over limit (101 events) → /v1/track',
+        sample: () => ({
+          events: Array.from({ length: 101 }, () => ({
+            event_id: uuidv4(),
+            event_name: 'screen_viewed',
+            schema_version: 1,
+            user_id: userId(),
+            timestamp: nowIso(),
+            sdk: { name: 'pam-web', version: '1.0.0' },
+            properties: { screen_name: 'home' },
+          })),
+        }),
+      },
+
+      // ── Test Flow steps (aliases with verify hints) ──
+      step_health:    { ...undefined, method: 'GET',  path: '/v1/health',   auth: false, bulk: false, sample: null,
+        hint: 'status should be "ok" and version present. No token needed.' },
+      step_ready:     { ...undefined, method: 'GET',  path: '/v1/ready',    auth: false, bulk: false, sample: null,
+        hint: 'status should be "ok". If degraded, check Kafka is running on Instance 1.' },
+      step_identify:  { method: 'POST', path: '/v1/identify', auth: true, bulk: false,
+        hint: 'Expect HTTP 202 with {"user_id": "..."}. Traits are hashed before storage — do not send real PII.',
+        sample: () => ({ user_id: userId(), anonymous_id: 'anon_' + randHex(8), traits: { name: 'Test User', plan: 'pro' }, timestamp: nowIso() }) },
+      step_track:     { method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        hint: 'Expect HTTP 202 with {"accepted":1,"rejected":0}. Check event-processor logs: journalctl -u pam-processor -f',
+        sample: () => ({ events: [{ event_id: uuidv4(), event_name: 'screen_viewed', schema_version: 1, user_id: userId(), session_id: 'sess_' + randHex(8), timestamp: nowIso(), sdk: { name: 'pam-web', version: '1.0.0' }, device: { platform: 'web', os: navigator.platform }, properties: { screen_name: 'home' } }] }) },
+      step_deposit:   { method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        hint: 'Expect HTTP 202 accepted:1. Verify in ClickHouse: SELECT event_name,user_id FROM pam.events ORDER BY received_at DESC LIMIT 5',
+        sample: () => ({ events: [makeDeposit()] }) },
+      step_bulk:      { method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        hint: 'Expect HTTP 202 with accepted:10. Confirms batch processing works in event-processor.',
+        sample: () => ({ events: Array.from({ length: 10 }, () => makeDeposit()) }) },
+      step_dedup:     { method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        hint: 'Send the same event twice (same event_id). Second call should still return accepted:1 but event-processor will deduplicate — only 1 row in ClickHouse.',
+        sample: () => { const id = uuidv4(); return { events: [{ event_id: id, event_name: 'screen_viewed', schema_version: 1, user_id: userId(), timestamp: nowIso(), sdk: { name: 'pam-web', version: '1.0.0' }, properties: { screen_name: 'dedup_test' } }] }; } },
+      step_bad_token: { method: 'POST', path: '/v1/track', auth: false, bulk: false,
+        label: 'bad token → /v1/track',
+        hint: 'Expect HTTP 401 with error_code "invalid_token". Confirms auth middleware is working.',
+        customHeaders: () => ({ 'Authorization': 'Bearer pam_bad_invalid_token', 'Content-Type': 'application/json' }),
+        sample: () => ({ events: [{ event_id: uuidv4(), event_name: 'screen_viewed', schema_version: 1, user_id: userId(), timestamp: nowIso(), sdk: { name: 'pam-web', version: '1.0.0' }, properties: { screen_name: 'home' } }] }) },
+      step_over_limit: { method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        label: 'over limit (101 events) → /v1/track',
+        hint: 'Expect HTTP 400 with error_code "payload_too_large". Max allowed is 100 events per request.',
+        sample: () => ({ events: Array.from({ length: 101 }, () => ({ event_id: uuidv4(), event_name: 'screen_viewed', schema_version: 1, user_id: userId(), timestamp: nowIso(), sdk: { name: 'pam-web', version: '1.0.0' }, properties: { screen_name: 'home' } })) }) },
+
       // ── Session events ──
       login: {
         method: 'POST', path: '/v1/track', auth: true, bulk: false,
@@ -884,6 +1031,16 @@
       // Request panel
       refreshBody();
 
+      // Step hint
+      const hintEl = document.getElementById('step-hint');
+      const hintText = document.getElementById('step-hint-text');
+      if (ep.hint) {
+        hintText.textContent = ep.hint;
+        hintEl.style.display = 'flex';
+      } else {
+        hintEl.style.display = 'none';
+      }
+
       // Reset response
       document.getElementById('res-body').innerHTML = '<span style="color:#252538">Hit Send to see the response.</span>';
       document.getElementById('res-meta').innerHTML = '';
@@ -915,9 +1072,11 @@
       const base     = document.getElementById('cfg-url').value.replace(/\/$/, '');
       const token    = document.getElementById('cfg-token').value.trim();
 
-      const headers = {};
-      if (ep.sample) headers['Content-Type'] = 'application/json';
-      if (ep.auth && token) headers['Authorization'] = `Bearer ${token}`;
+      const headers = ep.customHeaders ? ep.customHeaders() : {};
+      if (!ep.customHeaders) {
+        if (ep.sample) headers['Content-Type'] = 'application/json';
+        if (ep.auth && token) headers['Authorization'] = `Bearer ${token}`;
+      }
 
       const ta = document.getElementById('req-textarea');
       const bodyText = ta ? ta.value : undefined;
