@@ -6,7 +6,7 @@ from fastapi import FastAPI
 
 from app.db import close_pool, init_pool
 from app.routers.bonus_head import register_exception_handlers
-from app.routers import bonus_head
+from app.routers import bonus_head, bonus_subhead
 
 structlog.configure(
     processors=[
@@ -37,6 +37,7 @@ app = FastAPI(
 )
 
 app.include_router(bonus_head.router)
+app.include_router(bonus_subhead.router)
 register_exception_handlers(app)
 
 
