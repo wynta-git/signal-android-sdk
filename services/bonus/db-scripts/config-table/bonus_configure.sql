@@ -105,6 +105,8 @@ CREATE TABLE `bonus_configure` (
     `created_at`             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
                                             ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`               CHAR(64)       DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
 
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bonus_configure_subhead_config`   (`subhead_id`, `configuration_id`),

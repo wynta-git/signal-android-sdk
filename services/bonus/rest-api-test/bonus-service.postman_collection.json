@@ -1,0 +1,657 @@
+{
+  "info": {
+    "name": "Bonus Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status ok', () => {",
+                  "    pm.expect(pm.response.json().status).to.eql('ok');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bonus Heads",
+      "item": [
+        {
+          "name": "Get detail — existing head",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('has owners array', () => pm.expect(body.owners).to.be.an('array'));",
+                  "pm.test('has subheads array', () => pm.expect(body.subheads).to.be.an('array'));",
+                  "pm.test('has budget array', () => pm.expect(body.budget).to.be.an('array'));",
+                  "if (body.owners.length > 0) {",
+                  "    const o = body.owners[0];",
+                  "    pm.test('owner has username+role+active', () => {",
+                  "        pm.expect(o).to.have.all.keys('username', 'role', 'active');",
+                  "    });",
+                  "}",
+                  "if (body.subheads.length > 0) {",
+                  "    const s = body.subheads[0];",
+                  "    pm.test('subhead has id+name+active+owner', () => {",
+                  "        pm.expect(s).to.include.all.keys('id', 'name', 'active', 'owner');",
+                  "    });",
+                  "}",
+                  "if (body.budget.length > 0) {",
+                  "    const b = body.budget[0];",
+                  "    pm.test('budget entry has period_type+used', () => {",
+                  "        pm.expect(b).to.include.all.keys('period_type', 'used');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — hardcoded id 1 (seed data)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-heads/1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('name is Welcome', () => pm.expect(body.name).to.eql('Welcome'));",
+                  "pm.test('budget periods', () => {",
+                  "    const periods = body.budget.map(b => b.period_type);",
+                  "    pm.expect(periods).to.include.members(['DAILY', 'WEEKLY', 'MONTHLY']);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — not found → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-heads/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update head — rename and deactivate",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Welcome Bonus v2\",\n  \"active\": false,\n  \"updated_by\": \"ops.team\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('name updated', () => pm.expect(body.name).to.eql('Welcome Bonus v2'));",
+                  "pm.test('active is false', () => pm.expect(body.active).to.be.false);",
+                  "pm.test('updated_by set', () => pm.expect(body.updated_by).to.eql('ops.team'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update head — clear description",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": null,\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('description is null', () => pm.expect(pm.response.json().description).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update head — not found → 404",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-heads/999999",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update head — numeric owner → 422",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner\": \"99999\",\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('field is owner', () => pm.expect(pm.response.json().detail[0].field).to.eql('owner'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owners — upsert two entries",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/owners",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owners\": [\n    {\"username\": \"rahul.dev\", \"role\": \"OPS_LEAD\"},\n    {\"username\": \"sneha.ops\", \"role\": \"CAMPAIGN_MANAGER\", \"active\": false}\n  ],\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('returns array', () => pm.expect(body).to.be.an('array'));",
+                  "pm.test('each entry has username+role+active', () => {",
+                  "    body.forEach(o => pm.expect(o).to.include.all.keys('username', 'role', 'active'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owners — invalid role → 422",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/owners",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owners\": [{\"username\": \"rahul.dev\", \"role\": \"UNKNOWN_ROLE\"}],\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owners — duplicate username in body → 422",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/owners",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owners\": [\n    {\"username\": \"rahul.dev\", \"role\": \"OPS_LEAD\"},\n    {\"username\": \"rahul.dev\", \"role\": \"CAMPAIGN_MANAGER\"}\n  ],\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Owners — head not found → 404",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/bonus-heads/999999/owners",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owners\": [{\"username\": \"rahul.dev\", \"role\": \"OPS_LEAD\"}],\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limits — set WEEKLY + MONTHLY cap",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/limits",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limits\": [\n    {\"period_type\": \"DAILY\",   \"budget_limit\": null},\n    {\"period_type\": \"WEEKLY\",  \"budget_limit\": 600000.00},\n    {\"period_type\": \"MONTHLY\", \"budget_limit\": 2500000.00}\n  ],\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('returns array', () => pm.expect(body).to.be.an('array'));",
+                  "pm.test('each entry has period_type+limit+used', () => {",
+                  "    body.forEach(b => pm.expect(b).to.include.all.keys('period_type', 'limit', 'used'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limits — invalid period_type → 422",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/limits",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limits\": [{\"period_type\": \"YEARLY\", \"budget_limit\": 1000}],\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limits — negative budget_limit → 422",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/limits",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limits\": [{\"period_type\": \"DAILY\", \"budget_limit\": -500}],\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limits — head not found → 404",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/bonus-heads/999999/limits",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limits\": [{\"period_type\": \"DAILY\"}],\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — valid payload",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Welcome Bonus\",\n  \"description\": \"First deposit welcome bonus\",\n  \"active\": true,\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('name matches', () => pm.expect(body.name).to.eql('Welcome Bonus'));",
+                  "pm.test('active is true', () => pm.expect(body.active).to.be.true);",
+                  "pm.collectionVariables.set('bonus_head_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — with description null",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 2,\n  \"name\": \"Reload Bonus\",\n  \"owner\": \"ops.team\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('description is null', () => pm.expect(pm.response.json().description).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — with active false",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 3,\n  \"name\": \"Draft Bonus\",\n  \"active\": false,\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('active is false', () => pm.expect(pm.response.json().active).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — duplicate (site_id + name) → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Welcome Bonus\",\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — missing required field → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Oops\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — name too long → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — name with invalid chars → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Bad@Name!\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — site_id zero → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 0,\n  \"name\": \"Some Bonus\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — numeric owner → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Some Bonus\",\n  \"owner\": \"99999\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('field is owner', () => {",
+                  "    pm.expect(pm.response.json().detail[0].field).to.eql('owner');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — blank description → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Some Bonus\",\n  \"description\": \"   \",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

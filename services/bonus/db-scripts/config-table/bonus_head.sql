@@ -39,6 +39,8 @@ CREATE TABLE `bonus_head` (
     `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
                                        ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`           CHAR(64)      DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bonus_head_site_name` (`site_id`, `name`),
     KEY `idx_bonus_head_site_id`         (`site_id`),

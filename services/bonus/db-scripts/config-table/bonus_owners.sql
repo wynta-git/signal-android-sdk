@@ -50,6 +50,8 @@ CREATE TABLE `bonus_owners` (
     `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
                                 ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`    CHAR(64)      DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_responsible_person`         (`entity_type`, `entity_id`, `username`),
     KEY `idx_responsible_person_entity`        (`entity_type`, `entity_id`),

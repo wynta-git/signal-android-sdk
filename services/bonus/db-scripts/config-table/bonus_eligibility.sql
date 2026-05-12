@@ -93,6 +93,8 @@ CREATE TABLE `bonus_eligibility` (
     `created_at`              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
                                              ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`                CHAR(64)       DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     KEY `idx_bonus_eligibility_configure_id`         (`configure_id`),
     KEY `idx_bonus_eligibility_site_active`          (`site_id`, `active`),

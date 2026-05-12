@@ -49,6 +49,8 @@ CREATE TABLE `bonus_code_usage_limit` (
     `created_at`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
                                ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`     CHAR(64)    DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_code_usage_limit`      (`code_id`, `period_type`),
     KEY `idx_code_usage_limit_code_id`    (`code_id`),

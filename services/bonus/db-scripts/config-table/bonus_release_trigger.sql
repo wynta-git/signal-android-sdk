@@ -82,6 +82,8 @@ CREATE TABLE `bonus_release_trigger` (
     `created_at`           DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`           DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
                                           ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`             CHAR(64)       DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bonus_release_trigger`              (`configure_id`, `trigger_type`),
     KEY `idx_bonus_release_trigger_configure_id`       (`configure_id`),

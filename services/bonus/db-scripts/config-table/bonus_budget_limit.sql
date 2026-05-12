@@ -54,6 +54,8 @@ CREATE TABLE `bonus_budget_limit` (
     `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
                                  ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`     CHAR(64)      DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_budget_limit`       (`entity_type`, `entity_id`, `period_type`),
     KEY `idx_budget_limit_entity`      (`entity_type`, `entity_id`),
