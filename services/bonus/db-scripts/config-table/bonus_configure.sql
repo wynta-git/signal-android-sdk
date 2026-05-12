@@ -58,6 +58,10 @@ CREATE TABLE `bonus_configure` (
     `description`            VARCHAR(500)   DEFAULT NULL,
 
     -- ── Bonus mechanics ──────────────────────────────────────────────────────
+    `bonus_type`             VARCHAR(20)    NOT NULL,
+    -- e.g. CHUNK | INSTANT
+    `release_mode`           VARCHAR(20)    NOT NULL,
+    -- e.g. CHUNK | INSTANT
     `product`                VARCHAR(10)    NOT NULL,
     -- e.g. POKER | CASINO | RUMMY
     `start_date`             DATE           NOT NULL,
@@ -66,6 +70,10 @@ CREATE TABLE `bonus_configure` (
     -- 0 = no wagering required; >0 = chunk wager multiplier
     `no_of_chunks`           INT            NOT NULL DEFAULT 1,
     -- number of equal chunks the bonus is split into
+    `release_bucket`         VARCHAR(50)    DEFAULT NULL,
+    -- trigger bucket that releases the bonus (e.g. DEPOSIT_INSTANT)
+    `ingame_consumption_pct` DECIMAL(5,2)   DEFAULT NULL,
+    -- percentage of in-game chip balance consumed per wager
     `chunk_expiry_days`      INT            DEFAULT NULL,
     -- days from grant until an unreleased chunk expires
     `bonus_expiry_days`      INT            DEFAULT NULL,
@@ -73,14 +81,13 @@ CREATE TABLE `bonus_configure` (
     `wager_chip_type`        VARCHAR(50)    NOT NULL DEFAULT 'CASH',
     `credit_chip_type`       VARCHAR(50)    NOT NULL DEFAULT 'CASH',
 
-    -- ── JSON configuration blobs ─────────────────────────────────────────────
+    -- ── JSON config ──────────────────────────────────────────────────────────
     `bonus_config`           JSON           DEFAULT NULL,
     `cashback_config`        JSON           DEFAULT NULL,
     `specification_config`   JSON           DEFAULT NULL,
     `login_config`           JSON           DEFAULT NULL,
     `schedule_config`        JSON           DEFAULT NULL,
     `x_wagering_config`      JSON           DEFAULT NULL,
-    -- deposit-to-withdraw multiplier details (INSTANT bonuses only)
     `messages`               VARCHAR(255)   DEFAULT NULL,
 
     -- ── Grant caps ───────────────────────────────────────────────────────────

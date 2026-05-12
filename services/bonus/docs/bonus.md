@@ -9,7 +9,7 @@ Bonuses are organised in a three-level configuration hierarchy before any player
 ```
 bonus_head
   └─ bonus_subhead
-       └─ bonus_configure  ──► userapp_bonus_configuration (mechanics template)
+       └─ bonus_configure  (mechanics inline: type, wager_multiplier, chunks, expiry, JSON configs)
                 └─ bonus_configure_code  (promo codes)
 ```
 
@@ -93,47 +93,47 @@ Each individual chunk within a bonus has its own status:
 
 ```
 bonus_head                    Top-level category (e.g. "Welcome", "Reload", "Cashback")
-  │  daily_budget_limit
-  │  weekly_budget_limit
-  │  monthly_budget_limit
+  │  budget caps → bonus_budget_limit (entity_type='HEAD')
+  │  runtime    → bonus_budget_usage  (entity_type='HEAD')
+  │  owners     → bonus_owners        (entity_type='HEAD')
   │
   └─ bonus_subhead            Sub-category (e.g. "First Deposit", "Weekend Reload")
-       │  daily_budget_limit
-       │  weekly_budget_limit
-       │  monthly_budget_limit
+       │  budget caps → bonus_budget_limit (entity_type='SUBHEAD')
+       │  runtime    → bonus_budget_usage  (entity_type='SUBHEAD')
+       │  owners     → bonus_owners        (entity_type='SUBHEAD')
        │
-       └─ bonus_configure     Leaf node — binds a subhead to a bonus template
+       └─ bonus_configure     Leaf node — full mechanics inline (type, multiplier, chunks, expiry…)
+            │  budget caps    → bonus_budget_limit    (entity_type='CONFIGURE')
+            │  runtime        → bonus_budget_usage    (entity_type='CONFIGURE')
+            │  eligibility    → bonus_eligibility
+            │  trigger events → bonus_release_trigger
             │  bonus_amount_default / bonus_amount_max
-            │  daily_budget_limit
-            │  weekly_budget_limit
-            │  monthly_budget_limit
             │
             └─ bonus_configure_code   Promo codes for this configuration
-                 hourly_usage_limit
-                 daily_usage_limit
-                 weekly_usage_limit
-                 monthly_usage_limit
+                 usage caps   → bonus_code_usage_limit (HOURLY/DAILY/WEEKLY/MONTHLY)
+                 runtime      → bonus_code_usage
                  max_amount
 ```
 
 ### Budget check order at grant time
 
-All levels are checked in sequence before writing `userapp_player_bonus`:
+All levels are checked in sequence before writing `player_bonus_grant`:
 
 ```
-bonus_configure_code  (if a code was used)
-  → bonus_configure
-    → bonus_subhead
-      → bonus_head
+bonus_configure_code → bonus_code_usage_limit / bonus_code_usage   (if a code was used)
+  → bonus_configure  → bonus_budget_limit / bonus_budget_usage (entity_type='CONFIGURE')
+    → bonus_subhead  → bonus_budget_limit / bonus_budget_usage (entity_type='SUBHEAD')
+      → bonus_head   → bonus_budget_limit / bonus_budget_usage (entity_type='HEAD')
 ```
 
-A grant is rejected if any level has `*_budget_used >= *_budget_limit` (where limit is not NULL).
+A grant is rejected if any level has `budget_used >= budget_limit` (where limit is not NULL).
 
 ### Budget counters
 
-Each level stores:
-- `daily_budget_used` / `weekly_budget_used` / `monthly_budget_used` — incremented at grant time
-- `daily_reset_at` / `weekly_reset_at` / `monthly_reset_at` — timestamp of last rollover; used by the reset scheduler
+Budget caps and runtime counters are split into separate tables to keep the configuration rows cold (operator-written only):
+
+- **`bonus_budget_limit`** — operator-set caps per (entity_type, entity_id, period_type); never written at grant time
+- **`bonus_budget_usage`** — `budget_used` incremented at grant time; `reset_at` records the start of the current window and is used by the rollover scheduler
 
 ---
 
@@ -142,10 +142,11 @@ Each level stores:
 A single `bonus_configure` node can have many promo codes (`bonus_configure_code`). Each code:
 - Is unique per site
 - Has its own per-code `max_amount` cap (overrides the configure node cap if set)
-- Has independent **hourly / daily / weekly / monthly usage limits** (count of redemptions, not spend amount)
+- Has independent **hourly / daily / weekly / monthly usage limits** (count of redemptions, not spend amount) stored in `bonus_code_usage_limit`
 - Has an optional `valid_from` / `valid_to` window
+- Carries full UI display metadata: `display_title`, `display_description`, `banner_image_url`, `badge_text`, `cta_text`, `auto_apply`, `display_order`, `display_on`, `min_display_amount`
 
-Every redemption writes a row to `bonus_code_redemption_log` (idempotent on `(code_id, player_bonus_id)`), which drives the usage counter increments.
+At redemption time, running counters in `bonus_code_usage` are checked against `bonus_code_usage_limit` and incremented atomically in the same transaction as the grant.
 
 ---
 
@@ -166,7 +167,7 @@ Three tables track cumulative spend across all hierarchy levels. The same `entit
 | `bonus_spend_weekly` | ISO week Mon–Sun | `(entity_type, entity_id, week_start)` |
 | `bonus_spend_monthly` | Calendar month | `(entity_type, entity_id, spend_year, spend_month)` |
 
-Each row carries `grant_count` and `total_amount`. Written via `INSERT … ON DUPLICATE KEY UPDATE` inside the same transaction as the grant — no separate aggregation job required.
+Each row carries `grant_count` and `total_amount`. Written via `INSERT … ON DUPLICATE KEY UPDATE` inside the same transaction as the grant — no separate aggregation job required. On each grant, one row is upserted per ancestor in the chain: CODE (if used) → CONFIGURE → SUBHEAD → HEAD.
 
 ### Example queries
 
@@ -202,39 +203,37 @@ ORDER BY week_start DESC;
 |---|---|
 | `bonus_head` | Top-level budget category |
 | `bonus_subhead` | Mid-level category under a head |
-| `bonus_configure` | Leaf configuration node; links to a bonus template |
-| `bonus_configure_code` | Promo codes per configure node with usage limits |
-| `userapp_bonus_configuration` | Bonus campaign template (mechanics: type, multiplier, chunks, expiry) |
-| `userapp_bonus_configuration_device` | Device eligibility per campaign |
-| `userapp_device_info` | Lookup: device / OS / client type combinations |
+| `bonus_configure` | Leaf node — full mechanics config (type, release_mode, wager_multiplier, chunks, expiry, JSON configs) |
+| `bonus_configure_code` | Promo codes per configure node; includes full UI display metadata |
+| `bonus_budget_limit` | Operator-set budget caps per (entity_type, entity_id, period_type); never written at grant time |
+| `bonus_code_usage_limit` | Operator-set redemption count caps per (code_id, period_type); never written at grant time |
+| `bonus_eligibility` | Player eligibility rules per configure node; all active rows are ANDed at grant time |
+| `bonus_owners` | Responsible persons per head/subhead with named roles (OPS_LEAD, CAMPAIGN_MANAGER, etc.) |
+| `bonus_release_trigger` | Grant trigger events per configure node (DEPOSIT, REGISTRATION, MANUAL, PROMO_CODE, etc.) |
 
 ### Player grant layer
 
 | Table | Purpose |
 |---|---|
-| `userapp_player_bonus` | Master bonus record per grant |
-| `userapp_bonus_chunk` | One row per chunk created at grant time |
-| `userapp_bonus_chunk_wager` | Each qualifying bet counting toward a chunk's wager requirement |
-| `userapp_bonus_rake` | Each rake contribution toward a chunk's wager requirement |
-| `userapp_bonus_release` | Audit record when a chunk is released to wallet |
-| `userapp_bonus_consumed` | Each in-game debit of the bonus balance |
-| `userapp_bonus_forfeit` | Forfeit events — operator or system |
-| `userapp_bonus_expired_chunk` | Expired unreleased chunk audit log |
+| `player_bonus_grant` | Immutable grant record; full mechanics snapshot at grant time; one row per grant |
+| `bonus_chunk` | One row per chunk within a grant; tracks status (PENDING/RELEASE/EXPIRED/CONSUMED) and wager progress |
+| `bonus_chunk_wager` | Each qualifying wager settlement contributing toward a chunk's release threshold |
+| `bonus_chunk_release` | Audit record per wager event that triggered a chunk release to wallet |
+| `bonus_chunk_expiry` | Each chunk expiry event (AUTO scheduler or MANUAL operator cancel) |
+| `bonus_consumed` | Each debit of released bonus balance during gameplay |
+| `bonus_forfeit` | Each full-bonus forfeit event (AUTO on disqualifying action or MANUAL by operator) |
 
-### X-wagering layer (INSTANT with multiplier > 1)
-
-| Table | Purpose |
-|---|---|
-| `wager_bucket_movement_log` | One entry per INSTANT credit with `x_wagering > 1` |
-| `wager_bucket_movement_stack` | FIFO stack — individual wager events consuming the log entry |
-| `wager_bucket_movement_transfer_log` | Full before/after wallet snapshot on every movement |
-
-### Spend tracking layer
+### Budget & code usage runtime layer
 
 | Table | Purpose |
 |---|---|
-| `bonus_budget_grant_log` | One row per grant; records configure/subhead/head used and amount |
-| `bonus_code_redemption_log` | One row per grant that used a promo code |
+| `bonus_budget_usage` | Running `budget_used` counter per (entity_type, entity_id, period_type); reset by rollover scheduler |
+| `bonus_code_usage` | Running `usage_used` redemption counter per (code_id, period_type); reset by rollover scheduler |
+
+### Spend analytics layer
+
+| Table | Purpose |
+|---|---|
 | `bonus_spend_daily` | Aggregated daily spend per entity (HEAD/SUBHEAD/CONFIGURE/CODE) |
-| `bonus_spend_weekly` | Aggregated weekly spend per entity |
+| `bonus_spend_weekly` | Aggregated weekly spend per entity (ISO week Mon–Sun) |
 | `bonus_spend_monthly` | Aggregated monthly spend per entity |
