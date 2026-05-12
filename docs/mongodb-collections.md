@@ -7,6 +7,7 @@ Database: `pam`
 | Collection | Owner (writes) | Read by | Purpose |
 |---|---|---|---|
 | `projects` | api-service | all | Project metadata, API keys (hashed), settings. |
+| `bonus_event_types` | ops/admin | api-service | Event type names classified as bonus. Read on startup; refreshed every N hours. |
 | `tokens` | api-service | api-service only | API tokens (hashed). Status: active / revoked. |
 | `users` | event-processor | segmentation-engine, campaign-engine, notifications-engine | User profiles. Identified ids, traits, last_seen. |
 | `anonymous_to_user` | event-processor | event-processor | Mapping from anonymous device id → user_id (set by `user_identified`). |
@@ -18,6 +19,17 @@ Database: `pam`
 | `notification_deliveries` | notifications-engine | analytics | Per-user, per-campaign delivery status. |
 
 ## Schemas
+
+### `bonus_event_types`
+```js
+{
+  _id: ObjectId,
+  event_type: "bonus_spin",   // matches event_name in the event envelope
+  description: "optional human-readable label",
+  created_at: ISODate
+}
+// Indexes: { event_type: 1 } unique
+```
 
 ### `projects`
 ```js

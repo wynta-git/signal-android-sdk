@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.bonus_cache import BonusEventCache
 from app.config import settings
 from app.kafka_producer import KafkaEventProducer
 from app.logging_config import configure_logging
@@ -37,11 +38,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     raw_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
     app.state.producer = KafkaEventProducer(raw_producer, settings.kafka_events_topic)
+    bonus_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+    app.state.bonus_producer = KafkaEventProducer(bonus_producer, settings.kafka_bonus_topic)
+
+    db = app.state.mongo[settings.mongo_db]
+    bonus_cache = BonusEventCache()
+    await bonus_cache.load(db, settings.bonus_event_collection)
+    await bonus_cache.start_refresh_loop(db, settings.bonus_event_collection, settings.bonus_event_refresh_hours)
+    app.state.bonus_cache = bonus_cache
+
     log.info("startup_complete", version=settings.version)
     yield
+
+    await bonus_cache.stop()
     app.state.mongo.close()
     await app.state.redis.aclose()
     await raw_producer.stop()
+    await bonus_producer.stop()
     log.info("shutdown_complete")
 
 

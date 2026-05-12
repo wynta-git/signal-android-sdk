@@ -5,7 +5,9 @@ from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth.token import InvalidTokenError, TokenContext, validate_token
+from app.bonus_cache import BonusEventCache
 from app.config import settings
+from app.kafka_producer import KafkaEventProducer
 
 log = structlog.get_logger()
 
@@ -53,7 +55,21 @@ class RequireScope:
         return ctx
 
 
+def get_producer(request: Request) -> KafkaEventProducer:
+    return request.app.state.producer
+
+
+def get_bonus_producer(request: Request) -> KafkaEventProducer:
+    return request.app.state.bonus_producer
+
+
+def get_bonus_cache(request: Request) -> BonusEventCache:
+    return request.app.state.bonus_cache
+
+
 # Pre-built type aliases — use these in route signatures for clean one-liners:
 #   async def track(ctx: EventsWriteDep, ...):
 EventsWriteDep = Annotated[TokenContext, Depends(RequireScope("events:write"))]
 AdminDep = Annotated[TokenContext, Depends(RequireScope("admin"))]
+BonusProducerDep = Annotated[KafkaEventProducer, Depends(get_bonus_producer)]
+BonusCacheDep = Annotated[BonusEventCache, Depends(get_bonus_cache)]
