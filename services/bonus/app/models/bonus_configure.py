@@ -4,7 +4,7 @@ Pydantic models for bonus_configure and its embedded code summary.
 bonus_configure columns (after schema cleanup):
   id, subhead_id, site_id, name, description,
   bonus_type, release_mode, product,
-  start_date, end_date,
+  start_date, end_date,          -- stored as DATETIME (UTC naive)
   wager_multiplier, no_of_chunks, release_bucket,
   chunk_expiry_days, bonus_expiry_days,
   wager_chip_type, credit_chip_type,
@@ -12,11 +12,11 @@ bonus_configure columns (after schema cleanup):
   priority, active, created_by, updated_by, created_at, updated_at
 """
 
-from datetime import date, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 BonusType   = Literal["CHUNK", "INSTANT"]
 ReleaseMode = Literal["CHUNK", "INSTANT"]
@@ -33,8 +33,8 @@ class BonusConfigureCreate(BaseModel):
     bonus_type:             BonusType
     release_mode:           ReleaseMode
     product:                ProductType
-    start_date:             date
-    end_date:               date
+    start_date:             datetime
+    end_date:               datetime
     wager_multiplier:       Decimal      = Field(Decimal("0.00"), ge=0)
     no_of_chunks:           int          = Field(1, ge=1)
     release_bucket:         str | None   = Field(None, max_length=50)
@@ -47,6 +47,14 @@ class BonusConfigureCreate(BaseModel):
     priority:               int          = Field(0, ge=0)
     active:                 bool         = True
     created_by:             str          = Field(..., min_length=1, max_length=100)
+
+    @field_validator("start_date", "end_date", mode="after")
+    @classmethod
+    def _to_utc_naive(cls, v: datetime) -> datetime:
+        """Convert timezone-aware datetimes to UTC naive for MySQL DATETIME storage."""
+        if v.tzinfo is not None:
+            return v.astimezone(timezone.utc).replace(tzinfo=None)
+        return v
 
     @model_validator(mode="after")
     def validate_dates(self) -> "BonusConfigureCreate":
@@ -68,8 +76,8 @@ class BonusConfigureResponse(BaseModel):
     bonus_type:             str
     release_mode:           str
     product:                str
-    start_date:             date
-    end_date:               date
+    start_date:             datetime
+    end_date:               datetime
     wager_multiplier:       Decimal
     no_of_chunks:           int
     release_bucket:         str | None
@@ -116,8 +124,8 @@ class BonusConfigureUpdate(BaseModel):
     bonus_type:             BonusType | None = None
     release_mode:           ReleaseMode | None = None
     product:                ProductType | None = None
-    start_date:             date | None     = None
-    end_date:               date | None     = None
+    start_date:             datetime | None = None
+    end_date:               datetime | None = None
     wager_multiplier:       Decimal | None  = Field(None, ge=0)
     no_of_chunks:           int | None      = Field(None, ge=1)
     release_bucket:         str | None      = None
@@ -130,6 +138,13 @@ class BonusConfigureUpdate(BaseModel):
     priority:               int | None      = Field(None, ge=0)
     active:                 bool | None     = None
     updated_by:             str             = Field(..., min_length=1, max_length=100)
+
+    @field_validator("start_date", "end_date", mode="after")
+    @classmethod
+    def _to_utc_naive(cls, v: datetime | None) -> datetime | None:
+        if v is not None and v.tzinfo is not None:
+            return v.astimezone(timezone.utc).replace(tzinfo=None)
+        return v
 
     @model_validator(mode="after")
     def validate_update(self) -> "BonusConfigureUpdate":

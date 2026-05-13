@@ -70,9 +70,10 @@ _EXISTS_CONFIGURE_SQL = (
 
 _INSERT_CODE_SQL = """
     INSERT INTO bonus_configure_code
-        (configure_id, site_id, code, active, created_by, updated_by, row_hash)
+        (configure_id, site_id, code, max_amount, valid_from, valid_to,
+         active, created_by, updated_by, row_hash)
     VALUES
-        (%s, %s, %s, %s, %s, %s, %s)
+        (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_CODES_SQL = """
@@ -116,7 +117,7 @@ def _row_to_response(row: tuple) -> BonusConfigureResponse:
     return BonusConfigureResponse(
         id=row[0], subhead_id=row[1], site_id=row[2], name=row[3], description=row[4],
         bonus_type=row[5], release_mode=row[6], product=row[7],
-        start_date=row[8], end_date=row[9],
+        start_date=_as_dt(row[8]), end_date=_as_dt(row[9]),
         wager_multiplier=row[10], no_of_chunks=row[11], release_bucket=row[12],
         chunk_expiry_days=row[13], bonus_expiry_days=row[14],
         wager_chip_type=row[15], credit_chip_type=row[16],
@@ -158,11 +159,22 @@ def _configure_row_hash(data: BonusConfigureCreate | dict) -> str:
     return _compute_row_hash(fields)
 
 
-def _code_row_hash(configure_id: int, site_id: int, code: str, created_by: str) -> str:
+def _code_row_hash(
+    configure_id: int,
+    site_id: int,
+    code: str,
+    created_by: str,
+    max_amount: object = None,
+    valid_from: object = None,
+    valid_to: object = None,
+) -> str:
     return _compute_row_hash({
         "configure_id": configure_id,
         "site_id": site_id,
         "code": code,
+        "max_amount": str(max_amount) if max_amount is not None else None,
+        "valid_from": str(valid_from) if valid_from is not None else None,
+        "valid_to": str(valid_to) if valid_to is not None else None,
         "active": 1,
         "created_by": created_by,
         "updated_by": created_by,
@@ -255,12 +267,21 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                     new_values=new_values_cfg,
                 )
 
-                # Insert default promo code entry.
+                # Insert default promo code entry, inheriting amount cap and validity from configure.
                 default_code = f"AUTO-{new_id}"
-                code_hash = _code_row_hash(new_id, data.site_id, default_code, data.created_by)
+                code_hash = _code_row_hash(
+                    new_id, data.site_id, default_code, data.created_by,
+                    max_amount=data.bonus_amount_max,
+                    valid_from=data.start_date,
+                    valid_to=data.end_date,
+                )
                 await cur.execute(
                     _INSERT_CODE_SQL,
-                    (new_id, data.site_id, default_code, 1, data.created_by, data.created_by, code_hash),
+                    (
+                        new_id, data.site_id, default_code,
+                        data.bonus_amount_max, data.start_date, data.end_date,
+                        1, data.created_by, data.created_by, code_hash,
+                    ),
                 )
                 new_code_id: int = cur.lastrowid  # type: ignore[assignment]
 
@@ -273,7 +294,11 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                     changed_by=data.created_by,
                     new_values={
                         "configure_id": new_id, "site_id": data.site_id,
-                        "code": default_code, "active": 1,
+                        "code": default_code,
+                        "max_amount": str(data.bonus_amount_max) if data.bonus_amount_max is not None else None,
+                        "valid_from": str(data.start_date),
+                        "valid_to": str(data.end_date),
+                        "active": 1,
                         "created_by": data.created_by, "updated_by": data.created_by,
                     },
                 )

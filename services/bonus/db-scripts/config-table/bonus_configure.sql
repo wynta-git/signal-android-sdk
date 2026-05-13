@@ -58,8 +58,8 @@ CREATE TABLE `bonus_configure` (
     -- e.g. CHUNK | INSTANT
     `product`                VARCHAR(10)    NOT NULL,
     -- e.g. POKER | CASINO | RUMMY
-    `start_date`             DATE           NOT NULL,
-    `end_date`               DATE           NOT NULL,
+    `start_date`             DATETIME       NOT NULL,
+    `end_date`               DATETIME       NOT NULL,
     `wager_multiplier`       DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
     -- 0 = no wagering required; >0 = chunk wager multiplier
     `no_of_chunks`           INT            NOT NULL DEFAULT 1,
@@ -121,7 +121,7 @@ VALUES
      '100% First Deposit up to 5000',
      'Full 100% match on first deposit, capped at ₹5,000 bonus.',
      'CHUNK', 'CHUNK', 'POKER',
-     '2026-01-01', '2026-12-31',
+     '2026-01-01 00:00:00', '2026-12-31 23:59:59',
      2.00, 5, 'DEPOSIT_INSTANT',
      30, NULL,
      'CASH', 'CASH',
@@ -133,7 +133,7 @@ VALUES
      '100% First Deposit up to 20000 (VIP)',
      'Higher cap variant for VIP-tagged players.',
      'CHUNK', 'CHUNK', 'POKER',
-     '2026-01-01', '2026-12-31',
+     '2026-01-01 00:00:00', '2026-12-31 23:59:59',
      3.00, 1, 'DEPOSIT_INSTANT',
      45, NULL,
      'CASH', 'CASH',
@@ -145,7 +145,7 @@ VALUES
      'Weekend Reload Flat 500',
      'Fixed ₹500 bonus credited on any weekend deposit.',
      'INSTANT', 'INSTANT', 'POKER',
-     '2026-01-01', '2026-12-31',
+     '2026-01-01 00:00:00', '2026-12-31 23:59:59',
      0.00, 1, 'DEPOSIT_INSTANT',
      NULL, NULL,
      'CASH', 'CASH',

@@ -1249,7 +1249,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100pct First Deposit\",\n  \"description\": \"Full 100% match on first deposit, capped at ₹5,000.\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 2.00,\n  \"no_of_chunks\": 5,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"chunk_expiry_days\": 30,\n  \"wager_chip_type\": \"CASH\",\n  \"credit_chip_type\": \"CASH\",\n  \"bonus_amount_max\": 5000.00,\n  \"priority\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100pct First Deposit\",\n  \"description\": \"Full 100% match on first deposit, capped at ₹5,000.\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 2.00,\n  \"no_of_chunks\": 5,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"chunk_expiry_days\": 30,\n  \"wager_chip_type\": \"CASH\",\n  \"credit_chip_type\": \"CASH\",\n  \"bonus_amount_max\": 5000.00,\n  \"priority\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1279,7 +1279,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 3,\n  \"site_id\": 1,\n  \"name\": \"Weekend Flat 500\",\n  \"bonus_type\": \"INSTANT\",\n  \"release_mode\": \"INSTANT\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 0,\n  \"no_of_chunks\": 1,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"bonus_amount_default\": 500.00,\n  \"bonus_amount_max\": 500.00,\n  \"priority\": 1,\n  \"created_by\": \"ops.team\"\n}"
+              "raw": "{\n  \"subhead_id\": 3,\n  \"site_id\": 1,\n  \"name\": \"Weekend Flat 500\",\n  \"bonus_type\": \"INSTANT\",\n  \"release_mode\": \"INSTANT\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 0,\n  \"no_of_chunks\": 1,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"bonus_amount_default\": 500.00,\n  \"bonus_amount_max\": 500.00,\n  \"priority\": 1,\n  \"created_by\": \"ops.team\"\n}"
             }
           },
           "event": [
@@ -1304,7 +1304,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 999999,\n  \"site_id\": 1,\n  \"name\": \"Orphan Configure\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 999999,\n  \"site_id\": 1,\n  \"name\": \"Orphan Configure\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1327,7 +1327,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100% First Deposit up to 5000\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 2,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100% First Deposit up to 5000\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 2,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1350,7 +1350,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Dates\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-12-31\",\n  \"end_date\": \"2026-01-01\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Dates\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-12-31T00:00:00Z\",\n  \"end_date\": \"2026-01-01T00:00:00Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1372,7 +1372,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Type\",\n  \"bonus_type\": \"WEEKLY\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Type\",\n  \"bonus_type\": \"WEEKLY\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1394,7 +1394,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Product\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"SPORTS\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Product\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"SPORTS\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1438,7 +1438,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Numeric Actor\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"12345\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Numeric Actor\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"12345\"\n}"
             }
           },
           "event": [
@@ -1463,7 +1463,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Blank Desc\",\n  \"description\": \"   \",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01\",\n  \"end_date\": \"2026-12-31\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Blank Desc\",\n  \"description\": \"   \",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1627,7 +1627,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"end_date\": \"2027-12-31\",\n  \"updated_by\": \"admin\"\n}"
+              "raw": "{\n  \"end_date\": \"2027-12-31T23:59:59Z\",\n  \"updated_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1636,7 +1636,7 @@
               "script": {
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
-                  "pm.test('end_date extended', () => pm.expect(pm.response.json().end_date).to.eql('2027-12-31'));"
+                  "pm.test('end_date extended', () => pm.expect(pm.response.json().end_date).to.include('2027-12-31'));"
                 ]
               }
             }
@@ -1672,7 +1672,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"start_date\": \"2026-12-01\",\n  \"end_date\": \"2026-01-01\",\n  \"updated_by\": \"admin\"\n}"
+              "raw": "{\n  \"start_date\": \"2026-12-01T00:00:00Z\",\n  \"end_date\": \"2026-01-01T00:00:00Z\",\n  \"updated_by\": \"admin\"\n}"
             }
           },
           "event": [
