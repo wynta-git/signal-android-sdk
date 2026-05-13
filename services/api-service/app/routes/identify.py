@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from app.auth.token import TokenContext
 from app.config import settings
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
+from shared.clients.mongo import upsert_user_profile
 
 router = APIRouter()
 log = structlog.get_logger()
@@ -68,26 +69,16 @@ async def identify(
     now = datetime.now(timezone.utc)
     sanitized = _sanitize_traits(body.traits)
 
-    set_fields: dict[str, Any] = {f"traits.{k}": v for k, v in sanitized.items()}
-    set_fields["last_seen_at"] = now
-
-    update: dict[str, Any] = {
-        "$set": set_fields,
-        "$setOnInsert": {"first_seen_at": now},
-    }
-
-    if body.anonymous_id:
-        update["$addToSet"] = {"anonymous_ids": body.anonymous_id}
-
-    if body.unset_traits:
-        update["$unset"] = {f"traits.{k}": "" for k in body.unset_traits}
-
     db = request.app.state.mongo[settings.mongo_db]
     try:
-        await db["users"].update_one(
-            {"project_id": ctx.project_id, "user_id": body.user_id},
-            update,
-            upsert=True,
+        await upsert_user_profile(
+            db,
+            project_id=ctx.project_id,
+            user_id=body.user_id,
+            traits=sanitized,
+            anonymous_id=body.anonymous_id,
+            unset_traits=body.unset_traits,
+            now=now,
         )
     except Exception:
         raise HTTPException(
