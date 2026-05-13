@@ -8,8 +8,10 @@ from typing import Literal
 import structlog
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
+from shared.clients.redis import set_with_ttl, token_pipeline_fetch
 
 TOKEN_CACHE_TTL = 300  # 5 minutes per auth.md
+BONUS_TYPES_KEY = "pam:bonus_event_types"
 
 log = structlog.get_logger()
 
@@ -60,19 +62,20 @@ async def validate_token(
     token: str,
     redis: Redis,
     db: AsyncIOMotorDatabase,
-) -> TokenContext:
+) -> tuple[TokenContext, frozenset[str]]:
     token_hash = _hash(token)
 
-    # Emergency revocation flag — checked before cache so revocations take effect immediately
-    # regardless of cached state. Written with 24h TTL by the revocation API.
-    if await redis.exists(_revoke_key(token_hash)):
+    revoked, raw, bonus_types = await token_pipeline_fetch(
+        redis, _revoke_key(token_hash), _cache_key(token_hash), BONUS_TYPES_KEY
+    )
+
+    if revoked:
         raise InvalidTokenError()
 
     # Cache hit — happy path, no DB roundtrip
-    raw = await redis.get(_cache_key(token_hash))
     if raw:
         data = json.loads(raw)
-        return TokenContext(**data)
+        return TokenContext(**data), bonus_types
 
     # Cache miss — query MongoDB
     doc = await db["tokens"].find_one(
@@ -89,13 +92,14 @@ async def validate_token(
     )
 
     # Populate cache before returning so concurrent requests skip the DB roundtrip
-    await redis.set(
+    await set_with_ttl(
+        redis,
         _cache_key(token_hash),
         json.dumps({"project_id": ctx.project_id, "scope": ctx.scope, "env": ctx.env}),
-        ex=TOKEN_CACHE_TTL,
+        TOKEN_CACHE_TTL,
     )
 
     # Non-blocking audit write — a lost update here is acceptable
     asyncio.create_task(_touch_last_used(db, token_hash))
 
-    return ctx
+    return ctx, bonus_types

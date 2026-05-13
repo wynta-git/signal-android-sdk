@@ -7,7 +7,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 from app.auth.token import TokenContext
-from app.dependencies import BonusCacheDep, BonusProducerDep
+from app.dependencies import BonusProducerDep
 from fastapi import Depends
 from shared.models.events import REGISTERED_EVENTS, EventEnvelope
 
@@ -53,7 +53,6 @@ async def track(
     request: Request,
     body: TrackRequest,
     bonus_producer: BonusProducerDep,
-    bonus_cache: BonusCacheDep,
     ctx: TokenContext = Depends(project_rate_limit),
 ) -> TrackResponse:
     if len(body.events) > MAX_EVENTS_PER_BATCH:
@@ -123,7 +122,7 @@ async def track(
                 detail={"code": "internal_error", "message": "Failed to publish events"},
             )
 
-        bonus_events = [e for e in accepted if bonus_cache.is_bonus(e.get("event_name", ""))]
+        bonus_events = [e for e in accepted if e.get("event_name", "") in request.state.bonus_types]
         if bonus_events:
             try:
                 await bonus_producer.publish_events(bonus_events)
