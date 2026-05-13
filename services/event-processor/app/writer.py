@@ -32,6 +32,11 @@ _BASE_COLUMNS = [
 # so they don't collide with the dedicated base column of the same sanitized name.
 _PROMOTED_KEYS = frozenset({"amount", "currency", "order_id"})
 
+# Fields intentionally excluded from ClickHouse columns (base or dynamic).
+# To drop a base column: add it here AND remove from _BASE_COLUMNS + _base_values().
+# To drop a dynamic property column: add it here only.
+_EXCLUDED_FIELDS: frozenset[str] = frozenset()
+
 
 def _parse_dt(value: str | None) -> datetime:
     if value:
@@ -136,7 +141,8 @@ class ClickHouseWriter:
         all_raw_keys: set[str] = set()
         for e in events:
             all_raw_keys.update(
-                k for k in (e.get("properties") or {}) if k not in _PROMOTED_KEYS
+                k for k in (e.get("properties") or {})
+                if k not in _PROMOTED_KEYS and k not in _EXCLUDED_FIELDS
             )
 
         # Ensure every property key has a column; get the canonical raw→col mapping.

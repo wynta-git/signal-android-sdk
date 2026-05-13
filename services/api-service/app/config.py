@@ -14,6 +14,9 @@ class Settings(BaseSettings):
 
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_events_topic: str = "pam.events.raw.v1"
+    kafka_bonus_topic: str = "pam.bonus.raw.v1"
+
+    rate_limit_enabled: bool = True
 
     cors_origins: list[str] = ["*"]
 

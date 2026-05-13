@@ -7,6 +7,7 @@ Single source of truth for topic names, partitions, retention, keys, producers, 
 `pam.<domain>.<event>.v<version>`
 
 - `pam.events.raw.v1` — incoming raw events
+- `pam.bonus.raw.v1` — copy of raw events classified as bonus
 - `pam.events.invalid.v1` — DLQ for events that failed validation
 - `pam.campaigns.send.v1` — campaign send jobs for notifications-engine
 - `pam.notifications.delivery.v1` — delivery status events back into analytics
@@ -27,6 +28,19 @@ Every accepted event, immediately after `api-service` validation.
 | Compression | `lz4` |
 | Producer | `api-service` |
 | Consumers | `event-processor` (group: `event-processor`), `campaign-engine` (group: `campaign-trigger`) |
+
+### `pam.bonus.raw.v1`
+Copy of every accepted event whose `event_name` is in the `bonus_event_types` collection. Written by `api-service` in addition to `pam.events.raw.v1`.
+
+| Setting | Value |
+|---|---|
+| Partitions | 12 |
+| Replication | 3 (prod) / 1 (dev) |
+| Retention | 7 days |
+| Key | `user_id` |
+| Compression | `gzip` |
+| Producer | `api-service` |
+| Consumers | TBD (bonus processing pipeline) |
 
 ### `pam.events.invalid.v1`
 DLQ for events that failed schema validation in `event-processor`.

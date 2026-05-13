@@ -6,6 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth.token import InvalidTokenError, TokenContext, validate_token
 from app.config import settings
+from app.kafka_producer import KafkaEventProducer
 
 log = structlog.get_logger()
 
@@ -22,7 +23,7 @@ async def get_token_context(
             detail={"code": "invalid_token", "message": "Missing or malformed Authorization header"},
         )
     try:
-        ctx = await validate_token(
+        ctx, bonus_types = await validate_token(
             credentials.credentials,
             request.app.state.redis,
             request.app.state.mongo[settings.mongo_db],
@@ -33,6 +34,7 @@ async def get_token_context(
             detail={"code": "invalid_token", "message": "Invalid or expired token"},
         )
 
+    request.state.bonus_types = bonus_types
     # Bind to structlog context so all downstream log lines carry project_id + env
     structlog.contextvars.bind_contextvars(project_id=ctx.project_id, env=ctx.env)
     return ctx
@@ -53,7 +55,16 @@ class RequireScope:
         return ctx
 
 
+def get_producer(request: Request) -> KafkaEventProducer:
+    return request.app.state.producer
+
+
+def get_bonus_producer(request: Request) -> KafkaEventProducer:
+    return request.app.state.bonus_producer
+
+
 # Pre-built type aliases — use these in route signatures for clean one-liners:
 #   async def track(ctx: EventsWriteDep, ...):
 EventsWriteDep = Annotated[TokenContext, Depends(RequireScope("events:write"))]
 AdminDep = Annotated[TokenContext, Depends(RequireScope("admin"))]
+BonusProducerDep = Annotated[KafkaEventProducer, Depends(get_bonus_producer)]

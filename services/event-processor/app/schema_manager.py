@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS {table}
     amount         Nullable(Float64),
     currency       LowCardinality(Nullable(String)),
     order_id       Nullable(String),
-    insert_date    Date DEFAULT toDate(received_at)
+    insert_date    Date    DEFAULT toDate(received_at),
+    created_at     DateTime DEFAULT now()
 )
 ENGINE = ReplacingMergeTree(received_at)
 PARTITION BY toYYYYMM(insert_date)
@@ -212,6 +213,15 @@ class SchemaManager:
         log.info("ch_table_bootstrapped", project_id=project_id, table=tbl)
         # Warm the column cache so the first ensure_columns call costs no extra I/O.
         await self.get_known_columns(project_id)
+
+        # Backfill created_at on tables created before this column was introduced.
+        # No-op for new tables since _CLIENT_TABLE_DDL already includes it.
+        if "created_at" not in self._col_cache.get(project_id, set()):
+            await self._ch.command(
+                f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS created_at DateTime DEFAULT now()"
+            )
+            self._update_cache(project_id, "created_at")
+            log.info("ch_created_at_backfilled", project_id=project_id, table=tbl)
 
     # ------------------------------------------------------------------
     # ensure_columns — public entry point called before every insert

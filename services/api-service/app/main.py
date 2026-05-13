@@ -37,11 +37,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     raw_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
     app.state.producer = KafkaEventProducer(raw_producer, settings.kafka_events_topic)
+    bonus_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+    app.state.bonus_producer = KafkaEventProducer(bonus_producer, settings.kafka_bonus_topic)
+
     log.info("startup_complete", version=settings.version)
     yield
+
     app.state.mongo.close()
     await app.state.redis.aclose()
     await raw_producer.stop()
+    await bonus_producer.stop()
     log.info("shutdown_complete")
 
 
