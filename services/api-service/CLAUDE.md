@@ -7,14 +7,15 @@ Public ingress. Authenticate, rate-limit, validate envelope, publish to Kafka.
 - HTTP from public internet (`/v1/track`, `/v1/identify`, `/v1/alias`, `/v1/health`, `/v1/ready`)
 
 ## Outputs
-- Publishes to Kafka topic `pam.events.raw.v1` (events, identify, alias payloads)
+- Publishes to Kafka topic `pam.events.raw.v1` (track, alias payloads)
+- Upserts MongoDB `users` collection on `/v1/identify`
 - Reads/writes Redis (rate limit, token cache)
 - Reads MongoDB (`projects`, `tokens` collections)
 
 ## Hard rules (NEVER do these)
 
 - NEVER write to ClickHouse.
-- NEVER read or write `users`, `segments`, `campaigns` collections.
+- NEVER read or write `segments`, `campaigns` collections.
 - NEVER trust `project_id` from the request body — derive from the validated token.
 - NEVER log `Authorization` headers, raw tokens, or token hashes.
 - NEVER cache token validation longer than 5 minutes.

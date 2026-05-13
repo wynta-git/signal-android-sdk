@@ -62,7 +62,8 @@ Limits:
 - Body size limit 1MB.
 
 ### `POST /v1/identify`
-Map an anonymous id to a known user id and set traits.
+Upsert a player profile into MongoDB. Merges traits into the existing document;
+`first_seen_at` is set only on first insert, `last_seen_at` is updated every call.
 
 **Request**
 ```json
@@ -75,16 +76,20 @@ Map an anonymous id to a known user id and set traits.
     "name": "Asha",
     "plan": "pro"
   },
+  "unset_traits": ["country"],
   "timestamp": "2026-04-27T10:00:00.000Z"
 }
 ```
+
+- `traits` — merged into the profile; existing keys not present here are left untouched.
+- `unset_traits` — list of trait keys to explicitly remove from the profile.
+- A key cannot appear in both `traits` and `unset_traits` — returns 400 if so.
+- `email` and `phone` are hashed (SHA-256) and stored as `email_hash` / `phone_hash` — raw PII is never persisted.
 
 **Response 202**
 ```json
 { "user_id": "user_42" }
 ```
-
-PII fields (`email`, `phone`, etc.) are hashed before persistence — see [`event-schema.md`](event-schema.md#pii-handling).
 
 ### `POST /v1/alias`
 Merge two user ids (e.g. login flows that bridge two known users).

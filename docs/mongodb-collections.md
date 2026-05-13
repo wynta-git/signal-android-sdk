@@ -9,8 +9,8 @@ Database: `pam`
 | `projects` | api-service | all | Project metadata, API keys (hashed), settings. |
 | `bonus_event_types` | ops/admin | api-service | Event type names classified as bonus. Read on startup; refreshed every N hours. |
 | `tokens` | api-service | api-service only | API tokens (hashed). Status: active / revoked. |
-| `users` | event-processor | segmentation-engine, campaign-engine, notifications-engine | User profiles. Identified ids, traits, last_seen. |
-| `anonymous_to_user` | event-processor | event-processor | Mapping from anonymous device id → user_id (set by `user_identified`). |
+| `users` | api-service (`/v1/identify`) | segmentation-engine, campaign-engine, notifications-engine | User profiles. Identified ids, traits, last_seen. |
+| `anonymous_to_user` | api-service (`/v1/identify`) | api-service | Mapping from anonymous device id → user_id (set by `/v1/identify`). |
 | `segments` | segmentation-engine | campaign-engine | Segment definitions and metadata. |
 | `segment_memberships` | segmentation-engine | campaign-engine | `{segment_id, user_id, joined_at}`. |
 | `campaigns` | campaign-engine | notifications-engine | Campaign definitions, schedule, audience, channel, template. |

@@ -1,6 +1,6 @@
+import hashlib
 from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -13,11 +13,29 @@ from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 router = APIRouter()
 log = structlog.get_logger()
 
+_PII_FIELDS = {"email", "phone"}
+
+
+def _hash(value: str) -> str:
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def _sanitize_traits(traits: dict[str, Any]) -> dict[str, Any]:
+    """Hash known PII keys and rename to *_hash so raw PII is never persisted."""
+    result = {}
+    for k, v in traits.items():
+        if k in _PII_FIELDS:
+            result[f"{k}_hash"] = _hash(str(v))
+        else:
+            result[k] = v
+    return result
+
 
 class IdentifyRequest(BaseModel):
     user_id: str
     anonymous_id: str | None = None
     traits: dict[str, Any] = Field(default_factory=dict)
+    unset_traits: list[str] = Field(default_factory=list)
     timestamp: datetime
 
 
@@ -37,31 +55,45 @@ async def identify(
 ) -> IdentifyResponse:
     await user_rate_limit(ctx.project_id, body.user_id, request.app.state.redis)
 
-    # Build EventEnvelope-compatible payload so event-processor handles it uniformly.
-    props: dict[str, Any] = {}
-    if body.anonymous_id:
-        props["anonymous_id"] = body.anonymous_id
-    props.update(body.traits)
+    conflict = set(body.traits) & set(body.unset_traits)
+    if conflict:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "invalid_request",
+                "message": f"Keys cannot appear in both traits and unset_traits: {sorted(conflict)}",
+            },
+        )
 
-    payload: dict[str, Any] = {
-        "event_id": str(uuid4()),
-        "event_name": "user_identified",
-        "schema_version": 1,
-        "user_id": body.user_id,
-        "project_id": ctx.project_id,
-        "timestamp": body.timestamp.isoformat(),
-        "received_at": datetime.now(timezone.utc).isoformat(),
-        "sdk": {"name": "pam-server", "version": settings.version},
-        "properties": props,
+    now = datetime.now(timezone.utc)
+    sanitized = _sanitize_traits(body.traits)
+
+    set_fields: dict[str, Any] = {f"traits.{k}": v for k, v in sanitized.items()}
+    set_fields["last_seen_at"] = now
+
+    update: dict[str, Any] = {
+        "$set": set_fields,
+        "$setOnInsert": {"first_seen_at": now},
     }
 
+    if body.anonymous_id:
+        update["$addToSet"] = {"anonymous_ids": body.anonymous_id}
+
+    if body.unset_traits:
+        update["$unset"] = {f"traits.{k}": "" for k in body.unset_traits}
+
+    db = request.app.state.mongo[settings.mongo_db]
     try:
-        await request.app.state.producer.publish_identify(payload)
+        await db["users"].update_one(
+            {"project_id": ctx.project_id, "user_id": body.user_id},
+            update,
+            upsert=True,
+        )
     except Exception:
         raise HTTPException(
             status_code=503,
-            detail={"code": "internal_error", "message": "Failed to publish identify"},
+            detail={"code": "internal_error", "message": "Failed to save user profile"},
         )
 
-    log.info("identify", user_id=body.user_id)
+    log.info("identify", user_id=body.user_id, project_id=ctx.project_id)
     return IdentifyResponse(user_id=body.user_id)
