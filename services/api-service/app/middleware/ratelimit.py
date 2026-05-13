@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, Request
 from redis.asyncio import Redis
 
 from app.auth.token import TokenContext
+from app.config import settings
 from app.dependencies import get_token_context
 from shared.clients.redis import incr_with_expire
 
@@ -35,15 +36,17 @@ async def project_rate_limit(
     ctx: TokenContext = Depends(get_token_context),
 ) -> TokenContext:
     """FastAPI dependency — checks per-project request rate after auth."""
-    key = f"pam:rate:proj:{ctx.project_id}:min:{_epoch_min()}"
-    await _check_rate(request.app.state.redis, key, PROJECT_LIMIT_PER_MIN)
+    if settings.rate_limit_enabled:
+        key = f"pam:rate:proj:{ctx.project_id}:min:{_epoch_min()}"
+        await _check_rate(request.app.state.redis, key, PROJECT_LIMIT_PER_MIN)
     return ctx
 
 
 async def user_rate_limit(project_id: str, user_id: str, redis: Redis) -> None:
     """Utility called directly from route handlers where user_id is known."""
-    key = f"pam:rate:user:{project_id}:{user_id}:min:{_epoch_min()}"
-    await _check_rate(redis, key, USER_LIMIT_PER_MIN)
+    if settings.rate_limit_enabled:
+        key = f"pam:rate:user:{project_id}:{user_id}:min:{_epoch_min()}"
+        await _check_rate(redis, key, USER_LIMIT_PER_MIN)
 
 
 # Auth + project rate limit combined — the standard dep for all ingestion routes
