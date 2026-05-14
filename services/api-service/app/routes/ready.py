@@ -3,6 +3,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from app.config import settings
+from shared.clients.redis import ping_redis
 
 router = APIRouter()
 log = structlog.get_logger()
@@ -13,7 +14,7 @@ async def ready(request: Request) -> JSONResponse:
     checks: dict[str, str] = {}
 
     try:
-        await request.app.state.redis.ping()
+        await ping_redis(request.app.state.redis)
         checks["redis"] = "ok"
     except Exception:
         log.warning("readiness_check_failed", component="redis")

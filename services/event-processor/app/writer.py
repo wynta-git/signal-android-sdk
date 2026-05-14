@@ -4,6 +4,7 @@ from typing import Any
 
 import structlog
 from redis.asyncio import Redis
+from shared.clients.redis import pipeline_set_nx_ex
 
 from .schema_manager import SchemaManager
 
@@ -116,13 +117,7 @@ class ClickHouseWriter:
             return events
 
         keys = [f"pam:dedup:{project_id}:{e['event_id']}" for e in events]
-
-        # Pipeline: SET NX EX for each event_id. Returns True if key was newly set.
-        pipe = self._redis.pipeline()
-        for key in keys:
-            pipe.set(key, "1", nx=True, ex=_DEDUP_TTL)
-        results = await pipe.execute()
-
+        results = await pipeline_set_nx_ex(self._redis, keys, "1", _DEDUP_TTL)
         fresh = [e for e, is_new in zip(events, results) if is_new]
         dupes = len(events) - len(fresh)
         if dupes:

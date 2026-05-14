@@ -2,18 +2,15 @@ import asyncio
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Literal
 
-import structlog
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
+from shared.clients.mongo import find_active_token, touch_token_last_used
 from shared.clients.redis import set_with_ttl, token_pipeline_fetch
 
 TOKEN_CACHE_TTL = 300  # 5 minutes per auth.md
 BONUS_TYPES_KEY = "pam:bonus_event_types"
-
-log = structlog.get_logger()
 
 
 class InvalidTokenError(Exception):
@@ -47,17 +44,6 @@ def _parse_env(token: str) -> Literal["live", "test"]:
     return "test" if token.startswith("pam_test_") else "live"
 
 
-async def _touch_last_used(db: AsyncIOMotorDatabase, token_hash: str) -> None:
-    """Best-effort audit write. Failure is logged but never propagated."""
-    try:
-        await db["tokens"].update_one(
-            {"token_hash": token_hash},
-            {"$set": {"last_used_at": datetime.now(timezone.utc)}},
-        )
-    except Exception:
-        log.warning("last_used_update_failed", token_hash_prefix=token_hash[:8])
-
-
 async def validate_token(
     token: str,
     redis: Redis,
@@ -78,10 +64,7 @@ async def validate_token(
         return TokenContext(**data), bonus_types
 
     # Cache miss — query MongoDB
-    doc = await db["tokens"].find_one(
-        {"token_hash": token_hash, "status": "active"},
-        {"project_id": 1, "scope": 1, "_id": 0},
-    )
+    doc = await find_active_token(db, token_hash)
     if not doc:
         raise InvalidTokenError()
 
@@ -100,6 +83,6 @@ async def validate_token(
     )
 
     # Non-blocking audit write — a lost update here is acceptable
-    asyncio.create_task(_touch_last_used(db, token_hash))
+    asyncio.create_task(touch_token_last_used(db, token_hash))
 
     return ctx, bonus_types
