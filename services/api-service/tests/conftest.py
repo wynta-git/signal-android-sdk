@@ -1,4 +1,3 @@
-import hashlib
 import json
 from unittest.mock import AsyncMock, MagicMock
 
@@ -16,11 +15,6 @@ def test_token() -> str:
 
 
 @pytest.fixture
-def token_hash(live_token: str) -> str:
-    return hashlib.sha256(live_token.encode()).hexdigest()
-
-
-@pytest.fixture
 def cached_payload() -> str:
     return json.dumps({"project_id": "proj_abc123", "scope": ["events:write"], "env": "live"})
 
@@ -28,8 +22,6 @@ def cached_payload() -> str:
 @pytest.fixture
 def mock_redis() -> AsyncMock:
     redis = AsyncMock()
-    redis.exists.return_value = 0   # no revocation flag
-    redis.get.return_value = None   # cache miss by default
     redis.set.return_value = True
     return redis
 
