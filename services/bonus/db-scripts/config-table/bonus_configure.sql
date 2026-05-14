@@ -13,9 +13,9 @@
 -- Identity        : id, subhead_id, site_id, name, description
 -- Bonus mechanics : bonus_type, release_mode, product,
 --                   start_date, end_date, wager_multiplier, no_of_chunks,
---                   release_bucket, chunk_expiry_days, bonus_expiry_days,
+--                   release_bucket, chunk_expiry_days, bonus_forfit_days,
 --                   wager_chip_type, credit_chip_type
--- Grant caps      : bonus_amount_default, bonus_amount_max
+-- Grant caps      : bonus_amount_fixed, bonus_amount_percent, bonus_amount_max
 -- Budget limits   : → bonus_budget_limit  (entity_type='CONFIGURE', entity_id)
 -- Budget counters : → bonus_budget_usage  (entity_type='CONFIGURE', entity_id)
 -- Control         : priority, active, created_by, updated_by, created_at, updated_at
@@ -25,7 +25,8 @@
 -- • One row per distinct bonus offer within a subhead.
 -- • Key mechanics fields are snapshotted into userapp_player_bonus at grant
 --   time so changing this row does not affect live grants.
--- • bonus_amount_default — used when the trigger supplies no explicit amount.
+-- • bonus_amount_fixed   — flat grant amount when trigger supplies no explicit value.
+-- • bonus_amount_percent — percentage of trigger value (e.g. deposit amount) to grant; mutually exclusive with bonus_amount_fixed.
 -- • bonus_amount_max — hard per-grant ceiling regardless of trigger input.
 -- • priority — when multiple configure nodes match a trigger, lowest value wins.
 -- • Budget caps and running counters are intentionally split into separate
@@ -60,6 +61,7 @@ CREATE TABLE `bonus_configure` (
     -- e.g. POKER | CASINO | RUMMY
     `start_date`             DATETIME       NOT NULL,
     `end_date`               DATETIME       NOT NULL,
+    ----- Bonus release congif ----
     `wager_multiplier`       DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
     -- 0 = no wagering required; >0 = chunk wager multiplier
     `no_of_chunks`           INT            NOT NULL DEFAULT 1,
@@ -68,14 +70,16 @@ CREATE TABLE `bonus_configure` (
     -- trigger bucket that releases the bonus (e.g. DEPOSIT_INSTANT)
     `chunk_expiry_days`      INT            DEFAULT NULL,
     -- days from grant until an unreleased chunk expires
-    `bonus_expiry_days`      INT            DEFAULT NULL,
+    `bonus_forfit_days`      INT            DEFAULT NULL,
     -- days from chunk release until the credit expires (post-release)
     `wager_chip_type`        VARCHAR(50)    NOT NULL DEFAULT 'CASH',
     `credit_chip_type`       VARCHAR(50)    NOT NULL DEFAULT 'CASH',
 
     -- ── Grant caps ───────────────────────────────────────────────────────────
-    `bonus_amount_default`   DECIMAL(18,2)  DEFAULT NULL,
-    -- grant amount when trigger supplies no explicit value
+    `bonus_amount_fixed`     DECIMAL(18,2)  DEFAULT NULL,
+    -- flat grant amount when trigger supplies no explicit value
+    `bonus_amount_percent`   DECIMAL(5,2)   DEFAULT NULL,
+    -- % of trigger value (e.g. deposit); mutually exclusive with bonus_amount_fixed
     `bonus_amount_max`       DECIMAL(18,2)  DEFAULT NULL,
     -- hard per-grant ceiling regardless of trigger input
 
@@ -111,9 +115,9 @@ INSERT INTO `bonus_configure`
      `bonus_type`, `release_mode`, `product`,
      `start_date`, `end_date`,
      `wager_multiplier`, `no_of_chunks`, `release_bucket`,
-     `chunk_expiry_days`, `bonus_expiry_days`,
+     `chunk_expiry_days`, `bonus_forfit_days`,
      `wager_chip_type`, `credit_chip_type`,
-     `bonus_amount_default`, `bonus_amount_max`,
+     `bonus_amount_fixed`, `bonus_amount_percent`, `bonus_amount_max`,
      `priority`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`)
 VALUES
     -- 100% First Deposit match, chunked with 2× wager, expires in 30 days
@@ -125,7 +129,8 @@ VALUES
      2.00, 5, 'DEPOSIT_INSTANT',
      30, NULL,
      'CASH', 'CASH',
-     NULL, 5000.00,
+     NULL, 100.00, 5000.00,
+     -- bonus_amount_fixed=NULL, bonus_amount_percent=100% match, bonus_amount_max=5000
      1, 1, 'admin', 'admin', '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
 
     -- VIP variant: higher cap, single chunk, 3× wager
@@ -137,7 +142,7 @@ VALUES
      3.00, 1, 'DEPOSIT_INSTANT',
      45, NULL,
      'CASH', 'CASH',
-     NULL, 20000.00,
+     NULL, 100.00, 20000.00,
      2, 1, 'admin', 'ops.team', '2026-01-01 09:00:00', '2026-04-15 10:30:00'),
 
     -- Weekend flat reload: instant, no wagering
@@ -149,5 +154,5 @@ VALUES
      0.00, 1, 'DEPOSIT_INSTANT',
      NULL, NULL,
      'CASH', 'CASH',
-     500.00, 500.00,
+     500.00, NULL, 500.00,
      1, 1, 'ops.team', 'ops.team', '2026-02-01 09:00:00', '2026-02-01 09:00:00');

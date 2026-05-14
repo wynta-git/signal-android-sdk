@@ -1,0 +1,27 @@
+[Unit]
+Description=PAM Bonus Event Consumer
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/pam/services/bonus
+ExecStart=/opt/pam/services/bonus/app/.venv/bin/python -m app.event_consumer.main
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+Environment=BONUS_KAFKA_BOOTSTRAP_SERVERS=43.204.90.164:9093
+Environment=BONUS_KAFKA_TOPIC=pam.bonus.raw.v1
+Environment=BONUS_KAFKA_GROUP_ID=pam-bonus-consumer
+Environment=BONUS_KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
+Environment=BONUS_KAFKA_SASL_MECHANISM=PLAIN
+EnvironmentFile=/etc/pam/bonus-consumer.env
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bonus-consumer
+
+[Install]
+WantedBy=multi-user.target

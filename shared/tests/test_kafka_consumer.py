@@ -20,9 +20,9 @@ from aiokafka import ConsumerRecord
 from shared.clients.kafka import KafkaConsumer
 
 # ── broker config ────────────────────────────────────────────────────────────
-BOOTSTRAP_SERVERS = "43.204.90.164:9092"
-SASL_USERNAME = "admin"          # change if different
-SASL_PASSWORD = "glgm2026"
+BOOTSTRAP_SERVERS = "43.204.90.164:9093"
+# SASL_USERNAME = "admin"          # change if different
+# SASL_PASSWORD = "glgm2026"
 TOPIC = "pam.bonus.raw.v1"
 GROUP_ID = "pam-test-consumer"
 # ─────────────────────────────────────────────────────────────────────────────
@@ -30,8 +30,8 @@ GROUP_ID = "pam-test-consumer"
 SASL_KWARGS: dict[str, Any] = {
     "security_protocol": "SASL_PLAINTEXT",
     "sasl_mechanism": "PLAIN",
-    "sasl_plain_username": SASL_USERNAME,
-    "sasl_plain_password": SASL_PASSWORD,
+    # "sasl_plain_username": SASL_USERNAME,
+    # "sasl_plain_password": SASL_PASSWORD,
 }
 
 
@@ -100,7 +100,7 @@ async def test_consumer_receives_messages() -> None:
         batch_size=50,
         batch_timeout_ms=3_000,
         auto_offset_reset="earliest",
-        consumer_kwargs=SASL_KWARGS,
+        # consumer_kwargs=SASL_KWARGS,
     )
 
     async def _run_once() -> None:

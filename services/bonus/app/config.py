@@ -10,6 +10,16 @@ class Settings(BaseSettings):
     db_pool_minsize: int = 2
     db_pool_maxsize: int = 10
 
+    kafka_bootstrap_servers: str = "43.204.90.164:9093"
+    kafka_topic: str = "pam.bonus.raw.v1"
+    kafka_group_id: str = "pam-bonus-consumer"
+    kafka_security_protocol: str = "SASL_PLAINTEXT"
+    kafka_sasl_mechanism: str = "PLAIN"
+    kafka_sasl_username: str = "ddf"
+    kafka_sasl_password: str= "787"
+    kafka_batch_size: int = 100
+    kafka_batch_timeout_ms: int = 1_000
+
     model_config = SettingsConfigDict(env_prefix="BONUS_", env_file=".env", extra="ignore")
 
 
