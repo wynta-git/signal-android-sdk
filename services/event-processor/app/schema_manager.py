@@ -5,6 +5,16 @@ from typing import AsyncIterator
 
 import structlog
 from redis.asyncio import Redis
+from shared.clients.redis import (
+    delete_key,
+    hget,
+    hgetall,
+    hmget,
+    hsetnx,
+    key_exists,
+    pipeline_hsetnx_multi,
+    set_nx_ex,
+)
 
 from .config import Settings, settings as _default_settings
 
@@ -146,12 +156,12 @@ class SchemaManager:
         """
         key = self._lock_key(project_id, col_name)
         ttl = self._cfg.schema_lock_ttl_seconds
-        acquired = bool(await self._redis.set(key, "1", nx=True, ex=ttl))
+        acquired = await set_nx_ex(self._redis, key, "1", ttl)
         try:
             yield acquired
         finally:
             if acquired:
-                await self._redis.delete(key)
+                await delete_key(self._redis, key)
 
     async def wait_for_lock_release(self, project_id: str, col_name: str) -> None:
         """Poll until the lock key disappears or the timeout is exceeded.
@@ -165,8 +175,7 @@ class SchemaManager:
         deadline = asyncio.get_event_loop().time() + self._cfg.schema_lock_timeout_seconds
 
         while asyncio.get_event_loop().time() < deadline:
-            exists = await self._redis.exists(key)
-            if not exists:
+            if not await key_exists(self._redis, key):
                 return
             await asyncio.sleep(poll_s)
 
@@ -184,14 +193,14 @@ class SchemaManager:
     async def get_col_name(self, project_id: str, raw_key: str) -> str:
         """Return the canonical column name for raw_key, writing to Redis on first sight."""
         map_key = f"{_COL_MAP_PREFIX}:{project_id}"
-        cached = await self._redis.hget(map_key, raw_key)
+        cached = await hget(self._redis, map_key, raw_key)
         if cached:
             return cached
 
         col = self.sanitize_key(raw_key)
         # HSETNX is atomic — only the first writer wins; others read back the winner.
-        await self._redis.hsetnx(map_key, raw_key, col)
-        winner = await self._redis.hget(map_key, raw_key)
+        await hsetnx(self._redis, map_key, raw_key, col)
+        winner = await hget(self._redis, map_key, raw_key)
         return winner if winner else col
 
     # ------------------------------------------------------------------
@@ -279,7 +288,7 @@ class SchemaManager:
         """Return {raw_key: col_name} for every key in raw_keys, populating Redis as needed."""
         map_key = f"{_COL_MAP_PREFIX}:{project_id}"
 
-        all_stored: dict[str, str] = await self._redis.hgetall(map_key)
+        all_stored: dict[str, str] = await hgetall(self._redis, map_key)
 
         missing = raw_keys - all_stored.keys()
         if not missing:
@@ -287,13 +296,10 @@ class SchemaManager:
 
         # Sanitize all missing keys and write atomically via pipeline.
         new_cols = {raw: self.sanitize_key(raw) for raw in missing}
-        pipe = self._redis.pipeline()
-        for raw, col in new_cols.items():
-            pipe.hsetnx(map_key, raw, col)
-        await pipe.execute()
+        await pipeline_hsetnx_multi(self._redis, map_key, new_cols)
 
         # Re-read winners (concurrent writers may have beaten us for some keys).
-        winner_values: list[str | None] = await self._redis.hmget(map_key, *missing)
+        winner_values = await hmget(self._redis, map_key, missing)
         for raw, val in zip(missing, winner_values):
             all_stored[raw] = val if val else new_cols[raw]
 

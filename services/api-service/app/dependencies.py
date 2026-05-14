@@ -4,13 +4,23 @@ import structlog
 from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.auth.token import InvalidTokenError, TokenContext, validate_token
+from app.auth.token import (
+    InvalidTokenError,
+    TokenContext,
+    hash_token,
+    token_cache_key,
+    token_revoke_key,
+    validate_token,
+)
 from app.config import settings
 from app.kafka_producer import KafkaEventProducer
+from shared.clients.redis import get_lookup
 
 log = structlog.get_logger()
 
 _bearer = HTTPBearer(auto_error=False)
+
+BONUS_TYPES_KEY = "pam:bonus_event_types"
 
 
 async def get_token_context(
@@ -22,10 +32,24 @@ async def get_token_context(
             status_code=401,
             detail={"code": "invalid_token", "message": "Missing or malformed Authorization header"},
         )
+
+    token = credentials.credentials
+    token_hash = hash_token(token)
+    redis = request.app.state.redis
+
+    lookup = await get_lookup(
+        redis,
+        token_revoke_key(token_hash),
+        token_cache_key(token_hash),
+        BONUS_TYPES_KEY,
+    )
+
     try:
-        ctx, bonus_types = await validate_token(
-            credentials.credentials,
-            request.app.state.redis,
+        ctx = await validate_token(
+            token,
+            lookup["revoked"],
+            lookup["token_raw"],
+            redis,
             request.app.state.mongo[settings.mongo_db],
         )
     except InvalidTokenError:
@@ -34,8 +58,7 @@ async def get_token_context(
             detail={"code": "invalid_token", "message": "Invalid or expired token"},
         )
 
-    request.state.bonus_types = bonus_types
-    # Bind to structlog context so all downstream log lines carry project_id + env
+    request.state.bonus_types = lookup["bonus_types"]
     structlog.contextvars.bind_contextvars(project_id=ctx.project_id, env=ctx.env)
     return ctx
 

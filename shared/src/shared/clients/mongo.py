@@ -1,7 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
+import structlog
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+
+log = structlog.get_logger()
 
 
 def make_mongo_client(
@@ -18,6 +21,30 @@ def make_mongo_client(
         connectTimeoutMS=5000,
         socketTimeoutMS=10000,
     )
+
+
+async def find_active_token(
+    db: AsyncIOMotorDatabase,
+    token_hash: str,
+) -> dict[str, Any] | None:
+    return await db["tokens"].find_one(
+        {"token_hash": token_hash, "status": "active"},
+        {"project_id": 1, "scope": 1, "_id": 0},
+    )
+
+
+async def touch_token_last_used(
+    db: AsyncIOMotorDatabase,
+    token_hash: str,
+) -> None:
+    """Best-effort audit write. Failure is logged but never propagated."""
+    try:
+        await db["tokens"].update_one(
+            {"token_hash": token_hash},
+            {"$set": {"last_used_at": datetime.now(timezone.utc)}},
+        )
+    except Exception:
+        log.warning("last_used_update_failed", token_hash_prefix=token_hash[:8])
 
 
 async def upsert_user_profile(

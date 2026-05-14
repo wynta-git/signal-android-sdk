@@ -19,6 +19,8 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+    "structlog>=24.0.0",
+]
 
 [build-system]
 requires = ["hatchling"]
