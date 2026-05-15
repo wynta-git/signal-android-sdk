@@ -11,7 +11,7 @@ Owns segment definitions and memberships. Compiles DSL → queries.
 ## Outputs
 - MongoDB `segments`, `segment_memberships` (writes)
 - Redis segment membership cache (writes)
-- ClickHouse `pam.events` (reads only)
+- ClickHouse `pam.events_{project_id}` (reads only, per-client table)
 - MongoDB `users` (reads only)
 
 ## Hard rules

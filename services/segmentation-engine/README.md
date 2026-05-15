@@ -12,7 +12,7 @@ Compiles segment DSL into queries, evaluates against ClickHouse + MongoDB, persi
 
 ## What this service does NOT do
 
-- Does not write to ClickHouse (read-only on `pam.events`)
+- Does not write to ClickHouse (read-only on `pam.events_{project_id}`)
 - Does not handle campaigns or notifications
 - Does not authenticate end-user traffic (admin-only API, internal mTLS)
 
