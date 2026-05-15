@@ -134,12 +134,15 @@ class BonusEligibilityNotFoundError(BonusServiceError):
         super().__init__(f"Bonus eligibility {eligibility_id} not found")
 
 
-class BonusEligibilityKeyNotFoundError(BonusServiceError):
-    """Raised when a requested bonus_eligibility_key row does not exist."""
+class BonusEligibilityDuplicateError(BonusServiceError):
+    """Raised when (configure_id, eligibility_key) already exists in bonus_eligibility."""
 
-    def __init__(self, key_id: int) -> None:
-        self.key_id = key_id
-        super().__init__(f"Bonus eligibility key {key_id} not found")
+    def __init__(self, configure_id: int, eligibility_key: str) -> None:
+        self.configure_id = configure_id
+        self.eligibility_key = eligibility_key
+        super().__init__(
+            f"Eligibility key '{eligibility_key}' already exists for configure {configure_id}"
+        )
 
 
 class DatabaseError(BonusServiceError):

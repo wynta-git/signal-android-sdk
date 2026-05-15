@@ -6,6 +6,7 @@ import structlog
 from aiokafka import ConsumerRecord
 from redis.asyncio import Redis
 
+from app.event_consumer.eligibility_checker import check_eligibility
 from app.event_consumer.grant_writer import (
     check_applicability,
     check_occurrence,
@@ -141,6 +142,14 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                                 freq=cfg["applicability_frequency"],
                             )
                             continue
+
+                    if not await check_eligibility(_redis, cfg["id"], props):
+                        log.info(
+                            "bonus_skipped_eligibility",
+                            player_id=user_id,
+                            configure_id=cfg["id"],
+                        )
+                        continue
 
                     grant_amount = compute_grant_amount(cfg, trigger_amount)
                     if grant_amount <= 0:

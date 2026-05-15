@@ -18,7 +18,6 @@ _END   = date(2026, 12, 31)
 
 _VALID = dict(
     subhead_id=1, site_id=1, name="100pct Match",
-    bonus_type="CHUNK", release_mode="CHUNK", product="POKER",
     start_date=_START, end_date=_END,
     wager_multiplier=Decimal("2.00"), no_of_chunks=5,
     wager_chip_type="CASH", credit_chip_type="CASH",
@@ -26,8 +25,7 @@ _VALID = dict(
 )
 
 # (id, subhead_id, site_id, name, description,
-#  bonus_type, release_mode, product, start_date, end_date,
-#  applicability_frequency,
+#  start_date, end_date, applicability_frequency,
 #  wager_multiplier, no_of_chunks, release_bucket,
 #  chunk_expiry_days, bonus_expiry_days,
 #  wager_chip_type, credit_chip_type,
@@ -35,8 +33,7 @@ _VALID = dict(
 #  priority, active, created_by, updated_by, created_at, updated_at)
 _DB_ROW = (
     10, 1, 1, "100pct Match", None,
-    "CHUNK", "CHUNK", "POKER", _START, _END,
-    "EVERYTIME",
+    _START, _END, "EVERYTIME",
     Decimal("2.00"), 5, None,
     None, None,
     "CASH", "CASH",
@@ -95,8 +92,6 @@ async def test_success_returns_response(cur: AsyncMock, patch_conn: MagicMock) -
     assert result.id == 10
     assert result.subhead_id == 1
     assert result.name == "100pct Match"
-    assert result.bonus_type == "CHUNK"
-    assert result.product == "POKER"
     assert result.active is True
     assert result.created_by == "admin"
     patch_conn.commit.assert_awaited_once()
@@ -116,7 +111,7 @@ async def test_default_code_inserted(cur: AsyncMock, patch_conn: MagicMock) -> N
     assert "INSERT INTO" in sql
     # code value is AUTO-10
     assert params[2] == "AUTO-10"
-    assert params[3] == 1   # active
+    assert params[6] == 1   # active
 
 
 # ---------------------------------------------------------------------------
@@ -183,16 +178,6 @@ def test_end_date_before_start_date_rejected() -> None:
 def test_blank_description_rejected() -> None:
     with pytest.raises(Exception, match="description"):
         BonusConfigureCreate(**{**_VALID, "description": "   "})
-
-
-def test_invalid_bonus_type_rejected() -> None:
-    with pytest.raises(Exception):
-        BonusConfigureCreate(**{**_VALID, "bonus_type": "WEEKLY"})
-
-
-def test_invalid_product_rejected() -> None:
-    with pytest.raises(Exception):
-        BonusConfigureCreate(**{**_VALID, "product": "SPORTS"})
 
 
 def test_negative_wager_multiplier_rejected() -> None:

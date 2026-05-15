@@ -11,8 +11,7 @@
 -- COLUMN GROUPS
 -- ─────────────
 -- Identity        : id, subhead_id, site_id, name, description
--- Bonus mechanics : bonus_type, release_mode, product,
---                   start_date, end_date, applicability_frequency,
+-- Bonus mechanics : start_date, end_date, applicability_frequency,
 --                   wager_multiplier, no_of_chunks,
 --                   release_bucket, chunk_expiry_days, bonus_expiry_days,
 --                   wager_chip_type, credit_chip_type
@@ -54,12 +53,6 @@ CREATE TABLE `bonus_configure` (
     `description`            VARCHAR(500)   DEFAULT NULL,
 
     -- ── Bonus mechanics ──────────────────────────────────────────────────────
-    `bonus_type`             VARCHAR(20)    NOT NULL,
-    -- e.g. CHUNK | INSTANT
-    `release_mode`           VARCHAR(20)    NOT NULL,
-    -- e.g. CHUNK | INSTANT
-    `product`                VARCHAR(10)    NOT NULL,
-    -- e.g. POKER | CASINO | RUMMY
     `start_date`             DATETIME       NOT NULL,
     `end_date`               DATETIME       NOT NULL,
     `applicability_frequency` VARCHAR(20)   NOT NULL DEFAULT 'EVERYTIME',
@@ -104,9 +97,6 @@ CREATE TABLE `bonus_configure` (
     KEY `idx_bonus_configure_site_id`                    (`site_id`),
     KEY `idx_bonus_configure_active`                     (`active`),
     KEY `idx_bonus_configure_priority`                   (`subhead_id`, `active`, `priority`),
-    KEY `idx_bonus_config_bonus_type`                    (`bonus_type`),
-    KEY `idx_bonus_config_release_mode`                  (`release_mode`),
-    KEY `idx_bonus_config_product`                       (`product`),
     KEY `idx_bonus_config_dates`                         (`start_date`, `end_date`),
     KEY `idx_bonus_config_applicability_frequency`       (`applicability_frequency`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -116,7 +106,6 @@ CREATE TABLE `bonus_configure` (
 -- -----------------------------------------------------------------------------
 INSERT INTO `bonus_configure`
     (`id`, `subhead_id`, `site_id`, `name`, `description`,
-     `bonus_type`, `release_mode`, `product`,
      `start_date`, `end_date`, `applicability_frequency`,
      `wager_multiplier`, `no_of_chunks`, `release_bucket`,
      `chunk_expiry_days`, `bonus_expiry_days`,
@@ -128,20 +117,17 @@ VALUES
     (1, 1, 1,
      '100% First Deposit up to 5000',
      'Full 100% match on first deposit, capped at ₹5,000 bonus.',
-     'CHUNK', 'CHUNK', 'POKER',
      '2026-01-01 00:00:00', '2026-12-31 23:59:59', 'ONCE',
      2.00, 5, 'DEPOSIT_INSTANT',
      30, NULL,
      'CASH', 'CASH',
      NULL, 100.00, 5000.00,
-     -- bonus_amount_fixed=NULL, bonus_amount_percent=100% match, bonus_amount_max=5000
      1, 1, 'admin', 'admin', '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
 
     -- VIP variant: higher cap, single chunk, 3× wager
     (2, 1, 1,
      '100% First Deposit up to 20000 (VIP)',
      'Higher cap variant for VIP-tagged players.',
-     'CHUNK', 'CHUNK', 'POKER',
      '2026-01-01 00:00:00', '2026-12-31 23:59:59', 'ONCE',
      3.00, 1, 'DEPOSIT_INSTANT',
      45, NULL,
@@ -153,7 +139,6 @@ VALUES
     (3, 3, 1,
      'Weekend Reload Flat 500',
      'Fixed ₹500 bonus credited on any weekend deposit.',
-     'INSTANT', 'INSTANT', 'POKER',
      '2026-01-01 00:00:00', '2026-12-31 23:59:59', 'WEEKLY',
      0.00, 1, 'DEPOSIT_INSTANT',
      NULL, NULL,

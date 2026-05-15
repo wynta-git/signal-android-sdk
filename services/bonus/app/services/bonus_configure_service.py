@@ -31,7 +31,6 @@ log = structlog.get_logger(__name__)
 _INSERT_SQL = """
     INSERT INTO bonus_configure
         (subhead_id, site_id, name, description,
-         bonus_type, release_mode, product,
          start_date, end_date, applicability_frequency,
          wager_multiplier, no_of_chunks, release_bucket,
          chunk_expiry_days, bonus_expiry_days,
@@ -39,13 +38,12 @@ _INSERT_SQL = """
          bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
          priority, active, created_by, updated_by, row_hash)
     VALUES
-        (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+        (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_SQL = """
     SELECT id, subhead_id, site_id, name, description,
-           bonus_type, release_mode, product,
            start_date, end_date, applicability_frequency,
            wager_multiplier, no_of_chunks, release_bucket,
            chunk_expiry_days, bonus_expiry_days,
@@ -90,9 +88,6 @@ _SELECT_CODES_SQL = """
 _PATCHABLE: dict[str, str] = {
     "name":                       "name",
     "description":                "description",
-    "bonus_type":                 "bonus_type",
-    "release_mode":               "release_mode",
-    "product":                    "product",
     "start_date":                 "start_date",
     "end_date":                   "end_date",
     "applicability_frequency":    "applicability_frequency",
@@ -117,23 +112,22 @@ _PATCHABLE: dict[str, str] = {
 
 def _row_to_response(row: tuple) -> BonusConfigureResponse:
     # SELECT col order: id[0] subhead_id[1] site_id[2] name[3] description[4]
-    #   bonus_type[5] release_mode[6] product[7] start_date[8] end_date[9]
-    #   applicability_frequency[10] wager_multiplier[11] no_of_chunks[12] release_bucket[13]
-    #   chunk_expiry_days[14] bonus_expiry_days[15] wager_chip_type[16] credit_chip_type[17]
-    #   bonus_amount_fixed[18] bonus_amount_percent[19] bonus_amount_max[20]
-    #   priority[21] active[22] created_by[23] updated_by[24] created_at[25] updated_at[26]
+    #   start_date[5] end_date[6] applicability_frequency[7]
+    #   wager_multiplier[8] no_of_chunks[9] release_bucket[10]
+    #   chunk_expiry_days[11] bonus_expiry_days[12] wager_chip_type[13] credit_chip_type[14]
+    #   bonus_amount_fixed[15] bonus_amount_percent[16] bonus_amount_max[17]
+    #   priority[18] active[19] created_by[20] updated_by[21] created_at[22] updated_at[23]
     return BonusConfigureResponse(
         id=row[0], subhead_id=row[1], site_id=row[2], name=row[3], description=row[4],
-        bonus_type=row[5], release_mode=row[6], product=row[7],
-        start_date=_as_dt(row[8]), end_date=_as_dt(row[9]),
-        applicability_frequency=row[10],
-        wager_multiplier=row[11], no_of_chunks=row[12], release_bucket=row[13],
-        chunk_expiry_days=row[14], bonus_expiry_days=row[15],
-        wager_chip_type=row[16], credit_chip_type=row[17],
-        bonus_amount_fixed=row[18], bonus_amount_percent=row[19], bonus_amount_max=row[20],
-        priority=row[21], active=bool(row[22]),
-        created_by=row[23], updated_by=row[24],
-        created_at=_as_dt(row[25]), updated_at=_as_dt(row[26]),
+        start_date=_as_dt(row[5]), end_date=_as_dt(row[6]),
+        applicability_frequency=row[7],
+        wager_multiplier=row[8], no_of_chunks=row[9], release_bucket=row[10],
+        chunk_expiry_days=row[11], bonus_expiry_days=row[12],
+        wager_chip_type=row[13], credit_chip_type=row[14],
+        bonus_amount_fixed=row[15], bonus_amount_percent=row[16], bonus_amount_max=row[17],
+        priority=row[18], active=bool(row[19]),
+        created_by=row[20], updated_by=row[21],
+        created_at=_as_dt(row[22]), updated_at=_as_dt(row[23]),
     )
 
 
@@ -144,9 +138,6 @@ def _configure_row_hash(data: BonusConfigureCreate | dict) -> str:
             "site_id": data.site_id,
             "name": data.name,
             "description": data.description,
-            "bonus_type": data.bonus_type,
-            "release_mode": data.release_mode,
-            "product": data.product,
             "start_date": str(data.start_date),
             "end_date": str(data.end_date),
             "applicability_frequency": data.applicability_frequency,
@@ -237,7 +228,6 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                     _INSERT_SQL,
                     (
                         data.subhead_id, data.site_id, data.name, data.description,
-                        data.bonus_type, data.release_mode, data.product,
                         data.start_date, data.end_date, data.applicability_frequency,
                         data.wager_multiplier, data.no_of_chunks, data.release_bucket,
                         data.chunk_expiry_days, data.bonus_expiry_days,
@@ -252,8 +242,6 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                 new_values_cfg = {
                     "subhead_id": data.subhead_id, "site_id": data.site_id,
                     "name": data.name, "description": data.description,
-                    "bonus_type": data.bonus_type, "release_mode": data.release_mode,
-                    "product": data.product,
                     "start_date": str(data.start_date), "end_date": str(data.end_date),
                     "applicability_frequency": data.applicability_frequency,
                     "wager_multiplier": str(data.wager_multiplier),
@@ -408,48 +396,44 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
                 if row is None:
                     raise BonusConfigureNotFoundError(configure_id)
 
-                subhead_id: int = row[1]
-                site_id: int    = row[2]
+                subhead_id: int = row[1]  # unchanged
+                site_id: int    = row[2]  # unchanged
 
                 old_values_cl: dict = {
                     "subhead_id": row[1], "site_id": row[2], "name": row[3], "description": row[4],
-                    "bonus_type": row[5], "release_mode": row[6], "product": row[7],
-                    "start_date": str(row[8]), "end_date": str(row[9]),
-                    "applicability_frequency": row[10],
-                    "wager_multiplier": str(row[11]), "no_of_chunks": row[12],
-                    "release_bucket": row[13],
-                    "chunk_expiry_days": row[14], "bonus_expiry_days": row[15],
-                    "wager_chip_type": row[16], "credit_chip_type": row[17],
-                    "bonus_amount_fixed": str(row[18]) if row[18] is not None else None,
-                    "bonus_amount_percent": str(row[19]) if row[19] is not None else None,
-                    "bonus_amount_max": str(row[20]) if row[20] is not None else None,
-                    "priority": row[21], "active": int(row[22]),
-                    "created_by": row[23], "updated_by": row[24],
+                    "start_date": str(row[5]), "end_date": str(row[6]),
+                    "applicability_frequency": row[7],
+                    "wager_multiplier": str(row[8]), "no_of_chunks": row[9],
+                    "release_bucket": row[10],
+                    "chunk_expiry_days": row[11], "bonus_expiry_days": row[12],
+                    "wager_chip_type": row[13], "credit_chip_type": row[14],
+                    "bonus_amount_fixed": str(row[15]) if row[15] is not None else None,
+                    "bonus_amount_percent": str(row[16]) if row[16] is not None else None,
+                    "bonus_amount_max": str(row[17]) if row[17] is not None else None,
+                    "priority": row[18], "active": int(row[19]),
+                    "created_by": row[20], "updated_by": row[21],
                 }
 
                 new_values_cl: dict = {
                     "subhead_id": subhead_id, "site_id": site_id,
                     "name": updates.get("name", row[3]),
                     "description": updates.get("description", row[4]),
-                    "bonus_type": updates.get("bonus_type", row[5]),
-                    "release_mode": updates.get("release_mode", row[6]),
-                    "product": updates.get("product", row[7]),
-                    "start_date": str(updates.get("start_date", row[8])),
-                    "end_date": str(updates.get("end_date", row[9])),
-                    "applicability_frequency": updates.get("applicability_frequency", row[10]),
-                    "wager_multiplier": str(updates.get("wager_multiplier", row[11])),
-                    "no_of_chunks": updates.get("no_of_chunks", row[12]),
-                    "release_bucket": updates.get("release_bucket", row[13]),
-                    "chunk_expiry_days": updates.get("chunk_expiry_days", row[14]),
-                    "bonus_expiry_days": updates.get("bonus_expiry_days", row[15]),
-                    "wager_chip_type": updates.get("wager_chip_type", row[16]),
-                    "credit_chip_type": updates.get("credit_chip_type", row[17]),
-                    "bonus_amount_fixed": str(updates.get("bonus_amount_fixed", row[18])) if updates.get("bonus_amount_fixed", row[18]) is not None else None,
-                    "bonus_amount_percent": str(updates.get("bonus_amount_percent", row[19])) if updates.get("bonus_amount_percent", row[19]) is not None else None,
-                    "bonus_amount_max": str(updates.get("bonus_amount_max", row[20])) if updates.get("bonus_amount_max", row[20]) is not None else None,
-                    "priority": updates.get("priority", row[21]),
-                    "active": updates.get("active", int(row[22])),
-                    "created_by": row[23],
+                    "start_date": str(updates.get("start_date", row[5])),
+                    "end_date": str(updates.get("end_date", row[6])),
+                    "applicability_frequency": updates.get("applicability_frequency", row[7]),
+                    "wager_multiplier": str(updates.get("wager_multiplier", row[8])),
+                    "no_of_chunks": updates.get("no_of_chunks", row[9]),
+                    "release_bucket": updates.get("release_bucket", row[10]),
+                    "chunk_expiry_days": updates.get("chunk_expiry_days", row[11]),
+                    "bonus_expiry_days": updates.get("bonus_expiry_days", row[12]),
+                    "wager_chip_type": updates.get("wager_chip_type", row[13]),
+                    "credit_chip_type": updates.get("credit_chip_type", row[14]),
+                    "bonus_amount_fixed": str(updates.get("bonus_amount_fixed", row[15])) if updates.get("bonus_amount_fixed", row[15]) is not None else None,
+                    "bonus_amount_percent": str(updates.get("bonus_amount_percent", row[16])) if updates.get("bonus_amount_percent", row[16]) is not None else None,
+                    "bonus_amount_max": str(updates.get("bonus_amount_max", row[17])) if updates.get("bonus_amount_max", row[17]) is not None else None,
+                    "priority": updates.get("priority", row[18]),
+                    "active": updates.get("active", int(row[19])),
+                    "created_by": row[20],
                     "updated_by": data.updated_by,
                 }
                 row_hash = _configure_row_hash(new_values_cl)

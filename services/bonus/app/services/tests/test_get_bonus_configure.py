@@ -16,8 +16,7 @@ _END   = date(2026, 12, 31)
 
 _CONFIGURE_ROW = (
     1, 1, 1, "100pct Match", "First deposit bonus",
-    "CHUNK", "CHUNK", "POKER", _START, _END,
-    "EVERYTIME",
+    _START, _END, "EVERYTIME",
     Decimal("2.00"), 5, "DEPOSIT_INSTANT",
     30, None,
     "CASH", "CASH",
@@ -72,8 +71,6 @@ async def test_success_returns_detail(cur: AsyncMock, patch_conn: MagicMock) -> 
     assert result.id == 1
     assert result.subhead_id == 1
     assert result.name == "100pct Match"
-    assert result.bonus_type == "CHUNK"
-    assert result.product == "POKER"
     assert result.wager_multiplier == Decimal("2.00")
     assert result.active is True
     assert len(result.codes) == 2

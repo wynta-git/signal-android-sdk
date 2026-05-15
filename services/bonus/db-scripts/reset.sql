@@ -98,12 +98,6 @@ CREATE TABLE `bonus_configure` (
     `description`            VARCHAR(500)   DEFAULT NULL,
 
     -- ── Bonus mechanics ──────────────────────────────────────────────────────
-    `bonus_type`             VARCHAR(20)    NOT NULL,
-    -- e.g. CHUNK | INSTANT
-    `release_mode`           VARCHAR(20)    NOT NULL,
-    -- e.g. CHUNK | INSTANT
-    `product`                VARCHAR(10)    NOT NULL,
-    -- e.g. POKER | CASINO | RUMMY
     `start_date`             DATETIME       NOT NULL,
     `end_date`               DATETIME       NOT NULL,
     `applicability_frequency` VARCHAR(20)   NOT NULL DEFAULT 'EVERYTIME',
@@ -148,9 +142,6 @@ CREATE TABLE `bonus_configure` (
     KEY `idx_bonus_configure_site_id`                    (`site_id`),
     KEY `idx_bonus_configure_active`                     (`active`),
     KEY `idx_bonus_configure_priority`                   (`subhead_id`, `active`, `priority`),
-    KEY `idx_bonus_config_bonus_type`                    (`bonus_type`),
-    KEY `idx_bonus_config_release_mode`                  (`release_mode`),
-    KEY `idx_bonus_config_product`                       (`product`),
     KEY `idx_bonus_config_dates`                         (`start_date`, `end_date`),
     KEY `idx_bonus_config_applicability_frequency`       (`applicability_frequency`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -207,48 +198,31 @@ CREATE TABLE `bonus_configure_code` (
 
 -- bonus_eligibility
 CREATE TABLE `bonus_eligibility` (
-    `id`                      INT            NOT NULL AUTO_INCREMENT,
-    `configure_id`            INT            NOT NULL,
+    `id`                     INT            NOT NULL AUTO_INCREMENT,
+    `configure_id`           INT            NOT NULL,
     -- references bonus_configure.id
-    `site_id`                 INT            NOT NULL,
-    `player_type`             VARCHAR(20)    DEFAULT NULL,
-    -- NEW | EXISTING | VIP | DORMANT; NULL = all types qualify
-    `player_segment`          VARCHAR(100)   DEFAULT NULL,
-    -- segment name the player must belong to; NULL = all segments qualify
-    `player_tag`              VARCHAR(100)   DEFAULT NULL,
-    -- player profile tag that must be present; NULL = no tag required
-    `kyc_status`              VARCHAR(20)    DEFAULT NULL,
-    -- VERIFIED | UNVERIFIED | PENDING; NULL = any status qualifies
-    `min_lifetime_deposits`   INT            DEFAULT NULL,
-    -- minimum number of past deposits; NULL = no minimum
-    `max_lifetime_deposits`   INT            DEFAULT NULL,
-    -- maximum number of past deposits; NULL = no cap
-    `min_lifetime_amount`     DECIMAL(18,2)  DEFAULT NULL,
-    -- minimum total lifetime deposit amount; NULL = no minimum
-    `max_lifetime_amount`     DECIMAL(18,2)  DEFAULT NULL,
-    -- maximum total lifetime deposit amount; NULL = no cap
-    `min_account_age_days`    INT            DEFAULT NULL,
-    -- minimum account age in days; NULL = no minimum
-    `max_account_age_days`    INT            DEFAULT NULL,
-    -- maximum account age in days; NULL = no cap
-    `eligibility_config`      JSON           DEFAULT NULL,
-    -- additional eligibility conditions (geo, device type, referral flags, etc.)
-    `description`             VARCHAR(500)   DEFAULT NULL,
-    -- human-readable summary of this eligibility rule
-    `active`                  TINYINT(1)     NOT NULL DEFAULT 1,
-    `created_by`              VARCHAR(100)   NOT NULL,
-    `updated_by`              VARCHAR(100)   NOT NULL,
-    `created_at`              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                             ON UPDATE CURRENT_TIMESTAMP,
-    `row_hash`                CHAR(64)       DEFAULT NULL,
+    `site_id`                INT            NOT NULL,
+    `eligibility_key`        VARCHAR(100)   NOT NULL,
+    -- criterion name (see COMMON eligibility_key VALUES above)
+    `eligibility_value`      VARCHAR(500)   NOT NULL,
+    -- criterion value as string; cast per eligibility_value_type
+    `eligibility_value_type` VARCHAR(20)    NOT NULL DEFAULT 'STRING',
+    -- STRING | INT | DECIMAL | BOOLEAN | JSON
+    `description`            VARCHAR(500)   DEFAULT NULL,
+    -- human-readable summary of this criterion
+    `active`                 TINYINT(1)     NOT NULL DEFAULT 1,
+    `created_by`             VARCHAR(100)   NOT NULL,
+    `updated_by`             VARCHAR(100)   NOT NULL,
+    `created_at`             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                            ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`               CHAR(64)       DEFAULT NULL,
     -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
-    KEY `idx_bonus_eligibility_configure_id`         (`configure_id`),
-    KEY `idx_bonus_eligibility_site_active`          (`site_id`, `active`),
-    KEY `idx_bonus_eligibility_player_type`          (`player_type`),
-    KEY `idx_bonus_eligibility_player_segment`       (`player_segment`),
-    KEY `idx_bonus_eligibility_kyc_status`           (`kyc_status`)
+    UNIQUE KEY `uk_bonus_eligibility_configure_key` (`configure_id`, `eligibility_key`),
+    KEY `idx_bonus_eligibility_configure_id` (`configure_id`),
+    KEY `idx_bonus_eligibility_site_active`  (`site_id`, `active`),
+    KEY `idx_bonus_eligibility_key`          (`eligibility_key`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- bonus_owners
@@ -379,8 +353,8 @@ CREATE TABLE `player_bonus_grant` (
     `bonus_code`         VARCHAR(50)   DEFAULT NULL,
     -- promo code the player redeemed; NULL if no code was used
 
-    `product`            VARCHAR(10)   NOT NULL,
-    -- e.g. POKER | CASINO | RUMMY — from bonus_configure.product
+    `product`            VARCHAR(10)   DEFAULT NULL,
+    -- product sourced from bonus_release_trigger at grant time; NULL when trigger has no product constraint
     `wager_multiplier`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     -- x-wager requirement per chunk; 0 = no wagering — from bonus_configure
     `no_of_chunks`       INT           NOT NULL DEFAULT 1,

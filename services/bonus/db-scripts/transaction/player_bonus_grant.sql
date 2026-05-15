@@ -12,7 +12,7 @@
 -- ─────────────
 -- Identity        : id, player_bonus_id, configure_id, subhead_id, head_id,
 --                   site_id, player_id
--- Config snapshot : bonus_code, bonus_type, release_mode, product,
+-- Config snapshot : bonus_code, product,
 --                   wager_multiplier, no_of_chunks,
 --                   chunk_expiry_days, bonus_expiry_days,
 --                   wager_chip_type, credit_chip_type
@@ -62,8 +62,8 @@ CREATE TABLE `player_bonus_grant` (
     `bonus_code`         VARCHAR(50)   DEFAULT NULL,
     -- promo code the player redeemed; NULL if no code was used
 
-    `product`            VARCHAR(10)   NOT NULL,
-    -- e.g. POKER | CASINO | RUMMY — from bonus_configure.product
+    `product`            VARCHAR(10)   DEFAULT NULL,
+    -- product sourced from bonus_release_trigger at grant time; NULL when trigger has no product constraint
     `wager_multiplier`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     -- x-wager requirement per chunk; 0 = no wagering — from bonus_configure
     `no_of_chunks`       INT           NOT NULL DEFAULT 1,

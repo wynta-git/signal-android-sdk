@@ -26,6 +26,7 @@ _INSERT_GRANT_SQL = """
          wager_chip_type, credit_chip_type, grant_amount)
     VALUES (UUID_SHORT(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
+# product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
 
 _INSERT_CHUNK_SQL = """
     INSERT INTO bonus_chunk (chunk_ref, bonus_log_id, chunk_amount, wager_multiplier)
@@ -119,7 +120,7 @@ async def write_grant(
                 configure["head_id"],
                 site_id,
                 player_id,
-                configure["product"],
+                trigger["product"],  # sourced from bonus_release_trigger; may be None
                 configure["wager_multiplier"],
                 configure["no_of_chunks"],
                 configure["chunk_expiry_days"],

@@ -34,9 +34,6 @@ async def create_bonus_configure(payload: BonusConfigureCreate) -> BonusConfigur
     - **subhead_id**: parent bonus_subhead id
     - **site_id**: positive integer identifying the site
     - **name**: unique within the subhead (1–100 chars)
-    - **bonus_type**: ``CHUNK`` or ``INSTANT``
-    - **release_mode**: ``CHUNK`` or ``INSTANT``
-    - **product**: ``POKER``, ``CASINO``, or ``RUMMY``
     - **start_date / end_date**: active date window (end ≥ start)
     - **applicability_frequency**: ``EVERYTIME`` (default), ``ONCE``, ``MONTHLY``, or ``WEEKLY``
     - **wager_multiplier**: 0 = no wagering required

@@ -3,7 +3,6 @@ Pydantic models for bonus_configure and its embedded code summary.
 
 bonus_configure columns:
   id, subhead_id, site_id, name, description,
-  bonus_type, release_mode, product,
   start_date, end_date, applicability_frequency,   -- stored as DATETIME (UTC naive)
   wager_multiplier, no_of_chunks, release_bucket,
   chunk_expiry_days, bonus_expiry_days,
@@ -18,9 +17,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-BonusType              = Literal["CHUNK", "INSTANT"]
-ReleaseMode            = Literal["CHUNK", "INSTANT"]
-ProductType            = Literal["POKER", "CASINO", "RUMMY"]
 ApplicabilityFrequency = Literal["EVERYTIME", "ONCE", "MONTHLY", "WEEKLY"]
 
 
@@ -31,9 +27,6 @@ class BonusConfigureCreate(BaseModel):
     site_id:                    int                    = Field(..., ge=1)
     name:                       str                    = Field(..., min_length=1, max_length=100)
     description:                str | None             = Field(None, max_length=500)
-    bonus_type:                 BonusType
-    release_mode:               ReleaseMode
-    product:                    ProductType
     start_date:                 datetime
     end_date:                   datetime
     applicability_frequency:    ApplicabilityFrequency = "EVERYTIME"
@@ -76,9 +69,6 @@ class BonusConfigureResponse(BaseModel):
     site_id:                    int
     name:                       str
     description:                str | None
-    bonus_type:                 str
-    release_mode:               str
-    product:                    str
     start_date:                 datetime
     end_date:                   datetime
     applicability_frequency:    str
@@ -126,9 +116,6 @@ class BonusConfigureUpdate(BaseModel):
 
     name:                       str | None                      = Field(None, min_length=1, max_length=100)
     description:                str | None                      = None
-    bonus_type:                 BonusType | None                = None
-    release_mode:               ReleaseMode | None              = None
-    product:                    ProductType | None              = None
     start_date:                 datetime | None                 = None
     end_date:                   datetime | None                 = None
     applicability_frequency:    ApplicabilityFrequency | None   = None

@@ -20,7 +20,7 @@
 
 ## Setup Sequence
 
-Run these three API calls in order. Each step depends on the `id` returned by the previous step.
+Run these four API calls in order. Each step depends on the `id` returned by the previous step.
 
 ---
 
@@ -84,9 +84,6 @@ Content-Type: application/json
   "name": "First Deposit 200% — FIRST_DEPOSIT",
   "description": "200% first deposit bonus, max ₹500, released in 5 chunks on 2x wager",
   "active": true,
-  "product": "CASINO",
-  "bonus_type": "CHUNK",
-  "release_mode": "CHUNK",
   "applicability_frequency": "ONCE",
   "no_of_chunks": 5,
   "wager_multiplier": "2.00",
@@ -104,7 +101,39 @@ Content-Type: application/json
 
 **Save the returned `id` as `CONFIGURE_ID`.**
 
-> `product` must match the operator's product line. Create separate configures for each product if the bonus applies across POKER / CASINO / RUMMY.
+---
+
+### Step 4 — Add Eligibility Criterion (registered this month)
+
+Restricts this bonus to players whose account was registered in the current calendar month.
+
+```http
+POST /bonus-eligibilities
+Content-Type: application/json
+
+{
+  "configure_id": "<CONFIGURE_ID>",
+  "site_id": "<your-site-id>",
+  "eligibility_key": "player_registered_period",
+  "eligibility_value": "CURRENT_MONTH",
+  "eligibility_value_type": "STRING",
+  "description": "Only players who registered in the current calendar month",
+  "active": true,
+  "created_by": "<ops-lead-username>"
+}
+```
+
+The consumer evaluates this rule against `properties.registered_at` in the incoming event payload. The grant is skipped if `registered_at` is absent or falls outside the current calendar month.
+
+**Supported values for `player_registered_period`:**
+
+| Value | Meaning |
+|---|---|
+| `CURRENT_MONTH` | Player's `registered_at` is in the same calendar month as the event |
+| `CURRENT_WEEK` | Player's `registered_at` is in the same ISO calendar week as the event |
+| `CURRENT_YEAR` | Player's `registered_at` is in the same calendar year as the event |
+
+> The triggering event must include `registered_at` (ISO 8601 string) in its `properties`. If the field is missing the eligibility check fails and no grant is issued.
 
 ---
 
