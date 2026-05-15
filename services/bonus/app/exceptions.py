@@ -117,5 +117,30 @@ class BonusCodeNotFoundError(BonusServiceError):
         super().__init__(f"Bonus code '{code}' not found or inactive for site {site_id}")
 
 
+class BonusEligibilityValidationError(BonusServiceError):
+    """Raised when input data fails business-rule validation for a bonus_eligibility."""
+
+    def __init__(self, field: str, message: str) -> None:
+        self.field = field
+        self.message = message
+        super().__init__(f"{field}: {message}")
+
+
+class BonusEligibilityNotFoundError(BonusServiceError):
+    """Raised when a requested bonus_eligibility row does not exist."""
+
+    def __init__(self, eligibility_id: int) -> None:
+        self.eligibility_id = eligibility_id
+        super().__init__(f"Bonus eligibility {eligibility_id} not found")
+
+
+class BonusEligibilityKeyNotFoundError(BonusServiceError):
+    """Raised when a requested bonus_eligibility_key row does not exist."""
+
+    def __init__(self, key_id: int) -> None:
+        self.key_id = key_id
+        super().__init__(f"Bonus eligibility key {key_id} not found")
+
+
 class DatabaseError(BonusServiceError):
     """Raised when a database operation fails unexpectedly."""

@@ -1,0 +1,172 @@
+from __future__ import annotations
+
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
+
+import aiomysql
+import structlog
+
+log = structlog.get_logger(__name__)
+
+_OCCURRENCE_COUNT_SQL = """
+    SELECT COUNT(*) FROM player_bonus_grant
+    WHERE player_id = %s AND configure_id = %s
+"""
+
+_APPLICABILITY_COUNT_SQL = """
+    SELECT COUNT(*) FROM player_bonus_grant
+    WHERE player_id = %s AND configure_id = %s AND {where_extra}
+"""
+
+_INSERT_GRANT_SQL = """
+    INSERT INTO player_bonus_grant
+        (player_bonus_id, configure_id, subhead_id, head_id, site_id, player_id,
+         product, wager_multiplier, no_of_chunks,
+         chunk_expiry_days, bonus_expiry_days,
+         wager_chip_type, credit_chip_type, grant_amount)
+    VALUES (UUID_SHORT(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+"""
+
+_INSERT_CHUNK_SQL = """
+    INSERT INTO bonus_chunk (chunk_ref, bonus_log_id, chunk_amount, wager_multiplier)
+    VALUES (%s, %s, %s, %s)
+"""
+
+_UPSERT_BUDGET_SQL = """
+    INSERT INTO bonus_budget_usage (entity_type, entity_id, site_id, period_type, budget_used)
+    VALUES (%s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE budget_used = budget_used + VALUES(budget_used)
+"""
+
+
+def compute_grant_amount(configure: dict[str, Any], trigger_amount: float | None) -> Decimal:
+    fixed = configure.get("bonus_amount_fixed")
+    pct = configure.get("bonus_amount_percent")
+    cap = configure.get("bonus_amount_max")
+
+    if fixed is not None:
+        amount = Decimal(str(fixed))
+    elif pct is not None and trigger_amount:
+        amount = (Decimal(str(trigger_amount)) * Decimal(str(pct)) / Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+    else:
+        return Decimal("0.00")
+
+    if cap is not None:
+        amount = min(amount, Decimal(str(cap)))
+
+    return amount
+
+
+async def check_occurrence(
+    cur: aiomysql.Cursor,
+    player_id: str,
+    configure_id: int,
+    occurrence: int,
+) -> bool:
+    if occurrence == 0:
+        return True
+    await cur.execute(_OCCURRENCE_COUNT_SQL, (player_id, configure_id))
+    row = await cur.fetchone()
+    count: int = row[0] if row else 0
+    return count == occurrence - 1
+
+
+async def check_applicability(
+    cur: aiomysql.Cursor,
+    player_id: str,
+    configure_id: int,
+    freq: str,
+) -> bool:
+    if freq == "EVERYTIME":
+        return True
+
+    if freq == "ONCE":
+        sql = _APPLICABILITY_COUNT_SQL.format(where_extra="1=1")
+    elif freq == "MONTHLY":
+        sql = _APPLICABILITY_COUNT_SQL.format(
+            where_extra="YEAR(created_at) = YEAR(NOW()) AND MONTH(created_at) = MONTH(NOW())"
+        )
+    elif freq == "WEEKLY":
+        sql = _APPLICABILITY_COUNT_SQL.format(
+            where_extra="YEARWEEK(created_at, 1) = YEARWEEK(NOW(), 1)"
+        )
+    else:
+        log.warning("unknown_applicability_frequency", freq=freq)
+        return True
+
+    await cur.execute(sql, (player_id, configure_id))
+    row = await cur.fetchone()
+    return (row[0] if row else 0) == 0
+
+
+async def write_grant(
+    conn: aiomysql.Connection,
+    trigger: dict[str, Any],
+    configure: dict[str, Any],
+    player_id: str,
+    site_id: int,
+    grant_amount: Decimal,
+) -> int:
+    async with conn.cursor() as cur:
+        # 1. Insert player_bonus_grant
+        await cur.execute(
+            _INSERT_GRANT_SQL,
+            (
+                configure["id"],
+                configure["subhead_id"],
+                configure["head_id"],
+                site_id,
+                player_id,
+                configure["product"],
+                configure["wager_multiplier"],
+                configure["no_of_chunks"],
+                configure["chunk_expiry_days"],
+                configure["bonus_expiry_days"],
+                configure["wager_chip_type"],
+                configure["credit_chip_type"],
+                grant_amount,
+            ),
+        )
+        grant_id: int = cur.lastrowid  # type: ignore[assignment]
+
+        # 2. Insert bonus_chunk rows
+        no_of_chunks: int = configure["no_of_chunks"]
+        chunk_amount = (grant_amount / Decimal(str(no_of_chunks))).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        wager_multiplier = configure["wager_multiplier"]
+        for i in range(1, no_of_chunks + 1):
+            chunk_ref = f"CH{i:03d}"
+            await cur.execute(
+                _INSERT_CHUNK_SQL,
+                (chunk_ref, grant_id, chunk_amount, wager_multiplier),
+            )
+
+        # 3. Upsert bonus_budget_usage for all 9 combinations
+        entities = [
+            ("CONFIGURE", configure["id"]),
+            ("SUBHEAD", configure["subhead_id"]),
+            ("HEAD", configure["head_id"]),
+        ]
+        periods = ["DAILY", "WEEKLY", "MONTHLY"]
+        for entity_type, entity_id in entities:
+            for period in periods:
+                await cur.execute(
+                    _UPSERT_BUDGET_SQL,
+                    (entity_type, entity_id, site_id, period, grant_amount),
+                )
+
+        await conn.commit()
+
+    log.info(
+        "bonus_grant_written",
+        grant_id=grant_id,
+        configure_id=configure["id"],
+        player_id=player_id,
+        site_id=site_id,
+        grant_amount=str(grant_amount),
+        no_of_chunks=no_of_chunks,
+    )
+    return grant_id

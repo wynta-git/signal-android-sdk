@@ -6,8 +6,10 @@ import signal
 import structlog
 
 from app.config import settings
-from app.event_consumer.bonus_event_consumer import process_bonus_batch
+from app.db import close_pool, init_pool
+from app.event_consumer.bonus_event_consumer import process_bonus_batch, set_redis
 from shared.clients.kafka import KafkaConsumer
+from shared.clients.redis import make_redis_client
 
 log = structlog.get_logger()
 
@@ -19,6 +21,13 @@ async def main() -> None:
         group=settings.kafka_group_id,
         bootstrap=settings.kafka_bootstrap_servers,
     )
+
+    await init_pool()
+    log.info("bonus_consumer_db_pool_ready")
+
+    redis = make_redis_client(settings.redis_url)
+    set_redis(redis)
+    log.info("bonus_consumer_redis_ready", url=settings.redis_url)
 
     consumer = KafkaConsumer(
         topics=[settings.kafka_topic],
@@ -51,6 +60,8 @@ async def main() -> None:
         await consumer.run()
     finally:
         await consumer.stop()
+        await close_pool()
+        await redis.aclose()
         log.info("bonus_consumer_stopped")
 
 

@@ -4,8 +4,25 @@ import json
 
 import structlog
 from aiokafka import ConsumerRecord
+from redis.asyncio import Redis
+
+from app.event_consumer.grant_writer import (
+    check_applicability,
+    check_occurrence,
+    compute_grant_amount,
+    write_grant,
+)
+from app.event_consumer.trigger_cache import get_triggers
+from shared.clients.mysql import get_connection
 
 log = structlog.get_logger()
+
+_redis: Redis | None = None
+
+
+def set_redis(r: Redis) -> None:
+    global _redis
+    _redis = r
 
 
 async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
@@ -28,14 +45,123 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
             )
             continue
 
+        event_name = payload.get("event_name") or payload.get("event_type")
+        user_id = payload.get("user_id")
+        project_id = payload.get("project_id")
+
         log.info(
             "bonus_event_received",
             topic=msg.topic,
             partition=msg.partition,
             offset=msg.offset,
-            event_type=payload.get("event_type"),
-            user_id=payload.get("user_id"),
-            project_id=payload.get("project_id"),
+            event_name=event_name,
+            user_id=user_id,
+            project_id=project_id,
         )
 
-        # TODO: dispatch to bonus processing logic here
+        try:
+            site_id = int(project_id)
+        except (TypeError, ValueError):
+            log.warning(
+                "bonus_event_invalid_site_id",
+                project_id=project_id,
+                event_name=event_name,
+                user_id=user_id,
+            )
+            continue
+
+        if not event_name or not user_id:
+            log.warning(
+                "bonus_event_missing_fields",
+                event_name=event_name,
+                user_id=user_id,
+                site_id=site_id,
+            )
+            continue
+
+        if _redis is None:
+            log.error("bonus_consumer_redis_not_initialized")
+            raise RuntimeError("Redis client not initialised — call set_redis() at startup")
+
+        try:
+            triggers = await get_triggers(_redis, site_id, event_name)
+        except Exception as exc:
+            log.error("bonus_trigger_lookup_failed", site_id=site_id, event_name=event_name, error=str(exc))
+            raise
+
+        if not triggers:
+            continue
+
+        props: dict = payload.get("properties") or {}
+        trigger_amount_raw = props.get("amount")
+        trigger_amount = float(trigger_amount_raw) if trigger_amount_raw is not None else None
+        event_product = props.get("product")
+        event_payment_method = props.get("payment_method")
+
+        try:
+            async with get_connection() as conn:
+                for t in triggers:
+                    cfg = t["configure"]
+
+                    # Amount range check
+                    min_amt = t.get("min_trigger_amount")
+                    max_amt = t.get("max_trigger_amount")
+                    if min_amt is not None and (trigger_amount is None or trigger_amount < min_amt):
+                        continue
+                    if max_amt is not None and (trigger_amount is None or trigger_amount > max_amt):
+                        continue
+
+                    # Product check
+                    trigger_product = t.get("product")
+                    if trigger_product and trigger_product != event_product:
+                        continue
+
+                    # Payment method check (stored as comma-separated list)
+                    trigger_pm = t.get("payment_method")
+                    if trigger_pm and event_payment_method not in trigger_pm.split(","):
+                        continue
+
+                    async with conn.cursor() as cur:
+                        if not await check_occurrence(cur, user_id, cfg["id"], t["occurrence"]):
+                            log.info(
+                                "bonus_skipped_occurrence",
+                                player_id=user_id,
+                                configure_id=cfg["id"],
+                                occurrence=t["occurrence"],
+                            )
+                            continue
+
+                        if not await check_applicability(
+                            cur, user_id, cfg["id"], cfg["applicability_frequency"]
+                        ):
+                            log.info(
+                                "bonus_skipped_applicability",
+                                player_id=user_id,
+                                configure_id=cfg["id"],
+                                freq=cfg["applicability_frequency"],
+                            )
+                            continue
+
+                    grant_amount = compute_grant_amount(cfg, trigger_amount)
+                    if grant_amount <= 0:
+                        continue
+
+                    grant_id = await write_grant(conn, t, cfg, user_id, site_id, grant_amount)
+                    log.info(
+                        "bonus_granted",
+                        grant_id=grant_id,
+                        configure_id=cfg["id"],
+                        player_id=user_id,
+                        site_id=site_id,
+                        event_name=event_name,
+                        grant_amount=str(grant_amount),
+                    )
+        except Exception as exc:
+            log.error(
+                "bonus_grant_failed",
+                site_id=site_id,
+                event_name=event_name,
+                user_id=user_id,
+                error=str(exc),
+            )
+            raise

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     kafka_batch_size: int = 100
     kafka_batch_timeout_ms: int = 1_000
 
+    redis_url: str = "redis://localhost:6379/0"
+    trigger_cache_ttl: int = 300  # seconds
+
     model_config = SettingsConfigDict(env_prefix="BONUS_", env_file=".env", extra="ignore")
 
 

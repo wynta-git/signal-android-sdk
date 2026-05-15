@@ -6,7 +6,7 @@ from fastapi import FastAPI
 
 from app.db import close_pool, init_pool
 from app.routers.bonus_head import register_exception_handlers
-from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_release_trigger
+from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_release_trigger, bonus_eligibility
 
 structlog.configure(
     processors=[
@@ -40,8 +40,10 @@ app.include_router(bonus_head.router)
 app.include_router(bonus_subhead.router)
 app.include_router(bonus_configure.router)
 app.include_router(bonus_release_trigger.router)
+app.include_router(bonus_eligibility.router)
 register_exception_handlers(app)
 bonus_release_trigger.register_exception_handlers(app)
+bonus_eligibility.register_exception_handlers(app)
 
 
 @app.get("/health", include_in_schema=False)
