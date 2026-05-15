@@ -7,6 +7,8 @@ from pydantic import BaseModel, ValidationError
 
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 from app.auth.token import TokenContext
+from app.config import settings
+from app.kafka_producer import get_or_create_producer
 from fastapi import Depends
 from shared.models.events import REGISTERED_EVENTS, EventEnvelope
 
@@ -127,12 +129,16 @@ async def track(
                 topic_batches.setdefault(topic, []).append(event)
 
         for topic, events in topic_batches.items():
-            producer = request.app.state.topic_producers.get(topic)
-            if producer:
-                try:
-                    await producer.publish_events(events)
-                except Exception:
-                    log.warning("fanout_publish_failed", topic=topic, count=len(events), exc_info=True)
+            producer = await get_or_create_producer(
+                request.app.state.topic_producers,
+                request.app.state.topic_producers_lock,
+                topic,
+                settings.kafka_bootstrap_servers,
+            )
+            try:
+                await producer.publish_events(events)
+            except Exception:
+                log.warning("fanout_publish_failed", topic=topic, count=len(events), exc_info=True)
 
     log.info("track", accepted=len(accepted), rejected=len(errors))
     return TrackResponse(accepted=len(accepted), rejected=len(errors), errors=errors)

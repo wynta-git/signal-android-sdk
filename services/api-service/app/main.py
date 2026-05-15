@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -45,6 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         raw = await make_kafka_producer(settings.kafka_bootstrap_servers)
         topic_producers[topic] = KafkaEventProducer(raw, topic)
     app.state.topic_producers = topic_producers
+    app.state.topic_producers_lock = asyncio.Lock()
 
     log.info("startup_complete", version=settings.version, fanout_topics=list(unique_topics))
     yield
