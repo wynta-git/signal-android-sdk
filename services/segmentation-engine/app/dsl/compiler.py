@@ -56,16 +56,16 @@ class CompiledRule:
     in_segment_ids: list[str] = field(default_factory=list)
 
 
-def compile_rule(rule: SegmentRule, project_id: str) -> CompiledRule:
+def compile_rule(rule: SegmentRule, project_id: str, col_map: dict[str, str]) -> CompiledRule:
     compiled = CompiledRule(match=rule.match)
     for f in rule.filters:
-        _compile_filter(f, project_id, compiled)
+        _compile_filter(f, project_id, compiled, col_map)
     return compiled
 
 
-def _compile_filter(f: AnyFilter, project_id: str, compiled: CompiledRule) -> None:
+def _compile_filter(f: AnyFilter, project_id: str, compiled: CompiledRule, col_map: dict[str, str]) -> None:
     if isinstance(f, EventFilter):
-        compiled.event_queries.append(_compile_event_filter(f, project_id))
+        compiled.event_queries.append(_compile_event_filter(f, project_id, col_map))
     elif isinstance(f, TraitFilter):
         compiled.trait_queries.append(_compile_trait_filter(f, project_id))
     elif isinstance(f, DidNotDoFilter):
@@ -74,7 +74,7 @@ def _compile_filter(f: AnyFilter, project_id: str, compiled: CompiledRule) -> No
         compiled.in_segment_ids.append(f.segment_id)
 
 
-def _compile_event_filter(f: EventFilter, project_id: str) -> CompiledEventQuery:
+def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, str]) -> CompiledEventQuery:
     since = _since_timestamp(f.time_window.last_days)
     params: dict[str, object] = {
         "project_id": project_id,
@@ -90,24 +90,29 @@ def _compile_event_filter(f: EventFilter, project_id: str) -> CompiledEventQuery
 
     for idx, (prop_key, constraint) in enumerate(f.where.items()):
         param_key = f"prop_val_{idx}"
-        col = f"properties['{prop_key}']"
+        col_name = col_map.get(prop_key)
+
+        if col_name is None:
+            # Column not in this project's table — no event can satisfy this constraint.
+            where_clauses.append("1=0")
+            continue
 
         if constraint.op == "exists":
-            where_clauses.append(f"mapContains(properties, '{prop_key}')")
+            where_clauses.append(f"isNotNull({col_name})")
         elif constraint.op in ("in", "not_in"):
             ch_op = "IN" if constraint.op == "in" else "NOT IN"
             params[param_key] = constraint.value
-            where_clauses.append(f"{col} {ch_op} {{{param_key}:Array(String)}}")
+            where_clauses.append(f"{col_name} {ch_op} {{{param_key}:Array(String)}}")
         elif constraint.op == "contains":
             params[param_key] = str(constraint.value)
-            where_clauses.append(f"positionCaseInsensitive({col}, {{{param_key}:String}}) > 0")
+            where_clauses.append(f"positionCaseInsensitive({col_name}, {{{param_key}:String}}) > 0")
         elif constraint.op == "starts_with":
             params[param_key] = str(constraint.value)
-            where_clauses.append(f"startsWith({col}, {{{param_key}:String}})")
+            where_clauses.append(f"startsWith({col_name}, {{{param_key}:String}})")
         else:
             ch_op = _CH_OP_MAP[constraint.op]
             params[param_key] = str(constraint.value)
-            where_clauses.append(f"{col} {ch_op} {{{param_key}:String}}")
+            where_clauses.append(f"{col_name} {ch_op} {{{param_key}:String}}")
 
     freq_op = _CH_OP_MAP[f.frequency.op]
     freq_param = "freq_count"

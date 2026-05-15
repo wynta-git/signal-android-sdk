@@ -165,6 +165,22 @@ Database: `pam`
 //   TTL on attempted_at after 90 days
 ```
 
+### `col_maps`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  col_map: {
+    "My Price$": "my_price_",   // raw SDK key → sanitized ClickHouse column name
+    "currency":  "currency"
+  },
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1 } unique
+// Owner: event-processor (writes). Read by: event-processor (Redis warm-up), segmentation-engine (fallback).
+// Never TTL'd — mapping is permanent once written.
+```
+
 ## Conventions
 
 - Always include `project_id` in queries — multi-tenant isolation.

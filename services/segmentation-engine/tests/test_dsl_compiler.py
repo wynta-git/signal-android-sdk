@@ -19,7 +19,7 @@ def test_event_filter_produces_sql():
             }
         ]
     )
-    compiled = compile_rule(rule, PROJECT_ID)
+    compiled = compile_rule(rule, PROJECT_ID, {})
 
     assert len(compiled.event_queries) == 1
     sql = compiled.event_queries[0].sql
@@ -42,14 +42,15 @@ def test_event_filter_with_where_clause():
             }
         ]
     )
-    compiled = compile_rule(rule, PROJECT_ID)
+    compiled = compile_rule(rule, PROJECT_ID, {"currency": "currency"})
     sql = compiled.event_queries[0].sql
-    assert "properties['currency']" in sql
+    assert "currency" in sql
+    assert "properties[" not in sql
 
 
 def test_trait_filter_produces_mongo_pipeline():
     rule = _rule([{"type": "trait", "trait": "plan", "op": "eq", "value": "pro"}])
-    compiled = compile_rule(rule, PROJECT_ID)
+    compiled = compile_rule(rule, PROJECT_ID, {})
 
     assert len(compiled.trait_queries) == 1
     pipeline = compiled.trait_queries[0].pipeline
@@ -61,7 +62,7 @@ def test_did_not_do_filter_produces_anti_join_sql():
     rule = _rule(
         [{"type": "did_not_do", "event_name": "app_opened", "time_window": {"last_days": 7}}]
     )
-    compiled = compile_rule(rule, PROJECT_ID)
+    compiled = compile_rule(rule, PROJECT_ID, {})
 
     assert len(compiled.did_not_do_queries) == 1
     sql = compiled.did_not_do_queries[0].sql
@@ -72,7 +73,7 @@ def test_did_not_do_filter_produces_anti_join_sql():
 
 def test_in_segment_filter_stored_as_segment_id():
     rule = _rule([{"type": "in_segment", "segment_id": "seg_buyers"}])
-    compiled = compile_rule(rule, PROJECT_ID)
+    compiled = compile_rule(rule, PROJECT_ID, {})
 
     assert compiled.in_segment_ids == ["seg_buyers"]
 
@@ -85,7 +86,7 @@ def test_match_preserved():
             "filters": [{"type": "trait", "trait": "plan", "op": "eq", "value": "pro"}],
         }
     )
-    compiled = compile_rule(rule, PROJECT_ID)
+    compiled = compile_rule(rule, PROJECT_ID, {})
     assert compiled.match == "any"
 
 
@@ -102,7 +103,7 @@ def test_multiple_filters_all_compiled():
             {"type": "in_segment", "segment_id": "seg_vip"},
         ]
     )
-    compiled = compile_rule(rule, PROJECT_ID)
+    compiled = compile_rule(rule, PROJECT_ID, {})
 
     assert len(compiled.event_queries) == 1
     assert len(compiled.trait_queries) == 1

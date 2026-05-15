@@ -53,6 +53,39 @@ async def load_event_routes(db: AsyncIOMotorDatabase) -> list[dict]:
     return await cursor.to_list(length=None)
 
 
+async def upsert_col_map(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    new_entries: dict[str, str],
+) -> None:
+    """Persist new raw_key → col_name pairs for a project. Safe to call concurrently."""
+    if not new_entries:
+        return
+    await db["col_maps"].update_one(
+        {"project_id": project_id},
+        {
+            "$set": {f"col_map.{k}": v for k, v in new_entries.items()},
+            "$setOnInsert": {"project_id": project_id},
+            "$currentDate": {"updated_at": True},
+        },
+        upsert=True,
+    )
+
+
+async def load_col_map(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+) -> dict[str, str]:
+    """Return the full raw_key → col_name map for a project, or {} if not found."""
+    doc = await db["col_maps"].find_one(
+        {"project_id": project_id},
+        {"col_map": 1, "_id": 0},
+    )
+    if not doc:
+        return {}
+    return doc.get("col_map") or {}
+
+
 async def upsert_user_profile(
     db: AsyncIOMotorDatabase,
     *,

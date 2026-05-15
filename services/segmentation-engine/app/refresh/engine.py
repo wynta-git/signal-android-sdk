@@ -9,8 +9,26 @@ from app import cache, storage
 from app.config import settings
 from app.dsl.compiler import CompiledRule, compile_rule
 from app.dsl.validator import SegmentRule
+from shared.clients.mongo import load_col_map
+from shared.clients.redis import hgetall
 
 log = structlog.get_logger()
+
+_COL_MAP_PREFIX = "pam:col_map"
+
+
+async def _get_col_map(
+    project_id: str,
+    redis: Redis,
+    db: AsyncIOMotorDatabase,
+) -> dict[str, str]:
+    """Return col_map from Redis; fall back to MongoDB if Redis is cold."""
+    col_map: dict[str, str] = await hgetall(redis, f"{_COL_MAP_PREFIX}:{project_id}")
+    if not col_map:
+        col_map = await load_col_map(db, project_id)
+        if col_map:
+            log.warning("col_map_redis_miss_mongo_fallback", project_id=project_id)
+    return col_map
 
 
 async def evaluate_segment(
@@ -25,7 +43,8 @@ async def evaluate_segment(
     Run all compiled queries for a segment and return the final user_id set.
     Also persists memberships and updates segment metadata.
     """
-    compiled = compile_rule(rule, project_id)
+    col_map = await _get_col_map(project_id, redis, db)
+    compiled = compile_rule(rule, project_id, col_map)
     user_id_sets: list[set[str]] = []
 
     for q in compiled.event_queries:
@@ -85,7 +104,8 @@ async def evaluate_user_for_segment(
     Re-evaluate membership for a single user. Used by event-driven refresh.
     Returns True if the user is now a member.
     """
-    compiled = compile_rule(rule, project_id)
+    col_map = await _get_col_map(project_id, redis, db)
+    compiled = compile_rule(rule, project_id, col_map)
     per_filter_results: list[bool] = []
 
     for q in compiled.event_queries:

@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     batch_size: int = 500
     batch_timeout_seconds: float = 5.0
 
+    mongo_url: str = "mongodb://localhost:27017"
+    mongo_db: str = "pam"
+
     redis_url: str = "redis://localhost:6379"
     schema_lock_ttl_seconds: int = 30
     schema_lock_poll_ms: int = 100
