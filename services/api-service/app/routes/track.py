@@ -7,7 +7,6 @@ from pydantic import BaseModel, ValidationError
 
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 from app.auth.token import TokenContext
-from app.dependencies import BonusProducerDep
 from fastapi import Depends
 from shared.models.events import REGISTERED_EVENTS, EventEnvelope
 
@@ -52,7 +51,6 @@ def _map_validation_error(e: ValidationError) -> tuple[str, str]:
 async def track(
     request: Request,
     body: TrackRequest,
-    bonus_producer: BonusProducerDep,
     ctx: TokenContext = Depends(project_rate_limit),
 ) -> TrackResponse:
     if len(body.events) > MAX_EVENTS_PER_BATCH:
@@ -122,12 +120,19 @@ async def track(
                 detail={"code": "internal_error", "message": "Failed to publish events"},
             )
 
-        bonus_events = [e for e in accepted if e.get("event_name", "") in request.state.bonus_types]
-        if bonus_events:
-            try:
-                await bonus_producer.publish_events(bonus_events)
-            except Exception:
-                log.warning("bonus_publish_failed", count=len(bonus_events), exc_info=True)
+        route_map: dict[str, list[str]] = request.state.event_route_map
+        topic_batches: dict[str, list[dict]] = {}
+        for event in accepted:
+            for topic in route_map.get(event["event_name"], []):
+                topic_batches.setdefault(topic, []).append(event)
+
+        for topic, events in topic_batches.items():
+            producer = request.app.state.topic_producers.get(topic)
+            if producer:
+                try:
+                    await producer.publish_events(events)
+                except Exception:
+                    log.warning("fanout_publish_failed", topic=topic, count=len(events), exc_info=True)
 
     log.info("track", accepted=len(accepted), rejected=len(errors))
     return TrackResponse(accepted=len(accepted), rejected=len(errors), errors=errors)

@@ -30,6 +30,9 @@ class KafkaEventProducer:
         await self._send(payload.get("user_id", ""), payload)
         await self._producer.flush()
 
+    async def stop(self) -> None:
+        await self._producer.stop()
+
     async def ping(self) -> None:
         # partitions_for fetches broker metadata — raises if broker is unreachable
         await self._producer.partitions_for(self._topic)

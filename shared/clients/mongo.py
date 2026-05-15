@@ -47,6 +47,12 @@ async def touch_token_last_used(
         log.warning("last_used_update_failed", token_hash_prefix=token_hash[:8])
 
 
+async def load_event_routes(db: AsyncIOMotorDatabase) -> list[dict]:
+    """Load all topic→event_names mappings from event_routes collection."""
+    cursor = db["event_routes"].find({}, {"topic": 1, "event_names": 1, "_id": 0})
+    return await cursor.to_list(length=None)
+
+
 async def upsert_user_profile(
     db: AsyncIOMotorDatabase,
     *,

@@ -15,7 +15,7 @@ from app.routes.identify import router as identify_router
 from app.routes.ready import router as ready_router
 from app.routes.track import router as track_router
 from shared.clients.kafka import make_kafka_producer
-from shared.clients.mongo import make_mongo_client
+from shared.clients.mongo import load_event_routes, make_mongo_client
 from shared.clients.redis import make_redis_client
 
 configure_logging(debug=settings.debug)
@@ -37,16 +37,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     raw_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
     app.state.producer = KafkaEventProducer(raw_producer, settings.kafka_events_topic)
-    bonus_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
-    app.state.bonus_producer = KafkaEventProducer(bonus_producer, settings.kafka_bonus_topic)
 
-    log.info("startup_complete", version=settings.version)
+    routes = await load_event_routes(app.state.mongo[settings.mongo_db])
+    unique_topics = {doc["topic"] for doc in routes}
+    topic_producers: dict[str, KafkaEventProducer] = {}
+    for topic in unique_topics:
+        raw = await make_kafka_producer(settings.kafka_bootstrap_servers)
+        topic_producers[topic] = KafkaEventProducer(raw, topic)
+    app.state.topic_producers = topic_producers
+
+    log.info("startup_complete", version=settings.version, fanout_topics=list(unique_topics))
     yield
 
     app.state.mongo.close()
     await app.state.redis.aclose()
     await raw_producer.stop()
-    await bonus_producer.stop()
+    for producer in app.state.topic_producers.values():
+        await producer.stop()
     log.info("shutdown_complete")
 
 
