@@ -80,5 +80,42 @@ class BonusConfigureNotFoundError(BonusServiceError):
         super().__init__(f"Bonus configure {configure_id} not found")
 
 
+class BonusReleaseTriggerValidationError(BonusServiceError):
+    """Raised when input data fails business-rule validation for a bonus_release_trigger."""
+
+    def __init__(self, field: str, message: str) -> None:
+        self.field = field
+        self.message = message
+        super().__init__(f"{field}: {message}")
+
+
+class BonusReleaseTriggerDuplicateError(BonusServiceError):
+    """Raised when (configure_id, trigger_type) already exists in bonus_release_trigger."""
+
+    def __init__(self, configure_id: int, trigger_type: str) -> None:
+        self.configure_id = configure_id
+        self.trigger_type = trigger_type
+        super().__init__(
+            f"Release trigger '{trigger_type}' already exists for configure {configure_id}"
+        )
+
+
+class BonusReleaseTriggerNotFoundError(BonusServiceError):
+    """Raised when a requested bonus_release_trigger row does not exist."""
+
+    def __init__(self, trigger_id: int) -> None:
+        self.trigger_id = trigger_id
+        super().__init__(f"Bonus release trigger {trigger_id} not found")
+
+
+class BonusCodeNotFoundError(BonusServiceError):
+    """Raised when a promo code cannot be resolved to a bonus_configure."""
+
+    def __init__(self, site_id: int, code: str) -> None:
+        self.site_id = site_id
+        self.code = code
+        super().__init__(f"Bonus code '{code}' not found or inactive for site {site_id}")
+
+
 class DatabaseError(BonusServiceError):
     """Raised when a database operation fails unexpectedly."""

@@ -17,10 +17,11 @@ _END   = date(2026, 12, 31)
 _CONFIGURE_ROW = (
     1, 1, 1, "100pct Match", "First deposit bonus",
     "CHUNK", "CHUNK", "POKER", _START, _END,
+    "EVERYTIME",
     Decimal("2.00"), 5, "DEPOSIT_INSTANT",
     30, None,
     "CASH", "CASH",
-    None, Decimal("5000.00"),
+    None, None, Decimal("5000.00"),
     0, 1, "admin", "admin", _NOW, _NOW,
 )
 

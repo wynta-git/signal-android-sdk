@@ -12,8 +12,9 @@
 -- ─────────────
 -- Identity        : id, subhead_id, site_id, name, description
 -- Bonus mechanics : bonus_type, release_mode, product,
---                   start_date, end_date, wager_multiplier, no_of_chunks,
---                   release_bucket, chunk_expiry_days, bonus_forfit_days,
+--                   start_date, end_date, applicability_frequency,
+--                   wager_multiplier, no_of_chunks,
+--                   release_bucket, chunk_expiry_days, bonus_expiry_days,
 --                   wager_chip_type, credit_chip_type
 -- Grant caps      : bonus_amount_fixed, bonus_amount_percent, bonus_amount_max
 -- Budget limits   : → bonus_budget_limit  (entity_type='CONFIGURE', entity_id)
@@ -61,7 +62,9 @@ CREATE TABLE `bonus_configure` (
     -- e.g. POKER | CASINO | RUMMY
     `start_date`             DATETIME       NOT NULL,
     `end_date`               DATETIME       NOT NULL,
-    ----- Bonus release congif ----
+    `applicability_frequency` VARCHAR(20)   NOT NULL DEFAULT 'EVERYTIME',
+    -- EVERYTIME | ONCE | MONTHLY | WEEKLY
+    -- ── Bonus release config ─────────────────────────────────────────────────
     `wager_multiplier`       DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
     -- 0 = no wagering required; >0 = chunk wager multiplier
     `no_of_chunks`           INT            NOT NULL DEFAULT 1,
@@ -70,7 +73,7 @@ CREATE TABLE `bonus_configure` (
     -- trigger bucket that releases the bonus (e.g. DEPOSIT_INSTANT)
     `chunk_expiry_days`      INT            DEFAULT NULL,
     -- days from grant until an unreleased chunk expires
-    `bonus_forfit_days`      INT            DEFAULT NULL,
+    `bonus_expiry_days`      INT            DEFAULT NULL,
     -- days from chunk release until the credit expires (post-release)
     `wager_chip_type`        VARCHAR(50)    NOT NULL DEFAULT 'CASH',
     `credit_chip_type`       VARCHAR(50)    NOT NULL DEFAULT 'CASH',
@@ -104,7 +107,8 @@ CREATE TABLE `bonus_configure` (
     KEY `idx_bonus_config_bonus_type`                    (`bonus_type`),
     KEY `idx_bonus_config_release_mode`                  (`release_mode`),
     KEY `idx_bonus_config_product`                       (`product`),
-    KEY `idx_bonus_config_dates`                         (`start_date`, `end_date`)
+    KEY `idx_bonus_config_dates`                         (`start_date`, `end_date`),
+    KEY `idx_bonus_config_applicability_frequency`       (`applicability_frequency`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- -----------------------------------------------------------------------------
@@ -113,9 +117,9 @@ CREATE TABLE `bonus_configure` (
 INSERT INTO `bonus_configure`
     (`id`, `subhead_id`, `site_id`, `name`, `description`,
      `bonus_type`, `release_mode`, `product`,
-     `start_date`, `end_date`,
+     `start_date`, `end_date`, `applicability_frequency`,
      `wager_multiplier`, `no_of_chunks`, `release_bucket`,
-     `chunk_expiry_days`, `bonus_forfit_days`,
+     `chunk_expiry_days`, `bonus_expiry_days`,
      `wager_chip_type`, `credit_chip_type`,
      `bonus_amount_fixed`, `bonus_amount_percent`, `bonus_amount_max`,
      `priority`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`)
@@ -125,7 +129,7 @@ VALUES
      '100% First Deposit up to 5000',
      'Full 100% match on first deposit, capped at ₹5,000 bonus.',
      'CHUNK', 'CHUNK', 'POKER',
-     '2026-01-01 00:00:00', '2026-12-31 23:59:59',
+     '2026-01-01 00:00:00', '2026-12-31 23:59:59', 'ONCE',
      2.00, 5, 'DEPOSIT_INSTANT',
      30, NULL,
      'CASH', 'CASH',
@@ -138,7 +142,7 @@ VALUES
      '100% First Deposit up to 20000 (VIP)',
      'Higher cap variant for VIP-tagged players.',
      'CHUNK', 'CHUNK', 'POKER',
-     '2026-01-01 00:00:00', '2026-12-31 23:59:59',
+     '2026-01-01 00:00:00', '2026-12-31 23:59:59', 'ONCE',
      3.00, 1, 'DEPOSIT_INSTANT',
      45, NULL,
      'CASH', 'CASH',
@@ -150,7 +154,7 @@ VALUES
      'Weekend Reload Flat 500',
      'Fixed ₹500 bonus credited on any weekend deposit.',
      'INSTANT', 'INSTANT', 'POKER',
-     '2026-01-01 00:00:00', '2026-12-31 23:59:59',
+     '2026-01-01 00:00:00', '2026-12-31 23:59:59', 'WEEKLY',
      0.00, 1, 'DEPOSIT_INSTANT',
      NULL, NULL,
      'CASH', 'CASH',

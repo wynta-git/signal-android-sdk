@@ -1,14 +1,14 @@
 """
 Pydantic models for bonus_configure and its embedded code summary.
 
-bonus_configure columns (after schema cleanup):
+bonus_configure columns:
   id, subhead_id, site_id, name, description,
   bonus_type, release_mode, product,
-  start_date, end_date,          -- stored as DATETIME (UTC naive)
+  start_date, end_date, applicability_frequency,   -- stored as DATETIME (UTC naive)
   wager_multiplier, no_of_chunks, release_bucket,
   chunk_expiry_days, bonus_expiry_days,
   wager_chip_type, credit_chip_type,
-  bonus_amount_default, bonus_amount_max,
+  bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
   priority, active, created_by, updated_by, created_at, updated_at
 """
 
@@ -18,35 +18,38 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-BonusType   = Literal["CHUNK", "INSTANT"]
-ReleaseMode = Literal["CHUNK", "INSTANT"]
-ProductType = Literal["POKER", "CASINO", "RUMMY"]
+BonusType              = Literal["CHUNK", "INSTANT"]
+ReleaseMode            = Literal["CHUNK", "INSTANT"]
+ProductType            = Literal["POKER", "CASINO", "RUMMY"]
+ApplicabilityFrequency = Literal["EVERYTIME", "ONCE", "MONTHLY", "WEEKLY"]
 
 
 class BonusConfigureCreate(BaseModel):
     """Request payload for creating a new bonus_configure row."""
 
-    subhead_id:             int          = Field(..., ge=1)
-    site_id:                int          = Field(..., ge=1)
-    name:                   str          = Field(..., min_length=1, max_length=100)
-    description:            str | None   = Field(None, max_length=500)
-    bonus_type:             BonusType
-    release_mode:           ReleaseMode
-    product:                ProductType
-    start_date:             datetime
-    end_date:               datetime
-    wager_multiplier:       Decimal      = Field(Decimal("0.00"), ge=0)
-    no_of_chunks:           int          = Field(1, ge=1)
-    release_bucket:         str | None   = Field(None, max_length=50)
-    chunk_expiry_days:      int | None   = Field(None, ge=1)
-    bonus_expiry_days:      int | None   = Field(None, ge=1)
-    wager_chip_type:        str          = Field("CASH", max_length=50)
-    credit_chip_type:       str          = Field("CASH", max_length=50)
-    bonus_amount_default:   Decimal | None = Field(None, ge=0)
-    bonus_amount_max:       Decimal | None = Field(None, ge=0)
-    priority:               int          = Field(0, ge=0)
-    active:                 bool         = True
-    created_by:             str          = Field(..., min_length=1, max_length=100)
+    subhead_id:                 int                    = Field(..., ge=1)
+    site_id:                    int                    = Field(..., ge=1)
+    name:                       str                    = Field(..., min_length=1, max_length=100)
+    description:                str | None             = Field(None, max_length=500)
+    bonus_type:                 BonusType
+    release_mode:               ReleaseMode
+    product:                    ProductType
+    start_date:                 datetime
+    end_date:                   datetime
+    applicability_frequency:    ApplicabilityFrequency = "EVERYTIME"
+    wager_multiplier:           Decimal                = Field(Decimal("0.00"), ge=0)
+    no_of_chunks:               int                    = Field(1, ge=1)
+    release_bucket:             str | None             = Field(None, max_length=50)
+    chunk_expiry_days:          int | None             = Field(None, ge=1)
+    bonus_expiry_days:          int | None             = Field(None, ge=1)
+    wager_chip_type:            str                    = Field("CASH", max_length=50)
+    credit_chip_type:           str                    = Field("CASH", max_length=50)
+    bonus_amount_fixed:         Decimal | None         = Field(None, ge=0)
+    bonus_amount_percent:       Decimal | None         = Field(None, ge=0)
+    bonus_amount_max:           Decimal | None         = Field(None, ge=0)
+    priority:                   int                    = Field(0, ge=0)
+    active:                     bool                   = True
+    created_by:                 str                    = Field(..., min_length=1, max_length=100)
 
     @field_validator("start_date", "end_date", mode="after")
     @classmethod
@@ -68,31 +71,33 @@ class BonusConfigureCreate(BaseModel):
 class BonusConfigureResponse(BaseModel):
     """Response shape for a bonus_configure row."""
 
-    id:                     int
-    subhead_id:             int
-    site_id:                int
-    name:                   str
-    description:            str | None
-    bonus_type:             str
-    release_mode:           str
-    product:                str
-    start_date:             datetime
-    end_date:               datetime
-    wager_multiplier:       Decimal
-    no_of_chunks:           int
-    release_bucket:         str | None
-    chunk_expiry_days:      int | None
-    bonus_expiry_days:      int | None
-    wager_chip_type:        str
-    credit_chip_type:       str
-    bonus_amount_default:   Decimal | None
-    bonus_amount_max:       Decimal | None
-    priority:               int
-    active:                 bool
-    created_by:             str
-    updated_by:             str
-    created_at:             datetime
-    updated_at:             datetime
+    id:                         int
+    subhead_id:                 int
+    site_id:                    int
+    name:                       str
+    description:                str | None
+    bonus_type:                 str
+    release_mode:               str
+    product:                    str
+    start_date:                 datetime
+    end_date:                   datetime
+    applicability_frequency:    str
+    wager_multiplier:           Decimal
+    no_of_chunks:               int
+    release_bucket:             str | None
+    chunk_expiry_days:          int | None
+    bonus_expiry_days:          int | None
+    wager_chip_type:            str
+    credit_chip_type:           str
+    bonus_amount_fixed:         Decimal | None
+    bonus_amount_percent:       Decimal | None
+    bonus_amount_max:           Decimal | None
+    priority:                   int
+    active:                     bool
+    created_by:                 str
+    updated_by:                 str
+    created_at:                 datetime
+    updated_at:                 datetime
 
     model_config = {"from_attributes": True}
 
@@ -100,14 +105,14 @@ class BonusConfigureResponse(BaseModel):
 class BonusCodeSummary(BaseModel):
     """Embedded code entry returned inside BonusConfigureDetail."""
 
-    id:           int
-    code:         str
-    max_amount:   Decimal | None
-    valid_from:   datetime | None
-    valid_to:     datetime | None
-    auto_apply:   bool
+    id:            int
+    code:          str
+    max_amount:    Decimal | None
+    valid_from:    datetime | None
+    valid_to:      datetime | None
+    auto_apply:    bool
     display_order: int
-    active:       bool
+    active:        bool
 
 
 class BonusConfigureDetail(BonusConfigureResponse):
@@ -119,25 +124,27 @@ class BonusConfigureDetail(BonusConfigureResponse):
 class BonusConfigureUpdate(BaseModel):
     """PATCH payload — all fields optional; updated_by always required."""
 
-    name:                   str | None      = Field(None, min_length=1, max_length=100)
-    description:            str | None      = None
-    bonus_type:             BonusType | None = None
-    release_mode:           ReleaseMode | None = None
-    product:                ProductType | None = None
-    start_date:             datetime | None = None
-    end_date:               datetime | None = None
-    wager_multiplier:       Decimal | None  = Field(None, ge=0)
-    no_of_chunks:           int | None      = Field(None, ge=1)
-    release_bucket:         str | None      = None
-    chunk_expiry_days:      int | None      = Field(None, ge=1)
-    bonus_expiry_days:      int | None      = Field(None, ge=1)
-    wager_chip_type:        str | None      = Field(None, max_length=50)
-    credit_chip_type:       str | None      = Field(None, max_length=50)
-    bonus_amount_default:   Decimal | None  = Field(None, ge=0)
-    bonus_amount_max:       Decimal | None  = Field(None, ge=0)
-    priority:               int | None      = Field(None, ge=0)
-    active:                 bool | None     = None
-    updated_by:             str             = Field(..., min_length=1, max_length=100)
+    name:                       str | None                      = Field(None, min_length=1, max_length=100)
+    description:                str | None                      = None
+    bonus_type:                 BonusType | None                = None
+    release_mode:               ReleaseMode | None              = None
+    product:                    ProductType | None              = None
+    start_date:                 datetime | None                 = None
+    end_date:                   datetime | None                 = None
+    applicability_frequency:    ApplicabilityFrequency | None   = None
+    wager_multiplier:           Decimal | None                  = Field(None, ge=0)
+    no_of_chunks:               int | None                      = Field(None, ge=1)
+    release_bucket:             str | None                      = None
+    chunk_expiry_days:          int | None                      = Field(None, ge=1)
+    bonus_expiry_days:          int | None                      = Field(None, ge=1)
+    wager_chip_type:            str | None                      = Field(None, max_length=50)
+    credit_chip_type:           str | None                      = Field(None, max_length=50)
+    bonus_amount_fixed:         Decimal | None                  = Field(None, ge=0)
+    bonus_amount_percent:       Decimal | None                  = Field(None, ge=0)
+    bonus_amount_max:           Decimal | None                  = Field(None, ge=0)
+    priority:                   int | None                      = Field(None, ge=0)
+    active:                     bool | None                     = None
+    updated_by:                 str                             = Field(..., min_length=1, max_length=100)
 
     @field_validator("start_date", "end_date", mode="after")
     @classmethod

@@ -27,18 +27,20 @@ _VALID = dict(
 
 # (id, subhead_id, site_id, name, description,
 #  bonus_type, release_mode, product, start_date, end_date,
+#  applicability_frequency,
 #  wager_multiplier, no_of_chunks, release_bucket,
 #  chunk_expiry_days, bonus_expiry_days,
 #  wager_chip_type, credit_chip_type,
-#  bonus_amount_default, bonus_amount_max,
+#  bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
 #  priority, active, created_by, updated_by, created_at, updated_at)
 _DB_ROW = (
     10, 1, 1, "100pct Match", None,
     "CHUNK", "CHUNK", "POKER", _START, _END,
+    "EVERYTIME",
     Decimal("2.00"), 5, None,
     None, None,
     "CASH", "CASH",
-    None, None,
+    None, None, None,
     0, 1, "admin", "admin", _NOW, _NOW,
 )
 

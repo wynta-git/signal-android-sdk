@@ -38,6 +38,7 @@ async def create_bonus_configure(payload: BonusConfigureCreate) -> BonusConfigur
     - **release_mode**: ``CHUNK`` or ``INSTANT``
     - **product**: ``POKER``, ``CASINO``, or ``RUMMY``
     - **start_date / end_date**: active date window (end ≥ start)
+    - **applicability_frequency**: ``EVERYTIME`` (default), ``ONCE``, ``MONTHLY``, or ``WEEKLY``
     - **wager_multiplier**: 0 = no wagering required
     - **no_of_chunks**: number of equal chunks (default 1)
     - **created_by**: actor performing the creation
