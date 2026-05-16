@@ -1,30 +1,102 @@
+import inspect
 import logging
+import logging.handlers
+import os
+import sys
+from pathlib import Path
 
 import structlog
 
 
-def configure_logging(debug: bool = False) -> None:
+def _detect_service_name() -> str:
+    for frame in inspect.stack():
+        parts = Path(frame.filename).parts
+        if "services" in parts:
+            idx = list(parts).index("services")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+    return "app"
+
+
+def _project_root() -> Path:
+    for frame in inspect.stack():
+        parts = Path(frame.filename).parts
+        if "services" in parts:
+            idx = list(parts).index("services")
+            return Path(*parts[:idx])
+    return Path.cwd()
+
+
+def configure_logging(
+    debug: bool = False,
+    log_dir: str | None = None,
+    max_bytes: int = 10 * 1024 * 1024,  # 10 MB
+    backup_count: int = 5,
+    log_to_stdout: bool = False,
+    log_to_file: bool = True,
+) -> None:
+    level = logging.DEBUG if debug else logging.INFO
+    service_name = _detect_service_name()
+
+    log_folder = Path(log_dir) if log_dir else _project_root() / "logs"
+    log_folder.mkdir(parents=True, exist_ok=True)
+    log_file = log_folder / f"{service_name}.{os.getpid()}.log"
+
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
+        structlog.processors.CallsiteParameterAdder(
+            [structlog.processors.CallsiteParameter.FUNC_NAME]
+        ),
     ]
 
     if debug:
-        processors = shared_processors + [structlog.dev.ConsoleRenderer()]
+        render_processors: list[structlog.types.Processor] = [
+            structlog.dev.ConsoleRenderer()
+        ]
     else:
-        processors = shared_processors + [
-            structlog.processors.format_exc_info,
+        render_processors = [
+            structlog.stdlib.ExceptionRenderer(),
             structlog.processors.JSONRenderer(),
         ]
 
+    # ProcessorFormatter bridges structlog → stdlib so RotatingFileHandler controls
+    # the file. foreign_pre_chain applies shared processors to third-party lib logs.
+    formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            *render_processors,
+        ],
+    )
+
     structlog.configure(
-        processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(
-            logging.DEBUG if debug else logging.INFO
-        ),
+        processors=shared_processors
+        + [structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
+        wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
+
+    root = logging.getLogger()
+    root.handlers.clear()
+
+    if log_to_stdout:
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setFormatter(formatter)
+        root.addHandler(stdout_handler)
+
+    if log_to_file:
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(formatter)
+        root.addHandler(file_handler)
+
+    root.setLevel(level)
