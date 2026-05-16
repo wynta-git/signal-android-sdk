@@ -5,7 +5,7 @@ import structlog
 
 from app.config import settings
 from app.consumer import run_consumer
-from app.logging_config import configure_logging
+from shared.logging_config import configure_logging
 from app.schema_manager import SchemaManager
 from app.writer import ClickHouseWriter
 from shared.clients.clickhouse import make_clickhouse_client

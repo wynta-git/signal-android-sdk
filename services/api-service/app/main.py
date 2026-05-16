@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.kafka_producer import KafkaEventProducer
-from app.logging_config import configure_logging
+from shared.logging_config import configure_logging
 from app.routes.alias import router as alias_router
 from app.routes.identify import router as identify_router
 from app.routes.ready import router as ready_router

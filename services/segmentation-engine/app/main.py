@@ -6,7 +6,7 @@ import structlog
 from fastapi import FastAPI
 
 from app.config import settings
-from app.logging_config import configure_logging
+from shared.logging_config import configure_logging
 from app.refresh import scheduled
 from app.refresh.event_driven import run_consumer
 from app.routes.segments import router as segments_router
