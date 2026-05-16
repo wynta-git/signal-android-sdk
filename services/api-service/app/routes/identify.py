@@ -6,7 +6,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from app.auth.token import TokenContext
+from shared.auth.token import TokenContext
 from app.config import settings
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 from shared.clients.mongo import upsert_user_profile

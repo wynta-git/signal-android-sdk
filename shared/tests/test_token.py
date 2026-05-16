@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.auth.token import InvalidTokenError, TokenContext, validate_token
+from shared.auth.token import InvalidTokenError, TokenContext, validate_token
 
 
 class TestTokenContext:

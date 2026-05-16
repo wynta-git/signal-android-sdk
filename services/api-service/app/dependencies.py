@@ -4,7 +4,7 @@ import structlog
 from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.auth.token import (
+from shared.auth.token import (
     InvalidTokenError,
     TokenContext,
     hash_token,

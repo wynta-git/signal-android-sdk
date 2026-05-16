@@ -10,7 +10,7 @@ from app.middleware.ratelimit import (
     project_rate_limit,
     user_rate_limit,
 )
-from app.auth.token import TokenContext
+from shared.auth.token import TokenContext
 
 
 @pytest.fixture

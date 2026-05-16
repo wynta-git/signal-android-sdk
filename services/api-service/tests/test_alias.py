@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import HTTPException
 
-from app.auth.token import TokenContext
+from shared.auth.token import TokenContext
 from app.routes.alias import AliasRequest, alias
 
 

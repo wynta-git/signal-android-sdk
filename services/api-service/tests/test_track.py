@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.auth.token import TokenContext
+from shared.auth.token import TokenContext
 from app.middleware.ratelimit import project_rate_limit
 from app.routes.track import MAX_EVENTS_PER_BATCH, TrackRequest, _map_validation_error, track
 from shared.models.events import EventEnvelope

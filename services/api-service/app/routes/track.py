@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, ValidationError
 
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
-from app.auth.token import TokenContext
+from shared.auth.token import TokenContext
 from app.config import settings
 from app.kafka_producer import get_or_create_producer
 from fastapi import Depends
