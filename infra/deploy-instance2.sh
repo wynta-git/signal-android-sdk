@@ -86,11 +86,11 @@ UV="$(as_user bash -c 'command -v uv')"
 section "4. Writing .env files"
 
 cat > "$REPO/services/api-service/.env" <<EOF
-MONGO_URL=mongodb://$INSTANCE1_IP:27017
+MONGO_URL=mongodb://admin:glgpam2026@$INSTANCE1_IP:27017
 MONGO_DB=pam
 MONGO_MIN_POOL_SIZE=5
 MONGO_MAX_POOL_SIZE=50
-REDIS_URL=redis://$INSTANCE1_IP:6379
+REDIS_URL=redis://:glgpam2026@$INSTANCE1_IP:6379
 REDIS_MAX_CONNECTIONS=20
 KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:9092
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
@@ -112,7 +112,7 @@ CLICKHOUSE_PORT=8123
 CLICKHOUSE_DATABASE=pam
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=glg2026
-REDIS_URL=redis://$INSTANCE1_IP:6379
+REDIS_URL=redis://:glgpam2026@$INSTANCE1_IP:6379
 BATCH_SIZE=500
 BATCH_TIMEOUT_SECONDS=5.0
 DEBUG=true
@@ -161,7 +161,7 @@ info "Running seed.py against MongoDB at $INSTANCE1_IP:27017..."
 SEED_OUTPUT=$(as_user bash -c "
     cd '$REPO'
     '$VENV/bin/python' infra/seed.py \
-        --mongo 'mongodb://$INSTANCE1_IP:27017' \
+        --mongo 'mongodb://admin:glgpam2026@$INSTANCE1_IP:27017' \
         --db pam \
         --project-id '$PROJECT_ID' \
         --project-name '$PROJECT_NAME'
@@ -180,7 +180,7 @@ else
     warn "Could not parse token from seed output."
     warn "The project may already exist — re-running seed is safe (it upserts)."
     warn "Retrieve existing token from MongoDB:"
-    warn "  mongosh mongodb://$INSTANCE1_IP:27017/pam --eval 'db.tokens.find({project_id:\"$PROJECT_ID\"})'"
+    warn "  mongosh mongodb://admin:glgpam2026@$INSTANCE1_IP:27017/pam --eval 'db.tokens.find({project_id:\"$PROJECT_ID\"})'"
 fi
 
 # ── 8. create systemd service units ──────────────────────────────────────────
