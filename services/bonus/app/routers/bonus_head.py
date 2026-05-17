@@ -21,12 +21,19 @@ from app.models.bonus_head import (
 from app.services.bonus_head_service import (
     add_bonus_head,
     get_bonus_head,
+    list_bonus_heads,
     update_bonus_head,
     upsert_limits,
     upsert_owners,
 )
 
 router = APIRouter(prefix="/bonus-heads", tags=["bonus-heads"])
+
+
+@router.get("", response_model=list[BonusHeadResponse])
+async def list_bonus_heads_endpoint(site_id: int) -> list[BonusHeadResponse]:
+    """Return all bonus heads for a site."""
+    return await list_bonus_heads(site_id)
 
 
 @router.get("/{head_id}", response_model=BonusHeadDetail)

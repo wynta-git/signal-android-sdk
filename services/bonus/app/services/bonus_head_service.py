@@ -45,6 +45,14 @@ _SELECT_SQL = """
     WHERE id = %s
 """
 
+_LIST_SQL = """
+    SELECT id, site_id, name, description, active, owner,
+           created_by, updated_by, created_at, updated_at
+    FROM bonus_head
+    WHERE site_id = %s
+    ORDER BY id
+"""
+
 _EXISTS_SQL = """
     SELECT 1 FROM bonus_head WHERE site_id = %s AND name = %s LIMIT 1
 """
@@ -387,6 +395,29 @@ async def get_bonus_head(head_id: int) -> BonusHeadDetail:
             for r in budget_rows
         ],
     )
+
+
+async def list_bonus_heads(site_id: int) -> list[BonusHeadResponse]:
+    """Return all bonus heads for a given site, ordered by id."""
+    log.info("list_bonus_heads.start", site_id=site_id)
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_LIST_SQL, (site_id,))
+                rows = await cur.fetchall()
+    except Exception as exc:
+        log.error("list_bonus_heads.db_error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+    return [
+        BonusHeadResponse(
+            id=r[0], site_id=r[1], name=r[2], description=r[3],
+            active=bool(r[4]), owner=r[5],
+            created_by=r[6], updated_by=r[7],
+            created_at=_as_dt(r[8]), updated_at=_as_dt(r[9]),
+        )
+        for r in rows
+    ]
 
 
 # Patchable bonus_head fields and their SQL column names.
