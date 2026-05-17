@@ -3,13 +3,19 @@ import { use, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { Plus, ChevronRight } from 'lucide-react'
+import { Plus, ChevronRight, Calendar, Zap } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import {
   fetchSubhead, updateSubhead, upsertSubheadOwners, upsertSubheadLimits,
   selectSubhead, selectSubheadLoading, selectSubheadError,
 } from '@/store/slices/subheadSlice'
 import { selectHead } from '@/store/slices/headSlice'
+import {
+  fetchConfiguresBySubhead,
+  selectConfiguresBySubhead,
+  selectConfigureLoading,
+  selectConfigureError,
+} from '@/store/slices/configureSlice'
 import { Breadcrumb } from '@/components/layout/Breadcrumb'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -18,7 +24,7 @@ import { Input } from '@/components/ui/Input'
 import { PageSpinner } from '@/components/ui/Spinner'
 import { OwnersPanel } from '@/components/shared/OwnersPanel'
 import { BudgetPanel } from '@/components/shared/BudgetPanel'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatDecimal } from '@/lib/utils'
 import type { BonusSubheadUpdate, OwnerRole, BudgetPeriod } from '@/lib/types'
 
 type Tab = 'configures' | 'owners' | 'budget' | 'edit'
@@ -140,39 +146,70 @@ export default function SubheadDetailPage({ params }: { params: Promise<{ id: st
 }
 
 function ConfiguresTab({ headId, subheadId }: { headId: number; subheadId: number }) {
-  const [ids, setIds] = useState<number[]>([])
-  const [input, setInput] = useState('')
+  const dispatch    = useAppDispatch()
+  const configures  = useAppSelector(selectConfiguresBySubhead(subheadId))
+  const loading     = useAppSelector(selectConfigureLoading(`list_${subheadId}`))
+  const error       = useAppSelector(selectConfigureError(`list_${subheadId}`))
 
-  function add() {
-    const n = parseInt(input)
-    if (!isNaN(n) && n > 0 && !ids.includes(n)) setIds(p => [...p, n])
-    setInput('')
-  }
+  useEffect(() => { dispatch(fetchConfiguresBySubhead(subheadId)) }, [subheadId, dispatch])
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <Link href={`/heads/${headId}/subheads/${subheadId}/configures/new`}>
-          <Button size="sm"><Plus className="h-3.5 w-3.5" /> New Configure</Button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 12, color: 'var(--g400)' }}>
+          {loading ? 'Loading…' : `${configures.length} configure${configures.length !== 1 ? 's' : ''}`}
+        </span>
+        <Link href={`/heads/${headId}/subheads/${subheadId}/configures/new`} style={{ textDecoration: 'none' }}>
+          <Button size="sm"><Plus size={13} /> New Configure</Button>
         </Link>
       </div>
-      {ids.length === 0 && <p className="text-sm text-gray-400">Enter a configure ID below to load it, or create a new one.</p>}
-      {ids.map(cid => (
-        <Link key={cid} href={`/heads/${headId}/subheads/${subheadId}/configures/${cid}`}>
-          <Card className="hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer">
-            <CardBody className="flex items-center justify-between py-3">
-              <span className="text-sm font-medium text-gray-800">Configure #{cid}</span>
-              <ChevronRight className="h-4 w-4 text-gray-400" />
+
+      {error && (
+        <div style={{ fontSize: 12.5, color: 'var(--err)', padding: '10px 14px', background: '#fee2e2', borderRadius: 'var(--r)' }}>{error}</div>
+      )}
+
+      {!loading && configures.length === 0 && !error && (
+        <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--g400)', fontSize: 13 }}>
+          No configures yet. Create one to define bonus mechanics for this subhead.
+        </div>
+      )}
+
+      {configures.map(cfg => (
+        <Link key={cfg.id} href={`/heads/${headId}/subheads/${subheadId}/configures/${cfg.id}`} style={{ textDecoration: 'none' }}>
+          <Card style={{ cursor: 'pointer', transition: 'border-color 0.15s, box-shadow 0.15s' }}>
+            <CardBody>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 36, height: 36, background: 'var(--bp)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Zap size={16} style={{ color: 'var(--blue)' }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--g900)' }}>{cfg.name}</span>
+                    <Badge variant={cfg.active ? 'green' : 'red'}>{cfg.active ? 'Active' : 'Inactive'}</Badge>
+                    <Badge variant="blue">{cfg.applicability_frequency}</Badge>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 5, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11.5, color: 'var(--g400)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Calendar size={11} /> {formatDate(cfg.start_date)} → {formatDate(cfg.end_date)}
+                    </span>
+                    {cfg.bonus_amount_fixed && (
+                      <span style={{ fontSize: 11.5, color: 'var(--g500)' }}>Fixed ₹{formatDecimal(cfg.bonus_amount_fixed)}</span>
+                    )}
+                    {cfg.bonus_amount_percent && (
+                      <span style={{ fontSize: 11.5, color: 'var(--g500)' }}>{cfg.bonus_amount_percent}%</span>
+                    )}
+                    {cfg.bonus_amount_max && (
+                      <span style={{ fontSize: 11.5, color: 'var(--g500)' }}>Max ₹{formatDecimal(cfg.bonus_amount_max)}</span>
+                    )}
+                    <span style={{ fontSize: 11.5, color: 'var(--g400)' }}>Priority {cfg.priority}</span>
+                  </div>
+                </div>
+                <ChevronRight size={15} style={{ color: 'var(--g300)', flexShrink: 0 }} />
+              </div>
             </CardBody>
           </Card>
         </Link>
       ))}
-      <div className="flex items-center gap-2 pt-1">
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()}
-          placeholder="Load configure by ID…"
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        <Button variant="secondary" size="sm" onClick={add}>Load</Button>
-      </div>
     </div>
   )
 }

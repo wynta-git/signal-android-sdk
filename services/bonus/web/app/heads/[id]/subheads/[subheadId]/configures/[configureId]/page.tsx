@@ -10,6 +10,8 @@ import {
   fetchConfigure, updateConfigure,
   selectConfigure, selectConfigureLoading, selectConfigureError,
 } from '@/store/slices/configureSlice'
+import { selectEligibilitiesForConfigure } from '@/store/slices/eligibilitySlice'
+import { selectTriggersForConfigure } from '@/store/slices/releaseTriggerSlice'
 import { selectHead } from '@/store/slices/headSlice'
 import { selectSubhead } from '@/store/slices/subheadSlice'
 import { Breadcrumb } from '@/components/layout/Breadcrumb'
@@ -19,20 +21,38 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { PageSpinner } from '@/components/ui/Spinner'
+import { EligibilityPanel } from '@/components/configures/EligibilityPanel'
+import { ReleaseTriggerPanel } from '@/components/configures/ReleaseTriggerPanel'
 import { formatDate, formatDecimal, fromApiDatetime, toApiDatetime } from '@/lib/utils'
-import type { BonusConfigureUpdate } from '@/lib/types'
+import type { BonusConfigureUpdate, ApplicabilityFrequency } from '@/lib/types'
 
-type Tab = 'details' | 'codes' | 'edit'
+type Tab = 'details' | 'eligibility' | 'triggers' | 'codes' | 'edit'
 
 interface EditFD {
-  name: string; description: string
-  bonus_type: 'CHUNK' | 'INSTANT'; release_mode: 'CHUNK' | 'INSTANT'; product: 'POKER' | 'CASINO' | 'RUMMY'
-  wager_multiplier: number; no_of_chunks: number; release_bucket: string
-  chunk_expiry_days: string; bonus_expiry_days: string
-  wager_chip_type: string; credit_chip_type: string
-  bonus_amount_default: string; bonus_amount_max: string
-  priority: number; active: boolean; updated_by: string
+  name: string
+  description: string
+  applicability_frequency: ApplicabilityFrequency
+  wager_multiplier: number
+  no_of_chunks: number
+  release_bucket: string
+  chunk_expiry_days: string
+  bonus_expiry_days: string
+  wager_chip_type: string
+  credit_chip_type: string
+  bonus_amount_fixed: string
+  bonus_amount_percent: string
+  bonus_amount_max: string
+  priority: number
+  active: boolean
+  updated_by: string
 }
+
+const tabStyle = (active: boolean): React.CSSProperties => ({
+  padding: '9px 15px', fontSize: 13, fontWeight: active ? 600 : 400, background: 'none', border: 'none',
+  borderBottom: `2px solid ${active ? 'var(--blue)' : 'transparent'}`,
+  color: active ? 'var(--blue)' : 'var(--g500)', cursor: 'pointer',
+  transition: 'color 0.12s, border-color 0.12s', marginBottom: -1,
+})
 
 export default function ConfigureDetailPage({ params }: { params: Promise<{ id: string; subheadId: string; configureId: string }> }) {
   const { id, subheadId, configureId } = use(params)
@@ -47,6 +67,9 @@ export default function ConfigureDetailPage({ params }: { params: Promise<{ id: 
   const fetchErr = useAppSelector(selectConfigureError(`fetch_${cfgId}`))
   const updating = useAppSelector(selectConfigureLoading(`update_${cfgId}`))
 
+  const eligibilities = useAppSelector(selectEligibilitiesForConfigure(cfgId))
+  const triggers      = useAppSelector(selectTriggersForConfigure(cfgId))
+
   const [startDate, setStartDate] = useState<Date | null>(null)
   const [endDate,   setEndDate]   = useState<Date | null>(null)
 
@@ -55,21 +78,22 @@ export default function ConfigureDetailPage({ params }: { params: Promise<{ id: 
   useEffect(() => { dispatch(fetchConfigure(cfgId)) }, [cfgId, dispatch])
 
   if (fetching && !data) return <PageSpinner />
-  if (fetchErr || !data) return <div className="text-gray-500">{fetchErr ?? 'Configure not found.'}</div>
+  if (fetchErr || !data) return <div style={{ color: 'var(--g400)', padding: 32 }}>{fetchErr ?? 'Configure not found.'}</div>
 
   function openEdit() {
     setStartDate(fromApiDatetime(data!.start_date))
     setEndDate(fromApiDatetime(data!.end_date))
     reset({
       name: data!.name, description: data!.description ?? '',
-      bonus_type: data!.bonus_type, release_mode: data!.release_mode, product: data!.product,
+      applicability_frequency: data!.applicability_frequency,
       wager_multiplier: parseFloat(data!.wager_multiplier),
       no_of_chunks: data!.no_of_chunks,
       release_bucket: data!.release_bucket ?? '',
       chunk_expiry_days: data!.chunk_expiry_days?.toString() ?? '',
       bonus_expiry_days: data!.bonus_expiry_days?.toString() ?? '',
       wager_chip_type: data!.wager_chip_type, credit_chip_type: data!.credit_chip_type,
-      bonus_amount_default: data!.bonus_amount_default ?? '',
+      bonus_amount_fixed: data!.bonus_amount_fixed ?? '',
+      bonus_amount_percent: data!.bonus_amount_percent ?? '',
       bonus_amount_max: data!.bonus_amount_max ?? '',
       priority: data!.priority, active: data!.active, updated_by: '',
     })
@@ -79,14 +103,15 @@ export default function ConfigureDetailPage({ params }: { params: Promise<{ id: 
   async function handleUpdate(fd: EditFD) {
     const body: BonusConfigureUpdate = {
       name: fd.name, description: fd.description || null,
-      bonus_type: fd.bonus_type, release_mode: fd.release_mode, product: fd.product,
+      applicability_frequency: fd.applicability_frequency,
       start_date: toApiDatetime(startDate), end_date: toApiDatetime(endDate),
       wager_multiplier: fd.wager_multiplier, no_of_chunks: fd.no_of_chunks,
       release_bucket: fd.release_bucket || null,
       chunk_expiry_days: fd.chunk_expiry_days ? parseInt(fd.chunk_expiry_days) : null,
       bonus_expiry_days: fd.bonus_expiry_days ? parseInt(fd.bonus_expiry_days) : null,
       wager_chip_type: fd.wager_chip_type, credit_chip_type: fd.credit_chip_type,
-      bonus_amount_default: fd.bonus_amount_default ? parseFloat(fd.bonus_amount_default) : null,
+      bonus_amount_fixed: fd.bonus_amount_fixed ? parseFloat(fd.bonus_amount_fixed) : null,
+      bonus_amount_percent: fd.bonus_amount_percent ? parseFloat(fd.bonus_amount_percent) : null,
       bonus_amount_max: fd.bonus_amount_max ? parseFloat(fd.bonus_amount_max) : null,
       priority: fd.priority, active: fd.active, updated_by: fd.updated_by,
     }
@@ -98,144 +123,189 @@ export default function ConfigureDetailPage({ params }: { params: Promise<{ id: 
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'details', label: 'Details' },
-    { key: 'codes',   label: `Promo Codes (${data.codes.length})` },
-    { key: 'edit',    label: 'Edit' },
+    { key: 'details',     label: 'Details' },
+    { key: 'eligibility', label: `Eligibility (${eligibilities.length})` },
+    { key: 'triggers',    label: `Triggers (${triggers.length})` },
+    { key: 'codes',       label: `Promo Codes (${data.codes.length})` },
+    { key: 'edit',        label: 'Edit' },
   ]
 
   return (
-    <div className="space-y-6">
+    <div>
       <Breadcrumb crumbs={[
         { label: 'Heads', href: '/heads' },
         { label: head?.name ?? `Head #${headId}`, href: `/heads/${headId}` },
         { label: sub?.name ?? `Subhead #${subId}`, href: `/heads/${headId}/subheads/${subId}` },
         { label: data.name },
       ]} />
-      <div className="flex items-start justify-between">
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', margin: '16px 0 20px' }}>
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">{data.name}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--g900)', margin: 0 }}>{data.name}</h1>
             <Badge variant={data.active ? 'green' : 'red'}>{data.active ? 'Active' : 'Inactive'}</Badge>
-            <Badge variant="blue">{data.bonus_type}</Badge>
-            <Badge variant="yellow">{data.product}</Badge>
+            <Badge variant="blue">{data.applicability_frequency}</Badge>
           </div>
-          {data.description && <p className="text-gray-500 mt-1">{data.description}</p>}
-          <p className="text-xs text-gray-400 mt-2">
+          {data.description && <p style={{ fontSize: 13, color: 'var(--g500)', margin: '4px 0 0' }}>{data.description}</p>}
+          <p style={{ fontSize: 11.5, color: 'var(--g400)', margin: '6px 0 0' }}>
             {formatDate(data.start_date)} → {formatDate(data.end_date)} · Priority {data.priority}
           </p>
         </div>
-        {tab !== 'edit' && <Button variant="secondary" size="sm" onClick={openEdit}>Edit</Button>}
+        {tab !== 'edit' && (
+          <Button variant="secondary" size="sm" onClick={openEdit}>Edit</Button>
+        )}
       </div>
 
-      <div className="border-b border-gray-200 flex">
+      {/* Tabs */}
+      <div style={{ borderBottom: '1px solid var(--g200)', display: 'flex', marginBottom: 20 }}>
         {tabs.map(t => (
           <button key={t.key} onClick={() => t.key === 'edit' ? openEdit() : setTab(t.key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === t.key ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            style={tabStyle(tab === t.key)}>
             {t.label}
           </button>
         ))}
       </div>
 
+      {/* Details */}
       {tab === 'details' && (
-        <div className="grid grid-cols-2 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[
-            ['Bonus Type', data.bonus_type], ['Release Mode', data.release_mode],
-            ['Wager Multiplier', data.wager_multiplier], ['No. of Chunks', data.no_of_chunks],
-            ['Release Bucket', data.release_bucket ?? '—'], ['Wager Chip', data.wager_chip_type],
-            ['Credit Chip', data.credit_chip_type], ['Priority', data.priority],
-            ['Default Amount', data.bonus_amount_default ? `₹${formatDecimal(data.bonus_amount_default)}` : '—'],
+            ['Applicability Freq.', data.applicability_frequency],
+            ['Wager Multiplier', data.wager_multiplier],
+            ['No. of Chunks', data.no_of_chunks],
+            ['Release Bucket', data.release_bucket ?? '—'],
+            ['Wager Chip', data.wager_chip_type],
+            ['Credit Chip', data.credit_chip_type],
+            ['Priority', data.priority],
+            ['Fixed Amount', data.bonus_amount_fixed ? `₹${formatDecimal(data.bonus_amount_fixed)}` : '—'],
+            ['Percent Amount', data.bonus_amount_percent ? `${data.bonus_amount_percent}%` : '—'],
             ['Max Amount', data.bonus_amount_max ? `₹${formatDecimal(data.bonus_amount_max)}` : '—'],
             ['Chunk Expiry', data.chunk_expiry_days ? `${data.chunk_expiry_days} days` : '—'],
             ['Bonus Expiry', data.bonus_expiry_days ? `${data.bonus_expiry_days} days` : '—'],
             ['Created by', data.created_by], ['Updated by', data.updated_by],
             ['Created at', formatDate(data.created_at)], ['Updated at', formatDate(data.updated_at)],
           ].map(([k, v]) => (
-            <div key={k} className="bg-gray-50 rounded-lg px-4 py-3">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{k}</p>
-              <p className="text-sm font-semibold text-gray-900 mt-0.5">{String(v)}</p>
+            <div key={k} style={{ background: 'var(--g50)', borderRadius: 'var(--r)', padding: '10px 14px', border: '1px solid var(--g150)' }}>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--g400)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>{k}</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--g900)', margin: '2px 0 0' }}>{String(v)}</p>
             </div>
           ))}
         </div>
       )}
 
+      {/* Eligibility */}
+      {tab === 'eligibility' && (
+        <EligibilityPanel
+          configureId={cfgId}
+          siteId={data.site_id}
+          eligibilities={eligibilities}
+        />
+      )}
+
+      {/* Triggers */}
+      {tab === 'triggers' && (
+        <ReleaseTriggerPanel
+          siteId={data.site_id}
+          triggers={triggers}
+          codes={data.codes}
+        />
+      )}
+
+      {/* Promo Codes */}
       {tab === 'codes' && (
-        <div className="space-y-3">
-          {data.codes.length === 0 && <p className="text-sm text-gray-400">No promo codes.</p>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {data.codes.length === 0 && (
+            <p style={{ fontSize: 13, color: 'var(--g400)', padding: '24px 0' }}>No promo codes.</p>
+          )}
           {data.codes.map(c => (
             <Card key={c.id}>
-              <CardBody className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-3">
-                  <Tag className="h-4 w-4 text-indigo-500" />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-semibold text-gray-900">{c.code}</span>
+              <CardBody>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 32, height: 32, background: 'var(--bp)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Tag size={14} style={{ color: 'var(--blue)' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <code style={{ fontSize: 13, fontWeight: 700, color: 'var(--g900)', letterSpacing: '0.03em' }}>{c.code}</code>
                       <Badge variant={c.active ? 'green' : 'red'}>{c.active ? 'Active' : 'Inactive'}</Badge>
                       {c.auto_apply && <Badge variant="blue">Auto-apply</Badge>}
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p style={{ fontSize: 12, color: 'var(--g400)', margin: '4px 0 0' }}>
                       {c.max_amount ? `Max ₹${formatDecimal(c.max_amount)}` : 'No cap'} ·{' '}
                       {c.valid_from ? formatDate(c.valid_from) : 'Any time'} → {c.valid_to ? formatDate(c.valid_to) : 'No expiry'}
                     </p>
                   </div>
+                  <span style={{ fontSize: 12, color: 'var(--g400)', flexShrink: 0 }}>Order {c.display_order}</span>
                 </div>
-                <span className="text-xs text-gray-400">Order {c.display_order}</span>
               </CardBody>
             </Card>
           ))}
         </div>
       )}
 
+      {/* Edit */}
       {tab === 'edit' && (
-        <Card className="max-w-2xl">
-          <CardHeader><p className="font-medium text-gray-800">Edit Configure</p></CardHeader>
+        <Card style={{ maxWidth: 700 }}>
+          <CardHeader>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--g700)' }}>Edit Configure</span>
+          </CardHeader>
           <CardBody>
-            <form onSubmit={handleSubmit(handleUpdate)} className="space-y-5">
+            <form onSubmit={handleSubmit(handleUpdate)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <Input label="Name" {...register('name', { required: 'Required' })} error={errors.name?.message} />
               <Input label="Description" {...register('description')} />
-              <div className="grid grid-cols-3 gap-3">
-                <Select label="Bonus Type" {...register('bonus_type')}>
-                  <option value="CHUNK">CHUNK</option><option value="INSTANT">INSTANT</option>
-                </Select>
-                <Select label="Release Mode" {...register('release_mode')}>
-                  <option value="CHUNK">CHUNK</option><option value="INSTANT">INSTANT</option>
-                </Select>
-                <Select label="Product" {...register('product')}>
-                  <option value="POKER">POKER</option><option value="CASINO">CASINO</option><option value="RUMMY">RUMMY</option>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-700">Start Date (UTC)</label>
-                  <DatePicker selected={startDate} onChange={setStartDate} showTimeSelect dateFormat="yyyy-MM-dd HH:mm" className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+
+              <Select label="Applicability Frequency" {...register('applicability_frequency')}>
+                <option value="EVERYTIME">EVERYTIME</option>
+                <option value="ONCE">ONCE</option>
+                <option value="MONTHLY">MONTHLY</option>
+                <option value="WEEKLY">WEEKLY</option>
+              </Select>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--g600)' }}>Start Date (UTC)</label>
+                  <DatePicker selected={startDate} onChange={setStartDate} showTimeSelect dateFormat="yyyy-MM-dd HH:mm" />
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-gray-700">End Date (UTC)</label>
-                  <DatePicker selected={endDate} onChange={setEndDate} showTimeSelect dateFormat="yyyy-MM-dd HH:mm" className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--g600)' }}>End Date (UTC)</label>
+                  <DatePicker selected={endDate} onChange={setEndDate} showTimeSelect dateFormat="yyyy-MM-dd HH:mm" />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                 <Input label="Wager Multiplier" type="number" step="0.01" {...register('wager_multiplier', { valueAsNumber: true })} />
                 <Input label="No. of Chunks" type="number" {...register('no_of_chunks', { valueAsNumber: true })} />
                 <Input label="Priority" type="number" {...register('priority', { valueAsNumber: true })} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                <Input label="Fixed Amount (₹)" type="number" step="0.01" {...register('bonus_amount_fixed')} />
+                <Input label="Percent (%)" type="number" step="0.01" {...register('bonus_amount_percent')} />
+                <Input label="Max Amount (₹)" type="number" step="0.01" {...register('bonus_amount_max')} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Input label="Release Bucket" {...register('release_bucket')} />
                 <Input label="Chunk Expiry Days" type="number" {...register('chunk_expiry_days')} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Input label="Wager Chip Type" {...register('wager_chip_type')} />
                 <Input label="Credit Chip Type" {...register('credit_chip_type')} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Input label="Default Amount (₹)" type="number" step="0.01" {...register('bonus_amount_default')} />
-                <Input label="Max Amount (₹)" type="number" step="0.01" {...register('bonus_amount_max')} />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="active-edit" {...register('active')} className="h-4 w-4 rounded border-gray-300 text-indigo-600" />
-                <label htmlFor="active-edit" className="text-sm text-gray-700">Active</label>
-              </div>
-              <Input label="Updated by" placeholder="your username" {...register('updated_by', { required: 'Required' })} error={errors.updated_by?.message} />
-              <div className="flex gap-2">
+
+              <Input label="Bonus Expiry Days" type="number" {...register('bonus_expiry_days')} />
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, cursor: 'pointer' }}>
+                <input type="checkbox" {...register('active')} />
+                Active
+              </label>
+
+              <Input label="Updated by *" placeholder="your username"
+                {...register('updated_by', { required: 'Required' })} error={errors.updated_by?.message} />
+
+              <div style={{ display: 'flex', gap: 10 }}>
                 <Button type="submit" loading={updating}>Save Changes</Button>
                 <Button type="button" variant="secondary" onClick={() => setTab('details')}>Cancel</Button>
               </div>

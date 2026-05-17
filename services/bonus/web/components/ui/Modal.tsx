@@ -1,30 +1,43 @@
 'use client'
 import { X } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface Props {
   open: boolean
   onClose: () => void
   title?: string
   children: React.ReactNode
-  className?: string
+  width?: number
 }
 
-export function Modal({ open, onClose, title, children, className }: Props) {
+export function Modal({ open, onClose, title, children, width = 520 }: Props) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className={cn('relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto', className)}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)' }}
+        onClick={onClose}
+      />
+      <div style={{
+        position: 'relative', background: '#fff',
+        borderRadius: 'var(--rxl)', boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
+        width, maxWidth: 'calc(100vw - 32px)', maxHeight: '90vh',
+        overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      }}>
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-              <X className="h-5 w-5" />
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 18px', borderBottom: '1px solid var(--g150)',
+          }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--g700)' }}>{title}</h3>
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--g400)', padding: 4, display: 'flex', borderRadius: 4 }}
+            >
+              <X size={16} />
             </button>
           </div>
         )}
-        <div className="px-6 py-4">{children}</div>
+        <div style={{ padding: '16px 18px', overflowY: 'auto', flex: 1 }}>{children}</div>
       </div>
     </div>
   )

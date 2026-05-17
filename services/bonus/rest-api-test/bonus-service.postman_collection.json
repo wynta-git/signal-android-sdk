@@ -6,7 +6,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "http://localhost:8000",
+      "value": "http://localhost:8010",
       "type": "string"
     },
     {
@@ -21,6 +21,21 @@
     },
     {
       "key": "bonus_configure_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bonus_configure_code",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bonus_release_trigger_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bonus_eligibility_id",
       "value": "",
       "type": "string"
     }
@@ -54,6 +69,215 @@
     {
       "name": "Bonus Heads",
       "item": [
+        {
+          "name": "Create — valid payload",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Welcome Bonus\",\n  \"description\": \"First deposit welcome bonus\",\n  \"active\": true,\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('name matches', () => pm.expect(body.name).to.eql('Welcome Bonus'));",
+                  "pm.test('active is true', () => pm.expect(body.active).to.be.true);",
+                  "pm.collectionVariables.set('bonus_head_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — with description null",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 2,\n  \"name\": \"Reload Bonus\",\n  \"owner\": \"ops.team\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('description is null', () => pm.expect(pm.response.json().description).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — with active false",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 3,\n  \"name\": \"Draft Bonus\",\n  \"active\": false,\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('active is false', () => pm.expect(pm.response.json().active).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — duplicate (site_id + name) → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Welcome Bonus\",\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — missing required field → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Oops\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — name too long → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — site_id zero → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 0,\n  \"name\": \"Some Bonus\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — numeric owner → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Some Bonus\",\n  \"owner\": \"99999\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('field is owner', () => {",
+                  "    pm.expect(pm.response.json().detail[0].field).to.eql('owner');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — blank description → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-heads",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Some Bonus\",\n  \"description\": \"   \",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
         {
           "name": "Get detail — existing head",
           "request": {
@@ -410,257 +634,6 @@
               "script": {
                 "exec": [
                   "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — valid payload",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Welcome Bonus\",\n  \"description\": \"First deposit welcome bonus\",\n  \"active\": true,\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "const body = pm.response.json();",
-                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
-                  "pm.test('name matches', () => pm.expect(body.name).to.eql('Welcome Bonus'));",
-                  "pm.test('active is true', () => pm.expect(body.active).to.be.true);",
-                  "pm.collectionVariables.set('bonus_head_id', body.id);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — with description null",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 2,\n  \"name\": \"Reload Bonus\",\n  \"owner\": \"ops.team\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "pm.test('description is null', () => pm.expect(pm.response.json().description).to.be.null);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — with active false",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 3,\n  \"name\": \"Draft Bonus\",\n  \"active\": false,\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
-                  "pm.test('active is false', () => pm.expect(pm.response.json().active).to.be.false);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — duplicate (site_id + name) → 409",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Welcome Bonus\",\n  \"owner\": \"priya.sharma\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
-                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — missing required field → 422",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Oops\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — name too long → 422",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — name with invalid chars → 422",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Bad@Name!\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — site_id zero → 422",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 0,\n  \"name\": \"Some Bonus\",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — numeric owner → 422",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Some Bonus\",\n  \"owner\": \"99999\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
-                  "pm.test('field is owner', () => {",
-                  "    pm.expect(pm.response.json().detail[0].field).to.eql('owner');",
-                  "});"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create — blank description → 422",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"site_id\": 1,\n  \"name\": \"Some Bonus\",\n  \"description\": \"   \",\n  \"owner\": \"admin\",\n  \"created_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
                 ]
               }
             }
@@ -1249,7 +1222,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100pct First Deposit\",\n  \"description\": \"Full 100% match on first deposit, capped at ₹5,000.\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 2.00,\n  \"no_of_chunks\": 5,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"chunk_expiry_days\": 30,\n  \"wager_chip_type\": \"CASH\",\n  \"credit_chip_type\": \"CASH\",\n  \"bonus_amount_max\": 5000.00,\n  \"priority\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100pct First Deposit\",\n  \"description\": \"Full 100% match on first deposit, capped at 5000.\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"applicability_frequency\": \"ONCE\",\n  \"wager_multiplier\": 2.00,\n  \"no_of_chunks\": 5,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"chunk_expiry_days\": 30,\n  \"wager_chip_type\": \"CASH\",\n  \"credit_chip_type\": \"CASH\",\n  \"bonus_amount_percent\": 100.00,\n  \"bonus_amount_max\": 5000.00,\n  \"priority\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1262,8 +1235,8 @@
                   "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
                   "pm.test('has subhead_id', () => pm.expect(body.subhead_id).to.eql(1));",
                   "pm.test('name matches', () => pm.expect(body.name).to.eql('100pct First Deposit'));",
-                  "pm.test('bonus_type is CHUNK', () => pm.expect(body.bonus_type).to.eql('CHUNK'));",
-                  "pm.test('product is POKER', () => pm.expect(body.product).to.eql('POKER'));",
+                  "pm.test('applicability_frequency is ONCE', () => pm.expect(body.applicability_frequency).to.eql('ONCE'));",
+                  "pm.test('bonus_amount_percent set', () => pm.expect(parseFloat(body.bonus_amount_percent)).to.eql(100));",
                   "pm.test('active is true', () => pm.expect(body.active).to.be.true);",
                   "pm.collectionVariables.set('bonus_configure_id', body.id);"
                 ]
@@ -1272,14 +1245,14 @@
           ]
         },
         {
-          "name": "Create — instant bonus, no wagering",
+          "name": "Create — fixed amount, no wagering",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 3,\n  \"site_id\": 1,\n  \"name\": \"Weekend Flat 500\",\n  \"bonus_type\": \"INSTANT\",\n  \"release_mode\": \"INSTANT\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 0,\n  \"no_of_chunks\": 1,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"bonus_amount_default\": 500.00,\n  \"bonus_amount_max\": 500.00,\n  \"priority\": 1,\n  \"created_by\": \"ops.team\"\n}"
+              "raw": "{\n  \"subhead_id\": 3,\n  \"site_id\": 1,\n  \"name\": \"Weekend Flat 500\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"applicability_frequency\": \"WEEKLY\",\n  \"wager_multiplier\": 0,\n  \"no_of_chunks\": 1,\n  \"release_bucket\": \"DEPOSIT_INSTANT\",\n  \"bonus_amount_fixed\": 500.00,\n  \"bonus_amount_max\": 500.00,\n  \"priority\": 1,\n  \"created_by\": \"ops.team\"\n}"
             }
           },
           "event": [
@@ -1289,8 +1262,9 @@
                 "exec": [
                   "pm.test('201 Created', () => pm.response.to.have.status(201));",
                   "const body = pm.response.json();",
-                  "pm.test('bonus_type INSTANT', () => pm.expect(body.bonus_type).to.eql('INSTANT'));",
-                  "pm.test('wager_multiplier is 0', () => pm.expect(parseFloat(body.wager_multiplier)).to.eql(0));"
+                  "pm.test('applicability_frequency WEEKLY', () => pm.expect(body.applicability_frequency).to.eql('WEEKLY'));",
+                  "pm.test('wager_multiplier is 0', () => pm.expect(parseFloat(body.wager_multiplier)).to.eql(0));",
+                  "pm.test('bonus_amount_fixed set', () => pm.expect(parseFloat(body.bonus_amount_fixed)).to.eql(500));"
                 ]
               }
             }
@@ -1304,7 +1278,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 999999,\n  \"site_id\": 1,\n  \"name\": \"Orphan Configure\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 999999,\n  \"site_id\": 1,\n  \"name\": \"Orphan Configure\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1327,7 +1301,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100% First Deposit up to 5000\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 2,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"100% First Deposit up to 5000\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 2,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1350,7 +1324,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Dates\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-12-31T00:00:00Z\",\n  \"end_date\": \"2026-01-01T00:00:00Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Dates\",\n  \"start_date\": \"2026-12-31T00:00:00Z\",\n  \"end_date\": \"2026-01-01T00:00:00Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1365,14 +1339,14 @@
           ]
         },
         {
-          "name": "Create — invalid bonus_type → 422",
+          "name": "Create — invalid applicability_frequency → 422",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Type\",\n  \"bonus_type\": \"WEEKLY\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Freq\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"applicability_frequency\": \"DAILY\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1387,14 +1361,14 @@
           ]
         },
         {
-          "name": "Create — invalid product → 422",
+          "name": "Create — negative wager_multiplier → 422",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Bad Product\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"SPORTS\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Negative Wager\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": -1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1416,7 +1390,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Incomplete\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Incomplete\",\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1424,7 +1398,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('422 Unprocessable (missing product/dates)', () => pm.response.to.have.status(422));"
+                  "pm.test('422 Unprocessable (missing start_date/end_date)', () => pm.response.to.have.status(422));"
                 ]
               }
             }
@@ -1438,7 +1412,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Numeric Actor\",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"12345\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Numeric Actor\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"12345\"\n}"
             }
           },
           "event": [
@@ -1463,7 +1437,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Blank Desc\",\n  \"description\": \"   \",\n  \"bonus_type\": \"CHUNK\",\n  \"release_mode\": \"CHUNK\",\n  \"product\": \"POKER\",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
+              "raw": "{\n  \"subhead_id\": 1,\n  \"site_id\": 1,\n  \"name\": \"Blank Desc\",\n  \"description\": \"   \",\n  \"start_date\": \"2026-01-01T00:00:00Z\",\n  \"end_date\": \"2026-12-31T23:59:59Z\",\n  \"wager_multiplier\": 1,\n  \"created_by\": \"admin\"\n}"
             }
           },
           "event": [
@@ -1478,7 +1452,7 @@
           ]
         },
         {
-          "name": "Get detail — existing configure (with codes)",
+          "name": "Get detail — existing configure (saves bonus_configure_code)",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}"
@@ -1492,14 +1466,14 @@
                   "const body = pm.response.json();",
                   "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
                   "pm.test('has subhead_id', () => pm.expect(body.subhead_id).to.be.a('number'));",
+                  "pm.test('has applicability_frequency', () => pm.expect(body.applicability_frequency).to.be.a('string'));",
                   "pm.test('has codes array', () => pm.expect(body.codes).to.be.an('array'));",
-                  "pm.test('has bonus_type', () => pm.expect(body.bonus_type).to.be.oneOf(['CHUNK', 'INSTANT']));",
-                  "pm.test('has product', () => pm.expect(body.product).to.be.oneOf(['POKER', 'CASINO', 'RUMMY']));",
                   "pm.test('codes have required fields', () => {",
                   "    body.codes.forEach(c => pm.expect(c).to.include.all.keys('id', 'code', 'active', 'auto_apply', 'display_order'));",
                   "});",
-                  "const autoCode = body.codes.find(c => c.code.startsWith('AUTO-'));",
-                  "pm.test('default AUTO code present', () => pm.expect(autoCode).to.not.be.undefined);"
+                  "const autoCode = body.codes.find(c => c.auto_apply);",
+                  "pm.test('default AUTO code present', () => pm.expect(autoCode).to.not.be.undefined);",
+                  "if (autoCode) pm.collectionVariables.set('bonus_configure_code', autoCode.code);"
                 ]
               }
             }
@@ -1519,7 +1493,7 @@
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
                   "pm.test('subhead_id is 1', () => pm.expect(body.subhead_id).to.eql(1));",
-                  "pm.test('bonus_type is CHUNK', () => pm.expect(body.bonus_type).to.eql('CHUNK'));",
+                  "pm.test('applicability_frequency is ONCE', () => pm.expect(body.applicability_frequency).to.eql('ONCE'));",
                   "pm.test('has codes', () => pm.expect(body.codes.length).to.be.at.least(1));"
                 ]
               }
@@ -1591,6 +1565,29 @@
                   "pm.test('wager_multiplier updated', () => pm.expect(parseFloat(body.wager_multiplier)).to.eql(3));",
                   "pm.test('no_of_chunks updated', () => pm.expect(body.no_of_chunks).to.eql(3));",
                   "pm.test('priority updated', () => pm.expect(body.priority).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update configure — change applicability_frequency",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicability_frequency\": \"MONTHLY\",\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('applicability_frequency updated', () => pm.expect(pm.response.json().applicability_frequency).to.eql('MONTHLY'));"
                 ]
               }
             }
@@ -1687,28 +1684,6 @@
           ]
         },
         {
-          "name": "Update configure — negative wager_multiplier → 422",
-          "request": {
-            "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"wager_multiplier\": -1,\n  \"updated_by\": \"admin\"\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
-                ]
-              }
-            }
-          ]
-        },
-        {
           "name": "Update configure — zero no_of_chunks → 422",
           "request": {
             "method": "PATCH",
@@ -1725,6 +1700,678 @@
               "script": {
                 "exec": [
                   "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bonus Release Triggers",
+      "item": [
+        {
+          "name": "Create — DEPOSIT trigger (sets bonus_release_trigger_id)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-release-triggers",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"code\": \"{{bonus_configure_code}}\",\n  \"trigger_type\": \"DEPOSIT\",\n  \"description\": \"Triggered on any deposit event\",\n  \"min_trigger_amount\": 100.00,\n  \"max_trigger_amount\": 50000.00,\n  \"payment_method\": \"UPI\",\n  \"product\": \"POKER\",\n  \"occurrence\": 1,\n  \"active\": true,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('has configure_id', () => pm.expect(body.configure_id).to.be.a('number'));",
+                  "pm.test('trigger_type is DEPOSIT', () => pm.expect(body.trigger_type).to.eql('DEPOSIT'));",
+                  "pm.test('occurrence is 1', () => pm.expect(body.occurrence).to.eql(1));",
+                  "pm.test('product is POKER', () => pm.expect(body.product).to.eql('POKER'));",
+                  "pm.test('active is true', () => pm.expect(body.active).to.be.true);",
+                  "pm.collectionVariables.set('bonus_release_trigger_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — REGISTRATION trigger (any occurrence)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-release-triggers",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"code\": \"{{bonus_configure_code}}\",\n  \"trigger_type\": \"REGISTRATION\",\n  \"occurrence\": 0,\n  \"created_by\": \"ops.team\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('trigger_type is REGISTRATION', () => pm.expect(body.trigger_type).to.eql('REGISTRATION'));",
+                  "pm.test('occurrence is 0', () => pm.expect(body.occurrence).to.eql(0));",
+                  "pm.test('product is null', () => pm.expect(body.product).to.be.null);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — code not found → 404",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-release-triggers",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"code\": \"NONEXISTENT_CODE\",\n  \"trigger_type\": \"DEPOSIT\",\n  \"occurrence\": 0,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — duplicate (configure_id + trigger_type) → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-release-triggers",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"code\": \"{{bonus_configure_code}}\",\n  \"trigger_type\": \"DEPOSIT\",\n  \"occurrence\": 0,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — invalid trigger_type → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-release-triggers",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"code\": \"{{bonus_configure_code}}\",\n  \"trigger_type\": \"UNKNOWN\",\n  \"occurrence\": 0,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — max_trigger_amount < min_trigger_amount → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-release-triggers",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"code\": \"{{bonus_configure_code}}\",\n  \"trigger_type\": \"MANUAL\",\n  \"min_trigger_amount\": 5000.00,\n  \"max_trigger_amount\": 1000.00,\n  \"occurrence\": 0,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — blank description → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-release-triggers",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"code\": \"{{bonus_configure_code}}\",\n  \"trigger_type\": \"MANUAL\",\n  \"description\": \"   \",\n  \"occurrence\": 0,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — missing required field → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-release-triggers",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"site_id\": 1,\n  \"trigger_type\": \"DEPOSIT\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable (missing code)', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — existing trigger",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('has configure_id', () => pm.expect(body.configure_id).to.be.a('number'));",
+                  "pm.test('has trigger_type', () => pm.expect(body.trigger_type).to.be.a('string'));",
+                  "pm.test('has occurrence', () => pm.expect(body.occurrence).to.be.a('number'));",
+                  "pm.test('has active', () => pm.expect(body.active).to.be.a('boolean'));",
+                  "pm.test('has created_by', () => pm.expect(body.created_by).to.be.a('string'));",
+                  "pm.test('has created_at', () => pm.expect(body.created_at).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — not found → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-release-triggers/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update trigger — change occurrence and product",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"occurrence\": 0,\n  \"product\": \"CASINO\",\n  \"updated_by\": \"ops.team\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('occurrence updated', () => pm.expect(body.occurrence).to.eql(0));",
+                  "pm.test('product updated', () => pm.expect(body.product).to.eql('CASINO'));",
+                  "pm.test('updated_by set', () => pm.expect(body.updated_by).to.eql('ops.team'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update trigger — add trigger_config",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trigger_config\": {\"channel\": \"mobile\", \"platform\": \"android\"},\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('trigger_config is object', () => pm.expect(body.trigger_config).to.be.an('object'));",
+                  "pm.test('channel is mobile', () => pm.expect(body.trigger_config.channel).to.eql('mobile'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update trigger — deactivate",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false,\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('active is false', () => pm.expect(pm.response.json().active).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update trigger — max < min amount → 422",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"min_trigger_amount\": 9000.00,\n  \"max_trigger_amount\": 100.00,\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update trigger — not found → 404",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-release-triggers/999999",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bonus Eligibilities",
+      "item": [
+        {
+          "name": "Create — player_type criterion (sets bonus_eligibility_id)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-eligibilities",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"configure_id\": {{bonus_configure_id}},\n  \"site_id\": 1,\n  \"eligibility_key\": \"player_type\",\n  \"eligibility_value\": \"NEW\",\n  \"eligibility_value_type\": \"STRING\",\n  \"description\": \"New players only\",\n  \"active\": true,\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('has configure_id', () => pm.expect(body.configure_id).to.be.a('number'));",
+                  "pm.test('eligibility_key matches', () => pm.expect(body.eligibility_key).to.eql('player_type'));",
+                  "pm.test('eligibility_value matches', () => pm.expect(body.eligibility_value).to.eql('NEW'));",
+                  "pm.test('eligibility_value_type is STRING', () => pm.expect(body.eligibility_value_type).to.eql('STRING'));",
+                  "pm.test('active is true', () => pm.expect(body.active).to.be.true);",
+                  "pm.collectionVariables.set('bonus_eligibility_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — INT criterion (min_lifetime_deposits)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-eligibilities",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"configure_id\": {{bonus_configure_id}},\n  \"site_id\": 1,\n  \"eligibility_key\": \"min_lifetime_deposits\",\n  \"eligibility_value\": \"0\",\n  \"eligibility_value_type\": \"INT\",\n  \"description\": \"No prior deposits allowed\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('eligibility_key is min_lifetime_deposits', () => pm.expect(body.eligibility_key).to.eql('min_lifetime_deposits'));",
+                  "pm.test('eligibility_value_type is INT', () => pm.expect(body.eligibility_value_type).to.eql('INT'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — registered_period criterion",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-eligibilities",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"configure_id\": {{bonus_configure_id}},\n  \"site_id\": 1,\n  \"eligibility_key\": \"player_registered_period\",\n  \"eligibility_value\": \"CURRENT_MONTH\",\n  \"eligibility_value_type\": \"STRING\",\n  \"description\": \"Only players who registered in the current calendar month\",\n  \"created_by\": \"ops.lead\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('eligibility_key is player_registered_period', () => pm.expect(body.eligibility_key).to.eql('player_registered_period'));",
+                  "pm.test('eligibility_value is CURRENT_MONTH', () => pm.expect(body.eligibility_value).to.eql('CURRENT_MONTH'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — duplicate (configure_id + eligibility_key) → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-eligibilities",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"configure_id\": {{bonus_configure_id}},\n  \"site_id\": 1,\n  \"eligibility_key\": \"player_type\",\n  \"eligibility_value\": \"VIP\",\n  \"eligibility_value_type\": \"STRING\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — empty eligibility_key → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-eligibilities",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"configure_id\": {{bonus_configure_id}},\n  \"site_id\": 1,\n  \"eligibility_key\": \"\",\n  \"eligibility_value\": \"NEW\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — invalid eligibility_value_type → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-eligibilities",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"configure_id\": {{bonus_configure_id}},\n  \"site_id\": 1,\n  \"eligibility_key\": \"kyc_status\",\n  \"eligibility_value\": \"VERIFIED\",\n  \"eligibility_value_type\": \"TEXT\",\n  \"created_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create — numeric created_by → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/bonus-eligibilities",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"configure_id\": {{bonus_configure_id}},\n  \"site_id\": 1,\n  \"eligibility_key\": \"kyc_status\",\n  \"eligibility_value\": \"VERIFIED\",\n  \"created_by\": \"12345\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+                  "pm.test('field is created_by', () => {",
+                  "    pm.expect(pm.response.json().detail[0].field).to.eql('created_by');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — existing eligibility",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-eligibilities/{{bonus_eligibility_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has id', () => pm.expect(body.id).to.be.a('number'));",
+                  "pm.test('has configure_id', () => pm.expect(body.configure_id).to.be.a('number'));",
+                  "pm.test('has eligibility_key', () => pm.expect(body.eligibility_key).to.be.a('string'));",
+                  "pm.test('has eligibility_value', () => pm.expect(body.eligibility_value).to.be.a('string'));",
+                  "pm.test('has eligibility_value_type', () => pm.expect(body.eligibility_value_type).to.be.a('string'));",
+                  "pm.test('has active', () => pm.expect(body.active).to.be.a('boolean'));",
+                  "pm.test('has created_by', () => pm.expect(body.created_by).to.be.a('string'));",
+                  "pm.test('has created_at', () => pm.expect(body.created_at).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get detail — not found → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/bonus-eligibilities/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update eligibility — change value",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-eligibilities/{{bonus_eligibility_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eligibility_value\": \"VIP\",\n  \"updated_by\": \"ops.team\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('eligibility_value updated', () => pm.expect(body.eligibility_value).to.eql('VIP'));",
+                  "pm.test('updated_by set', () => pm.expect(body.updated_by).to.eql('ops.team'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update eligibility — change key and value_type",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-eligibilities/{{bonus_eligibility_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eligibility_key\": \"player_type\",\n  \"eligibility_value\": \"NEW\",\n  \"eligibility_value_type\": \"STRING\",\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('eligibility_key restored', () => pm.expect(body.eligibility_key).to.eql('player_type'));",
+                  "pm.test('eligibility_value_type is STRING', () => pm.expect(body.eligibility_value_type).to.eql('STRING'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update eligibility — deactivate",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-eligibilities/{{bonus_eligibility_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"active\": false,\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('active is false', () => pm.expect(pm.response.json().active).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update eligibility — not found → 404",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/bonus-eligibilities/999999",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"updated_by\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
                 ]
               }
             }

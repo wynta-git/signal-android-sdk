@@ -10,7 +10,8 @@ import type { RootState } from '@/store/index'
 
 interface ConfigureState {
   entities: Record<number, BonusConfigureDetail>
-  // loading keys: "fetch_{id}" | "create" | "update_{id}"
+  bySubhead: Record<number, number[]>
+  // loading keys: "fetch_{id}" | "create" | "update_{id}" | "list_{subheadId}"
   loading: Record<string, boolean>
   errors:  Record<string, string | null>
   lastCreated: BonusConfigureResponse | null
@@ -18,12 +19,25 @@ interface ConfigureState {
 
 const initialState: ConfigureState = {
   entities: {},
+  bySubhead: {},
   loading: {},
   errors: {},
   lastCreated: null,
 }
 
 // ── Thunks ────────────────────────────────────────────────────────────────────
+
+export const fetchConfiguresBySubhead = createAsyncThunk(
+  'configures/fetchBySubhead',
+  async (subheadId: number, { rejectWithValue }) => {
+    try {
+      const list = await apiGet<BonusConfigureResponse[]>(`/bonus-configures?subhead_id=${subheadId}`)
+      return { subheadId, list }
+    } catch (e) {
+      return rejectWithValue(e instanceof Error ? e.message : 'Failed to load configures')
+    }
+  }
+)
 
 export const fetchConfigure = createAsyncThunk(
   'configures/fetchConfigure',
@@ -69,6 +83,28 @@ const configureSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    // fetchConfiguresBySubhead
+    builder
+      .addCase(fetchConfiguresBySubhead.pending, (state, { meta }) => {
+        state.loading[`list_${meta.arg}`] = true
+        state.errors[`list_${meta.arg}`] = null
+      })
+      .addCase(fetchConfiguresBySubhead.fulfilled, (state, { payload }) => {
+        state.loading[`list_${payload.subheadId}`] = false
+        const ids: number[] = []
+        for (const cfg of payload.list) {
+          ids.push(cfg.id)
+          if (!state.entities[cfg.id]) {
+            state.entities[cfg.id] = { ...cfg, codes: [] }
+          }
+        }
+        state.bySubhead[payload.subheadId] = ids
+      })
+      .addCase(fetchConfiguresBySubhead.rejected, (state, { meta, payload }) => {
+        state.loading[`list_${meta.arg}`] = false
+        state.errors[`list_${meta.arg}`] = payload as string
+      })
+
     // fetchConfigure
     builder
       .addCase(fetchConfigure.pending, (state, { meta }) => {
@@ -127,3 +163,7 @@ export const selectConfigure        = (id: number) => (s: RootState) => s.config
 export const selectConfigureLoading = (key: string) => (s: RootState) => !!s.configures.loading[key]
 export const selectConfigureError   = (key: string) => (s: RootState) => s.configures.errors[key] ?? null
 export const selectLastCreatedConfigure = (s: RootState) => s.configures.lastCreated
+export const selectConfiguresBySubhead = (subheadId: number) => (s: RootState) => {
+  const ids = s.configures.bySubhead[subheadId] ?? []
+  return ids.map(id => s.configures.entities[id]).filter(Boolean) as BonusConfigureDetail[]
+}

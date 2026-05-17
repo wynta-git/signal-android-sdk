@@ -1,6 +1,65 @@
 @import "tailwindcss";
 
-body {
-  background-color: #f8fafc;
-  color: #111827;
+:root {
+  /* Brand blues */
+  --blue: #0091e0;
+  --bl: #38b6ff;
+  --bp: #e8f5ff;
+  --bm: #bde3ff;
+
+  /* Gray scale */
+  --g50:  #f7f8fa;
+  --g100: #f0f2f5;
+  --g150: #e8eaee;
+  --g200: #dde1e8;
+  --g300: #c5ccd8;
+  --g400: #98a4b4;
+  --g500: #68788c;
+  --g600: #47566a;
+  --g700: #2d3a4a;
+  --g900: #111827;
+
+  /* Semantic */
+  --ok:   #10b981;
+  --warn: #f59e0b;
+  --err:  #ef4444;
+
+  /* Geometry */
+  --r:   6px;
+  --rl:  10px;
+  --rxl: 14px;
+
+  /* Shadows */
+  --sh:  0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+  --shm: 0 6px 24px rgba(0,0,0,0.11);
 }
+
+body {
+  background-color: var(--g50);
+  color: var(--g900);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* DatePicker styling to match Wynta inputs */
+.react-datepicker-wrapper { width: 100%; }
+.react-datepicker__input-container input {
+  width: 100%;
+  border: 1px solid var(--g200);
+  border-radius: var(--r);
+  padding: 8px 11px;
+  font-size: 12.5px;
+  color: var(--g900);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.react-datepicker__input-container input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(0,145,224,0.1);
+}
+.react-datepicker { font-size: 12px; border-radius: var(--rl); border-color: var(--g200); }
+.react-datepicker__header { background: var(--g50); border-bottom-color: var(--g200); }
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected { background: var(--blue); }
+.react-datepicker__day:hover { background: var(--bp); }

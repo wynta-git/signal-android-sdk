@@ -17,6 +17,7 @@ from app.models.bonus_configure import (
 from app.services.bonus_configure_service import (
     add_bonus_configure,
     get_bonus_configure,
+    list_bonus_configures_by_subhead,
     update_bonus_configure,
 )
 
@@ -41,6 +42,12 @@ async def create_bonus_configure(payload: BonusConfigureCreate) -> BonusConfigur
     - **created_by**: actor performing the creation
     """
     return await add_bonus_configure(payload)
+
+
+@router.get("", response_model=list[BonusConfigureResponse])
+async def list_bonus_configures(subhead_id: int) -> list[BonusConfigureResponse]:
+    """List all configure nodes for a given subhead, ordered by priority then id."""
+    return await list_bonus_configures_by_subhead(subhead_id)
 
 
 @router.get("/{configure_id}", response_model=BonusConfigureDetail)

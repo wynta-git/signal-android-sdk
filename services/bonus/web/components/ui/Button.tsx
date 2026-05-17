@@ -1,6 +1,7 @@
-import { cn } from '@/lib/utils'
+'use client'
 import { Loader2 } from 'lucide-react'
 import type { ButtonHTMLAttributes } from 'react'
+import { cn } from '@/lib/utils'
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
@@ -8,19 +9,35 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
 }
 
-const base = 'inline-flex items-center gap-1.5 rounded-lg font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50 disabled:pointer-events-none'
-const variants = {
-  primary:   'bg-indigo-600 text-white hover:bg-indigo-700',
-  secondary: 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50',
-  danger:    'bg-red-600 text-white hover:bg-red-700',
-  ghost:     'text-gray-600 hover:bg-gray-100',
+const base: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  fontFamily: 'inherit', fontWeight: 500, fontSize: 12.5,
+  borderRadius: 'var(--r)', border: '1px solid transparent',
+  cursor: 'pointer', transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+  whiteSpace: 'nowrap', flexShrink: 0,
 }
-const sizes = { sm: 'px-3 py-1.5 text-sm', md: 'px-4 py-2 text-sm' }
 
-export function Button({ variant = 'primary', size = 'md', loading, children, className, ...rest }: Props) {
+const variantStyles: Record<NonNullable<Props['variant']>, React.CSSProperties> = {
+  primary:   { background: 'var(--blue)', color: '#fff', borderColor: 'var(--blue)' },
+  secondary: { background: '#fff', color: 'var(--g600)', borderColor: 'var(--g200)' },
+  danger:    { background: 'var(--err)', color: '#fff', borderColor: 'var(--err)' },
+  ghost:     { background: 'transparent', color: 'var(--g500)', borderColor: 'transparent' },
+}
+
+const sizeStyles: Record<NonNullable<Props['size']>, React.CSSProperties> = {
+  sm: { padding: '5px 11px', fontSize: 12 },
+  md: { padding: '7px 14px' },
+}
+
+export function Button({ variant = 'primary', size = 'md', loading, children, className, style, ...rest }: Props) {
   return (
-    <button className={cn(base, variants[variant], sizes[size], className)} disabled={loading || rest.disabled} {...rest}>
-      {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+    <button
+      style={{ ...base, ...variantStyles[variant], ...sizeStyles[size], opacity: (loading || rest.disabled) ? 0.55 : 1, ...style }}
+      className={cn('btn', className)}
+      disabled={loading || rest.disabled}
+      {...rest}
+    >
+      {loading && <Loader2 size={13} className="animate-spin" />}
       {children}
     </button>
   )

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, ChevronRight, RefreshCw } from 'lucide-react'
+import { Plus, ChevronRight, Search } from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
 import { fetchHead, selectHead, selectHeadLoading } from '@/store/slices/headSlice'
 import { Button } from '@/components/ui/Button'
@@ -20,32 +20,39 @@ function HeadCard({ id }: { id: number }) {
 
   if (isLoading && !data) {
     return (
-      <div className="h-20 flex items-center justify-center bg-white rounded-xl border border-gray-200">
-        <Spinner className="h-5 w-5" />
+      <div style={{ height: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', borderRadius: 'var(--rl)', border: '1px solid var(--g200)' }}>
+        <Spinner size={18} />
       </div>
     )
   }
   if (!data) {
     return (
-      <div className="h-20 flex items-center justify-center bg-white rounded-xl border border-gray-200 text-gray-400 text-sm">
+      <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', borderRadius: 'var(--rl)', border: '1px solid var(--g200)', color: 'var(--g400)', fontSize: 13 }}>
         Head #{id} not found
       </div>
     )
   }
 
   return (
-    <Link href={`/heads/${id}`}>
-      <Card className="hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer">
-        <CardBody className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-900">{data.name}</span>
-              <Badge variant={data.active ? 'green' : 'red'}>{data.active ? 'Active' : 'Inactive'}</Badge>
+    <Link href={`/heads/${id}`} style={{ textDecoration: 'none' }}>
+      <Card style={{ cursor: 'pointer', transition: 'border-color 0.15s, box-shadow 0.15s' }}
+        className="hover-card">
+        <CardBody>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--g900)' }}>{data.name}</span>
+                <Badge variant={data.active ? 'green' : 'red'}>{data.active ? 'Active' : 'Inactive'}</Badge>
+              </div>
+              {data.description && (
+                <p style={{ fontSize: 12.5, color: 'var(--g500)', margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.description}</p>
+              )}
+              <p style={{ fontSize: 11.5, color: 'var(--g400)', margin: '5px 0 0' }}>
+                Site {data.site_id} · Owner: {data.owner} · {data.subheads.length} subhead{data.subheads.length !== 1 ? 's' : ''}
+              </p>
             </div>
-            {data.description && <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">{data.description}</p>}
-            <p className="text-xs text-gray-400 mt-1">Site {data.site_id} · Owner: {data.owner} · {data.subheads.length} subheads</p>
+            <ChevronRight size={16} style={{ color: 'var(--g300)', flexShrink: 0 }} />
           </div>
-          <ChevronRight className="h-5 w-5 text-gray-400 flex-shrink-0" />
         </CardBody>
       </Card>
     </Link>
@@ -54,7 +61,7 @@ function HeadCard({ id }: { id: number }) {
 
 export default function HeadsPage() {
   const [extraIds, setExtraIds] = useState<number[]>([])
-  const [input, setInput] = useState('')
+  const [input, setInput]       = useState('')
 
   function addId() {
     const n = parseInt(input)
@@ -63,22 +70,38 @@ export default function HeadsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Bonus Heads</h1>
-          <p className="text-sm text-gray-500 mt-1">Top-level bonus campaign categories</p>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--g900)', margin: 0 }}>Bonus Heads</h1>
+          <p style={{ fontSize: 13, color: 'var(--g400)', margin: '4px 0 0' }}>Top-level bonus campaign categories</p>
         </div>
-        <Link href="/heads/new"><Button><Plus className="h-4 w-4" /> New Head</Button></Link>
+        <Link href="/heads/new" style={{ textDecoration: 'none' }}>
+          <Button><Plus size={14} /> New Head</Button>
+        </Link>
       </div>
-      <div className="space-y-3">
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {[...SEED_IDS, ...extraIds].map(id => <HeadCard key={id} id={id} />)}
       </div>
-      <div className="flex items-center gap-2 pt-2">
-        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && addId()}
-          placeholder="Load head by ID…"
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-        <Button variant="secondary" size="sm" onClick={addId}><RefreshCw className="h-3.5 w-3.5" /> Load</Button>
+
+      {/* Load by ID */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4 }}>
+        <div style={{ position: 'relative' }}>
+          <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--g400)', pointerEvents: 'none' }} />
+          <input
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addId()}
+            placeholder="Load head by ID…"
+            style={{
+              border: '1px solid var(--g200)', borderRadius: 'var(--r)', padding: '7px 11px 7px 30px',
+              fontSize: 12.5, color: 'var(--g900)', background: '#fff', outline: 'none',
+              width: 200, fontFamily: 'inherit',
+            }}
+          />
+        </div>
+        <Button variant="secondary" size="sm" onClick={addId}>Load</Button>
       </div>
     </div>
   )

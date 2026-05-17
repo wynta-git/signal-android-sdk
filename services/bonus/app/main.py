@@ -3,6 +3,7 @@ from typing import AsyncGenerator
 
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import close_pool, init_pool
 from app.routers.bonus_head import register_exception_handlers
@@ -34,6 +35,13 @@ app = FastAPI(
     description="Configuration API for the bonus system — heads, subheads, and mechanics.",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(bonus_head.router)

@@ -1,8 +1,8 @@
 // ── Shared ────────────────────────────────────────────────────────────────────
 
-export type BonusType = 'CHUNK' | 'INSTANT'
-export type ReleaseMode = 'CHUNK' | 'INSTANT'
-export type ProductType = 'POKER' | 'CASINO' | 'RUMMY'
+export type ApplicabilityFrequency = 'EVERYTIME' | 'ONCE' | 'MONTHLY' | 'WEEKLY'
+export type TriggerType = 'DEPOSIT' | 'REGISTRATION' | 'MANUAL' | 'REFERRAL' | 'PROMO_CODE' | 'MILESTONE'
+export type EligibilityValueType = 'STRING' | 'INT' | 'DECIMAL' | 'BOOLEAN' | 'JSON'
 export type OwnerRole = 'OPS_LEAD' | 'CAMPAIGN_MANAGER' | 'FINANCE_APPROVER' | 'ESCALATION_CONTACT'
 export type BudgetPeriod = 'DAILY' | 'WEEKLY' | 'MONTHLY'
 
@@ -80,8 +80,7 @@ export interface LimitsUpsertRequest {
 export interface ConfigureSummary {
   id: number
   name: string
-  bonus_type: BonusType
-  product: ProductType
+  applicability_frequency: ApplicabilityFrequency
   active: boolean
   priority: number
 }
@@ -142,9 +141,7 @@ export interface BonusConfigureResponse {
   site_id: number
   name: string
   description: string | null
-  bonus_type: BonusType
-  release_mode: ReleaseMode
-  product: ProductType
+  applicability_frequency: ApplicabilityFrequency
   start_date: string
   end_date: string
   wager_multiplier: string
@@ -154,7 +151,8 @@ export interface BonusConfigureResponse {
   bonus_expiry_days: number | null
   wager_chip_type: string
   credit_chip_type: string
-  bonus_amount_default: string | null
+  bonus_amount_fixed: string | null
+  bonus_amount_percent: string | null
   bonus_amount_max: string | null
   priority: number
   active: boolean
@@ -173,9 +171,7 @@ export interface BonusConfigureCreate {
   site_id: number
   name: string
   description?: string | null
-  bonus_type: BonusType
-  release_mode: ReleaseMode
-  product: ProductType
+  applicability_frequency?: ApplicabilityFrequency
   start_date: string
   end_date: string
   wager_multiplier?: number
@@ -185,7 +181,8 @@ export interface BonusConfigureCreate {
   bonus_expiry_days?: number | null
   wager_chip_type?: string
   credit_chip_type?: string
-  bonus_amount_default?: number | null
+  bonus_amount_fixed?: number | null
+  bonus_amount_percent?: number | null
   bonus_amount_max?: number | null
   priority?: number
   active?: boolean
@@ -195,9 +192,7 @@ export interface BonusConfigureCreate {
 export interface BonusConfigureUpdate {
   name?: string | null
   description?: string | null
-  bonus_type?: BonusType | null
-  release_mode?: ReleaseMode | null
-  product?: ProductType | null
+  applicability_frequency?: ApplicabilityFrequency | null
   start_date?: string | null
   end_date?: string | null
   wager_multiplier?: number | null
@@ -207,9 +202,96 @@ export interface BonusConfigureUpdate {
   bonus_expiry_days?: number | null
   wager_chip_type?: string | null
   credit_chip_type?: string | null
-  bonus_amount_default?: number | null
+  bonus_amount_fixed?: number | null
+  bonus_amount_percent?: number | null
   bonus_amount_max?: number | null
   priority?: number | null
+  active?: boolean | null
+  updated_by: string
+}
+
+// ── Eligibility ───────────────────────────────────────────────────────────────
+
+export interface BonusEligibilityResponse {
+  id: number
+  configure_id: number
+  site_id: number
+  eligibility_key: string
+  eligibility_value: string
+  eligibility_value_type: EligibilityValueType
+  description: string | null
+  active: boolean
+  created_by: string
+  updated_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface BonusEligibilityCreate {
+  configure_id: number
+  site_id: number
+  eligibility_key: string
+  eligibility_value: string
+  eligibility_value_type: EligibilityValueType
+  description?: string | null
+  active?: boolean
+  created_by: string
+}
+
+export interface BonusEligibilityUpdate {
+  eligibility_key?: string | null
+  eligibility_value?: string | null
+  eligibility_value_type?: EligibilityValueType | null
+  description?: string | null
+  active?: boolean | null
+  updated_by: string
+}
+
+// ── Release Trigger ───────────────────────────────────────────────────────────
+
+export interface BonusReleaseTriggerResponse {
+  id: number
+  configure_id: number
+  site_id: number
+  trigger_type: TriggerType
+  description: string | null
+  min_trigger_amount: string | null
+  max_trigger_amount: string | null
+  payment_method: string | null
+  product: string | null
+  occurrence: number
+  trigger_config: Record<string, unknown> | null
+  active: boolean
+  created_by: string
+  updated_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface BonusReleaseTriggerCreate {
+  site_id: number
+  code: string
+  trigger_type: TriggerType
+  description?: string | null
+  min_trigger_amount?: number | null
+  max_trigger_amount?: number | null
+  payment_method?: string | null
+  product?: string | null
+  occurrence?: number
+  trigger_config?: Record<string, unknown> | null
+  active?: boolean
+  created_by: string
+}
+
+export interface BonusReleaseTriggerUpdate {
+  trigger_type?: TriggerType | null
+  description?: string | null
+  min_trigger_amount?: number | null
+  max_trigger_amount?: number | null
+  payment_method?: string | null
+  product?: string | null
+  occurrence?: number | null
+  trigger_config?: Record<string, unknown> | null
   active?: boolean | null
   updated_by: string
 }

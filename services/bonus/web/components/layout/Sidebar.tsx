@@ -1,42 +1,65 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Gift, Layers } from 'lucide-react'
 
 const NAV = [
-  { href: '/heads', label: 'Bonus Heads', icon: LayoutDashboard },
+  { href: '/heads', label: 'Bonus Heads', icon: Layers },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
   return (
-    <aside className="fixed left-0 top-0 h-full w-56 bg-gray-900 flex flex-col z-40">
-      <div className="px-4 py-5 border-b border-gray-700">
-        <span className="text-white font-bold text-lg tracking-tight">Bonus Admin</span>
-        <p className="text-gray-400 text-xs mt-0.5">PAM Platform</p>
+    <aside style={{
+      position: 'fixed', left: 0, top: 0, height: '100%', width: 224,
+      background: 'var(--g50)', borderRight: '1px solid var(--g200)',
+      display: 'flex', flexDirection: 'column', zIndex: 40,
+    }}>
+      {/* Logo */}
+      <div style={{ padding: '16px 14px 14px', borderBottom: '1px solid var(--g150)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{
+          width: 26, height: 26, background: 'var(--blue)', borderRadius: 6,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <Gift size={14} color="#fff" />
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--g900)', lineHeight: 1.2 }}>Bonus Admin</div>
+          <div style={{ fontSize: 10.5, color: 'var(--g400)', lineHeight: 1.2 }}>PAM Platform</div>
+        </div>
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-1">
+
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--g400)', textTransform: 'uppercase', letterSpacing: '0.07em', padding: '8px 6px 4px' }}>
+          Management
+        </div>
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
               key={href}
               href={href}
-              className={cn(
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                active ? 'bg-indigo-600 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white',
-              )}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 8px', borderRadius: 6, fontSize: 12.5, fontWeight: 500,
+                textDecoration: 'none', transition: 'background 0.12s, color 0.12s',
+                background: active ? 'var(--bp)' : 'transparent',
+                color: active ? 'var(--blue)' : 'var(--g600)',
+              }}
             >
-              <Icon className="h-4 w-4 flex-shrink-0" />
+              <Icon size={15} style={{ flexShrink: 0 }} />
               {label}
-              {active && <ChevronRight className="ml-auto h-3.5 w-3.5 opacity-60" />}
             </Link>
           )
         })}
       </nav>
-      <div className="px-4 py-3 border-t border-gray-700">
-        <p className="text-gray-500 text-xs">API: {process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}</p>
+
+      {/* Footer */}
+      <div style={{ padding: '10px 14px 12px', borderTop: '1px solid var(--g150)' }}>
+        <p style={{ fontSize: 11, color: 'var(--g400)', margin: 0, wordBreak: 'break-all' }}>
+          {process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}
+        </p>
       </div>
     </aside>
   )

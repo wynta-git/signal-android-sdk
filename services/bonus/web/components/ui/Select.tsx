@@ -1,30 +1,45 @@
-import { cn } from '@/lib/utils'
-import type { SelectHTMLAttributes } from 'react'
 import { forwardRef } from 'react'
+import type { SelectHTMLAttributes } from 'react'
 
 interface Props extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   error?: string
 }
 
-export const Select = forwardRef<HTMLSelectElement, Props>(function Select(
-  { label, error, className, children, ...rest }, ref
-) {
+const selectStyle: React.CSSProperties = {
+  width: '100%', border: '1px solid var(--g200)', borderRadius: 'var(--r)',
+  padding: '8px 11px', fontSize: 12.5, color: 'var(--g900)', background: '#fff',
+  outline: 'none', transition: 'border-color 0.12s, box-shadow 0.12s',
+  fontFamily: 'inherit', cursor: 'pointer',
+}
+
+export const Select = forwardRef<HTMLSelectElement, Props>(function Select({ label, error, children, style, ...rest }, ref) {
   return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {label && (
+        <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--g600)' }}>{label}</label>
+      )}
       <select
         ref={ref}
-        className={cn(
-          'rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50',
-          error && 'border-red-400 focus:ring-red-400',
-          className,
-        )}
+        style={{
+          ...selectStyle,
+          borderColor: error ? 'var(--err)' : 'var(--g200)',
+          background: rest.disabled ? 'var(--g50)' : '#fff',
+          ...style,
+        }}
+        onFocus={e => {
+          e.currentTarget.style.borderColor = error ? 'var(--err)' : 'var(--blue)'
+          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(0,145,224,0.1)'
+        }}
+        onBlur={e => {
+          e.currentTarget.style.borderColor = error ? 'var(--err)' : 'var(--g200)'
+          e.currentTarget.style.boxShadow = 'none'
+        }}
         {...rest}
       >
         {children}
       </select>
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p style={{ fontSize: 11.5, color: 'var(--err)', margin: 0 }}>{error}</p>}
     </div>
   )
 })

@@ -1,22 +1,26 @@
-import { cn } from '@/lib/utils'
-
 interface Props {
   children: React.ReactNode
   variant?: 'green' | 'red' | 'blue' | 'yellow' | 'gray'
   className?: string
 }
 
-const variants = {
-  green:  'bg-green-100 text-green-800',
-  red:    'bg-red-100 text-red-800',
-  blue:   'bg-blue-100 text-blue-800',
-  yellow: 'bg-yellow-100 text-yellow-800',
-  gray:   'bg-gray-100 text-gray-700',
+const variants: Record<NonNullable<Props['variant']>, React.CSSProperties> = {
+  green:  { background: '#d1fae5', color: '#065f46' },
+  red:    { background: '#fee2e2', color: '#991b1b' },
+  blue:   { background: 'var(--bp)', color: '#0369a1' },
+  yellow: { background: '#fef3c7', color: '#92400e' },
+  gray:   { background: 'var(--g100)', color: 'var(--g600)' },
+}
+
+const base: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center',
+  borderRadius: 20, padding: '2px 8px',
+  fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
 }
 
 export function Badge({ children, variant = 'gray', className }: Props) {
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium', variants[variant], className)}>
+    <span style={{ ...base, ...variants[variant] }} className={className}>
       {children}
     </span>
   )

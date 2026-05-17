@@ -1,28 +1,45 @@
-import { cn } from '@/lib/utils'
-import type { InputHTMLAttributes } from 'react'
 import { forwardRef } from 'react'
+import type { InputHTMLAttributes } from 'react'
 
 interface Props extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
   error?: string
 }
 
-export const Input = forwardRef<HTMLInputElement, Props>(function Input(
-  { label, error, className, ...rest }, ref
-) {
+const inputStyle: React.CSSProperties = {
+  width: '100%', border: '1px solid var(--g200)', borderRadius: 'var(--r)',
+  padding: '8px 11px', fontSize: 12.5, color: 'var(--g900)', background: '#fff',
+  outline: 'none', transition: 'border-color 0.12s, box-shadow 0.12s',
+  fontFamily: 'inherit',
+}
+
+export const Input = forwardRef<HTMLInputElement, Props>(function Input({ label, error, style, ...rest }, ref) {
   return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {label && (
+        <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--g600)' }}>{label}</label>
+      )}
       <input
         ref={ref}
-        className={cn(
-          'rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500',
-          error && 'border-red-400 focus:ring-red-400',
-          className,
-        )}
+        style={{
+          ...inputStyle,
+          borderColor: error ? 'var(--err)' : 'var(--g200)',
+          background: rest.disabled ? 'var(--g50)' : '#fff',
+          ...style,
+        }}
+        onFocus={e => {
+          e.currentTarget.style.borderColor = error ? 'var(--err)' : 'var(--blue)'
+          e.currentTarget.style.boxShadow = error
+            ? '0 0 0 3px rgba(239,68,68,0.1)'
+            : '0 0 0 3px rgba(0,145,224,0.1)'
+        }}
+        onBlur={e => {
+          e.currentTarget.style.borderColor = error ? 'var(--err)' : 'var(--g200)'
+          e.currentTarget.style.boxShadow = 'none'
+        }}
         {...rest}
       />
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p style={{ fontSize: 11.5, color: 'var(--err)', margin: 0 }}>{error}</p>}
     </div>
   )
 })

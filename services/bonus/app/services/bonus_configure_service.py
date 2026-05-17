@@ -54,6 +54,19 @@ _SELECT_SQL = """
     WHERE id = %s
 """
 
+_LIST_BY_SUBHEAD_SQL = """
+    SELECT id, subhead_id, site_id, name, description,
+           start_date, end_date, applicability_frequency,
+           wager_multiplier, no_of_chunks, release_bucket,
+           chunk_expiry_days, bonus_expiry_days,
+           wager_chip_type, credit_chip_type,
+           bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
+           priority, active, created_by, updated_by, created_at, updated_at
+    FROM bonus_configure
+    WHERE subhead_id = %s
+    ORDER BY priority ASC, id ASC
+"""
+
 # Checks parent subhead exists and returns site_id.
 _EXISTS_SUBHEAD_SQL = "SELECT site_id FROM bonus_subhead WHERE id = %s"
 
@@ -365,6 +378,20 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
             for r in code_rows
         ],
     )
+
+
+async def list_bonus_configures_by_subhead(subhead_id: int) -> list[BonusConfigureResponse]:
+    """Return all configure rows for the given subhead, ordered by priority then id."""
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_LIST_BY_SUBHEAD_SQL, (subhead_id,))
+                rows = await cur.fetchall()
+    except Exception as exc:
+        log.error("list_bonus_configures.db_error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+    return [_row_to_response(row) for row in rows]
 
 
 async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) -> BonusConfigureResponse:
