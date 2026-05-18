@@ -1,6 +1,8 @@
 'use client';
+import { useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setSelectedBrand, setToast } from '@/store/slices/uiSlice';
+import { fetchBrands, selectAllBrands } from '@/store/slices/brandsSlice';
 import { selectNode, expandAncestorsOf } from '@/store/slices/treeSlice';
 import Icon from '@/components/primitives/Icon';
 import BrandSwitcher from './BrandSwitcher';
@@ -8,12 +10,16 @@ import GlobalSearch from './GlobalSearch';
 import { MOCK_HEADS } from '@/services/mocks/heads';
 import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import { BRANDS } from '@/services/mocks/constants';
 
 export default function Topbar() {
   const dispatch = useAppDispatch();
   const selectedNode  = useAppSelector(s => s.tree.selectedNode);
   const selectedBrand = useAppSelector(s => s.ui.selectedBrand);
+  const brands = useAppSelector(selectAllBrands);
+
+  useEffect(() => {
+    dispatch(fetchBrands());
+  }, [dispatch]);
 
   // Breadcrumb from selectedNode
   const crumbs = [{ label: 'Bonus', onClick: () => dispatch(selectNode(null)) }];
@@ -48,13 +54,11 @@ export default function Topbar() {
   return (
     <div className="main-topbar">
       <div className="tb-brand">
-        <img src="/wynta-logo.png" alt="Wynta" className="tb-logo"/>
-        <span className="tb-brand-divider"></span>
         <BrandSwitcher
           value={selectedBrand}
-          onChange={(id) => {
-            dispatch(setSelectedBrand(id));
-            dispatch(setToast('Switched to ' + (BRANDS.find(b => b.id === id)?.name || id)));
+          onChange={(siteId) => {
+            dispatch(setSelectedBrand(siteId));
+            dispatch(setToast('Switched to ' + (brands.find(b => b.site_id === siteId)?.name || siteId)));
           }}
           compact
         />

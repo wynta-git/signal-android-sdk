@@ -1,12 +1,19 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { useAppSelector } from '@/store/hooks';
+import { selectAllBrands } from '@/store/slices/brandsSlice';
 import Icon from '@/components/primitives/Icon';
-import { BRANDS } from '@/services/mocks/constants';
+
+function initials(name) {
+  const words = name.trim().split(/\s+/);
+  return words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : name.slice(0, 2).toUpperCase();
+}
 
 export default function BrandSwitcher({ value, onChange, compact = false }) {
+  const brands = useAppSelector(selectAllBrands);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  const brand = BRANDS.find(b => b.id === value) || BRANDS[0];
+  const brand = brands.find(b => b.site_id === value) || brands[0];
 
   useEffect(() => {
     if (!open) return;
@@ -16,6 +23,8 @@ export default function BrandSwitcher({ value, onChange, compact = false }) {
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, [open]);
+
+  if (!brand) return null;
 
   return (
     <div className={'brand-switcher' + (compact ? ' compact' : '')} ref={ref}>
@@ -27,36 +36,32 @@ export default function BrandSwitcher({ value, onChange, compact = false }) {
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className="bs-mono" style={{ background: brand.color }}>{brand.id}</span>
+        <span className="bs-mono" style={{ background: brand.color }}>{initials(brand.name)}</span>
         <div className="bs-text">
           <span className="bs-name">{brand.name}</span>
-          <span className="bs-site">{brand.site_id}</span>
+          <span className="bs-site">{brand.description}</span>
         </div>
         <Icon name="chevrons-up-down" size={14} color="var(--g400)"/>
       </button>
       {open && (
         <div className="bs-menu" role="listbox">
-          {BRANDS.map(b => (
+          {brands.map(b => (
             <div
-              key={b.id}
+              key={b.site_id}
               role="option"
-              aria-selected={b.id === brand.id}
-              className={'bs-item' + (b.id === brand.id ? ' active' : '')}
-              onClick={() => { onChange(b.id); setOpen(false); }}
+              aria-selected={b.site_id === brand.site_id}
+              className={'bs-item' + (b.site_id === brand.site_id ? ' active' : '')}
+              onClick={() => { onChange(b.site_id); setOpen(false); }}
             >
-              <span className="bs-mono" style={{ background: b.color }}>{b.id}</span>
+              <span className="bs-mono" style={{ background: b.color }}>{initials(b.name)}</span>
               <div className="bs-text">
                 <span className="bs-name">{b.name}</span>
-                <span className="bs-site">{b.site_id}</span>
+                <span className="bs-site">{b.description}</span>
               </div>
-              {b.id === brand.id && <Icon name="check" size={14} color="var(--blue)" strokeWidth={2.4}/>}
+              {b.site_id === brand.site_id && <Icon name="check" size={14} color="var(--blue)" strokeWidth={2.4}/>}
             </div>
           ))}
-          <div className="bs-sep"/>
-          <div className="bs-item ghost">
-            <Icon name="plus" size={13} color="var(--g500)"/>
-            <span style={{ fontSize: 12, color: 'var(--g500)' }}>Add brand…</span>
-          </div>
+         
         </div>
       )}
     </div>

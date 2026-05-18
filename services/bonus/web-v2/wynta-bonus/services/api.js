@@ -100,16 +100,23 @@ export function getGlobalPlayerPool() {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
+const BONUS_API = process.env.NEXT_PUBLIC_BONUS_API_URL || 'http://localhost:8000';
+
 export const api = {
-  async fetchHeads() {
-    await delay();
-    return Object.values(MOCK_HEADS);
+  async fetchBrands(userId = 1) {
+    const res = await fetch(`${BONUS_API}/brands?user_id=${userId}`);
+    if (!res.ok) throw new Error('Failed to fetch brands');
+    return res.json();
+  },
+  async fetchHeads(siteId) {
+    const res = await fetch(`${BONUS_API}/bonus-heads?site_id=${siteId}`);
+    if (!res.ok) throw new Error('Failed to fetch bonus heads');
+    return res.json();
   },
   async fetchHead(id) {
-    await delay();
-    const h = MOCK_HEADS[id];
-    if (!h) throw new Error('Head not found: ' + id);
-    return h;
+    const res = await fetch(`${BONUS_API}/bonus-heads/${id}`);
+    if (!res.ok) throw new Error(`Bonus head ${id} not found`);
+    return res.json();
   },
   async fetchSubhead(id) {
     await delay();

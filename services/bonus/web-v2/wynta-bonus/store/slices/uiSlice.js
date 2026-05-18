@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { fetchBrands } from './brandsSlice';
 import { createHead, updateHead } from './headsSlice';
 import { createSubhead, updateSubhead } from './subheadsSlice';
 import { createConfigure, updateConfigure, createPromoCode, createEligibility, createTrigger } from './configuresSlice';
@@ -25,7 +26,7 @@ const uiSlice = createSlice({
   name: 'ui',
   initialState: {
     sidebarActive: 'dashboard',
-    selectedBrand: 'TR',
+    selectedBrand: null,
     drawerState: null,
     historyDrawer: null,
     contextMenu: null,
@@ -45,6 +46,11 @@ const uiSlice = createSlice({
   },
   extraReducers(builder) {
     builder
+      .addCase(fetchBrands.fulfilled, (state, action) => {
+        if (state.selectedBrand === null && action.payload.length > 0) {
+          state.selectedBrand = action.payload[0].site_id;
+        }
+      })
       .addCase(createHead.fulfilled, (state) => { state.toast = TOAST_MESSAGES.NEW_HEAD; state.drawerState = null; })
       .addCase(updateHead.fulfilled, (state) => { state.toast = TOAST_MESSAGES.EDIT_HEAD; state.drawerState = null; })
       .addCase(createSubhead.fulfilled, (state) => { state.toast = TOAST_MESSAGES.NEW_SUBHEAD; state.drawerState = null; })

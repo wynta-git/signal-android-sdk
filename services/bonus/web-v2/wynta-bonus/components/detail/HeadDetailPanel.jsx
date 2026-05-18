@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import { getUsage, formatINRCompact, formatRelative } from '@/services/mocks/utils';
+import { useAppDispatch } from '@/store/hooks';
+import { selectNode } from '@/store/slices/treeSlice';
+import { getUsage, formatRelative } from '@/services/mocks/utils';
 import Badge from '@/components/primitives/Badge';
 import Icon from '@/components/primitives/Icon';
 import BudgetGrid from '@/components/primitives/BudgetGrid';
@@ -10,14 +10,12 @@ import UsageBreakdown from '@/components/primitives/UsageBreakdown';
 import OwnerPill from '@/components/primitives/OwnerPill';
 import ActionBar from '@/components/primitives/ActionBar';
 import Toggle from '@/components/primitives/Toggle';
-import ChangeHistory from './ChangeHistory';
 
-export default function HeadDetailPanel({ head, onSelect, onAction }) {
+export default function HeadDetailPanel({ head, onAction }) {
+  const dispatch = useAppDispatch();
   const [openSubheads, setOpenSubheads] = useState(() => new Set());
   const toggleSub = (id) => {
-    setOpenSubheads(p => {
-      const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n;
-    });
+    setOpenSubheads(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
 
   return (
@@ -31,7 +29,7 @@ export default function HeadDetailPanel({ head, onSelect, onAction }) {
             </div>
             <div className="desc">{head.description}</div>
             <div className="meta">
-              <span><Icon name="globe" size={11}/> {head.site_id}</span>
+              <span><Icon name="globe" size={11}/> Site {head.site_id}</span>
               <span className="dot"/>
               <span><Icon name="user" size={11}/> {head.owner}</span>
               <span className="dot"/>
@@ -39,7 +37,11 @@ export default function HeadDetailPanel({ head, onSelect, onAction }) {
             </div>
           </div>
           <div className="header-actions">
-            <button className="btn btn-secondary btn-sm btn-icon-only" title="View change history" onClick={() => onAction({ type: 'OPEN_HISTORY', nodeType: 'head', id: head.id })}>
+            <button
+              className="btn btn-secondary btn-sm btn-icon-only"
+              title="View change history"
+              onClick={() => onAction({ type: 'OPEN_HISTORY', nodeType: 'head', id: head.id })}
+            >
               <Icon name="history" size={14}/>
             </button>
             <button className="btn btn-secondary btn-sm" onClick={() => onAction({ type: 'EDIT_HEAD', id: head.id })}>
@@ -49,7 +51,10 @@ export default function HeadDetailPanel({ head, onSelect, onAction }) {
         </div>
       </div>
 
-      <div className="section-row"><div className="section-label">Budget Utilization</div><div className="right"><strong>Daily · Weekly · Monthly</strong></div></div>
+      <div className="section-row">
+        <div className="section-label">Budget Utilization</div>
+        <div className="right"><strong>Daily · Weekly · Monthly</strong></div>
+      </div>
       <BudgetGrid budget={head.budget} />
 
       <div className="section-row" style={{ marginTop: 28 }}>
@@ -62,10 +67,11 @@ export default function HeadDetailPanel({ head, onSelect, onAction }) {
         Subheads · {head.subheads.length}
       </div>
       <div>
+        {head.subheads.length === 0 && (
+          <span style={{ fontSize: 12, color: 'var(--g400)', fontStyle: 'italic' }}>No subheads yet.</span>
+        )}
         {head.subheads.map(sh => {
           const open = openSubheads.has(sh.id);
-          const detail = MOCK_SUBHEADS[sh.id];
-          const configures = detail ? detail.configures.map(id => MOCK_CONFIGURES[id]).filter(Boolean) : [];
           return (
             <div key={sh.id} className="subhead-row">
               <div className="head" onClick={() => toggleSub(sh.id)}>
@@ -74,11 +80,11 @@ export default function HeadDetailPanel({ head, onSelect, onAction }) {
                 </span>
                 <div className="meta">
                   <div className="name">{sh.name}</div>
-                  <div className="owner">{sh.owner} · {configures.length} configures</div>
+                  <div className="owner">{sh.owner}</div>
                 </div>
                 <button
                   className="btn btn-ghost btn-sm"
-                  onClick={(e) => { e.stopPropagation(); onSelect({ type: 'subhead', id: sh.id }); }}
+                  onClick={(e) => { e.stopPropagation(); dispatch(selectNode({ type: 'subhead', id: sh.id })); }}
                 >
                   Open <Icon name="arrow-right" size={11}/>
                 </button>
@@ -86,23 +92,7 @@ export default function HeadDetailPanel({ head, onSelect, onAction }) {
               </div>
               {open && (
                 <div className="body">
-                  {configures.length === 0 ? (
-                    <span style={{ fontSize: 12, color: 'var(--g400)', fontStyle: 'italic' }}>
-                      No configures yet.
-                    </span>
-                  ) : configures.map(cfg => (
-                    <div
-                      key={cfg.id}
-                      className="configure-chip"
-                      onClick={(e) => { e.stopPropagation(); onSelect({ type: 'configure', id: cfg.id }); }}
-                    >
-                      <span className="dot" style={{ background: cfg.active ? 'var(--ok)' : 'var(--err)' }}/>
-                      <span>{cfg.name}</span>
-                      <span className={'freq-pill ' + cfg.applicability_frequency} style={{ fontSize: 9 }}>
-                        {cfg.applicability_frequency}
-                      </span>
-                    </div>
-                  ))}
+                  <span style={{ fontSize: 12, color: 'var(--g500)' }}>{sh.description || '—'}</span>
                 </div>
               )}
             </div>

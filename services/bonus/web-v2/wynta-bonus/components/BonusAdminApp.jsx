@@ -1,14 +1,12 @@
 'use client';
 import { useEffect, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { fetchHeads } from '@/store/slices/headsSlice';
+import { fetchHeads, fetchHead, selectAllHeads } from '@/store/slices/headsSlice';
 import { fetchKpiSnapshot } from '@/store/slices/kpiSlice';
-import { openDrawer, openHistoryDrawer, closeContextMenu, openContextMenu, setSelectedBrand, setToast } from '@/store/slices/uiSlice';
+import { openDrawer, openHistoryDrawer, closeContextMenu, openContextMenu } from '@/store/slices/uiSlice';
 import { toggleHead, selectNode, expandAncestorsOf, toggleSubheadExpand } from '@/store/slices/treeSlice';
-import { MOCK_HEADS } from '@/services/mocks/heads';
 import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import { BRANDS } from '@/services/mocks/constants';
 import Sidebar from '@/components/shell/Sidebar';
 import Topbar from '@/components/shell/Topbar';
 import ContextMenu from '@/components/primitives/ContextMenu';
@@ -22,12 +20,6 @@ import HierarchyTree from '@/components/tree/HierarchyTree';
 export default function BonusAdminApp() {
   const dispatch = useAppDispatch();
 
-  // Boot: fetch heads + KPI on mount
-  useEffect(() => {
-    dispatch(fetchHeads());
-    dispatch(fetchKpiSnapshot());
-  }, [dispatch]);
-
   const selectedBrand    = useAppSelector(s => s.ui.selectedBrand);
   const toast            = useAppSelector(s => s.ui.toast);
   const contextMenu      = useAppSelector(s => s.ui.contextMenu);
@@ -35,8 +27,17 @@ export default function BonusAdminApp() {
   const expandedSubheads = useAppSelector(s => s.tree.expandedSubheads);
   const loadingSubheads  = useAppSelector(s => s.tree.loadingSubheads);
   const selectedNode     = useAppSelector(s => s.tree.selectedNode);
+  const heads            = useAppSelector(selectAllHeads);
+  const headEntities     = useAppSelector(s => s.heads.entities);
 
-  const heads = Object.values(MOCK_HEADS);
+  // Fetch heads + full detail for each whenever the selected brand changes
+  useEffect(() => {
+    if (!selectedBrand) return;
+    dispatch(fetchHeads(selectedBrand)).unwrap()
+      .then((list) => { list.forEach(h => dispatch(fetchHead(h.id))); })
+      .catch(() => {});
+    dispatch(fetchKpiSnapshot());
+  }, [dispatch, selectedBrand]);
 
   const expandedHeadsSet    = useMemo(() => new Set(expandedHeads),    [expandedHeads]);
   const expandedSubheadsSet = useMemo(() => new Set(expandedSubheads), [expandedSubheads]);
@@ -44,39 +45,37 @@ export default function BonusAdminApp() {
 
   const handleSelectNode = (node) => {
     dispatch(selectNode(node));
-    dispatch(expandAncestorsOf({ ...node, heads: MOCK_HEADS, subheads: MOCK_SUBHEADS, configures: MOCK_CONFIGURES }));
+    dispatch(expandAncestorsOf({
+      ...node,
+      heads: headEntities,
+      subheads: MOCK_SUBHEADS,
+      configures: MOCK_CONFIGURES,
+    }));
   };
 
-  // Context menu items per node type
   function getContextItems(type, id) {
-    if (type === 'head') {
-      return [
-        { icon: 'pencil',      label: 'Edit Head',     onClick: () => dispatch(openDrawer({ type: 'EDIT_HEAD', id })) },
-        { icon: 'plus-circle', label: 'Add Subhead',   onClick: () => dispatch(openDrawer({ type: 'NEW_SUBHEAD', parentId: id })) },
-        { icon: 'wallet',      label: 'Manage Budget', onClick: () => dispatch(openDrawer({ type: 'EDIT_BUDGET', scope: 'head', id })) },
-        { sep: true },
-        { icon: 'eye',         label: 'View Details',  onClick: () => handleSelectNode({ type: 'head', id }) },
-      ];
-    }
-    if (type === 'subhead') {
-      return [
-        { icon: 'pencil',      label: 'Edit Subhead',   onClick: () => dispatch(openDrawer({ type: 'EDIT_SUBHEAD', id })) },
-        { icon: 'plus-circle', label: 'Add Configure',  onClick: () => dispatch(openDrawer({ type: 'NEW_CONFIGURE', parentId: id })) },
-        { icon: 'wallet',      label: 'Manage Budget',  onClick: () => dispatch(openDrawer({ type: 'EDIT_BUDGET', scope: 'subhead', id })) },
-        { sep: true },
-        { icon: 'eye',         label: 'View Details',   onClick: () => handleSelectNode({ type: 'subhead', id }) },
-      ];
-    }
-    if (type === 'configure') {
-      return [
-        { icon: 'pencil', label: 'Edit Configure',  onClick: () => dispatch(openDrawer({ type: 'EDIT_CONFIGURE', id })) },
-        { icon: 'zap',    label: 'Add Trigger',     onClick: () => dispatch(openDrawer({ type: 'NEW_TRIGGER', parentId: id })) },
-        { icon: 'ticket', label: 'Add Promo Code',  onClick: () => dispatch(openDrawer({ type: 'NEW_PROMOCODE', parentId: id })) },
-        { icon: 'wallet', label: 'Manage Budget',   onClick: () => dispatch(openDrawer({ type: 'EDIT_BUDGET', scope: 'configure', id })) },
-        { sep: true },
-        { icon: 'eye',    label: 'View Details',    onClick: () => handleSelectNode({ type: 'configure', id }) },
-      ];
-    }
+    if (type === 'head') return [
+      { icon: 'pencil',      label: 'Edit Head',     onClick: () => dispatch(openDrawer({ type: 'EDIT_HEAD', id })) },
+      { icon: 'plus-circle', label: 'Add Subhead',   onClick: () => dispatch(openDrawer({ type: 'NEW_SUBHEAD', parentId: id })) },
+      { icon: 'wallet',      label: 'Manage Budget', onClick: () => dispatch(openDrawer({ type: 'EDIT_BUDGET', scope: 'head', id })) },
+      { sep: true },
+      { icon: 'eye',         label: 'View Details',  onClick: () => handleSelectNode({ type: 'head', id }) },
+    ];
+    if (type === 'subhead') return [
+      { icon: 'pencil',      label: 'Edit Subhead',  onClick: () => dispatch(openDrawer({ type: 'EDIT_SUBHEAD', id })) },
+      { icon: 'plus-circle', label: 'Add Configure', onClick: () => dispatch(openDrawer({ type: 'NEW_CONFIGURE', parentId: id })) },
+      { icon: 'wallet',      label: 'Manage Budget', onClick: () => dispatch(openDrawer({ type: 'EDIT_BUDGET', scope: 'subhead', id })) },
+      { sep: true },
+      { icon: 'eye',         label: 'View Details',  onClick: () => handleSelectNode({ type: 'subhead', id }) },
+    ];
+    if (type === 'configure') return [
+      { icon: 'pencil', label: 'Edit Configure', onClick: () => dispatch(openDrawer({ type: 'EDIT_CONFIGURE', id })) },
+      { icon: 'zap',    label: 'Add Trigger',    onClick: () => dispatch(openDrawer({ type: 'NEW_TRIGGER', parentId: id })) },
+      { icon: 'ticket', label: 'Add Promo Code', onClick: () => dispatch(openDrawer({ type: 'NEW_PROMOCODE', parentId: id })) },
+      { icon: 'wallet', label: 'Manage Budget',  onClick: () => dispatch(openDrawer({ type: 'EDIT_BUDGET', scope: 'configure', id })) },
+      { sep: true },
+      { icon: 'eye',    label: 'View Details',   onClick: () => handleSelectNode({ type: 'configure', id }) },
+    ];
     return [];
   }
 
@@ -107,10 +106,6 @@ export default function BonusAdminApp() {
             onAddHead={() => dispatch(openDrawer({ type: 'NEW_HEAD' }))}
             onMenu={(ctx) => dispatch(openContextMenu(ctx))}
             selectedBrand={selectedBrand}
-            onBrandChange={(id) => {
-              dispatch(setSelectedBrand(id));
-              dispatch(setToast('Switched to ' + (BRANDS.find(b => b.id === id)?.name || id)));
-            }}
           />
           <div className="detail-panel">
             <DetailPanel onAction={handleAction}/>

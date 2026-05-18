@@ -1,7 +1,8 @@
 'use client';
+import { useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { fetchHead } from '@/store/slices/headsSlice';
 import { openDrawer, openHistoryDrawer } from '@/store/slices/uiSlice';
-import { MOCK_HEADS } from '@/services/mocks/heads';
 import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
 import HeadDetailPanel from '@/components/detail/HeadDetailPanel';
@@ -12,6 +13,17 @@ import EmptyState from '@/components/primitives/EmptyState';
 export default function DetailPanel({ onAction }) {
   const dispatch = useAppDispatch();
   const selectedNode = useAppSelector(s => s.tree.selectedNode);
+
+  // Fetch full head detail (owners + subheads + budget) whenever selection changes
+  useEffect(() => {
+    if (selectedNode?.type === 'head') {
+      dispatch(fetchHead(selectedNode.id));
+    }
+  }, [selectedNode, dispatch]);
+
+  const head = useAppSelector(s => selectedNode?.type === 'head' ? s.heads.entities[selectedNode.id] : null);
+  const sub  = selectedNode?.type === 'subhead'   ? MOCK_SUBHEADS[selectedNode.id]  : null;
+  const cfg  = selectedNode?.type === 'configure' ? MOCK_CONFIGURES[selectedNode.id] : null;
 
   const handleAction = onAction || ((action) => {
     if (action.type === 'OPEN_HISTORY') {
@@ -24,19 +36,23 @@ export default function DetailPanel({ onAction }) {
   if (!selectedNode) return <EmptyState/>;
 
   if (selectedNode.type === 'head') {
-    const head = MOCK_HEADS[selectedNode.id];
-    if (!head) return <EmptyState/>;
+    // Show skeleton while the detail (owners/subheads/budget) is loading
+    if (!head || !head.owners) {
+      return (
+        <div style={{ padding: 32, color: 'var(--g400)', fontSize: 13 }}>
+          Loading…
+        </div>
+      );
+    }
     return <HeadDetailPanel head={head} onAction={handleAction}/>;
   }
 
   if (selectedNode.type === 'subhead') {
-    const sub = MOCK_SUBHEADS[selectedNode.id];
     if (!sub) return <EmptyState/>;
     return <SubheadDetailPanel subhead={sub} onAction={handleAction}/>;
   }
 
   if (selectedNode.type === 'configure') {
-    const cfg = MOCK_CONFIGURES[selectedNode.id];
     if (!cfg) return <EmptyState/>;
     return <ConfigureDetailPanel configure={cfg} onAction={handleAction}/>;
   }

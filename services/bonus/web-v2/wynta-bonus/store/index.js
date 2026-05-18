@@ -1,5 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import uiReducer from './slices/uiSlice';
+import brandsReducer from './slices/brandsSlice';
 import treeReducer from './slices/treeSlice';
 import headsReducer from './slices/headsSlice';
 import subheadsReducer from './slices/subheadsSlice';
@@ -14,6 +15,7 @@ import kpiReducer from './slices/kpiSlice';
 export const store = configureStore({
   reducer: {
     ui: uiReducer,
+    brands: brandsReducer,
     tree: treeReducer,
     heads: headsReducer,
     subheads: subheadsReducer,
