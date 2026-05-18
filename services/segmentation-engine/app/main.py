@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="segmentation-engine", version=settings.version, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=".*",
     allow_methods=["*"],
     allow_headers=["*"],
 )
