@@ -52,23 +52,24 @@ def configure_logging(
         ),
     ]
 
-    if debug:
-        render_processors: list[structlog.types.Processor] = [
-            structlog.dev.ConsoleRenderer()
-        ]
-    else:
-        render_processors = [
-            structlog.stdlib.ExceptionRenderer(),
-            structlog.processors.JSONRenderer(),
-        ]
+    json_processors: list[structlog.types.Processor] = [
+        structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+        structlog.stdlib.ExceptionRenderer(),
+        structlog.processors.JSONRenderer(),
+    ]
 
-    # ProcessorFormatter bridges structlog → stdlib so RotatingFileHandler controls
-    # the file. foreign_pre_chain applies shared processors to third-party lib logs.
-    formatter = structlog.stdlib.ProcessorFormatter(
+    # File formatter always uses JSON — no ANSI codes in log files
+    file_formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=shared_processors,
+        processors=json_processors,
+    )
+
+    # Stdout formatter uses colored output in debug, JSON in prod
+    stdout_formatter = structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=shared_processors,
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            *render_processors,
+            structlog.dev.ConsoleRenderer() if debug else structlog.processors.JSONRenderer(),
         ],
     )
 
@@ -86,7 +87,7 @@ def configure_logging(
 
     if log_to_stdout:
         stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setFormatter(formatter)
+        stdout_handler.setFormatter(stdout_formatter)
         root.addHandler(stdout_handler)
 
     if log_to_file:
@@ -96,7 +97,7 @@ def configure_logging(
             backupCount=backup_count,
             encoding="utf-8",
         )
-        file_handler.setFormatter(formatter)
+        file_handler.setFormatter(file_formatter)
         root.addHandler(file_handler)
 
     root.setLevel(level)
