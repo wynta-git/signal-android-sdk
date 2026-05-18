@@ -450,7 +450,7 @@
     <div class="cfg-field">
       <span class="cfg-label">Segmentation Engine URL</span>
       <input class="cfg-input med" id="cfg-url" value="http://localhost:8003"
-             oninput="saveConfig()">
+             oninput="saveConfig(); meta.events=[]; meta.props={}; meta.traits=[]; fetchEventNames(); fetchTraits()">
     </div>
 
     <div class="cfg-field">
