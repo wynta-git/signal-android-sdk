@@ -54,7 +54,7 @@ def configure_logging(
 
     json_processors: list[structlog.types.Processor] = [
         structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-        structlog.stdlib.ExceptionRenderer(),
+        structlog.processors.format_exc_info,
         structlog.processors.JSONRenderer(),
     ]
 
