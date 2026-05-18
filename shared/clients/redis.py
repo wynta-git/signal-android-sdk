@@ -51,6 +51,10 @@ async def write_event_route_map(
         await pipe.execute()
 
 
+async def get_str(redis: Redis, key: str) -> str | None:
+    return await redis.get(key)
+
+
 async def set_with_ttl(redis: Redis, key: str, value: str, ttl: int) -> None:
     await redis.set(key, value, ex=ttl)
 

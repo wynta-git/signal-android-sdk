@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -84,6 +85,228 @@ async def load_col_map(
     if not doc:
         return {}
     return doc.get("col_map") or {}
+
+
+# ---------------------------------------------------------------------------
+# Campaign helpers
+# ---------------------------------------------------------------------------
+
+
+async def create_campaign_indexes(db: AsyncIOMotorDatabase) -> None:
+    await db["campaigns"].create_index(
+        [("project_id", 1), ("campaign_id", 1)], unique=True
+    )
+    await db["campaigns"].create_index([("project_id", 1), ("status", 1)])
+    await db["campaigns"].create_index(
+        [("project_id", 1), ("trigger.type", 1), ("trigger.event_name", 1), ("status", 1)]
+    )
+    await db["campaigns"].create_index(
+        [("status", 1), ("trigger.type", 1), ("trigger.send_at", 1)]
+    )
+    await db["campaign_runs"].create_index(
+        [("project_id", 1), ("campaign_id", 1), ("status", 1)]
+    )
+    await db["campaign_runs"].create_index([("project_id", 1), ("run_id", 1)], unique=True)
+    await db["notification_templates"].create_index(
+        [("project_id", 1), ("template_id", 1)], unique=True
+    )
+
+
+async def insert_campaign(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> str:
+    await db["campaigns"].insert_one(doc)
+    return doc["campaign_id"]
+
+
+async def get_campaign(
+    db: AsyncIOMotorDatabase, project_id: str, campaign_id: str
+) -> dict[str, Any] | None:
+    return await db["campaigns"].find_one(
+        {"project_id": project_id, "campaign_id": campaign_id},
+        {"_id": 0},
+    )
+
+
+async def list_campaigns(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {"project_id": project_id}
+    if status:
+        query["status"] = status
+    cursor = db["campaigns"].find(query, {"_id": 0}).sort("created_at", -1)
+    return await cursor.to_list(length=None)
+
+
+async def update_campaign(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    campaign_id: str,
+    updates: dict[str, Any],
+) -> bool:
+    result = await db["campaigns"].update_one(
+        {"project_id": project_id, "campaign_id": campaign_id},
+        {"$set": {**updates, "updated_at": datetime.now(timezone.utc)}},
+    )
+    return result.matched_count > 0
+
+
+async def delete_campaign(
+    db: AsyncIOMotorDatabase, project_id: str, campaign_id: str
+) -> bool:
+    result = await db["campaigns"].delete_one(
+        {"project_id": project_id, "campaign_id": campaign_id}
+    )
+    return result.deleted_count > 0
+
+
+async def get_running_campaigns_for_event(
+    db: AsyncIOMotorDatabase, project_id: str, event_name: str
+) -> list[dict[str, Any]]:
+    cursor = db["campaigns"].find(
+        {
+            "project_id": project_id,
+            "status": "running",
+            "trigger.type": "event",
+            "trigger.event_name": event_name,
+        },
+        {"_id": 0},
+    )
+    return await cursor.to_list(length=None)
+
+
+async def get_running_scheduled_campaigns(
+    db: AsyncIOMotorDatabase,
+) -> list[dict[str, Any]]:
+    cursor = db["campaigns"].find(
+        {"status": "running", "trigger.type": "scheduled"},
+        {"_id": 0},
+    )
+    return await cursor.to_list(length=None)
+
+
+async def get_due_oneoff_campaigns(
+    db: AsyncIOMotorDatabase, now: datetime
+) -> list[dict[str, Any]]:
+    cursor = db["campaigns"].find(
+        {
+            "status": "scheduled",
+            "trigger.type": "one_off",
+            "trigger.send_at": {"$lte": now},
+        },
+        {"_id": 0},
+    )
+    return await cursor.to_list(length=None)
+
+
+async def insert_campaign_run(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> str:
+    await db["campaign_runs"].insert_one(doc)
+    return doc["run_id"]
+
+
+async def get_active_campaign_run(
+    db: AsyncIOMotorDatabase, project_id: str, campaign_id: str
+) -> dict[str, Any] | None:
+    return await db["campaign_runs"].find_one(
+        {"project_id": project_id, "campaign_id": campaign_id, "status": "running"},
+        {"_id": 0},
+    )
+
+
+async def update_campaign_run(
+    db: AsyncIOMotorDatabase, project_id: str, run_id: str, updates: dict[str, Any]
+) -> bool:
+    result = await db["campaign_runs"].update_one(
+        {"project_id": project_id, "run_id": run_id},
+        {"$set": updates},
+    )
+    return result.matched_count > 0
+
+
+# ---------------------------------------------------------------------------
+# Notification template helpers
+# ---------------------------------------------------------------------------
+
+
+async def insert_template(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> str:
+    await db["notification_templates"].insert_one(doc)
+    return doc["template_id"]
+
+
+async def get_template(
+    db: AsyncIOMotorDatabase, project_id: str, template_id: str
+) -> dict[str, Any] | None:
+    return await db["notification_templates"].find_one(
+        {"project_id": project_id, "template_id": template_id},
+        {"_id": 0},
+    )
+
+
+async def list_templates(
+    db: AsyncIOMotorDatabase, project_id: str
+) -> list[dict[str, Any]]:
+    cursor = db["notification_templates"].find(
+        {"project_id": project_id}, {"_id": 0}
+    ).sort("created_at", -1)
+    return await cursor.to_list(length=None)
+
+
+async def update_template(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    template_id: str,
+    updates: dict[str, Any],
+) -> bool:
+    result = await db["notification_templates"].update_one(
+        {"project_id": project_id, "template_id": template_id},
+        {"$set": {**updates, "updated_at": datetime.now(timezone.utc)}},
+    )
+    return result.matched_count > 0
+
+
+async def delete_template(
+    db: AsyncIOMotorDatabase, project_id: str, template_id: str
+) -> bool:
+    result = await db["notification_templates"].delete_one(
+        {"project_id": project_id, "template_id": template_id}
+    )
+    return result.deleted_count > 0
+
+
+# ---------------------------------------------------------------------------
+# Segment membership reads (campaign-engine reads only, never writes)
+# ---------------------------------------------------------------------------
+
+
+async def is_segment_member(
+    db: AsyncIOMotorDatabase, project_id: str, segment_id: str, user_id: str
+) -> bool:
+    doc = await db["segment_memberships"].find_one(
+        {"project_id": project_id, "segment_id": segment_id, "user_id": user_id},
+        {"_id": 1},
+    )
+    return doc is not None
+
+
+async def stream_segment_members(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    segment_id: str,
+    batch_size: int = 500,
+) -> AsyncGenerator[list[str], None]:
+    cursor = db["segment_memberships"].find(
+        {"project_id": project_id, "segment_id": segment_id},
+        {"user_id": 1, "_id": 0},
+    ).batch_size(batch_size)
+
+    batch: list[str] = []
+    async for doc in cursor:
+        batch.append(doc["user_id"])
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
 
 
 async def upsert_user_profile(
