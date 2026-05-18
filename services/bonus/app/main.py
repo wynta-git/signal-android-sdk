@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import close_pool, init_pool
 from app.routers.bonus_head import register_exception_handlers
-from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_release_trigger, bonus_eligibility, brands
+from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_release_trigger, bonus_eligibility, brands, bonus_summary
 
 structlog.configure(
     processors=[
@@ -50,6 +50,7 @@ app.include_router(bonus_configure.router)
 app.include_router(bonus_release_trigger.router)
 app.include_router(bonus_eligibility.router)
 app.include_router(brands.router)
+app.include_router(bonus_summary.router)
 register_exception_handlers(app)
 bonus_release_trigger.register_exception_handlers(app)
 bonus_eligibility.register_exception_handlers(app)

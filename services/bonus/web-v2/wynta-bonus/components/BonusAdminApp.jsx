@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchHeads, fetchHead, selectAllHeads } from '@/store/slices/headsSlice';
 import { fetchKpiSnapshot } from '@/store/slices/kpiSlice';
@@ -30,13 +30,27 @@ export default function BonusAdminApp() {
   const heads            = useAppSelector(selectAllHeads);
   const headEntities     = useAppSelector(s => s.heads.entities);
 
-  // Fetch heads + full detail for each whenever the selected brand changes
+  const prevBrandRef = useRef(null);
+
   useEffect(() => {
     if (!selectedBrand) return;
+    const isSwitch = prevBrandRef.current !== null && prevBrandRef.current !== selectedBrand;
+    prevBrandRef.current = selectedBrand;
+    const nodeAtLoad = isSwitch ? null : selectedNode;
+
     dispatch(fetchHeads(selectedBrand)).unwrap()
-      .then((list) => { list.forEach(h => dispatch(fetchHead(h.id))); })
+      .then((list) => {
+        list.forEach(h => dispatch(fetchHead(h.id)));
+        if (!nodeAtLoad && list.length > 0) {
+          const first = { type: 'head', id: list[0].id };
+          dispatch(selectNode(first));
+          dispatch(expandAncestorsOf({ ...first, subheads: MOCK_SUBHEADS, configures: MOCK_CONFIGURES }));
+        } else if (nodeAtLoad) {
+          dispatch(expandAncestorsOf({ ...nodeAtLoad, subheads: MOCK_SUBHEADS, configures: MOCK_CONFIGURES }));
+        }
+      })
       .catch(() => {});
-    dispatch(fetchKpiSnapshot());
+    dispatch(fetchKpiSnapshot(selectedBrand));
   }, [dispatch, selectedBrand]);
 
   const expandedHeadsSet    = useMemo(() => new Set(expandedHeads),    [expandedHeads]);

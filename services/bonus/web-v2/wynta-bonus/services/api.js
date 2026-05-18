@@ -103,6 +103,11 @@ export function getGlobalPlayerPool() {
 const BONUS_API = process.env.NEXT_PUBLIC_BONUS_API_URL || 'http://localhost:8000';
 
 export const api = {
+  async fetchKpiSnapshot(siteId) {
+    const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`);
+    if (!res.ok) throw new Error('Failed to fetch bonus summary');
+    return res.json();
+  },
   async fetchBrands(userId = 1) {
     const res = await fetch(`${BONUS_API}/brands?user_id=${userId}`);
     if (!res.ok) throw new Error('Failed to fetch brands');

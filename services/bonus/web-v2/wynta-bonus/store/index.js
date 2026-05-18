@@ -12,6 +12,8 @@ import historyReducer from './slices/historySlice';
 import segmentsReducer from './slices/segmentsSlice';
 import kpiReducer from './slices/kpiSlice';
 
+const LS_NODE_KEY = 'bonus_selected_node';
+
 export const store = configureStore({
   reducer: {
     ui: uiReducer,
@@ -27,4 +29,16 @@ export const store = configureStore({
     segments: segmentsReducer,
     kpi: kpiReducer,
   },
+});
+
+let _prevNode;
+store.subscribe(() => {
+  if (typeof window === 'undefined') return;
+  const node = store.getState().tree.selectedNode;
+  if (node === _prevNode) return;
+  _prevNode = node;
+  try {
+    if (node) localStorage.setItem(LS_NODE_KEY, JSON.stringify(node));
+    else localStorage.removeItem(LS_NODE_KEY);
+  } catch {}
 });

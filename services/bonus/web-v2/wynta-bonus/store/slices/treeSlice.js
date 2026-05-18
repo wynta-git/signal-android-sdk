@@ -1,5 +1,12 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 
+const LS_NODE_KEY = 'bonus_selected_node';
+
+function loadStoredNode() {
+  if (typeof window === 'undefined') return null;
+  try { return JSON.parse(localStorage.getItem(LS_NODE_KEY)); } catch { return null; }
+}
+
 export const toggleSubheadExpand = createAsyncThunk(
   'tree/toggleSubheadExpand',
   async (id, { dispatch, getState }) => {
@@ -18,10 +25,10 @@ export const toggleSubheadExpand = createAsyncThunk(
 const treeSlice = createSlice({
   name: 'tree',
   initialState: {
-    expandedHeads: [2, 4],
-    expandedSubheads: [25, 26, 41],
+    expandedHeads: [],
+    expandedSubheads: [],
     loadingSubheads: [],
-    selectedNode: { type: 'subhead', id: 26 },
+    selectedNode: loadStoredNode(),
   },
   reducers: {
     toggleHead(state, action) {
@@ -47,7 +54,9 @@ const treeSlice = createSlice({
     },
     expandAncestorsOf(state, action) {
       const { type, id, heads, subheads, configures } = action.payload;
-      if (type === 'subhead') {
+      if (type === 'head') {
+        if (!state.expandedHeads.includes(id)) state.expandedHeads.push(id);
+      } else if (type === 'subhead') {
         const sub = subheads?.[id];
         if (sub && !state.expandedHeads.includes(sub.head_id)) {
           state.expandedHeads.push(sub.head_id);
