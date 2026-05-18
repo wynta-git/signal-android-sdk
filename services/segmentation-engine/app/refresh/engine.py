@@ -71,16 +71,16 @@ async def evaluate_segment(
     else:
         final = user_id_sets[0].union(*user_id_sets[1:])
 
-    old_members = await storage.get_segment_member_ids(db, project_id, segment_id)
+    if settings.membership_tracking_enabled:
+        old_members = await storage.get_segment_member_ids(db, project_id, segment_id)
+        await storage.delete_memberships(db, project_id, segment_id)
+        await storage.bulk_upsert_memberships(db, project_id, segment_id, final)
+        affected_users = old_members | final
+        await cache.invalidate_segment(redis, project_id, segment_id, affected_users)
 
-    await storage.delete_memberships(db, project_id, segment_id)
-    await storage.bulk_upsert_memberships(db, project_id, segment_id, final)
     await storage.update_segment_size(
         db, project_id, segment_id, len(final), datetime.now(tz=timezone.utc)
     )
-
-    affected_users = old_members | final
-    await cache.invalidate_segment(redis, project_id, segment_id, affected_users)
 
     log.info(
         "segment.evaluated",
@@ -140,11 +140,11 @@ async def evaluate_user_for_segment(
     else:
         is_member = any(per_filter_results)
 
-    if is_member:
-        await storage.upsert_membership(db, project_id, segment_id, user_id)
-    else:
-        await storage.remove_membership(db, project_id, segment_id, user_id)
-
-    await cache.invalidate_user(redis, project_id, user_id)
+    if settings.membership_tracking_enabled:
+        if is_member:
+            await storage.upsert_membership(db, project_id, segment_id, user_id)
+        else:
+            await storage.remove_membership(db, project_id, segment_id, user_id)
+        await cache.invalidate_user(redis, project_id, user_id)
 
     return is_member

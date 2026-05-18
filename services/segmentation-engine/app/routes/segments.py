@@ -5,11 +5,22 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app import storage
-from app.dsl.validator import SegmentRule
+from app.config import settings
+from app.dsl.validator import InSegmentFilter, SegmentRule
 from app.refresh import scheduled
 from app.refresh.engine import evaluate_segment
 
 router = APIRouter(prefix="/v1/segments", tags=["segments"])
+
+
+def _check_in_segment_allowed(rule: SegmentRule) -> None:
+    if settings.membership_tracking_enabled:
+        return
+    if any(isinstance(f, InSegmentFilter) for f in rule.filters):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="in_segment filters require membership_tracking_enabled=true",
+        )
 
 
 def _db(request: Request):
@@ -47,6 +58,8 @@ async def create_segment(
     ch=Depends(_ch),
     redis=Depends(_redis),
 ) -> dict[str, Any]:
+    _check_in_segment_allowed(body.rule)
+
     existing = await storage.get_segment(db, project_id, body.segment_id)
     if existing:
         raise HTTPException(status_code=409, detail="segment_id already exists")
@@ -96,6 +109,9 @@ async def update_segment(
     seg = await storage.get_segment(db, project_id, segment_id)
     if not seg:
         raise HTTPException(status_code=404, detail="segment not found")
+
+    if body.rule is not None:
+        _check_in_segment_allowed(body.rule)
 
     updates: dict[str, Any] = {}
     if body.name is not None:
