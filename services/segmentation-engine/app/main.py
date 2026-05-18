@@ -7,9 +7,12 @@ from fastapi import FastAPI
 
 from app.config import settings
 from shared.logging_config import configure_logging
+from app import storage
 from app.refresh import scheduled
 from app.refresh.event_driven import run_consumer
 from app.routes.segments import router as segments_router
+from app.routes.meta import router as meta_router
+from app.services.meta import MetaService
 from shared.clients.clickhouse import make_clickhouse_client
 from shared.clients.mongo import make_mongo_client
 from shared.clients.redis import make_redis_client
@@ -26,6 +29,8 @@ async def lifespan(app: FastAPI):
     db = mongo_client[settings.mongo_database]
     app.state.db = db
 
+    await storage.create_indexes(db)
+
     ch = await make_clickhouse_client(
         host=settings.clickhouse_host,
         port=settings.clickhouse_port,
@@ -37,6 +42,8 @@ async def lifespan(app: FastAPI):
 
     redis = make_redis_client(settings.redis_url)
     app.state.redis = redis
+
+    app.state.meta = MetaService()
 
     await scheduled.start(db, ch, redis)
 
@@ -72,6 +79,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="segmentation-engine", version=settings.version, lifespan=lifespan)
 app.include_router(segments_router)
+app.include_router(meta_router)
 
 
 @app.get("/health")

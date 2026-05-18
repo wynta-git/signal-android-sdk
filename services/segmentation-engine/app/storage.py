@@ -3,11 +3,29 @@ from typing import Any
 
 import structlog
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo import ASCENDING, IndexModel
 
 log = structlog.get_logger()
 
 SEGMENTS_COL = "segments"
 MEMBERSHIPS_COL = "segment_memberships"
+
+
+async def create_indexes(db: AsyncIOMotorDatabase) -> None:
+    try:
+        await db[SEGMENTS_COL].create_indexes([
+            IndexModel([("project_id", ASCENDING), ("segment_id", ASCENDING)], unique=True),
+        ])
+        await db[MEMBERSHIPS_COL].create_indexes([
+            IndexModel(
+                [("project_id", ASCENDING), ("segment_id", ASCENDING), ("user_id", ASCENDING)],
+                unique=True,
+            ),
+            IndexModel([("project_id", ASCENDING), ("user_id", ASCENDING)]),
+        ])
+        log.info("mongodb_indexes.ensured")
+    except Exception as exc:
+        log.error("mongodb_indexes.failed", error=str(exc))
 
 
 async def create_segment(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> None:
