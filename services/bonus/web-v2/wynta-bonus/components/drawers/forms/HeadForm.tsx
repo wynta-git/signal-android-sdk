@@ -1,8 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { createHead, updateHead } from '@/store/slices/headsSlice';
-import { MOCK_HEADS } from '@/services/mocks/heads';
+import { useAppSelector } from '@/store/hooks';
+import { selectHeadById } from '@/store/slices/headsSlice';
 import Toggle from '@/components/primitives/Toggle';
 import DrawerFooter from '@/components/drawers/DrawerFooter';
 import type { DrawerState } from '@/types';
@@ -16,8 +15,7 @@ interface HeadFormProps {
 }
 
 export default function HeadForm({ mode, state, submitting, onCancel, onSubmit }: HeadFormProps) {
-  const dispatch = useAppDispatch();
-  const head = mode === 'edit' && state.id != null ? MOCK_HEADS[state.id] : null;
+  const head = useAppSelector(selectHeadById(state.id ?? 0));
   const [name, setName] = useState(head?.name || '');
   const [description, setDescription] = useState(head?.description || '');
   const [owner, setOwner] = useState(head?.owner || 'vanessa@wynta.com');
@@ -26,14 +24,7 @@ export default function HeadForm({ mode, state, submitting, onCancel, onSubmit }
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { name, description, owner, siteId, active };
-    if (mode === 'new') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      dispatch(createHead(payload as any));
-    } else if (state.id != null) {
-      dispatch(updateHead({ id: state.id, patch: payload }));
-    }
-    onSubmit({ type: state.type, ...payload });
+    onSubmit({ name, description, owner, site_id: siteId, active });
   };
 
   return (

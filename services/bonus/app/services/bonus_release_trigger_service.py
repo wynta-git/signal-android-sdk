@@ -241,6 +241,7 @@ async def get_bonus_release_trigger(trigger_id: int) -> BonusReleaseTriggerRespo
 
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (trigger_id,))
                 row = await cur.fetchone()

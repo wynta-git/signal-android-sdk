@@ -185,6 +185,7 @@ async def get_bonus_eligibility(eligibility_id: int) -> BonusEligibilityResponse
     log.info("get_bonus_eligibility.start", eligibility_id=eligibility_id)
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (eligibility_id,))
                 row = await cur.fetchone()

@@ -252,6 +252,7 @@ async def get_bonus_subhead(subhead_id: int) -> BonusSubheadDetail:
 
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (subhead_id,))
                 subhead_row = await cur.fetchone()

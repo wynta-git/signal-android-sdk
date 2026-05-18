@@ -153,18 +153,22 @@ export const api = {
     return getBudget(scope, id);
   },
   async createHead(payload: Record<string, unknown>) {
-    await delay(280);
-    const id = Math.max(0, ...Object.keys(MOCK_HEADS).map(Number)) + 1;
-    const head = { id, ...payload, subheads: [], budget: [] };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (MOCK_HEADS as any)[id] = head;
-    return head as unknown as BonusHead;
+    const res = await fetch(`${BONUS_API}/bonus-heads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Failed to create bonus head');
+    return res.json() as Promise<BonusHead>;
   },
   async updateHead(id: number, patch: Record<string, unknown>) {
-    await delay(280);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (MOCK_HEADS as any)[id] = { ...(MOCK_HEADS as any)[id], ...patch };
-    return MOCK_HEADS[id];
+    const res = await fetch(`${BONUS_API}/bonus-heads/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error('Failed to update bonus head');
+    return res.json() as Promise<BonusHead>;
   },
   async createSubhead(parentId: number, payload: Record<string, unknown>) {
     await delay(280);

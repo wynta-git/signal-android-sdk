@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { closeDrawer } from '@/store/slices/uiSlice';
+import { createHead, updateHead } from '@/store/slices/headsSlice';
 import Icon from '@/components/primitives/Icon';
 import DrawerForm from './DrawerForm';
 import type { DrawerType } from '@/types';
@@ -30,12 +31,14 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
 export default function SlideDrawer() {
   const dispatch = useAppDispatch();
   const drawerState = useAppSelector(s => s.ui.drawerState);
+  const selectedBrand = useAppSelector(s => s.ui.selectedBrand);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const open = !!drawerState;
   const cfg = drawerState && DRAWER_TITLES[drawerState.type];
 
-  useEffect(() => { setSubmitting(false); }, [drawerState]);
+  useEffect(() => { setSubmitting(false); setSubmitError(null); }, [drawerState]);
 
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
@@ -45,11 +48,28 @@ export default function SlideDrawer() {
 
   const onClose = () => dispatch(closeDrawer());
 
-  const doSubmit = (_data: Record<string, unknown>) => {
+  const doSubmit = async (data: Record<string, unknown>) => {
     setSubmitting(true);
-    setTimeout(() => {
+    setSubmitError(null);
+    // API identifier fields reject '@' — strip email domain for owner/actor values
+    const actor = typeof data.owner === 'string' ? data.owner.split('@')[0] : 'system';
+    const ownerIdent = actor;
+    try {
+      if (drawerState?.type === 'NEW_HEAD') {
+        await dispatch(createHead(
+          { ...data, site_id: selectedBrand, owner: ownerIdent, created_by: actor } as unknown as Parameters<typeof createHead>[0]
+        )).unwrap();
+      } else if (drawerState?.type === 'EDIT_HEAD' && drawerState.id != null) {
+        await dispatch(updateHead({
+          id: drawerState.id,
+          patch: { ...data, owner: ownerIdent, updated_by: actor } as unknown as Partial<import('@/types').BonusHead>,
+        })).unwrap();
+      }
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
       setSubmitting(false);
-    }, 600);
+    }
   };
 
   const content = (
@@ -74,6 +94,7 @@ export default function SlideDrawer() {
                 <Icon name="x" size={18}/>
               </button>
             </div>
+            {submitError && <div className="drawer-error">{submitError}</div>}
             <DrawerForm
               state={drawerState}
               submitting={submitting}

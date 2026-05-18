@@ -352,6 +352,7 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
 
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (configure_id,))
                 row = await cur.fetchone()
@@ -384,6 +385,7 @@ async def list_bonus_configures_by_subhead(subhead_id: int) -> list[BonusConfigu
     """Return all configure rows for the given subhead, ordered by priority then id."""
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_LIST_BY_SUBHEAD_SQL, (subhead_id,))
                 rows = await cur.fetchall()

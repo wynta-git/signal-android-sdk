@@ -353,6 +353,7 @@ async def get_bonus_head(head_id: int) -> BonusHeadDetail:
 
     try:
         async with get_connection() as conn:
+            await conn.commit()  # close any open transaction from pool reuse, force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (head_id,))
                 head_row = await cur.fetchone()
@@ -402,6 +403,7 @@ async def list_bonus_heads(site_id: int) -> list[BonusHeadResponse]:
     log.info("list_bonus_heads.start", site_id=site_id)
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_LIST_SQL, (site_id,))
                 rows = await cur.fetchall()
