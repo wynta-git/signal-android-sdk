@@ -1,5 +1,4 @@
 import asyncio
-import signal
 from contextlib import asynccontextmanager
 
 import structlog
@@ -40,16 +39,6 @@ async def lifespan(app: FastAPI):
 
     stop_event = asyncio.Event()
     consumer_task = asyncio.create_task(run_consumer(db, redis, producer, stop_event))
-
-    loop = asyncio.get_running_loop()
-
-    def _on_signal(sig: signal.Signals) -> None:
-        log.info("shutdown_signal_received", signal=sig.name)
-        stop_event.set()
-        consumer_task.cancel()
-
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda s=sig: _on_signal(s))
 
     log.info("campaign_engine.started")
     yield
