@@ -573,16 +573,10 @@
 
     // ── Hardcoded mock meta (replace with real API calls when engine is live) ──
     const MOCK_META = {
-      deposit_completed:    ['amount', 'currency', 'order_id', 'payment_method', 'transaction_id', 'gateway'],
-      withdrawal_initiated: ['amount', 'currency', 'order_id', 'payment_method', 'bank_code', 'utr_number'],
-      app_opened:           ['platform', 'os', 'sdk_version', 'from_background', 'referrer', 'app_version'],
-      app_login:            ['platform', 'os', 'method', 'success', 'failure_reason'],
-      match_started:        ['platform', 'match_id', 'game_type', 'entry_fee', 'opponent_id'],
-      match_completed:      ['amount', 'match_id', 'result', 'winnings', 'duration_seconds'],
-      bonus_applied:        ['amount', 'currency', 'bonus_id', 'bonus_type', 'expiry_date'],
-      bonus_credited:       ['amount', 'currency', 'bonus_id', 'bonus_type', 'credited_to'],
-      screen_viewed:        ['platform', 'os', 'screen_name', 'referrer', 'time_on_prev_screen'],
-      purchase_completed:   ['amount', 'currency', 'order_id', 'item_type', 'item_id', 'discount_applied'],
+      app_opened:         ['from_background'],
+      screen_viewed:      ['screen_name', 'referrer'],
+      purchase_completed: ['amount', 'currency', 'order_id'],
+      user_identified:    ['previous_id'],
     };
 
     function fetchEventNames() {
@@ -1019,11 +1013,10 @@
 
       const t0 = performance.now();
       try {
-        const res = await fetch(`${base}/segments`, {
+        const res = await fetch(`${base}/v1/segments?project_id=${encodeURIComponent(project)}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Project-Id': project,
           },
           body: JSON.stringify(dsl),
         });
