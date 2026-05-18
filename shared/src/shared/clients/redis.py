@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterable
 from typing import TypedDict
 
@@ -13,26 +14,41 @@ def make_redis_client(url: str, *, max_connections: int = 20) -> Redis:
 class RedisLookup(TypedDict):
     revoked: bool
     token_raw: str | None
-    bonus_types: frozenset[str]
+    event_route_map: dict[str, list[str]]
 
 
 async def get_lookup(
     redis: Redis,
     revoke_key: str,
     cache_key: str,
-    bonus_key: str,
+    route_map_key: str,
 ) -> RedisLookup:
     """Single pipeline round-trip. Returns raw data — callers route each field independently."""
     async with redis.pipeline(transaction=False) as pipe:
         pipe.exists(revoke_key)
         pipe.get(cache_key)
-        pipe.smembers(bonus_key)
-        revoked, raw, bonus_types = await pipe.execute()
+        pipe.hgetall(route_map_key)
+        revoked, raw, route_map_raw = await pipe.execute()
     return RedisLookup(
         revoked=bool(revoked),
         token_raw=raw,
-        bonus_types=frozenset(bonus_types),
+        event_route_map={k: json.loads(v) for k, v in route_map_raw.items()},
     )
+
+
+async def write_event_route_map(
+    redis: Redis,
+    key: str,
+    route_map: dict[str, list[str]],
+    ttl: int,
+) -> None:
+    """Write inverted event→topics map to a Redis hash with TTL. Replaces existing key atomically."""
+    async with redis.pipeline(transaction=False) as pipe:
+        pipe.delete(key)
+        for event_name, topics in route_map.items():
+            pipe.hset(key, event_name, json.dumps(topics))
+        pipe.expire(key, ttl)
+        await pipe.execute()
 
 
 async def set_with_ttl(redis: Redis, key: str, value: str, ttl: int) -> None:

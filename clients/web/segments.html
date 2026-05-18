@@ -450,13 +450,13 @@
     <div class="cfg-field">
       <span class="cfg-label">Segmentation Engine URL</span>
       <input class="cfg-input med" id="cfg-url" value="http://localhost:8003"
-             oninput="saveConfig()">
+             oninput="saveConfig(); meta.events=[]; meta.props={}; meta.traits=[]; fetchEventNames(); fetchTraits()">
     </div>
 
     <div class="cfg-field">
       <span class="cfg-label">Project ID</span>
       <input class="cfg-input small" id="cfg-project" value="proj_abc123"
-             oninput="saveConfig(); meta.events=[]; meta.props={}; fetchEventNames()">
+             oninput="saveConfig(); meta.events=[]; meta.props={}; meta.traits=[]; fetchEventNames(); fetchTraits()">
     </div>
   </div>
 
@@ -562,39 +562,62 @@
 
     // ── Meta cache (event names + per-event properties from API) ─
     const meta = {
-      events:       [],   // ["deposit_completed", "app_opened", ...]
-      props:        {},   // { "deposit_completed": { promoted: [...], dynamic: [...] } }
-      loadingEvents: false,
-      loadingProps:  new Set(),
+      events:        [],
+      props:         {},
+      traits:        [],
+      loadingEvents:  false,
+      loadingProps:   new Set(),
+      loadingTraits:  false,
     };
 
     function baseUrl()    { return document.getElementById('cfg-url').value.replace(/\/$/, ''); }
     function projectId()  { return document.getElementById('cfg-project').value.trim(); }
 
-    // ── Hardcoded mock meta (replace with real API calls when engine is live) ──
-    const MOCK_META = {
-      deposit_completed:    ['amount', 'currency', 'order_id', 'payment_method', 'transaction_id', 'gateway'],
-      withdrawal_initiated: ['amount', 'currency', 'order_id', 'payment_method', 'bank_code', 'utr_number'],
-      app_opened:           ['platform', 'os', 'sdk_version', 'from_background', 'referrer', 'app_version'],
-      app_login:            ['platform', 'os', 'method', 'success', 'failure_reason'],
-      match_started:        ['platform', 'match_id', 'game_type', 'entry_fee', 'opponent_id'],
-      match_completed:      ['amount', 'match_id', 'result', 'winnings', 'duration_seconds'],
-      bonus_applied:        ['amount', 'currency', 'bonus_id', 'bonus_type', 'expiry_date'],
-      bonus_credited:       ['amount', 'currency', 'bonus_id', 'bonus_type', 'credited_to'],
-      screen_viewed:        ['platform', 'os', 'screen_name', 'referrer', 'time_on_prev_screen'],
-      purchase_completed:   ['amount', 'currency', 'order_id', 'item_type', 'item_id', 'discount_applied'],
-    };
-
-    function fetchEventNames() {
-      meta.events = Object.keys(MOCK_META);
+    async function fetchEventNames() {
+      meta.loadingEvents = true;
       renderFilters();
+      try {
+        const res = await fetch(`${baseUrl()}/v1/meta/events?project_id=${encodeURIComponent(projectId())}`);
+        if (res.ok) meta.events = await res.json();
+      } catch (_) {
+        meta.events = [];
+      } finally {
+        meta.loadingEvents = false;
+        renderFilters();
+        renderPreview();
+      }
     }
 
-    function fetchProperties(eventName) {
-      if (!eventName || meta.props[eventName]) return;
-      meta.props[eventName] = MOCK_META[eventName] || [];
+    async function fetchProperties(eventName) {
+      if (!eventName || meta.props[eventName] !== undefined) return;
+      meta.props[eventName] = [];   // prevent duplicate fetches
+      meta.loadingProps.add(eventName);
       renderFilters();
-      renderPreview();
+      try {
+        const res = await fetch(
+          `${baseUrl()}/v1/meta/events/${encodeURIComponent(eventName)}/properties?project_id=${encodeURIComponent(projectId())}`
+        );
+        if (res.ok) meta.props[eventName] = await res.json();
+      } catch (_) {
+        meta.props[eventName] = [];
+      } finally {
+        meta.loadingProps.delete(eventName);
+        renderFilters();
+        renderPreview();
+      }
+    }
+
+    async function fetchTraits() {
+      meta.loadingTraits = true;
+      try {
+        const res = await fetch(`${baseUrl()}/v1/meta/traits?project_id=${encodeURIComponent(projectId())}`);
+        if (res.ok) meta.traits = await res.json();
+      } catch (_) {
+        meta.traits = [];
+      } finally {
+        meta.loadingTraits = false;
+        renderFilters();
+      }
     }
 
     // ── Config persistence ────────────────────────────────────
@@ -796,11 +819,15 @@
       }
 
       if (f.type === 'trait') {
+        const traitDatalist = meta.traits.length
+          ? `<datalist id="traits-list">${meta.traits.map(t => `<option value="${esc(t)}">`).join('')}</datalist>`
+          : '';
         body = `
+          ${traitDatalist}
           <div class="form-row">
             <label>Trait</label>
             <input class="field grow" id="f${f.id}-trait" value="${esc(f.trait)}"
-                   placeholder="plan" oninput="onFieldChange()">
+                   list="traits-list" placeholder="plan" oninput="onFieldChange()">
           </div>
           <div class="form-row">
             <label>Operator</label>
@@ -1019,11 +1046,10 @@
 
       const t0 = performance.now();
       try {
-        const res = await fetch(`${base}/segments`, {
+        const res = await fetch(`${base}/v1/segments?project_id=${encodeURIComponent(project)}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Project-Id': project,
           },
           body: JSON.stringify(dsl),
         });
@@ -1078,6 +1104,7 @@
     renderFilters();
     renderPreview();
     fetchEventNames();
+    fetchTraits();
   </script>
 
 </body>

@@ -5,7 +5,7 @@ import structlog
 from fastapi import Depends, HTTPException, Request
 from redis.asyncio import Redis
 
-from app.auth.token import TokenContext
+from shared.auth.token import TokenContext
 from app.config import settings
 from app.dependencies import get_token_context
 from shared.clients.redis import incr_with_expire

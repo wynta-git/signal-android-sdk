@@ -4,7 +4,9 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import structlog
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
+from shared.clients.mongo import load_col_map, upsert_col_map
 from shared.clients.redis import (
     delete_key,
     hget,
@@ -79,9 +81,10 @@ SETTINGS index_granularity = 8192"""
 class SchemaManager:
     """Per-client ClickHouse schema management: sanitization, column mapping, and DDL."""
 
-    def __init__(self, redis: Redis, ch_client, cfg: Settings = _default_settings) -> None:
+    def __init__(self, redis: Redis, ch_client, db: AsyncIOMotorDatabase, cfg: Settings = _default_settings) -> None:
         self._redis = redis
         self._ch = ch_client
+        self._db = db
         self._cfg = cfg
         # In-memory column cache: {project_id: set[col_name]}
         # Populated on first access per project; updated after every ADD COLUMN.
@@ -190,8 +193,21 @@ class SchemaManager:
     # Redis col_map: persistent raw-key → column-name mapping per project
     # ------------------------------------------------------------------
 
+    async def warm_redis_from_mongo(self, project_id: str) -> None:
+        """Repopulate Redis col_map from MongoDB. Called on startup or after a Redis flush."""
+        stored = await load_col_map(self._db, project_id)
+        if not stored:
+            return
+        map_key = f"{_COL_MAP_PREFIX}:{project_id}"
+        await pipeline_hsetnx_multi(self._redis, map_key, stored)
+        log.info("col_map_warmed_from_mongo", project_id=project_id, count=len(stored))
+
     async def get_col_name(self, project_id: str, raw_key: str) -> str:
-        """Return the canonical column name for raw_key, writing to Redis on first sight."""
+        """Return the canonical column name for raw_key, writing to Redis and MongoDB on first sight.
+
+        Not used internally — all batch writes go through get_col_map(). Available for
+        one-off lookups (e.g. single-event ingestion paths added in future).
+        """
         map_key = f"{_COL_MAP_PREFIX}:{project_id}"
         cached = await hget(self._redis, map_key, raw_key)
         if cached:
@@ -201,7 +217,9 @@ class SchemaManager:
         # HSETNX is atomic — only the first writer wins; others read back the winner.
         await hsetnx(self._redis, map_key, raw_key, col)
         winner = await hget(self._redis, map_key, raw_key)
-        return winner if winner else col
+        result = winner if winner else col
+        await upsert_col_map(self._db, project_id, {raw_key: result})
+        return result
 
     # ------------------------------------------------------------------
     # Table bootstrap
@@ -302,5 +320,9 @@ class SchemaManager:
         winner_values = await hmget(self._redis, map_key, missing)
         for raw, val in zip(missing, winner_values):
             all_stored[raw] = val if val else new_cols[raw]
+
+        # Persist winners to MongoDB so the mapping survives a Redis flush.
+        won_entries = {raw: all_stored[raw] for raw in missing}
+        await upsert_col_map(self._db, project_id, won_entries)
 
         return {k: all_stored[k] for k in raw_keys}

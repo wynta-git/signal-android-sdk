@@ -4,7 +4,7 @@ import structlog
 from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.auth.token import (
+from shared.auth.token import (
     InvalidTokenError,
     TokenContext,
     hash_token,
@@ -13,14 +13,25 @@ from app.auth.token import (
     validate_token,
 )
 from app.config import settings
-from app.kafka_producer import KafkaEventProducer
-from shared.clients.redis import get_lookup
+from shared.clients.mongo import load_event_routes
+from shared.clients.redis import get_lookup, write_event_route_map
 
 log = structlog.get_logger()
 
 _bearer = HTTPBearer(auto_error=False)
 
-BONUS_TYPES_KEY = "pam:bonus_event_types"
+EVENT_ROUTE_MAP_KEY = "pam:event_route_map"
+EVENT_ROUTE_MAP_TTL = 300  # 5 minutes
+
+
+def _invert_routes(routes: list[dict]) -> dict[str, list[str]]:
+    """Convert topic-centric Mongo docs to event-centric map for runtime lookup."""
+    result: dict[str, list[str]] = {}
+    for doc in routes:
+        topic = doc["topic"]
+        for event_name in doc.get("event_names", []):
+            result.setdefault(event_name, []).append(topic)
+    return result
 
 
 async def get_token_context(
@@ -41,7 +52,7 @@ async def get_token_context(
         redis,
         token_revoke_key(token_hash),
         token_cache_key(token_hash),
-        BONUS_TYPES_KEY,
+        EVENT_ROUTE_MAP_KEY,
     )
 
     try:
@@ -58,7 +69,13 @@ async def get_token_context(
             detail={"code": "invalid_token", "message": "Invalid or expired token"},
         )
 
-    request.state.bonus_types = lookup["bonus_types"]
+    event_route_map = lookup["event_route_map"]
+    if not event_route_map:
+        routes = await load_event_routes(request.app.state.mongo[settings.mongo_db])
+        event_route_map = _invert_routes(routes)
+        await write_event_route_map(redis, EVENT_ROUTE_MAP_KEY, event_route_map, EVENT_ROUTE_MAP_TTL)
+
+    request.state.event_route_map = event_route_map
     structlog.contextvars.bind_contextvars(project_id=ctx.project_id, env=ctx.env)
     return ctx
 
@@ -78,16 +95,11 @@ class RequireScope:
         return ctx
 
 
-def get_producer(request: Request) -> KafkaEventProducer:
+def get_producer(request: Request) -> None:
     return request.app.state.producer
-
-
-def get_bonus_producer(request: Request) -> KafkaEventProducer:
-    return request.app.state.bonus_producer
 
 
 # Pre-built type aliases — use these in route signatures for clean one-liners:
 #   async def track(ctx: EventsWriteDep, ...):
 EventsWriteDep = Annotated[TokenContext, Depends(RequireScope("events:write"))]
 AdminDep = Annotated[TokenContext, Depends(RequireScope("admin"))]
-BonusProducerDep = Annotated[KafkaEventProducer, Depends(get_bonus_producer)]

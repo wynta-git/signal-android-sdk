@@ -20,6 +20,7 @@ Redis is used for ephemeral state only. **Nothing in Redis should be the source 
 - `pam:rate:proj:{project_id}:min:{epoch_min}` — per-project per-minute counter
 - `pam:rate:user:{project_id}:{user_id}:min:{epoch_min}`
 - `pam:token:{token_hash}` — cached `{project_id, scope, status}`, TTL 5 min
+- `pam:event_route_map` — Hash: field=`event_name`, value=JSON `["topic1","topic2"]`. Runtime index of event→fanout topics. Source of truth is `event_routes` in MongoDB. TTL 5 min; rebuilt on miss.
 - `pam:dedupe:event:{event_id}` — value=`1`, TTL 24h
 - `pam:campaign:sent:{campaign_id}:{user_id}` — TTL = campaign rate-limit window
 - `pam:segment:{segment_id}:members` — Set of user_ids, refreshed on segment compute

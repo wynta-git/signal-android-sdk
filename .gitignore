@@ -68,3 +68,9 @@ infra/data/
 *.tar
 *.tar.gz
 *.zip
+
+# Personal deployment notes
+my-pam-deployment.md
+
+# Service-level personal TODOs
+services/**/TODO.md

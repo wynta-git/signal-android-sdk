@@ -7,7 +7,7 @@ Database: `pam`
 | Collection | Owner (writes) | Read by | Purpose |
 |---|---|---|---|
 | `projects` | api-service | all | Project metadata, API keys (hashed), settings. |
-| `bonus_event_types` | ops/admin | api-service | Event type names classified as bonus. Read on startup; refreshed every N hours. |
+| `event_routes` | ops/admin | api-service | Topic-centric fanout rules: which event names fan out to which extra Kafka topics. |
 | `tokens` | api-service | api-service only | API tokens (hashed). Status: active / revoked. |
 | `users` | api-service (`/v1/identify`) | segmentation-engine, campaign-engine, notifications-engine | User profiles. Identified ids, traits, last_seen. |
 | `anonymous_to_user` | api-service (`/v1/identify`) | api-service | Mapping from anonymous device id → user_id (set by `/v1/identify`). |
@@ -20,15 +20,19 @@ Database: `pam`
 
 ## Schemas
 
-### `bonus_event_types`
+### `event_routes`
 ```js
 {
   _id: ObjectId,
-  event_type: "bonus_spin",   // matches event_name in the event envelope
+  topic: "pam.bonus.v1",                          // the extra Kafka topic to fan out to
+  event_names: ["bonus_award", "purchase"],        // events that should be sent to this topic
   description: "optional human-readable label",
-  created_at: ISODate
+  created_at: ISODate,
+  updated_at: ISODate
 }
-// Indexes: { event_type: 1 } unique
+// Indexes: { topic: 1 } unique
+// Add an event to a topic:   $push event_names
+// Remove an event from topic: $pull event_names
 ```
 
 ### `projects`
@@ -159,6 +163,22 @@ Database: `pam`
 //   { project_id: 1, campaign_id: 1, user_id: 1 }
 //   { project_id: 1, status: 1, attempted_at: -1 }
 //   TTL on attempted_at after 90 days
+```
+
+### `col_maps`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  col_map: {
+    "My Price$": "my_price_",   // raw SDK key → sanitized ClickHouse column name
+    "currency":  "currency"
+  },
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1 } unique
+// Owner: event-processor (writes). Read by: event-processor (Redis warm-up), segmentation-engine (fallback).
+// Never TTL'd — mapping is permanent once written.
 ```
 
 ## Conventions
