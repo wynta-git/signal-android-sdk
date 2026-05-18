@@ -17,6 +17,7 @@ from app.sender import emit_send_job
 from shared.clients.mongo import (
     get_active_campaign_run,
     get_running_campaigns_for_event,
+    increment_campaign_run_sent,
     insert_campaign_run,
 )
 
@@ -132,6 +133,7 @@ async def _process_for_user(
         context={"event_id": event_id, "event_properties": event_properties},
     )
     await mark_sent(campaign, user_id, redis)
+    await increment_campaign_run_sent(db, campaign.project_id, run_id)
 
 
 async def _get_or_create_run_id(campaign: Campaign, db: AsyncIOMotorDatabase) -> str:

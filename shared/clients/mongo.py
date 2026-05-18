@@ -223,6 +223,15 @@ async def update_campaign_run(
     return result.matched_count > 0
 
 
+async def increment_campaign_run_sent(
+    db: AsyncIOMotorDatabase, project_id: str, run_id: str
+) -> None:
+    await db["campaign_runs"].update_one(
+        {"project_id": project_id, "run_id": run_id},
+        {"$inc": {"sent_count": 1}},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Notification template helpers
 # ---------------------------------------------------------------------------
