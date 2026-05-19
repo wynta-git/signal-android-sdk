@@ -3,10 +3,42 @@
     "name": "Bonus Service",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "const clientId  = pm.collectionVariables.get('s2s_client_id');",
+          "const secret    = pm.collectionVariables.get('s2s_client_secret');",
+          "const timestamp = String(Math.floor(Date.now() / 1000));",
+          "",
+          "const rawBody = pm.request.body && pm.request.body.raw ? pm.request.body.raw : '';",
+          "const canonical = `${clientId}\\n${timestamp}\\n${rawBody}`;",
+          "",
+          "const signature = CryptoJS.HmacSHA256(canonical, secret).toString(CryptoJS.enc.Hex);",
+          "",
+          "pm.request.headers.add({ key: 'X-Client-Id',  value: clientId });",
+          "pm.request.headers.add({ key: 'X-Timestamp',  value: timestamp });",
+          "pm.request.headers.add({ key: 'X-Signature',  value: signature });"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
   "variable": [
     {
       "key": "base_url",
       "value": "http://localhost:8010",
+      "type": "string"
+    },
+    {
+      "key": "s2s_client_id",
+      "value": "game_server",
+      "type": "string"
+    },
+    {
+      "key": "s2s_client_secret",
+      "value": "your_shared_secret",
       "type": "string"
     },
     {
@@ -36,6 +68,21 @@
     },
     {
       "key": "bonus_eligibility_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "player_id",
+      "value": "P1001",
+      "type": "string"
+    },
+    {
+      "key": "consume_txn_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "player_grant_id",
       "value": "",
       "type": "string"
     }
@@ -73,7 +120,7 @@
           "name": "Create — valid payload",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -100,7 +147,7 @@
           "name": "Create — with description null",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -123,7 +170,7 @@
           "name": "Create — with active false",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -146,7 +193,7 @@
           "name": "Create — duplicate (site_id + name) → 409",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -169,7 +216,7 @@
           "name": "Create — missing required field → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -191,7 +238,7 @@
           "name": "Create — name too long → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -213,7 +260,7 @@
           "name": "Create — site_id zero → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -235,7 +282,7 @@
           "name": "Create — numeric owner → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -260,7 +307,7 @@
           "name": "Create — blank description → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-heads",
+            "url": "{{base_url}}/api/v1/bonus-heads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -282,7 +329,7 @@
           "name": "Get detail — existing head",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}"
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}"
           },
           "event": [
             {
@@ -322,7 +369,7 @@
           "name": "Get detail — hardcoded id 1 (seed data)",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-heads/1"
+            "url": "{{base_url}}/api/v1/bonus-heads/1"
           },
           "event": [
             {
@@ -345,7 +392,7 @@
           "name": "Get detail — not found → 404",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-heads/999999"
+            "url": "{{base_url}}/api/v1/bonus-heads/999999"
           },
           "event": [
             {
@@ -363,7 +410,7 @@
           "name": "Update head — rename and deactivate",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -389,7 +436,7 @@
           "name": "Update head — clear description",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -412,7 +459,7 @@
           "name": "Update head — not found → 404",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-heads/999999",
+            "url": "{{base_url}}/api/v1/bonus-heads/999999",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -434,7 +481,7 @@
           "name": "Update head — numeric owner → 422",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -457,7 +504,7 @@
           "name": "Owners — upsert two entries",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/owners",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}/owners",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -484,7 +531,7 @@
           "name": "Owners — invalid role → 422",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/owners",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}/owners",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -506,7 +553,7 @@
           "name": "Owners — duplicate username in body → 422",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/owners",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}/owners",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -528,7 +575,7 @@
           "name": "Owners — head not found → 404",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-heads/999999/owners",
+            "url": "{{base_url}}/api/v1/bonus-heads/999999/owners",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -550,7 +597,7 @@
           "name": "Limits — set WEEKLY + MONTHLY cap",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/limits",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -577,7 +624,7 @@
           "name": "Limits — invalid period_type → 422",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/limits",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -599,7 +646,7 @@
           "name": "Limits — negative budget_limit → 422",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-heads/{{bonus_head_id}}/limits",
+            "url": "{{base_url}}/api/v1/bonus-heads/{{bonus_head_id}}/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -621,7 +668,7 @@
           "name": "Limits — head not found → 404",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-heads/999999/limits",
+            "url": "{{base_url}}/api/v1/bonus-heads/999999/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -648,7 +695,7 @@
           "name": "Create — valid payload",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-subheads",
+            "url": "{{base_url}}/api/v1/bonus-subheads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -676,7 +723,7 @@
           "name": "Create — no description",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-subheads",
+            "url": "{{base_url}}/api/v1/bonus-subheads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -699,7 +746,7 @@
           "name": "Create — active false",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-subheads",
+            "url": "{{base_url}}/api/v1/bonus-subheads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -722,7 +769,7 @@
           "name": "Create — parent head not found → 404",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-subheads",
+            "url": "{{base_url}}/api/v1/bonus-subheads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -745,7 +792,7 @@
           "name": "Create — duplicate (head_id + name) → 409",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-subheads",
+            "url": "{{base_url}}/api/v1/bonus-subheads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -768,7 +815,7 @@
           "name": "Create — missing required field → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-subheads",
+            "url": "{{base_url}}/api/v1/bonus-subheads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -790,7 +837,7 @@
           "name": "Create — numeric owner → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-subheads",
+            "url": "{{base_url}}/api/v1/bonus-subheads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -815,7 +862,7 @@
           "name": "Create — blank description → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-subheads",
+            "url": "{{base_url}}/api/v1/bonus-subheads",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -837,7 +884,7 @@
           "name": "Get detail — existing subhead",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}"
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}"
           },
           "event": [
             {
@@ -871,7 +918,7 @@
           "name": "Get detail — hardcoded id 1 (seed data)",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-subheads/1"
+            "url": "{{base_url}}/api/v1/bonus-subheads/1"
           },
           "event": [
             {
@@ -891,7 +938,7 @@
           "name": "Get detail — not found → 404",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-subheads/999999"
+            "url": "{{base_url}}/api/v1/bonus-subheads/999999"
           },
           "event": [
             {
@@ -909,7 +956,7 @@
           "name": "Update subhead — rename and deactivate",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -935,7 +982,7 @@
           "name": "Update subhead — clear description",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -958,7 +1005,7 @@
           "name": "Update subhead — not found → 404",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-subheads/999999",
+            "url": "{{base_url}}/api/v1/bonus-subheads/999999",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -980,7 +1027,7 @@
           "name": "Update subhead — numeric owner → 422",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1003,7 +1050,7 @@
           "name": "Owners — upsert two entries",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}/owners",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}/owners",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1030,7 +1077,7 @@
           "name": "Owners — invalid role → 422",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}/owners",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}/owners",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1052,7 +1099,7 @@
           "name": "Owners — duplicate username in body → 422",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}/owners",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}/owners",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1074,7 +1121,7 @@
           "name": "Owners — subhead not found → 404",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/999999/owners",
+            "url": "{{base_url}}/api/v1/bonus-subheads/999999/owners",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1096,7 +1143,7 @@
           "name": "Limits — set DAILY + MONTHLY cap",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}/limits",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1123,7 +1170,7 @@
           "name": "Limits — uncapped (null budget_limit)",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}/limits",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1147,7 +1194,7 @@
           "name": "Limits — invalid period_type → 422",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}/limits",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1169,7 +1216,7 @@
           "name": "Limits — negative budget_limit → 422",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/{{bonus_subhead_id}}/limits",
+            "url": "{{base_url}}/api/v1/bonus-subheads/{{bonus_subhead_id}}/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1191,7 +1238,7 @@
           "name": "Limits — subhead not found → 404",
           "request": {
             "method": "PUT",
-            "url": "{{base_url}}/bonus-subheads/999999/limits",
+            "url": "{{base_url}}/api/v1/bonus-subheads/999999/limits",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1218,7 +1265,7 @@
           "name": "Create — valid payload (sets bonus_configure_id)",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1248,7 +1295,7 @@
           "name": "Create — fixed amount, no wagering",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1274,7 +1321,7 @@
           "name": "Create — parent subhead not found → 404",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1297,7 +1344,7 @@
           "name": "Create — duplicate (subhead_id + name) → 409",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1320,7 +1367,7 @@
           "name": "Create — end_date before start_date → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1342,7 +1389,7 @@
           "name": "Create — invalid applicability_frequency → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1364,7 +1411,7 @@
           "name": "Create — negative wager_multiplier → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1386,7 +1433,7 @@
           "name": "Create — missing required field → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1408,7 +1455,7 @@
           "name": "Create — numeric created_by → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1433,7 +1480,7 @@
           "name": "Create — blank description → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-configures",
+            "url": "{{base_url}}/api/v1/bonus-configures",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1455,7 +1502,7 @@
           "name": "Get detail — existing configure (saves bonus_configure_code)",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}"
+            "url": "{{base_url}}/api/v1/bonus-configures/{{bonus_configure_id}}"
           },
           "event": [
             {
@@ -1483,7 +1530,7 @@
           "name": "Get detail — hardcoded id 1 (seed data)",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-configures/1"
+            "url": "{{base_url}}/api/v1/bonus-configures/1"
           },
           "event": [
             {
@@ -1504,7 +1551,7 @@
           "name": "Get detail — not found → 404",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-configures/999999"
+            "url": "{{base_url}}/api/v1/bonus-configures/999999"
           },
           "event": [
             {
@@ -1522,7 +1569,7 @@
           "name": "Update configure — change name and deactivate",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "url": "{{base_url}}/api/v1/bonus-configures/{{bonus_configure_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1548,7 +1595,7 @@
           "name": "Update configure — change mechanics fields",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "url": "{{base_url}}/api/v1/bonus-configures/{{bonus_configure_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1574,7 +1621,7 @@
           "name": "Update configure — change applicability_frequency",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "url": "{{base_url}}/api/v1/bonus-configures/{{bonus_configure_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1597,7 +1644,7 @@
           "name": "Update configure — clear description",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "url": "{{base_url}}/api/v1/bonus-configures/{{bonus_configure_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1620,7 +1667,7 @@
           "name": "Update configure — extend date window",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "url": "{{base_url}}/api/v1/bonus-configures/{{bonus_configure_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1643,7 +1690,7 @@
           "name": "Update configure — not found → 404",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/999999",
+            "url": "{{base_url}}/api/v1/bonus-configures/999999",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1665,7 +1712,7 @@
           "name": "Update configure — end_date before start_date → 422",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "url": "{{base_url}}/api/v1/bonus-configures/{{bonus_configure_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1687,7 +1734,7 @@
           "name": "Update configure — zero no_of_chunks → 422",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-configures/{{bonus_configure_id}}",
+            "url": "{{base_url}}/api/v1/bonus-configures/{{bonus_configure_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1714,7 +1761,7 @@
           "name": "Create — DEPOSIT trigger (sets bonus_release_trigger_id)",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-release-triggers",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1744,7 +1791,7 @@
           "name": "Create — REGISTRATION trigger (any occurrence)",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-release-triggers",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1770,7 +1817,7 @@
           "name": "Create — code not found → 404",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-release-triggers",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1793,7 +1840,7 @@
           "name": "Create — duplicate (configure_id + trigger_type) → 409",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-release-triggers",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1816,7 +1863,7 @@
           "name": "Create — invalid trigger_type → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-release-triggers",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1838,7 +1885,7 @@
           "name": "Create — max_trigger_amount < min_trigger_amount → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-release-triggers",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1860,7 +1907,7 @@
           "name": "Create — blank description → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-release-triggers",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1882,7 +1929,7 @@
           "name": "Create — missing required field → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-release-triggers",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1904,7 +1951,7 @@
           "name": "Get detail — existing trigger",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}"
+            "url": "{{base_url}}/api/v1/bonus-release-triggers/{{bonus_release_trigger_id}}"
           },
           "event": [
             {
@@ -1929,7 +1976,7 @@
           "name": "Get detail — not found → 404",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-release-triggers/999999"
+            "url": "{{base_url}}/api/v1/bonus-release-triggers/999999"
           },
           "event": [
             {
@@ -1947,7 +1994,7 @@
           "name": "Update trigger — change occurrence and product",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers/{{bonus_release_trigger_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1973,7 +2020,7 @@
           "name": "Update trigger — add trigger_config",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers/{{bonus_release_trigger_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -1998,7 +2045,7 @@
           "name": "Update trigger — deactivate",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers/{{bonus_release_trigger_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2021,7 +2068,7 @@
           "name": "Update trigger — max < min amount → 422",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-release-triggers/{{bonus_release_trigger_id}}",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers/{{bonus_release_trigger_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2043,7 +2090,7 @@
           "name": "Update trigger — not found → 404",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-release-triggers/999999",
+            "url": "{{base_url}}/api/v1/bonus-release-triggers/999999",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2070,7 +2117,7 @@
           "name": "Create — player_type criterion (sets bonus_eligibility_id)",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-eligibilities",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2100,7 +2147,7 @@
           "name": "Create — INT criterion (min_lifetime_deposits)",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-eligibilities",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2125,7 +2172,7 @@
           "name": "Create — registered_period criterion",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-eligibilities",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2150,7 +2197,7 @@
           "name": "Create — duplicate (configure_id + eligibility_key) → 409",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-eligibilities",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2173,7 +2220,7 @@
           "name": "Create — empty eligibility_key → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-eligibilities",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2195,7 +2242,7 @@
           "name": "Create — invalid eligibility_value_type → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-eligibilities",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2217,7 +2264,7 @@
           "name": "Create — numeric created_by → 422",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/bonus-eligibilities",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2242,7 +2289,7 @@
           "name": "Get detail — existing eligibility",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-eligibilities/{{bonus_eligibility_id}}"
+            "url": "{{base_url}}/api/v1/bonus-eligibilities/{{bonus_eligibility_id}}"
           },
           "event": [
             {
@@ -2268,7 +2315,7 @@
           "name": "Get detail — not found → 404",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/bonus-eligibilities/999999"
+            "url": "{{base_url}}/api/v1/bonus-eligibilities/999999"
           },
           "event": [
             {
@@ -2286,7 +2333,7 @@
           "name": "Update eligibility — change value",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-eligibilities/{{bonus_eligibility_id}}",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities/{{bonus_eligibility_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2311,7 +2358,7 @@
           "name": "Update eligibility — change key and value_type",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-eligibilities/{{bonus_eligibility_id}}",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities/{{bonus_eligibility_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2336,7 +2383,7 @@
           "name": "Update eligibility — deactivate",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-eligibilities/{{bonus_eligibility_id}}",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities/{{bonus_eligibility_id}}",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
@@ -2359,12 +2406,721 @@
           "name": "Update eligibility — not found → 404",
           "request": {
             "method": "PATCH",
-            "url": "{{base_url}}/bonus-eligibilities/999999",
+            "url": "{{base_url}}/api/v1/bonus-eligibilities/999999",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"updated_by\": \"admin\"\n}"
             }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Brands",
+      "item": [
+        {
+          "name": "List brands — valid user_id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/brands?user_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["brands"],
+              "query": [{ "key": "user_id", "value": "1" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('response is array', () => pm.expect(body).to.be.an('array'));",
+                  "if (body.length > 0) {",
+                  "    const b = body[0];",
+                  "    pm.test('brand has site_id + name', () => {",
+                  "        pm.expect(b).to.include.all.keys('site_id', 'name');",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List brands — missing user_id → 422",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/brands"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bonus Summary",
+      "item": [
+        {
+          "name": "Get summary — valid site_id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/bonus-summary?site_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["bonus-summary"],
+              "query": [{ "key": "site_id", "value": "1" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has active_heads', () => pm.expect(body).to.have.property('active_heads'));",
+                  "pm.test('has active_subheads', () => pm.expect(body).to.have.property('active_subheads'));",
+                  "pm.test('has active_configures', () => pm.expect(body).to.have.property('active_configures'));",
+                  "pm.test('has monthly_released', () => pm.expect(body).to.have.property('monthly_released'));",
+                  "pm.test('has monthly_pct', () => pm.expect(body).to.have.property('monthly_pct'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get summary — missing site_id → 422",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/bonus-summary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/users"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('returns array of 10', () => {",
+                  "    pm.expect(body).to.be.an('array').with.lengthOf(10);",
+                  "});",
+                  "const u = body[0];",
+                  "pm.test('user has id + username + email + user_type', () => {",
+                  "    pm.expect(u).to.include.all.keys('id', 'username', 'email', 'user_type');",
+                  "});",
+                  "pm.test('user_type is valid enum', () => {",
+                  "    const valid = ['ACCOUNT_MANAGER','MARKETING_MANAGER','FINANCE_MANAGER',",
+                  "        'OPS_LEAD','CAMPAIGN_MANAGER','ADMIN','ANALYST',",
+                  "        'SUPPORT','BRAND_MANAGER','PRODUCT_MANAGER'];",
+                  "    pm.expect(valid).to.include(u.user_type);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Player Bonuses",
+      "item": [
+        {
+          "name": "Auth — missing headers → 401",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?player_id={{player_id}}&chip_type=cash",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "player-bonuses", "applicable-codes"],
+              "query": [
+                { "key": "player_id", "value": "{{player_id}}" },
+                { "key": "chip_type", "value": "cash" }
+              ]
+            },
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": ["// intentionally skip collection-level signing"], "type": "text/javascript" }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401 when S2S headers absent', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Auth — bad signature → 401",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?player_id={{player_id}}&chip_type=cash",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "player-bonuses", "applicable-codes"],
+              "query": [
+                { "key": "player_id", "value": "{{player_id}}" },
+                { "key": "chip_type", "value": "cash" }
+              ]
+            },
+            "header": [
+              { "key": "X-Client-Id",  "value": "{{s2s_client_id}}" },
+              { "key": "X-Timestamp",  "value": "1716112200" },
+              { "key": "X-Signature",  "value": "0000000000000000000000000000000000000000000000000000000000000000" }
+            ]
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "exec": ["// intentionally skip collection-level signing"], "type": "text/javascript" }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('401 on bad signature or stale timestamp', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Applicable codes — valid player + chip_type",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?player_id={{player_id}}&chip_type=cash",
+              "host": ["{{base_url}}"],
+              "path": ["player-bonuses", "applicable-codes"],
+              "query": [
+                { "key": "player_id", "value": "{{player_id}}" },
+                { "key": "chip_type", "value": "cash" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('response is array', () => pm.expect(body).to.be.an('array'));",
+                  "if (body.length > 0) {",
+                  "    const c = body[0];",
+                  "    pm.test('code has required fields', () => {",
+                  "        pm.expect(c).to.include.all.keys('promo_id', 'code', 'auto_apply', 'display_order');",
+                  "    });",
+                  "    pm.test('wager_multiplier is a number string', () => pm.expect(c.wager_multiplier).to.exist);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Applicable codes — missing player_id → 422",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?chip_type=cash",
+              "host": ["{{base_url}}"],
+              "path": ["player-bonuses", "applicable-codes"],
+              "query": [{ "key": "chip_type", "value": "cash" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Applicable codes — missing chip_type → 422",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?player_id={{player_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["player-bonuses", "applicable-codes"],
+              "query": [{ "key": "player_id", "value": "{{player_id}}" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consume — valid (saves consume_txn_id)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/player-bonuses/consume",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"player_id\": \"{{player_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"wager_amount\": \"200.00\",\n  \"bonus_amount\": \"100.00\",\n  \"chip_type\": \"cash\",\n  \"wager_tnx_id\": \"W001\",\n  \"game_id\": \"CRICKET_EXPRESS\",\n  \"round_id\": \"R001\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const status = pm.response.code;",
+                  "if (status === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "    pm.test('has txn_id', () => pm.expect(body.txn_id).to.be.a('number'));",
+                  "    pm.test('has consume_txn_id', () => pm.expect(body.consume_txn_id).to.eql('TXN20250519001'));",
+                  "    pm.test('has bonus_amount', () => pm.expect(body.bonus_amount).to.exist);",
+                  "    pm.test('has consumed_amount', () => pm.expect(body.consumed_amount).to.exist);",
+                  "    pm.test('only expected fields', () => pm.expect(Object.keys(body)).to.have.members(['txn_id','consume_txn_id','bonus_amount','consumed_amount']));",
+                  "    pm.collectionVariables.set('consume_txn_id', body.consume_txn_id);",
+                  "} else {",
+                  "    pm.test('skipped — no released chunk available (no live data)', () => true);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consume — duplicate consume_txn_id → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/player-bonuses/consume",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"player_id\": \"{{player_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"wager_amount\": \"200.00\",\n  \"bonus_amount\": \"100.00\",\n  \"chip_type\": \"cash\",\n  \"wager_tnx_id\": \"W001\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('409 Conflict (duplicate consume_txn_id)', () => {",
+                  "    pm.expect(pm.response.code).to.eql(409);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consume — missing required field → 422",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/player-bonuses/consume",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"player_id\": \"{{player_id}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consume — no released chunk for player → 404",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/player-bonuses/consume",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"player_id\": \"NONEXISTENT_PLAYER_999\",\n  \"consume_txn_id\": \"TXN_NOTFOUND_999\",\n  \"wager_amount\": \"50.00\",\n  \"bonus_amount\": \"50.00\",\n  \"wager_tnx_id\": \"W999\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revert consumption — valid",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/player-bonuses/consume/{{consume_txn_id}}/revert",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const txnId = pm.collectionVariables.get('consume_txn_id');",
+                  "if (!txnId) { pm.test('skipped — no consume_txn_id set', () => true); return; }",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has txn_id', () => pm.expect(body.txn_id).to.be.a('number'));",
+                  "pm.test('has consume_txn_id', () => pm.expect(body.consume_txn_id).to.be.a('string'));",
+                  "pm.test('amount is positive', () => pm.expect(parseFloat(body.amount)).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revert consumption — already reverted → 409",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/player-bonuses/consume/{{consume_txn_id}}/revert",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const txnId = pm.collectionVariables.get('consume_txn_id');",
+                  "if (!txnId) { pm.test('skipped — no consume_txn_id set', () => true); return; }",
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revert consumption — not found → 404",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/player-bonuses/consume/NONEXISTENT_TXN_999/revert",
+            "header": []
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Player summary — with site_id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/summary?site_id=1",
+              "host": ["{{base_url}}"],
+              "path": ["player-bonuses", "{{player_id}}", "summary"],
+              "query": [{ "key": "site_id", "value": "1" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has player_id', () => pm.expect(body.player_id).to.be.a('string'));",
+                  "pm.test('has bonus_balance', () => pm.expect(body).to.have.property('bonus_balance'));",
+                  "pm.test('has pending_bonus', () => pm.expect(body).to.have.property('pending_bonus'));",
+                  "pm.test('has wagering_required', () => pm.expect(body).to.have.property('wagering_required'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Player summary — without site_id",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/summary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('has all summary fields', () => {",
+                  "    const body = pm.response.json();",
+                  "    ['player_id','bonus_balance','pending_bonus','wagering_required'].forEach(k => {",
+                  "        pm.expect(body).to.have.property(k);",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaction list — default params (saves player_grant_id)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions?chip_type=cash",
+              "host": ["{{base_url}}"],
+              "path": ["player-bonuses", "{{player_id}}", "transactions"],
+              "query": [
+                { "key": "chip_type", "value": "cash" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('response is array', () => pm.expect(body).to.be.an('array'));",
+                  "if (body.length > 0) {",
+                  "    const t = body[0];",
+                  "    pm.test('transaction has required fields', () => {",
+                  "        pm.expect(t).to.include.all.keys('txn_id','amount','type','created_at');",
+                  "    });",
+                  "    pm.test('type is valid', () => {",
+                  "        const valid = ['grant','released','consumed','expiry','forfeited'];",
+                  "        pm.expect(valid).to.include(t.type);",
+                  "    });",
+                  "    const grant = body.find(e => e.type === 'grant');",
+                  "    if (grant) pm.collectionVariables.set('player_grant_id', grant.txn_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaction list — with chip_type + limit + offset",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions?chip_type=cash&limit=10&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["player-bonuses", "{{player_id}}", "transactions"],
+              "query": [
+                { "key": "chip_type", "value": "cash" },
+                { "key": "limit", "value": "10" },
+                { "key": "offset", "value": "0" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('response is array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('at most 10 results', () => pm.expect(pm.response.json().length).to.be.at.most(10));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaction list — limit exceeds max 200 → 422",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions?chip_type=cash&limit=999",
+              "host": ["{{base_url}}"],
+              "path": ["player-bonuses", "{{player_id}}", "transactions"],
+              "query": [
+                { "key": "chip_type", "value": "cash" },
+                { "key": "limit", "value": "999" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaction detail — existing grant",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions/{{player_grant_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const gid = pm.collectionVariables.get('player_grant_id');",
+                  "if (!gid) { pm.test('skipped — no player_grant_id set', () => true); return; }",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has grant fields', () => {",
+                  "    pm.expect(body).to.include.all.keys('txn_id','player_id',",
+                  "        'grant_amount','status','created_at','chunks','expiry_events');",
+                  "});",
+                  "pm.test('has chunks array', () => pm.expect(body.chunks).to.be.an('array'));",
+                  "pm.test('has expiry_events array', () => pm.expect(body.expiry_events).to.be.an('array'));",
+                  "pm.test('player_id matches', () => {",
+                  "    pm.expect(body.player_id).to.eql(pm.collectionVariables.get('player_id'));",
+                  "});",
+                  "if (body.chunks.length > 0) {",
+                  "    const c = body.chunks[0];",
+                  "    pm.test('chunk has required fields', () => {",
+                  "        pm.expect(c).to.include.all.keys('id','chunk_ref','chunk_amount',",
+                  "            'wager_multiplier','status','wager_amount');",
+                  "    });",
+                  "    pm.test('chunk status is valid', () => {",
+                  "        const valid = ['PENDING','RELEASE','CONSUMED','EXPIRED'];",
+                  "        pm.expect(valid).to.include(c.status);",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaction detail — not found → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions/999999"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transaction detail — wrong player_id → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/player-bonuses/WRONG_PLAYER/transactions/1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Referral code — valid player",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/referral-code"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has required fields', () => {",
+                  "    pm.expect(body).to.include.all.keys('player_id', 'referral_code', 'created_at');",
+                  "});",
+                  "pm.test('player_id matches', () => {",
+                  "    pm.expect(body.player_id).to.eql(pm.collectionVariables.get('player_id'));",
+                  "});",
+                  "pm.test('referral_code is a non-empty string', () => {",
+                  "    pm.expect(body.referral_code).to.be.a('string').and.to.have.length.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Referral code — unknown player → 404",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/player-bonuses/UNKNOWN_PLAYER_99/referral-code"
           },
           "event": [
             {

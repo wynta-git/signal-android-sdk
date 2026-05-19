@@ -280,6 +280,27 @@ export interface HistoryDrawerState {
   id: number;
 }
 
+// ── System users ─────────────────────────────────────────────────────────────
+
+export type UserType =
+  | 'ACCOUNT_MANAGER'
+  | 'MARKETING_MANAGER'
+  | 'FINANCE_MANAGER'
+  | 'OPS_LEAD'
+  | 'CAMPAIGN_MANAGER'
+  | 'ADMIN'
+  | 'ANALYST'
+  | 'SUPPORT'
+  | 'BRAND_MANAGER'
+  | 'PRODUCT_MANAGER';
+
+export interface SystemUser {
+  id: number;
+  username: string;
+  email: string;
+  user_type: UserType;
+}
+
 // ── Redux store shape ─────────────────────────────────────────────────────────
 
 export type AsyncStatus = 'idle' | 'loading' | 'succeeded' | 'failed';

@@ -58,7 +58,7 @@ export function Sidebar() {
       {/* Footer */}
       <div style={{ padding: '10px 14px 12px', borderTop: '1px solid var(--g150)' }}>
         <p style={{ fontSize: 11, color: 'var(--g400)', margin: 0, wordBreak: 'break-all' }}>
-          {process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}
+          {process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8010'}
         </p>
       </div>
     </aside>

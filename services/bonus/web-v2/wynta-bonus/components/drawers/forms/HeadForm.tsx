@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { useAppSelector } from '@/store/hooks';
 import { selectHeadById } from '@/store/slices/headsSlice';
+import { selectAllUsers } from '@/store/slices/usersSlice';
+import { selectAllBrands } from '@/store/slices/brandsSlice';
 import Toggle from '@/components/primitives/Toggle';
 import DrawerFooter from '@/components/drawers/DrawerFooter';
 import type { DrawerState } from '@/types';
@@ -16,15 +18,18 @@ interface HeadFormProps {
 
 export default function HeadForm({ mode, state, submitting, onCancel, onSubmit }: HeadFormProps) {
   const head = useAppSelector(selectHeadById(state.id ?? 0));
+  const users = useAppSelector(selectAllUsers);
+  const selectedBrand = useAppSelector(s => s.ui.selectedBrand);
+  const brands = useAppSelector(selectAllBrands);
+  const brandName = brands.find(b => b.site_id === selectedBrand)?.name ?? String(selectedBrand ?? '');
   const [name, setName] = useState(head?.name || '');
   const [description, setDescription] = useState(head?.description || '');
-  const [owner, setOwner] = useState(head?.owner || 'vanessa@wynta.com');
-  const [siteId, setSiteId] = useState(String(head?.site_id || 'wynta-demo'));
+  const [owner, setOwner] = useState(head?.owner || '');
   const [active, setActive] = useState(head ? head.active : true);
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ name, description, owner, site_id: siteId, active });
+    onSubmit({ name, description, owner, site_id: selectedBrand, active });
   };
 
   return (
@@ -40,21 +45,19 @@ export default function HeadForm({ mode, state, submitting, onCancel, onSubmit }
         </div>
         {mode === 'new' && (
           <div className="field-group">
-            <label>Site ID</label>
-            <select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
-              <option value="wynta-demo">wynta-demo</option>
-              <option value="wynta-eu">wynta-eu</option>
-              <option value="wynta-asia">wynta-asia</option>
-            </select>
+            <label>Brand</label>
+            <input value={brandName} readOnly />
           </div>
         )}
         <div className="field-group">
           <label>Owner</label>
-          <select value={owner} onChange={(e) => setOwner(e.target.value)}>
-            <option value="vanessa@wynta.com">vanessa@wynta.com</option>
-            <option value="demo@wynta.com">demo@wynta.com</option>
-            <option value="priya@wynta.com">priya@wynta.com</option>
-            <option value="ops@wynta.com">ops@wynta.com</option>
+          <select value={owner} onChange={(e) => setOwner(e.target.value)} required>
+            <option value="" disabled>Select owner…</option>
+            {users.map(u => (
+              <option key={u.id} value={u.username}>
+                {u.username} — {u.user_type}
+              </option>
+            ))}
           </select>
         </div>
         <div className="field-group">

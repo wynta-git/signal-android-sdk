@@ -1,0 +1,500 @@
+from datetime import datetime, timezone
+
+import aiomysql
+import structlog
+
+from shared.clients.mysql import get_connection
+from app.exceptions import (
+    DatabaseError,
+    PlayerBonusAlreadyRevertedError,
+    PlayerBonusConsumedError,
+    PlayerBonusNotFoundError,
+)
+from app.models.player_bonus import (
+    ApplicableCodeResponse,
+    BonusChunkDetail,
+    BonusExpiryDetail,
+    BonusForfeitDetail,
+    PlayerBonusConsumeCreate,
+    PlayerBonusConsumedResponse,
+    PlayerBonusRevertResponse,
+    PlayerBonusSummaryResponse,
+    PlayerBonusTransactionDetail,
+    PlayerBonusTransactionSummary,
+    PlayerReferralCodeResponse,
+)
+
+log = structlog.get_logger(__name__)
+
+_UTC = timezone.utc
+
+# ── 1. Applicable codes ───────────────────────────────────────────────────────
+
+_APPLICABLE_CODES_SQL = """
+    SELECT
+        bcc.id, bcc.code, bcc.max_amount,
+        bcc.valid_from, bcc.valid_to, bcc.display_title, bcc.display_description,
+        bcc.terms_url, bcc.banner_image_url, bcc.badge_text, bcc.cta_text,
+        bcc.auto_apply, bcc.display_order, bcc.display_on, bcc.min_display_amount,
+        bc.wager_multiplier, bc.no_of_chunks, bc.applicability_frequency
+    FROM bonus_configure_code bcc
+    JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
+    WHERE bcc.active = 1
+      AND bc.wager_chip_type = %s
+      AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
+      AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
+    ORDER BY bcc.display_order ASC
+"""
+
+
+async def list_applicable_codes(player_id: str, chip_type: str) -> list[ApplicableCodeResponse]:
+    log.info("player_bonus.list_applicable_codes", player_id=player_id, chip_type=chip_type)
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_APPLICABLE_CODES_SQL, (chip_type,))
+                rows = await cur.fetchall()
+
+                results: list[ApplicableCodeResponse] = []
+                for row in rows:
+                    results.append(ApplicableCodeResponse(
+                        promo_id=row[0], code=row[1], max_amount=row[2],
+                        valid_from=row[3], valid_to=row[4],
+                        display_title=row[5], display_description=row[6], terms_url=row[7],
+                        banner_image_url=row[8], badge_text=row[9], cta_text=row[10],
+                        auto_apply=bool(row[11]), display_order=row[12], display_on=row[13],
+                        min_display_amount=row[14], wager_multiplier=row[15],
+                        no_of_chunks=row[16], applicability_frequency=row[17],
+                    ))
+        return results
+    except Exception as exc:
+        log.error("player_bonus.list_applicable_codes.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+# ── 2. Consume bonus ──────────────────────────────────────────────────────────
+
+_NEXT_RELEASE_CHUNK_SQL = """
+    SELECT bc.id, bc.bonus_log_id, pbg.player_id
+    FROM bonus_chunk bc
+    JOIN player_bonus_grant pbg ON pbg.id = bc.bonus_log_id
+    WHERE pbg.player_id = %s AND bc.status = 'RELEASE'
+    ORDER BY bc.id ASC
+    LIMIT 1
+"""
+
+_CONSUME_EXISTS_SQL = """
+    SELECT id FROM bonus_consumed
+    WHERE consumed_ref = %s
+"""
+
+_INSERT_CONSUME_SQL = """
+    INSERT INTO bonus_consumed
+        (consumed_ref, chunk_id, bonus_log_id, wager_ref, wager_id,
+         game_id, round_id, amount, wager_amount, consumed_amount, chip_type)
+    VALUES (%s, %s, %s, %s, NULL, %s, %s, %s, %s, %s, %s)
+"""
+
+_UPDATE_GRANT_CONSUMED_SQL = """
+    UPDATE player_bonus_grant
+    SET bonus_consumed = bonus_consumed + %s
+    WHERE id = %s
+"""
+
+_SELECT_CONSUMED_SQL = """
+    SELECT id, consumed_ref, amount, consumed_amount, chip_type
+    FROM bonus_consumed
+    WHERE id = %s
+"""
+
+
+async def consume_bonus(data: PlayerBonusConsumeCreate) -> PlayerBonusConsumedResponse:
+    log.info("player_bonus.consume", player_id=data.player_id, consume_txn_id=data.consume_txn_id)
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_CONSUME_EXISTS_SQL, (data.consume_txn_id,))
+                if await cur.fetchone():
+                    raise PlayerBonusConsumedError(0, data.consume_txn_id)
+
+                await cur.execute(_NEXT_RELEASE_CHUNK_SQL, (data.player_id,))
+                chunk_row = await cur.fetchone()
+                if not chunk_row:
+                    raise PlayerBonusNotFoundError(data.player_id)
+                chunk_id, bonus_log_id, _ = chunk_row
+
+                await cur.execute(
+                    _INSERT_CONSUME_SQL,
+                    (
+                        data.consume_txn_id, chunk_id, bonus_log_id,
+                        data.wager_tnx_id, data.game_id, data.round_id,
+                        data.bonus_amount, data.wager_amount, data.bonus_amount,
+                        data.chip_type,
+                    ),
+                )
+                new_id: int = cur.lastrowid
+                await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (data.bonus_amount, bonus_log_id))
+                await conn.commit()
+
+                await cur.execute(_SELECT_CONSUMED_SQL, (new_id,))
+                row = await cur.fetchone()
+
+        return PlayerBonusConsumedResponse(
+            txn_id=row[0], consume_txn_id=row[1],
+            bonus_amount=row[2], consumed_amount=row[3], chip_type=row[4],
+        )
+    except (PlayerBonusNotFoundError, PlayerBonusConsumedError):
+        raise
+    except aiomysql.IntegrityError as exc:
+        if exc.args[0] == 1062:
+            raise PlayerBonusConsumedError(0, data.consume_txn_id) from exc
+        raise DatabaseError(str(exc)) from exc
+    except Exception as exc:
+        log.error("player_bonus.consume.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+# ── 3. Revert consumption ─────────────────────────────────────────────────────
+
+_SELECT_CONSUMED_FOR_REVERT_SQL = """
+    SELECT id, consumed_ref, bonus_log_id, amount, reverted_at, chip_type
+    FROM bonus_consumed
+    WHERE consumed_ref = %s
+"""
+
+_REVERT_CONSUME_SQL = """
+    UPDATE bonus_consumed SET reverted_at = %s WHERE consumed_ref = %s
+"""
+
+_UPDATE_GRANT_CONSUMED_DEC_SQL = """
+    UPDATE player_bonus_grant
+    SET bonus_consumed = GREATEST(0, bonus_consumed - %s)
+    WHERE id = %s
+"""
+
+
+async def revert_consumption(consume_txn_id: str) -> PlayerBonusRevertResponse:
+    log.info("player_bonus.revert", consume_txn_id=consume_txn_id)
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_SELECT_CONSUMED_FOR_REVERT_SQL, (consume_txn_id,))
+                row = await cur.fetchone()
+                if not row:
+                    raise PlayerBonusNotFoundError(consume_txn_id)
+                _id, consumed_ref, bonus_log_id, amount, reverted_at, chip_type = row
+                if reverted_at is not None:
+                    raise PlayerBonusAlreadyRevertedError(consume_txn_id)
+
+                now = datetime.now(_UTC).replace(tzinfo=None)
+                await cur.execute(_REVERT_CONSUME_SQL, (now, consume_txn_id))
+                await cur.execute(_UPDATE_GRANT_CONSUMED_DEC_SQL, (amount, bonus_log_id))
+                await conn.commit()
+
+        return PlayerBonusRevertResponse(
+            txn_id=_id, consume_txn_id=consumed_ref, amount=amount, chip_type=chip_type,
+        )
+    except (PlayerBonusNotFoundError, PlayerBonusAlreadyRevertedError):
+        raise
+    except Exception as exc:
+        log.error("player_bonus.revert.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+# ── 4. Player bonus summary ───────────────────────────────────────────────────
+
+_BONUS_BALANCE_BY_CHIP_SQL = """
+    SELECT wager_chip_type, COALESCE(SUM(release_amount - bonus_consumed), 0)
+    FROM player_bonus_grant
+    WHERE player_id = %s
+    GROUP BY wager_chip_type
+"""
+
+_PENDING_BONUS_BY_CHIP_SQL = """
+    SELECT pbg.wager_chip_type, COALESCE(SUM(bc.chunk_amount), 0)
+    FROM bonus_chunk bc
+    JOIN player_bonus_grant pbg ON pbg.id = bc.bonus_log_id
+    WHERE pbg.player_id = %s AND bc.status = 'PENDING'
+    GROUP BY pbg.wager_chip_type
+"""
+
+_WAGERING_REQUIRED_BY_CHIP_SQL = """
+    SELECT pbg.wager_chip_type,
+           COALESCE(SUM(bc.chunk_amount * bc.wager_multiplier - bc.wager_amount), 0)
+    FROM bonus_chunk bc
+    JOIN player_bonus_grant pbg ON pbg.id = bc.bonus_log_id
+    WHERE pbg.player_id = %s AND bc.status = 'PENDING'
+    GROUP BY pbg.wager_chip_type
+"""
+
+
+async def get_player_bonus_summary(player_id: str) -> list[PlayerBonusSummaryResponse]:
+    log.info("player_bonus.summary", player_id=player_id)
+    from collections import defaultdict
+    from decimal import Decimal as D
+    data: dict[str, dict] = defaultdict(
+        lambda: {"bonus_balance": D(0), "pending_bonus": D(0), "wagering_required": D(0)}
+    )
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_BONUS_BALANCE_BY_CHIP_SQL, (player_id,))
+                for chip, val in await cur.fetchall():
+                    data[chip]["bonus_balance"] = val
+
+                await cur.execute(_PENDING_BONUS_BY_CHIP_SQL, (player_id,))
+                for chip, val in await cur.fetchall():
+                    data[chip]["pending_bonus"] = val
+
+                await cur.execute(_WAGERING_REQUIRED_BY_CHIP_SQL, (player_id,))
+                for chip, val in await cur.fetchall():
+                    data[chip]["wagering_required"] = val
+
+        return [
+            PlayerBonusSummaryResponse(chip_type=chip, **vals)
+            for chip, vals in data.items()
+        ]
+    except Exception as exc:
+        log.error("player_bonus.summary.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+# ── 5. Transaction list ───────────────────────────────────────────────────────
+
+_TRANSACTIONS_SQL = """
+    SELECT txn_id, bonus_code, amount, type, created_at
+    FROM (
+        SELECT pbg.id           AS txn_id,
+               pbg.bonus_code   AS bonus_code,
+               pbg.grant_amount AS amount,
+               'grant'          AS type,
+               pbg.created_at
+        FROM player_bonus_grant pbg
+        WHERE pbg.player_id = %s AND pbg.wager_chip_type = %s
+
+        UNION ALL
+
+        SELECT bc.id            AS txn_id,
+               NULL             AS bonus_code,
+               bc.chunk_amount  AS amount,
+               'released'       AS type,
+               bc.updated_at    AS created_at
+        FROM bonus_chunk bc
+        JOIN player_bonus_grant pbg ON pbg.id = bc.bonus_log_id
+        WHERE pbg.player_id = %s AND pbg.wager_chip_type = %s
+          AND bc.status != 'PENDING'
+
+        UNION ALL
+
+        SELECT bcon.id              AS txn_id,
+               NULL                 AS bonus_code,
+               bcon.consumed_amount AS amount,
+               'consumed'           AS type,
+               bcon.created_at
+        FROM bonus_consumed bcon
+        JOIN player_bonus_grant pbg ON pbg.id = bcon.bonus_log_id
+        WHERE pbg.player_id = %s AND pbg.wager_chip_type = %s
+
+        UNION ALL
+
+        SELECT bce.id          AS txn_id,
+               NULL            AS bonus_code,
+               bce.amount,
+               'expiry'        AS type,
+               bce.expired_at  AS created_at
+        FROM bonus_chunk_expiry bce
+        JOIN player_bonus_grant pbg ON pbg.id = bce.bonus_log_id
+        WHERE pbg.player_id = %s AND pbg.wager_chip_type = %s
+
+        UNION ALL
+
+        SELECT bf.id           AS txn_id,
+               NULL            AS bonus_code,
+               bf.amount,
+               'forfeited'     AS type,
+               bf.forfeited_at AS created_at
+        FROM bonus_forfeit bf
+        JOIN player_bonus_grant pbg ON pbg.id = bf.bonus_log_id
+        WHERE pbg.player_id = %s AND pbg.wager_chip_type = %s
+    ) AS ledger
+    ORDER BY created_at DESC
+    LIMIT %s OFFSET %s
+"""
+
+
+def _derive_status(
+    pending: int, released: int, consumed: int, expired: int,
+    forfeited: int, total: int,
+) -> str:
+    if forfeited:
+        return "FORFEITED"
+    if expired == total:
+        return "EXPIRED"
+    if consumed == total:
+        return "CONSUMED"
+    if released == total:
+        return "RELEASED"
+    if released > 0:
+        return "PARTIALLY_RELEASED"
+    return "PENDING"
+
+
+async def list_player_transactions(
+    player_id: str,
+    chip_type: str,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[PlayerBonusTransactionSummary]:
+    log.info("player_bonus.list_transactions", player_id=player_id, chip_type=chip_type)
+    p = player_id
+    c = chip_type
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_TRANSACTIONS_SQL, (p, c, p, c, p, c, p, c, p, c, limit, offset))
+                rows = await cur.fetchall()
+
+        return [
+            PlayerBonusTransactionSummary(
+                txn_id=row[0], bonus_code=row[1], amount=row[2],
+                type=row[3], created_at=row[4],
+            )
+            for row in rows
+        ]
+    except Exception as exc:
+        log.error("player_bonus.list_transactions.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+# ── 6. Transaction detail ─────────────────────────────────────────────────────
+
+_GRANT_DETAIL_SQL = """
+    SELECT id, player_id, bonus_code, wager_multiplier, no_of_chunks,
+           chunk_expiry_days, bonus_expiry_days, wager_chip_type, credit_chip_type,
+           grant_amount, release_amount, bonus_consumed, created_at
+    FROM player_bonus_grant
+    WHERE id = %s
+"""
+
+_CHUNKS_SQL = """
+    SELECT id, chunk_ref, chunk_amount, wager_multiplier, status, wager_amount,
+           created_at, updated_at
+    FROM bonus_chunk
+    WHERE bonus_log_id = %s
+    ORDER BY chunk_ref ASC
+"""
+
+_FORFEIT_SQL = """
+    SELECT id, amount, type, operator, forfeited_at
+    FROM bonus_forfeit
+    WHERE bonus_log_id = %s
+    LIMIT 1
+"""
+
+_EXPIRY_EVENTS_SQL = """
+    SELECT id, chunk_id, amount, type, operator, expired_at
+    FROM bonus_chunk_expiry
+    WHERE bonus_log_id = %s
+    ORDER BY expired_at ASC
+"""
+
+
+async def get_player_transaction_detail(
+    player_id: str, txn_id: int
+) -> PlayerBonusTransactionDetail:
+    log.info("player_bonus.transaction_detail", player_id=player_id, txn_id=txn_id)
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_GRANT_DETAIL_SQL, (txn_id,))
+                grant = await cur.fetchone()
+                if not grant or grant[1] != player_id:
+                    raise PlayerBonusNotFoundError(txn_id)
+
+                await cur.execute(_CHUNKS_SQL, (txn_id,))
+                chunk_rows = await cur.fetchall()
+
+                await cur.execute(_FORFEIT_SQL, (txn_id,))
+                forfeit_row = await cur.fetchone()
+
+                await cur.execute(_EXPIRY_EVENTS_SQL, (txn_id,))
+                expiry_rows = await cur.fetchall()
+
+        (
+            _id, _player_id, bonus_code, wager_multiplier, no_of_chunks,
+            chunk_expiry_days, bonus_expiry_days, wager_chip_type, credit_chip_type,
+            grant_amount, release_amount, bonus_consumed_val, created_at,
+        ) = grant
+
+        pending = sum(1 for c in chunk_rows if c[4] == "PENDING")
+        released = sum(1 for c in chunk_rows if c[4] == "RELEASE")
+        consumed_count = sum(1 for c in chunk_rows if c[4] == "CONSUMED")
+        expired = sum(1 for c in chunk_rows if c[4] == "EXPIRED")
+        status = _derive_status(pending, released, consumed_count, expired, 1 if forfeit_row else 0, no_of_chunks)
+
+        chunks = [
+            BonusChunkDetail(
+                id=c[0], chunk_ref=c[1], chunk_amount=c[2], wager_multiplier=c[3],
+                status=c[4], wager_amount=c[5], created_at=c[6], updated_at=c[7],
+            )
+            for c in chunk_rows
+        ]
+
+        forfeit = None
+        if forfeit_row:
+            forfeit = BonusForfeitDetail(
+                id=forfeit_row[0], amount=forfeit_row[1], type=forfeit_row[2],
+                operator=forfeit_row[3], forfeited_at=forfeit_row[4],
+            )
+
+        expiry_events = [
+            BonusExpiryDetail(
+                id=e[0], chunk_id=e[1], amount=e[2], type=e[3],
+                operator=e[4], expired_at=e[5],
+            )
+            for e in expiry_rows
+        ]
+
+        return PlayerBonusTransactionDetail(
+            txn_id=_id, player_id=_player_id, bonus_code=bonus_code,
+            wager_multiplier=wager_multiplier, no_of_chunks=no_of_chunks,
+            chunk_expiry_days=chunk_expiry_days, bonus_expiry_days=bonus_expiry_days,
+            wager_chip_type=wager_chip_type, credit_chip_type=credit_chip_type,
+            grant_amount=grant_amount, release_amount=release_amount,
+            bonus_consumed=bonus_consumed_val, status=status, created_at=created_at,
+            chunks=chunks, forfeit=forfeit, expiry_events=expiry_events,
+        )
+    except PlayerBonusNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("player_bonus.transaction_detail.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+# ── 7. Referral code ──────────────────────────────────────────────────────────
+
+_REFERRAL_CODE_SQL = """
+    SELECT player_id, referral_code, created_at
+    FROM player_referral
+    WHERE player_id = %s
+    LIMIT 1
+"""
+
+
+async def get_player_referral_code(player_id: str) -> PlayerReferralCodeResponse:
+    log.info("player_bonus.referral_code", player_id=player_id)
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_REFERRAL_CODE_SQL, (player_id,))
+                row = await cur.fetchone()
+        if not row:
+            raise PlayerBonusNotFoundError(player_id)
+        return PlayerReferralCodeResponse(
+            player_id=row[0], referral_code=row[1], created_at=row[2],
+        )
+    except PlayerBonusNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("player_bonus.referral_code.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc

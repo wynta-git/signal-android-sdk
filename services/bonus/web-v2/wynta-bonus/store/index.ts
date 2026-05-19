@@ -11,6 +11,7 @@ import usageReducer from './slices/usageSlice';
 import historyReducer from './slices/historySlice';
 import segmentsReducer from './slices/segmentsSlice';
 import kpiReducer from './slices/kpiSlice';
+import usersReducer from './slices/usersSlice';
 import type { SelectedNode } from '@/types';
 
 const LS_NODE_KEY = 'bonus_selected_node';
@@ -29,6 +30,7 @@ export const store = configureStore({
     history: historyReducer,
     segments: segmentsReducer,
     kpi: kpiReducer,
+    users: usersReducer,
   },
 });
 

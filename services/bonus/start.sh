@@ -26,22 +26,22 @@ free_port() {
   fi
 }
 
-free_port 8000
+free_port 8010
 free_port 3000
 
 echo "┌─────────────────────────────────────────────────┐"
 echo "│  Bonus Service — dev start                       │"
 echo "│                                                   │"
-echo "│  Backend  →  http://localhost:8000                │"
-echo "│  API docs →  http://localhost:8000/docs           │"
+echo "│  Backend  →  http://localhost:8010                │"
+echo "│  API docs →  http://localhost:8010/docs           │"
 echo "│  Frontend →  http://localhost:3000                │"
 echo "└─────────────────────────────────────────────────┘"
 echo ""
 
 # ── Backend ───────────────────────────────────────────────────────────────────
-echo "[backend]  starting uvicorn on :8000 …"
+echo "[backend]  starting uvicorn on :8010 …"
 cd "$SCRIPT_DIR"
-uv run uvicorn app.main:app --reload --port 8000 &
+uv run uvicorn app.main:app --reload --port 8010 &
 BACKEND_PID=$!
 
 # ── Frontend ──────────────────────────────────────────────────────────────────

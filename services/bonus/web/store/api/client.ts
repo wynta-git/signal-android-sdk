@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8010') + '/api/v1'
 
 function extractMessage(err: unknown, fallback: string): string {
   if (err && typeof err === 'object' && 'detail' in err) {

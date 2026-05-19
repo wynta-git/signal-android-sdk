@@ -74,6 +74,31 @@ New player account created.
 
 ---
 
+### `registration_completed`
+Fired when a new registration form is successfully submitted.
+
+| Property | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `registration_source` | string | no | `organic` | Acquisition partner identifier (e.g. `affiliate_22`, `seo_organic`). |
+| `referral_code` | string | no | `""` | Referral or promo code used at sign-up, if any. |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000060",
+  "event_name": "registration_completed",
+  "schema_version": 1,
+  "user_id": "user_001",
+  "session_id": "sess_abc123",
+  "timestamp": "2026-05-14T08:02:00.000Z",
+  "properties": {
+    "registration_source": "affiliate_22",
+    "referral_code": "PROMO50"
+  }
+}
+```
+
+---
+
 ### `EMAILVERIFICATION`
 Player verifies their email address.
 
@@ -169,6 +194,30 @@ Player's KYC (know-your-customer) documents are approved.
 
 ---
 
+### `kyc_status_updated`
+Emitted when document verification is completed or updated by the compliance system.
+
+| Property | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `kyc_status` | string | yes | `unverified` | Current status: `initiated`, `verified`, `rejected`, or `failed`. |
+| `kyc_failure_reason` | string | no | `""` | Official error code or message returned by the compliance system. |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000061",
+  "event_name": "kyc_status_updated",
+  "schema_version": 1,
+  "user_id": "user_001",
+  "timestamp": "2026-05-14T09:05:00.000Z",
+  "properties": {
+    "kyc_status": "rejected",
+    "kyc_failure_reason": "DOC_EXPIRED"
+  }
+}
+```
+
+---
+
 ## Deposit Events
 
 ### `DEPOSIT`
@@ -225,6 +274,70 @@ Player makes their very first deposit. Published alongside `DEPOSIT` when `depos
     "amount": 3570.05,
     "currency": "INR",
     "payment_method": "upi"
+  }
+}
+```
+
+---
+
+### `deposit_success`
+Fired on successful transaction settlement from your Payment Service Provider. Use this event — rather than `DEPOSIT` — when the release trigger requires confirmed PSP settlement rather than deposit initiation.
+
+| Property | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `amount` | decimal | yes | `0.0000` | Exact settled value. Must use 4-decimal precision. |
+| `currency` | string (ISO 4217) | yes | `USD` | Standard 3-letter ISO currency code. |
+| `payment_method` | string | no | `none` | PSP processing channel (e.g. `visa`, `apple_pay`, `bitcoin`). |
+| `transaction_id` | string | yes | `""` | Unique ledger transaction ID returned by the processor. |
+| `is_ftd` | unsigned int | yes | `0` | `1` if this is the player's First Time Deposit; `0` otherwise. |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000009",
+  "event_name": "deposit_success",
+  "schema_version": 1,
+  "user_id": "user_001",
+  "session_id": "sess_6b31a39f",
+  "timestamp": "2026-05-14T11:58:55.000Z",
+  "properties": {
+    "amount": "3570.0500",
+    "currency": "INR",
+    "payment_method": "upi",
+    "transaction_id": "psp_txn_4f9b2c1d",
+    "is_ftd": 0
+  }
+}
+```
+
+---
+
+## Gameplay & Betting Events
+
+### `bet_placed` (Casino & Slots)
+Emitted when a wager is accepted by the RGS. This event resets the player's session timeout.
+
+| Property | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `wager_amount` | decimal | yes | `0.0000` | Stake size. Must use 4-decimal precision. |
+| `game_id` | string | yes | `none` | Target game ID (e.g. `book_of_frosty`). |
+| `game_category` | string | no | `none` | Vertical classification: `slots`, `roulette`, `blackjack`, `crash`. |
+| `game_provider` | string | no | `none` | Studio name (e.g. `evolution`, `netent`, `pragmatic`). |
+| `balance_type` | string | yes | `real` | Wallet balance source: `real`, `bonus`, or `freebet`. |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000050",
+  "event_name": "bet_placed",
+  "schema_version": 1,
+  "user_id": "user_001",
+  "session_id": "sess_abc123",
+  "timestamp": "2026-05-14T19:00:00.000Z",
+  "properties": {
+    "wager_amount": "250.0000",
+    "game_id": "book_of_frosty",
+    "game_category": "slots",
+    "game_provider": "pragmatic",
+    "balance_type": "bonus"
   }
 }
 ```
@@ -734,12 +847,16 @@ This table maps each event to which `bonus_release_trigger` values in `bonus_con
 |---|---|
 | `LOGIN` | `LOGIN` |
 | `REGISTRATION` | `REGISTRATION` |
+| `registration_completed` | `REGISTRATION_COMPLETED` |
 | `EMAILVERIFICATION` | `EMAILVERIFICATION` |
 | `MOBILEVERIFICATION` | `MOBILEVERIFICATION` |
 | `EMAIL_AND_MOBILE_VERIFY` | `EMAIL_AND_MOBILE_VERIFY` |
 | `KYC_VERIFIED` | `KYC_VERIFIED` |
+| `kyc_status_updated` | `KYC_STATUS_UPDATED` |
 | `DEPOSIT` | `DEPOSIT` |
 | `FIRST_DEPOSIT` | `FIRST_DEPOSIT` |
+| `deposit_success` | `DEPOSIT_SUCCESS` |
+| `bet_placed` | `BET_PLACED` |
 | `FRIEND_SIGNUP` | `FRIEND_SIGNUP` |
 | `FRIEND_DEPOSIT` | `FRIEND_DEPOSIT` |
 | `FRIEND_FIRSTDEPOSIT` | `FRIEND_FIRSTDEPOSIT` |

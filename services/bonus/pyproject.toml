@@ -9,6 +9,7 @@ dependencies = [
     "pydantic-settings>=2.2.0",
     "structlog>=24.1.0",
     "pam-shared",
+    "cryptography>=48.0.0",
 ]
 
 [project.optional-dependencies]

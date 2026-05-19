@@ -147,3 +147,31 @@ class BonusEligibilityDuplicateError(BonusServiceError):
 
 class DatabaseError(BonusServiceError):
     """Raised when a database operation fails unexpectedly."""
+
+
+class PlayerBonusNotFoundError(BonusServiceError):
+    """Raised when a player_bonus_grant or bonus_consumed row cannot be found."""
+
+    def __init__(self, ref: int | str) -> None:
+        self.ref = ref
+        super().__init__(f"Player bonus record {ref!r} not found")
+
+
+class PlayerBonusConsumedError(BonusServiceError):
+    """Raised when a consumption is duplicated or the chunk is not in RELEASE status."""
+
+    def __init__(self, chunk_id: int, consume_ref: str) -> None:
+        self.chunk_id = chunk_id
+        self.consume_ref = consume_ref
+        super().__init__(
+            f"Cannot consume chunk {chunk_id} with ref '{consume_ref}': "
+            "chunk not in RELEASE status or consumption already recorded"
+        )
+
+
+class PlayerBonusAlreadyRevertedError(BonusServiceError):
+    """Raised when attempting to revert a consumption that has already been reverted."""
+
+    def __init__(self, consumed_id: int) -> None:
+        self.consumed_id = consumed_id
+        super().__init__(f"Bonus consumption {consumed_id} has already been reverted")

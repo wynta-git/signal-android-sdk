@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchHeads, fetchHead, selectAllHeads } from '@/store/slices/headsSlice';
 import { fetchKpiSnapshot } from '@/store/slices/kpiSlice';
+import { fetchUsers } from '@/store/slices/usersSlice';
 import { openDrawer, openHistoryDrawer, closeContextMenu, openContextMenu } from '@/store/slices/uiSlice';
 import { toggleHead, selectNode, expandAncestorsOf, toggleSubheadExpand } from '@/store/slices/treeSlice';
 import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
@@ -39,6 +40,10 @@ export default function BonusAdminApp() {
   const headEntities     = useAppSelector(s => s.heads.entities);
 
   const prevBrandRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    dispatch(fetchUsers());
+  }, [dispatch]);
 
   useEffect(() => {
     if (!selectedBrand) return;

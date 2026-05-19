@@ -2,6 +2,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # S2S clients: {"client_id": "shared_secret", ...}
+    # Set via env: BONUS_S2S_CLIENTS='{"game_server":"secret1","admin":"secret2"}'
+    s2s_clients: dict[str, str] = {}
+
     db_host: str = "localhost"
     db_port: int = 3306
     db_user: str = "root"
