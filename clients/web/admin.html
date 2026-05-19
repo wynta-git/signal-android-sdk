@@ -433,6 +433,7 @@
         <button class="tab-btn active" id="tab-project"   onclick="switchTab('project')">Project</button>
         <button class="tab-btn"        id="tab-tokens"    onclick="switchTab('tokens')">Tokens</button>
         <button class="tab-btn"        id="tab-routes"    onclick="switchTab('routes')">Event Routes</button>
+        <button class="tab-btn"        id="tab-aliases"   onclick="switchTab('aliases')">Field Aliases</button>
         <button class="tab-btn"        id="tab-users"     onclick="switchTab('users')">Users</button>
         <button class="tab-btn"        id="tab-segments"  onclick="switchTab('segments')">Segments</button>
         <button class="tab-btn"        id="tab-campaigns" onclick="switchTab('campaigns')">Campaigns</button>
@@ -557,6 +558,45 @@
         </div>
       </div>
 
+      <!-- ══ FIELD ALIASES ══ -->
+      <div class="tab-content" id="content-aliases">
+        <div class="builder-scroll">
+
+          <div class="card">
+            <div class="card-head">Set Aliases for Event</div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Event Name</label>
+                <input class="field grow" id="alias-event" placeholder="purchase_completed">
+              </div>
+              <div class="form-row" style="align-items:flex-start">
+                <label style="padding-top:6px">Aliases (JSON)</label>
+                <textarea class="field grow" id="alias-json" rows="6"
+                  placeholder='{"deposit_amount":"amount","transaction_amount":"amount"}'></textarea>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);padding-left:110px">
+                POST replaces all aliases. PATCH merges new ones into existing.
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span>Existing Aliases</span>
+              <button class="refresh-btn" onclick="fetchAliases()" title="Reload">↻</button>
+            </div>
+            <div id="alias-list"><div class="list-empty">Click ↻ to load.</div></div>
+          </div>
+
+        </div>
+        <div class="send-bar">
+          <button class="btn btn-primary" id="alias-post-btn" onclick="saveAliases('POST')">POST (Replace)</button>
+          <button class="btn btn-ghost"   id="alias-patch-btn" onclick="saveAliases('PATCH')">PATCH (Merge)</button>
+          <span id="alias-meta"></span>
+          <span class="elapsed" id="alias-elapsed"></span>
+        </div>
+      </div>
+
       <!-- ══ USERS ══ -->
       <div class="tab-content" id="content-users">
         <div class="builder-scroll">
@@ -648,7 +688,7 @@
     }
 
     // ── Tabs ──────────────────────────────────────────────────────────────
-    const TABS = ['project','tokens','routes','users','segments','campaigns'];
+    const TABS = ['project','tokens','routes','aliases','users','segments','campaigns'];
 
     function switchTab(name) {
       TABS.forEach(t => {
@@ -954,6 +994,71 @@
         showResponse(status, data, ms, 'user-meta', 'user-elapsed');
         if (status === 200) document.getElementById('user-id').value = '';
       } catch (e) { showError(e, 'user-meta'); }
+    }
+
+    // ── FIELD ALIASES ─────────────────────────────────────────────────────
+    async function fetchAliases() {
+      document.getElementById('alias-list').innerHTML =
+        '<div class="list-empty">Loading…</div>';
+      try {
+        const { status, data } = await apiCall('GET', '/v1/admin/field-aliases');
+        if (status === 200 && Array.isArray(data)) renderAliasList(data);
+        else document.getElementById('alias-list').innerHTML =
+          `<div class="list-empty">Error ${status}</div>`;
+      } catch (e) {
+        document.getElementById('alias-list').innerHTML =
+          '<div class="list-empty">Could not reach api-service</div>';
+      }
+    }
+
+    function renderAliasList(items) {
+      if (!items.length) {
+        document.getElementById('alias-list').innerHTML =
+          '<div class="list-empty">No field aliases configured.</div>';
+        return;
+      }
+      document.getElementById('alias-list').innerHTML = items.map(item => {
+        const pairs = Object.entries(item.aliases || {})
+          .map(([src, can]) => `<span class="chip chip-write">${esc(src)}</span> → <span style="font-family:var(--mono);font-size:11px">${esc(can)}</span>`)
+          .join('  ');
+        return `
+          <div class="list-row clickable" onclick="loadAlias('${esc(item.event_name)}', ${esc(JSON.stringify(item.aliases))})">
+            <div style="flex:1;min-width:0">
+              <div class="row-primary">${esc(item.event_name)}</div>
+              <div class="row-sub" style="white-space:normal;line-height:1.8">${pairs}</div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function loadAlias(eventName, aliases) {
+      document.getElementById('alias-event').value = eventName;
+      document.getElementById('alias-json').value = JSON.stringify(aliases, null, 2);
+    }
+
+    async function saveAliases(method) {
+      const eventName = document.getElementById('alias-event').value.trim();
+      if (!eventName) { alert('Enter an event name.'); return; }
+      let aliases;
+      try {
+        aliases = JSON.parse(document.getElementById('alias-json').value.trim());
+      } catch {
+        alert('Invalid JSON in aliases field.');
+        return;
+      }
+      const postBtn  = document.getElementById('alias-post-btn');
+      const patchBtn = document.getElementById('alias-patch-btn');
+      postBtn.disabled = patchBtn.disabled = true;
+      try {
+        const { status, data, ms } = await apiCall(
+          method,
+          `/v1/admin/field-aliases/${encodeURIComponent(eventName)}`,
+          { aliases }
+        );
+        showResponse(status, data, ms, 'alias-meta', 'alias-elapsed');
+        if (status === 200) await fetchAliases();
+      } catch (e) { showError(e, 'alias-meta'); }
+      finally { postBtn.disabled = patchBtn.disabled = false; }
     }
 
     // ── SEGMENTS ──────────────────────────────────────────────────────────
