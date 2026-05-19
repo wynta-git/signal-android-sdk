@@ -10,6 +10,7 @@ from shared.logging_config import configure_logging
 from app import storage
 from app.refresh import scheduled
 from app.refresh.event_driven import run_consumer
+from app.routes.admin import router as admin_router
 from app.routes.segments import router as segments_router
 from app.routes.meta import router as meta_router
 from app.services.meta import MetaService
@@ -74,6 +75,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(admin_router)
 app.include_router(segments_router)
 app.include_router(meta_router)
 

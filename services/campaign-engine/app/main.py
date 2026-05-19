@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.routes.admin import router as admin_router
 from app.routes.campaigns import router as campaigns_router
 from app.routes.templates import router as templates_router
 from app.triggers import scheduled as scheduler
@@ -72,6 +73,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(admin_router)
 app.include_router(campaigns_router)
 app.include_router(templates_router)
 
