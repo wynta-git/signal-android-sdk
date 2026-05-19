@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     # How often (seconds) the scheduler polls for due one-off campaigns
     oneoff_poll_interval_seconds: int = 60
 
+    # How many minutes before send_at to pre-refresh the segment for one-off campaigns
+    segment_prefetch_lead_minutes: int = 15
+
+    # Internal URL for the segmentation engine admin API
+    segmentation_engine_url: str = "http://localhost:8003"
+
     debug: bool = False
     version: str = "0.1.0"
 

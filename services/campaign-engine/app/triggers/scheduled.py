@@ -1,9 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import structlog
 from aiokafka import AIOKafkaProducer
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
@@ -11,6 +12,7 @@ from redis.asyncio import Redis
 from app.audience import is_in_audience
 from app.config import settings
 from app.models import Audience, Campaign, CampaignRun
+from app.prefetch import trigger_segment_refresh
 from app.rate_limit import check_rate_limit, mark_sent
 from app.sender import emit_send_job
 from shared.clients.mongo import (
@@ -73,6 +75,61 @@ def unregister_campaign(project_id: str, campaign_id: str) -> None:
         log.info("scheduler.job_removed", project_id=project_id, campaign_id=campaign_id)
 
 
+def register_oneoff_prefetch(campaign: Campaign) -> None:
+    segment_id = campaign.audience.segment_id
+    if not segment_id:
+        return
+
+    send_at = campaign.trigger.send_at
+    if not send_at:
+        return
+
+    fire_at = send_at - timedelta(minutes=settings.segment_prefetch_lead_minutes)
+    now = datetime.now(timezone.utc)
+
+    job_id = _prefetch_job_id(campaign.project_id, campaign.campaign_id)
+    if _scheduler.get_job(job_id):
+        _scheduler.remove_job(job_id)
+
+    if fire_at <= now:
+        # Not enough lead time — refresh immediately in the background
+        _scheduler.add_job(
+            trigger_segment_refresh,
+            trigger=DateTrigger(run_date=now),
+            id=job_id,
+            kwargs={"project_id": campaign.project_id, "segment_id": segment_id},
+            replace_existing=True,
+        )
+        log.info(
+            "scheduler.prefetch_immediate",
+            project_id=campaign.project_id,
+            campaign_id=campaign.campaign_id,
+            segment_id=segment_id,
+        )
+    else:
+        _scheduler.add_job(
+            trigger_segment_refresh,
+            trigger=DateTrigger(run_date=fire_at),
+            id=job_id,
+            kwargs={"project_id": campaign.project_id, "segment_id": segment_id},
+            replace_existing=True,
+        )
+        log.info(
+            "scheduler.prefetch_scheduled",
+            project_id=campaign.project_id,
+            campaign_id=campaign.campaign_id,
+            segment_id=segment_id,
+            fire_at=fire_at.isoformat(),
+        )
+
+
+def unregister_oneoff_prefetch(project_id: str, campaign_id: str) -> None:
+    job_id = _prefetch_job_id(project_id, campaign_id)
+    if _scheduler.get_job(job_id):
+        _scheduler.remove_job(job_id)
+        log.info("scheduler.prefetch_removed", project_id=project_id, campaign_id=campaign_id)
+
+
 def _register_job(
     campaign: Campaign,
     db: AsyncIOMotorDatabase,
@@ -110,6 +167,10 @@ def _register_job(
 
 def _job_id(project_id: str, campaign_id: str) -> str:
     return f"{project_id}:{campaign_id}"
+
+
+def _prefetch_job_id(project_id: str, campaign_id: str) -> str:
+    return f"{project_id}:{campaign_id}:prefetch"
 
 
 async def _run_scheduled_campaign(

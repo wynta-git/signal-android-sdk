@@ -147,6 +147,10 @@ async def activate_campaign(
         campaign = Campaign.model_validate({**doc, "status": new_status})
         scheduler.register_campaign(campaign, db)
 
+    if trigger_type == "one_off":
+        campaign = Campaign.model_validate({**doc, "status": new_status})
+        scheduler.register_oneoff_prefetch(campaign)
+
     log.info("campaign.activated", project_id=project_id, campaign_id=campaign_id, status=new_status)
     return {"status": new_status}
 
@@ -213,6 +217,9 @@ async def cancel_campaign(
 
     if doc["trigger"]["type"] == "scheduled":
         scheduler.unregister_campaign(project_id, campaign_id)
+
+    if doc["trigger"]["type"] == "one_off":
+        scheduler.unregister_oneoff_prefetch(project_id, campaign_id)
 
     log.info("campaign.cancelled", project_id=project_id, campaign_id=campaign_id)
     return {"status": "cancelled"}
