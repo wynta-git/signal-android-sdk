@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app import storage
@@ -29,7 +29,7 @@ class SegmentCreateRequest(BaseModel):
     segment_id: str
     name: str
     rule: SegmentRule
-    refresh_strategy: Literal["scheduled", "on_event"]
+    refresh_strategy: Literal["scheduled", "on_event", "one_time"]
     scheduled_cron: str | None = Field(default=None)
     created_by: str | None = Field(default=None)
 
@@ -37,7 +37,7 @@ class SegmentCreateRequest(BaseModel):
 class SegmentUpdateRequest(BaseModel):
     name: str | None = None
     rule: SegmentRule | None = None
-    refresh_strategy: Literal["scheduled", "on_event"] | None = None
+    refresh_strategy: Literal["scheduled", "on_event", "one_time"] | None = None
     scheduled_cron: str | None = None
 
 
@@ -45,6 +45,7 @@ class SegmentUpdateRequest(BaseModel):
 async def create_segment(
     ctx: AuthDep,
     body: SegmentCreateRequest,
+    background_tasks: BackgroundTasks,
     db=Depends(_db),
     ch=Depends(_ch),
     redis=Depends(_redis),
@@ -69,6 +70,10 @@ async def create_segment(
 
     if body.refresh_strategy == "scheduled":
         scheduled.register_segment(doc, db, ch, redis)
+    elif body.refresh_strategy == "one_time":
+        background_tasks.add_task(
+            evaluate_segment, project_id, body.segment_id, body.rule, db, ch, redis
+        )
 
     return {k: v for k, v in doc.items() if k != "_id"}
 
