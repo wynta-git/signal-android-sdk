@@ -449,6 +449,82 @@ async def list_campaign_runs(
     return await cursor.to_list(length=None)
 
 
+# ---------------------------------------------------------------------------
+# Admin helpers — field aliases
+# ---------------------------------------------------------------------------
+
+
+async def get_field_aliases(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    event_name: str,
+) -> dict[str, str]:
+    doc = await db["field_aliases"].find_one(
+        {"project_id": project_id, "event_name": event_name},
+        {"aliases": 1, "_id": 0},
+    )
+    if not doc:
+        return {}
+    return doc.get("aliases") or {}
+
+
+async def upsert_field_aliases(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    event_name: str,
+    aliases: dict[str, str],
+) -> None:
+    now = datetime.now(timezone.utc)
+    await db["field_aliases"].update_one(
+        {"project_id": project_id, "event_name": event_name},
+        {
+            "$set": {"aliases": aliases, "updated_at": now},
+            "$setOnInsert": {
+                "project_id": project_id,
+                "event_name": event_name,
+                "created_at": now,
+            },
+        },
+        upsert=True,
+    )
+
+
+async def merge_field_aliases(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    event_name: str,
+    new_aliases: dict[str, str],
+) -> dict[str, str]:
+    now = datetime.now(timezone.utc)
+    await db["field_aliases"].update_one(
+        {"project_id": project_id, "event_name": event_name},
+        {
+            "$set": {
+                **{f"aliases.{k}": v for k, v in new_aliases.items()},
+                "updated_at": now,
+            },
+            "$setOnInsert": {
+                "project_id": project_id,
+                "event_name": event_name,
+                "created_at": now,
+            },
+        },
+        upsert=True,
+    )
+    return await get_field_aliases(db, project_id, event_name)
+
+
+async def list_field_aliases(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+) -> list[dict[str, Any]]:
+    cursor = db["field_aliases"].find(
+        {"project_id": project_id},
+        {"_id": 0, "project_id": 0},
+    ).sort("event_name", 1)
+    return await cursor.to_list(length=None)
+
+
 async def upsert_user_profile(
     db: AsyncIOMotorDatabase,
     *,

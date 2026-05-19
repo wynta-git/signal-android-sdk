@@ -3,6 +3,7 @@ import signal
 
 import structlog
 
+from app.alias_manager import AliasManager
 from app.config import settings
 from app.consumer import run_consumer
 from shared.logging_config import configure_logging
@@ -40,7 +41,8 @@ async def main() -> None:
     log.info("mongo_connected", url=settings.mongo_url, db=settings.mongo_db)
 
     schema_mgr = SchemaManager(redis=redis_client, ch_client=ch_client, db=db)
-    writer = ClickHouseWriter(ch_client, schema_mgr, redis=redis_client)
+    alias_mgr = AliasManager(db)
+    writer = ClickHouseWriter(ch_client, schema_mgr, redis=redis_client, alias_mgr=alias_mgr)
     consumer_task = asyncio.create_task(run_consumer(writer))
 
     loop = asyncio.get_running_loop()

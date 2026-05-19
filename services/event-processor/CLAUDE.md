@@ -12,7 +12,6 @@ Consume `pam.events.raw.v1` from Kafka, batch-write every event to ClickHouse. O
 
 ## Hard rules
 
-- NEVER read or write MongoDB.
 - NEVER expose HTTP endpoints.
 - NEVER drop events silently — exhaust retries first, then DLQ.
 - NEVER commit Kafka offsets before the ClickHouse write (or DLQ hand-off) succeeds — guarantees at-least-once delivery.

@@ -8,8 +8,8 @@ from redis.asyncio import Redis
 from app import cache, storage
 from app.config import settings
 from app.dsl.compiler import CompiledRule, compile_rule
-from app.dsl.validator import SegmentRule
-from shared.clients.mongo import load_col_map
+from app.dsl.validator import DidNotDoFilter, EventFilter, SegmentRule
+from shared.clients.mongo import get_field_aliases, load_col_map
 from shared.clients.redis import hgetall
 
 log = structlog.get_logger()
@@ -31,6 +31,27 @@ async def _get_col_map(
     return col_map
 
 
+async def _build_col_map(
+    project_id: str,
+    rule: SegmentRule,
+    redis: Redis,
+    db: AsyncIOMotorDatabase,
+) -> dict[str, str]:
+    """Return col_map enriched with field alias mappings for all event names in the rule."""
+    col_map = await _get_col_map(project_id, redis, db)
+
+    event_names = {
+        f.event_name
+        for f in rule.filters
+        if isinstance(f, (EventFilter, DidNotDoFilter))
+    }
+    for event_name in event_names:
+        aliases = await get_field_aliases(db, project_id, event_name)
+        col_map = {**col_map, **aliases}
+
+    return col_map
+
+
 async def evaluate_segment(
     project_id: str,
     segment_id: str,
@@ -43,7 +64,7 @@ async def evaluate_segment(
     Run all compiled queries for a segment and return the final user_id set.
     Also persists memberships and updates segment metadata.
     """
-    col_map = await _get_col_map(project_id, redis, db)
+    col_map = await _build_col_map(project_id, rule, redis, db)
     compiled = compile_rule(rule, project_id, col_map)
     user_id_sets: list[set[str]] = []
 
@@ -104,7 +125,7 @@ async def evaluate_user_for_segment(
     Re-evaluate membership for a single user. Used by event-driven refresh.
     Returns True if the user is now a member.
     """
-    col_map = await _get_col_map(project_id, redis, db)
+    col_map = await _build_col_map(project_id, rule, redis, db)
     compiled = compile_rule(rule, project_id, col_map)
     per_filter_results: list[bool] = []
 

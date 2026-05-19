@@ -181,6 +181,26 @@ Database: `pam`
 // Never TTL'd — mapping is permanent once written.
 ```
 
+### `field_aliases`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  event_name: "deposit_event",
+  aliases: {
+    "deposit_amount": "amount",   // source field → canonical field
+    "txn_currency":  "currency"
+  },
+  created_at: ISODate,
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1, event_name: 1 } unique
+// Owner: api-service admin API (writes). Read by: event-processor (30s in-memory cache),
+//        segmentation-engine (query-time col_map enrichment, meta property discovery).
+// canonical field can be a base column (amount, currency, order_id) or any dynamic column name.
+// Alias wins on conflict: if both source and canonical arrive in the same event, source value is used.
+```
+
 ## Conventions
 
 - Always include `project_id` in queries — multi-tenant isolation.

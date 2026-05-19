@@ -20,7 +20,10 @@ from shared.clients.mongo import (
     admin_list_tokens,
     admin_revoke_token,
     admin_update_project_settings,
+    list_field_aliases,
     load_event_routes,
+    merge_field_aliases,
+    upsert_field_aliases,
 )
 
 log = structlog.get_logger()
@@ -227,3 +230,45 @@ async def delete_user(
         )
     log.info("admin.user.deleted", project_id=ctx.project_id, user_id=user_id)
     return {"user_id": user_id, "deleted": True}
+
+
+# ---------------------------------------------------------------------------
+# Field Aliases
+# ---------------------------------------------------------------------------
+
+
+class FieldAliasesRequest(BaseModel):
+    aliases: dict[str, str]
+
+
+@router.get("/field-aliases")
+async def list_field_aliases_route(
+    ctx: AdminDep, request: Request
+) -> list[dict[str, Any]]:
+    return await list_field_aliases(_db(request), ctx.project_id)
+
+
+@router.post("/field-aliases/{event_name}", status_code=200)
+async def upsert_field_aliases_route(
+    event_name: str,
+    body: FieldAliasesRequest,
+    ctx: AdminDep,
+    request: Request,
+) -> dict[str, Any]:
+    await upsert_field_aliases(_db(request), ctx.project_id, event_name, body.aliases)
+    await _redis(request).delete(f"meta:{ctx.project_id}:event_props:{event_name}")
+    log.info("admin.field_aliases.upserted", project_id=ctx.project_id, event_name=event_name)
+    return {"event_name": event_name, "aliases": body.aliases}
+
+
+@router.patch("/field-aliases/{event_name}", status_code=200)
+async def merge_field_aliases_route(
+    event_name: str,
+    body: FieldAliasesRequest,
+    ctx: AdminDep,
+    request: Request,
+) -> dict[str, Any]:
+    updated = await merge_field_aliases(_db(request), ctx.project_id, event_name, body.aliases)
+    await _redis(request).delete(f"meta:{ctx.project_id}:event_props:{event_name}")
+    log.info("admin.field_aliases.merged", project_id=ctx.project_id, event_name=event_name)
+    return {"event_name": event_name, "aliases": updated}
