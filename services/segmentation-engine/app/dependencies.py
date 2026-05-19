@@ -1,11 +1,8 @@
 from typing import Annotated
 
 import structlog
-from aiokafka import AIOKafkaProducer
 from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from redis.asyncio import Redis
 
 from shared.auth.token import (
     InvalidTokenError,
@@ -20,18 +17,6 @@ from shared.clients.redis import get_lookup
 log = structlog.get_logger()
 
 _bearer = HTTPBearer(auto_error=False)
-
-
-def get_db(request: Request) -> AsyncIOMotorDatabase:
-    return request.app.state.db
-
-
-def get_redis(request: Request) -> Redis:
-    return request.app.state.redis
-
-
-def get_producer(request: Request) -> AIOKafkaProducer:
-    return request.app.state.producer
 
 
 async def get_token_context(
