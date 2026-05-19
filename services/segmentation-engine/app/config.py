@@ -18,12 +18,6 @@ class Settings(BaseSettings):
     clickhouse_password: str = ""
 
     redis_url: str = "redis://localhost:6379"
-    segment_cache_ttl_seconds: int = 300
-
-    # When disabled, segment_memberships are never written and the Redis membership
-    # cache is never populated. Campaign-engine must re-evaluate the DSL at run time.
-    # Enable only if you need entry/exit transition detection or fast membership lookups.
-    membership_tracking_enabled: bool = False
 
     debug: bool = False
     version: str = "0.1.0"

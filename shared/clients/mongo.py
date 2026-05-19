@@ -1,4 +1,3 @@
-from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import Any
 
@@ -280,42 +279,6 @@ async def delete_template(
         {"project_id": project_id, "template_id": template_id}
     )
     return result.deleted_count > 0
-
-
-# ---------------------------------------------------------------------------
-# Segment membership reads (campaign-engine reads only, never writes)
-# ---------------------------------------------------------------------------
-
-
-async def is_segment_member(
-    db: AsyncIOMotorDatabase, project_id: str, segment_id: str, user_id: str
-) -> bool:
-    doc = await db["segment_memberships"].find_one(
-        {"project_id": project_id, "segment_id": segment_id, "user_id": user_id},
-        {"_id": 1},
-    )
-    return doc is not None
-
-
-async def stream_segment_members(
-    db: AsyncIOMotorDatabase,
-    project_id: str,
-    segment_id: str,
-    batch_size: int = 500,
-) -> AsyncGenerator[list[str], None]:
-    cursor = db["segment_memberships"].find(
-        {"project_id": project_id, "segment_id": segment_id},
-        {"user_id": 1, "_id": 0},
-    ).batch_size(batch_size)
-
-    batch: list[str] = []
-    async for doc in cursor:
-        batch.append(doc["user_id"])
-        if len(batch) >= batch_size:
-            yield batch
-            batch = []
-    if batch:
-        yield batch
 
 
 # ---------------------------------------------------------------------------

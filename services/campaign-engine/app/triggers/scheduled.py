@@ -17,10 +17,10 @@ from shared.clients.mongo import (
     get_due_oneoff_campaigns,
     get_running_scheduled_campaigns,
     insert_campaign_run,
-    stream_segment_members,
     update_campaign,
     update_campaign_run,
 )
+from shared.clients.redis import stream_segment_members
 
 log = structlog.get_logger()
 
@@ -177,11 +177,11 @@ async def _execute_campaign(
     sent = 0
     skipped = 0
 
-    async for user_ids in stream_segment_members(db, campaign.project_id, campaign.audience.segment_id or ""):
+    async for user_ids in stream_segment_members(redis, campaign.project_id, campaign.audience.segment_id or ""):
         for user_id in user_ids:
             try:
                 in_audience = await is_in_audience(
-                    campaign.audience, campaign.project_id, user_id, db, redis
+                    campaign.audience, campaign.project_id, user_id, redis
                 )
                 if not in_audience:
                     skipped += 1

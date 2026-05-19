@@ -9,8 +9,8 @@ Owns segment definitions and memberships. Compiles DSL → queries.
 - Cron — for `scheduled` segment refresh
 
 ## Outputs
-- MongoDB `segments`, `segment_memberships` (writes)
-- Redis segment membership cache (writes)
+- MongoDB `segments` (writes)
+- Redis `pam:seg:{project_id}:{segment_id}:members` Set + `:joined` Hash (writes — primary membership store)
 - ClickHouse `pam.events_{project_id}` (reads only, per-client table)
 - MongoDB `users` (reads only)
 

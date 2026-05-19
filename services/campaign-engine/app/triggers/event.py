@@ -106,7 +106,7 @@ async def _process_for_user(
     redis: Redis,
     producer: AIOKafkaProducer,
 ) -> None:
-    in_audience = await is_in_audience(campaign.audience, campaign.project_id, user_id, db, redis)
+    in_audience = await is_in_audience(campaign.audience, campaign.project_id, user_id, redis)
     if not in_audience:
         return
 

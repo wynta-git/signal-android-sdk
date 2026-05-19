@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     mongo_database: str = "pam"
 
     redis_url: str = "redis://localhost:6379"
-    segment_cache_ttl_seconds: int = 300
 
     # How often (seconds) the scheduler polls for due one-off campaigns
     oneoff_poll_interval_seconds: int = 60

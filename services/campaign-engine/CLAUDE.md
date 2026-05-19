@@ -11,8 +11,7 @@ Owns campaigns. Decides who gets sent what, when. Emits send jobs.
 ## Outputs
 - Produces to Kafka `pam.campaigns.send.v1`
 - MongoDB `campaigns`, `campaign_runs`, `notification_templates` (writes)
-- MongoDB `segment_memberships` (reads only)
-- Redis (rate-limit checks, membership cache reads)
+- Redis `pam:seg:{project_id}:{segment_id}:members` (reads only — membership check via SISMEMBER)
 
 ## Hard rules
 

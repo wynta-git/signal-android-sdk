@@ -4,24 +4,13 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
-from app import cache, storage
-from app.config import settings
+from app import storage
 from app.dependencies import AuthDep
-from app.dsl.validator import InSegmentFilter, SegmentRule
+from app.dsl.validator import SegmentRule
 from app.refresh import scheduled
 from app.refresh.engine import evaluate_segment
 
 router = APIRouter(prefix="/v1/segments", tags=["segments"])
-
-
-def _check_in_segment_allowed(rule: SegmentRule) -> None:
-    if settings.membership_tracking_enabled:
-        return
-    if any(isinstance(f, InSegmentFilter) for f in rule.filters):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="in_segment filters require membership_tracking_enabled=true",
-        )
 
 
 def _db(request: Request):
@@ -60,8 +49,6 @@ async def create_segment(
     ch=Depends(_ch),
     redis=Depends(_redis),
 ) -> dict[str, Any]:
-    _check_in_segment_allowed(body.rule)
-
     project_id = ctx.project_id
     existing = await storage.get_segment(db, project_id, body.segment_id)
     if existing:
@@ -115,9 +102,6 @@ async def update_segment(
     if not seg:
         raise HTTPException(status_code=404, detail="segment not found")
 
-    if body.rule is not None:
-        _check_in_segment_allowed(body.rule)
-
     updates: dict[str, Any] = {}
     if body.name is not None:
         updates["name"] = body.name
@@ -141,11 +125,12 @@ async def update_segment(
 
 @router.delete("/{segment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_segment(
-    ctx: AuthDep, segment_id: str, db=Depends(_db)
+    ctx: AuthDep, segment_id: str, db=Depends(_db), redis=Depends(_redis)
 ) -> None:
     deleted = await storage.delete_segment(db, ctx.project_id, segment_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="segment not found")
+    await storage.delete_memberships(redis, ctx.project_id, segment_id)
     scheduled.unregister_segment(ctx.project_id, segment_id)
 
 
@@ -154,21 +139,16 @@ async def list_segment_members(
     ctx: AuthDep,
     segment_id: str,
     db=Depends(_db),
+    redis=Depends(_redis),
     limit: int = Query(default=100, ge=1, le=1000),
     cursor: str | None = Query(default=None),
 ) -> dict[str, Any]:
-    if not settings.membership_tracking_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="membership_tracking_enabled is false — membership data is not persisted",
-        )
-
     seg = await storage.get_segment(db, ctx.project_id, segment_id)
     if not seg:
         raise HTTPException(status_code=404, detail="segment not found")
 
     # Fetch one extra to determine if a next page exists.
-    rows = await storage.list_segment_members(db, ctx.project_id, segment_id, limit + 1, cursor)
+    rows = await storage.list_segment_members(redis, ctx.project_id, segment_id, limit + 1, cursor)
     has_more = len(rows) > limit
     members = rows[:limit]
 
@@ -189,22 +169,11 @@ async def check_membership(
     db=Depends(_db),
     redis=Depends(_redis),
 ) -> dict[str, Any]:
-    if not settings.membership_tracking_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="membership_tracking_enabled is false — membership data is not persisted",
-        )
-
     seg = await storage.get_segment(db, ctx.project_id, segment_id)
     if not seg:
         raise HTTPException(status_code=404, detail="segment not found")
 
-    # Fast negative: if Redis has a warm cache for this user and segment is absent, skip Mongo.
-    cached = await cache.get_user_segments(redis, ctx.project_id, user_id)
-    if cached is not None and segment_id not in cached:
-        return {"segment_id": segment_id, "user_id": user_id, "is_member": False, "joined_at": None}
-
-    doc = await storage.get_membership(db, ctx.project_id, segment_id, user_id)
+    doc = await storage.get_membership(redis, ctx.project_id, segment_id, user_id)
     if doc is None:
         return {"segment_id": segment_id, "user_id": user_id, "is_member": False, "joined_at": None}
 
