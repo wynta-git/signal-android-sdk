@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAM — Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f6fa;
+      --surface: #ffffff;
+      --surface2: #f0f1f5;
+      --border: #dde1ea;
+      --accent: #4f46e5;
+      --text: #1a1d2e;
+      --text-dim: #7c84a0;
+      --green: #16a34a;
+      --red: #dc2626;
+      --orange: #ea580c;
+      --blue: #2563eb;
+      --purple: #7c3aed;
+      --mono: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Config bar ── */
+    .config-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .config-bar h1 {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: 1px;
+      padding-bottom: 6px;
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+
+    .config-bar h1 span { color: var(--text-dim); font-weight: 400; font-size: 13px; letter-spacing: 0; }
+
+    .cfg-field { display: flex; flex-direction: column; gap: 4px; }
+
+    .cfg-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .cfg-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: var(--mono);
+      transition: border-color 0.15s;
+    }
+
+    .cfg-input:focus { outline: none; border-color: var(--accent); }
+    .cfg-input.wide  { width: 240px; }
+    .cfg-input.med   { width: 170px; }
+    .cfg-input.small { width: 120px; }
+
+    /* ── Layout ── */
+    .main { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+    .builder {
+      width: 52%;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: none;
+      background: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      font-family: inherit;
+      transition: all 0.12s;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    .tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; min-height: 0; }
+    .tab-content.active { display: flex; }
+
+    .builder-scroll {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── Cards ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+
+    .card-head {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+    /* ── Forms ── */
+    .form-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .form-row label { font-size: 12px; color: var(--text-dim); white-space: nowrap; min-width: 100px; }
+
+    .field {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+
+    .field:focus { outline: none; border-color: var(--accent); }
+    .field.grow { flex: 1; min-width: 100px; }
+    .field.small { width: 80px; }
+    .field.med { width: 150px; }
+    select.field { cursor: pointer; }
+
+    textarea.field {
+      resize: vertical;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.5;
+      min-height: 60px;
+    }
+
+    /* ── Send bar ── */
+    .send-bar {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      padding: 7px 18px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-danger  { background: var(--red); color: #fff; }
+    .btn-ghost   { background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); }
+    .btn:hover:not(:disabled) { opacity: 0.82; }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--mono);
+    }
+
+    .s2xx { background: #dcfce7; color: var(--green); }
+    .s4xx { background: #fee2e2; color: var(--red); }
+    .s5xx { background: #ffedd5; color: var(--orange); }
+    .elapsed { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+
+    /* ── List rows ── */
+    .list-empty { padding: 20px; text-align: center; color: var(--text-dim); font-size: 13px; }
+
+    .list-row {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .list-row:last-child { border-bottom: none; }
+    .list-row.clickable:hover { background: var(--bg); cursor: pointer; }
+
+    .row-primary { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .row-sub { font-size: 10px; color: var(--text-dim); font-family: var(--mono); margin-top: 1px; }
+    .row-meta { font-size: 11px; color: var(--text-dim); font-family: var(--mono); white-space: nowrap; }
+
+    /* ── Chips ── */
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+
+    .chip-active    { background: #dcfce7; color: var(--green); }
+    .chip-revoked   { background: #fee2e2; color: var(--red); }
+    .chip-admin     { background: #ede9fe; color: var(--purple); }
+    .chip-write     { background: #dbeafe; color: var(--blue); }
+    .chip-draft     { background: #f1f5f9; color: #64748b; }
+    .chip-scheduled { background: #dbeafe; color: var(--blue); }
+    .chip-running   { background: #dcfce7; color: var(--green); }
+    .chip-paused    { background: #ffedd5; color: var(--orange); }
+    .chip-completed { background: #f1f5f9; color: #64748b; }
+    .chip-cancelled { background: #fee2e2; color: var(--red); }
+    .chip-push      { background: #ede9fe; color: var(--purple); }
+    .chip-email     { background: #dbeafe; color: var(--blue); }
+    .chip-sms       { background: #dcfce7; color: var(--green); }
+    .chip-webhook   { background: #ffedd5; color: var(--orange); }
+
+    /* ── Action btn ── */
+    .action-btn {
+      padding: 3px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      background: var(--surface);
+      color: var(--text-dim);
+      transition: all 0.12s;
+      white-space: nowrap;
+    }
+
+    .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+    .refresh-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: all 0.12s;
+    }
+
+    .refresh-btn:hover { background: var(--surface2); color: var(--text); }
+
+    /* ── KV display (project details) ── */
+    .kv-row {
+      display: flex;
+      gap: 12px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .kv-row:last-child { border-bottom: none; }
+    .kv-key { color: var(--text-dim); width: 160px; flex-shrink: 0; font-family: var(--mono); }
+    .kv-val { color: var(--text); font-family: var(--mono); word-break: break-all; }
+
+    /* ── Scope checkboxes ── */
+    .scope-group { display: flex; gap: 14px; flex-wrap: wrap; }
+    .scope-label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+    .scope-label input { cursor: pointer; width: 14px; height: 14px; }
+
+    /* ── Token reveal banner ── */
+    .token-banner {
+      margin: 14px;
+      background: #fefce8;
+      border: 1px solid #fde047;
+      border-radius: 8px;
+      padding: 12px 14px;
+      flex-shrink: 0;
+    }
+
+    .token-banner-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #854d0e;
+      margin-bottom: 8px;
+    }
+
+    .token-reveal-val {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #1c1917;
+      word-break: break-all;
+      background: #fff;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1px solid #fde047;
+      cursor: pointer;
+      user-select: all;
+    }
+
+    .token-reveal-hint { font-size: 11px; color: #854d0e; margin-top: 6px; }
+
+    /* ── Preview pane ── */
+    .preview { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+
+    .preview-head {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .preview-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+    .response-section {
+      padding: 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-all;
+      flex: 1;
+    }
+
+    .divider { border: none; border-top: 1px solid var(--border); }
+
+    /* ── JSON syntax ── */
+    .jk { color: #1a1d2e; }
+    .js { color: #b45309; }
+    .jn { color: #16a34a; }
+    .jb { color: #7c3aed; }
+    .jl { color: #7c3aed; }
+  </style>
+</head>
+<body>
+
+  <!-- Config bar -->
+  <div class="config-bar">
+    <h1>PAM <span>/ Admin</span></h1>
+
+    <div class="cfg-field">
+      <span class="cfg-label">API Service</span>
+      <input class="cfg-input med" id="cfg-api" value="http://localhost:8001" oninput="saveConfig()">
+    </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Admin Token</span>
+      <input class="cfg-input wide" id="cfg-token" type="password" placeholder="pam_live_…" oninput="saveConfig()">
+    </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Project ID</span>
+      <input class="cfg-input small" id="cfg-project" value="proj_abc123" oninput="saveConfig()">
+    </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Seg Engine</span>
+      <input class="cfg-input med" id="cfg-seg" value="http://localhost:8003" oninput="saveConfig()">
+    </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Campaign Engine</span>
+      <input class="cfg-input med" id="cfg-camp" value="http://localhost:8004" oninput="saveConfig()">
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- ── Left pane ── -->
+    <div class="builder">
+
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-project"   onclick="switchTab('project')">Project</button>
+        <button class="tab-btn"        id="tab-tokens"    onclick="switchTab('tokens')">Tokens</button>
+        <button class="tab-btn"        id="tab-routes"    onclick="switchTab('routes')">Event Routes</button>
+        <button class="tab-btn"        id="tab-users"     onclick="switchTab('users')">Users</button>
+        <button class="tab-btn"        id="tab-segments"  onclick="switchTab('segments')">Segments</button>
+        <button class="tab-btn"        id="tab-campaigns" onclick="switchTab('campaigns')">Campaigns</button>
+      </div>
+
+      <!-- ══ PROJECT ══ -->
+      <div class="tab-content active" id="content-project">
+        <div class="builder-scroll">
+
+          <div class="card">
+            <div class="card-head">
+              <span>Project Details</span>
+              <button class="refresh-btn" onclick="fetchProject()" title="Reload">↻</button>
+            </div>
+            <div class="card-body" id="project-details">
+              <div class="list-empty">Click ↻ to load.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">Edit Settings</div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Timezone</label>
+                <input class="field grow" id="proj-tz" placeholder="Asia/Kolkata">
+              </div>
+              <div class="form-row">
+                <label>Retention (months)</label>
+                <input class="field small" type="number" min="1" id="proj-retention" placeholder="13">
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="send-bar">
+          <button class="btn btn-primary" onclick="updateProject()">Save Settings</button>
+          <span id="proj-meta"></span>
+          <span class="elapsed" id="proj-elapsed"></span>
+        </div>
+      </div>
+
+      <!-- ══ TOKENS ══ -->
+      <div class="tab-content" id="content-tokens">
+        <div class="builder-scroll">
+
+          <div class="card">
+            <div class="card-head">Create Token</div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Scope</label>
+                <div class="scope-group">
+                  <label class="scope-label">
+                    <input type="checkbox" id="scope-write" checked> events:write
+                  </label>
+                  <label class="scope-label">
+                    <input type="checkbox" id="scope-admin"> admin
+                  </label>
+                </div>
+              </div>
+              <div class="form-row">
+                <label>Env</label>
+                <select class="field med" id="tok-env">
+                  <option value="live">live</option>
+                  <option value="test">test</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Label</label>
+                <input class="field grow" id="tok-label" placeholder="Mobile SDK — Production">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span>Existing Tokens</span>
+              <button class="refresh-btn" onclick="fetchTokens()" title="Reload">↻</button>
+            </div>
+            <div id="token-list"><div class="list-empty">Click ↻ to load.</div></div>
+          </div>
+
+        </div>
+        <div class="send-bar">
+          <button class="btn btn-primary" id="tok-btn" onclick="createToken()">Create Token</button>
+          <span id="tok-meta"></span>
+          <span class="elapsed" id="tok-elapsed"></span>
+        </div>
+      </div>
+
+      <!-- ══ EVENT ROUTES ══ -->
+      <div class="tab-content" id="content-routes">
+        <div class="builder-scroll">
+
+          <div class="card">
+            <div class="card-head">Add Route</div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Kafka Topic</label>
+                <input class="field grow" id="route-topic" placeholder="pam.bonus.v1">
+              </div>
+              <div class="form-row" style="align-items:flex-start">
+                <label style="padding-top:6px">Event Names</label>
+                <textarea class="field grow" id="route-events"
+                  placeholder="purchase_completed&#10;subscription_started"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span>Existing Routes</span>
+              <button class="refresh-btn" onclick="fetchRoutes()" title="Reload">↻</button>
+            </div>
+            <div id="route-list"><div class="list-empty">Click ↻ to load.</div></div>
+          </div>
+
+        </div>
+        <div class="send-bar">
+          <button class="btn btn-primary" id="route-btn" onclick="createRoute()">Add Route</button>
+          <span id="route-meta"></span>
+          <span class="elapsed" id="route-elapsed"></span>
+        </div>
+      </div>
+
+      <!-- ══ USERS ══ -->
+      <div class="tab-content" id="content-users">
+        <div class="builder-scroll">
+
+          <div class="card">
+            <div class="card-head">User Lookup</div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>User ID</label>
+                <input class="field grow" id="user-id" placeholder="usr_abc123">
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="send-bar">
+          <button class="btn btn-primary" id="user-lookup-btn" onclick="lookupUser()">Lookup</button>
+          <button class="btn btn-danger"  id="user-delete-btn" onclick="deleteUser()">Delete User</button>
+          <span id="user-meta"></span>
+          <span class="elapsed" id="user-elapsed"></span>
+        </div>
+      </div>
+
+      <!-- ══ SEGMENTS ══ -->
+      <div class="tab-content" id="content-segments">
+        <div class="builder-scroll">
+
+          <div class="card">
+            <div class="card-head">
+              <span>Segments</span>
+              <button class="refresh-btn" onclick="fetchSegments()" title="Reload">↻</button>
+            </div>
+            <div id="segment-list"><div class="list-empty">Click ↻ to load.</div></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══ CAMPAIGNS ══ -->
+      <div class="tab-content" id="content-campaigns">
+        <div class="builder-scroll">
+
+          <div class="card">
+            <div class="card-head">
+              <span>Campaigns</span>
+              <button class="refresh-btn" onclick="fetchAdminCampaigns()" title="Reload">↻</button>
+            </div>
+            <div id="admin-campaign-list"><div class="list-empty">Click ↻ to load.</div></div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- /builder -->
+
+    <!-- ── Right pane ── -->
+    <div class="preview">
+      <div class="preview-head" id="preview-head">Response</div>
+      <div class="preview-scroll" id="preview-scroll">
+        <div class="response-section" id="res-body">
+          <span style="color:var(--text-dim)">Make an API call to see the response.</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+
+  <script>
+    // ── Config ────────────────────────────────────────────────────────────
+    const cfg = {
+      api()     { return document.getElementById('cfg-api').value.replace(/\/$/, ''); },
+      token()   { return document.getElementById('cfg-token').value.trim(); },
+      project() { return document.getElementById('cfg-project').value.trim(); },
+      seg()     { return document.getElementById('cfg-seg').value.replace(/\/$/, ''); },
+      camp()    { return document.getElementById('cfg-camp').value.replace(/\/$/, ''); },
+    };
+
+    function saveConfig() {
+      ['cfg-api','cfg-token','cfg-project','cfg-seg','cfg-camp'].forEach(id => {
+        localStorage.setItem('pam_admin_' + id, document.getElementById(id).value);
+      });
+    }
+
+    function loadConfig() {
+      ['cfg-api','cfg-token','cfg-project','cfg-seg','cfg-camp'].forEach(id => {
+        const v = localStorage.getItem('pam_admin_' + id);
+        if (v) document.getElementById(id).value = v;
+      });
+    }
+
+    // ── Tabs ──────────────────────────────────────────────────────────────
+    const TABS = ['project','tokens','routes','users','segments','campaigns'];
+
+    function switchTab(name) {
+      TABS.forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('active', t === name);
+        document.getElementById('content-' + t).classList.toggle('active', t === name);
+      });
+      document.getElementById('preview-head').textContent = 'Response — ' + name;
+      clearResponse();
+    }
+
+    // ── HTTP helpers ──────────────────────────────────────────────────────
+    async function apiCall(method, path, body) {
+      const headers = { 'Authorization': 'Bearer ' + cfg.token() };
+      if (body) headers['Content-Type'] = 'application/json';
+      const t0 = performance.now();
+      const res = await fetch(cfg.api() + path, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const ms = Math.round(performance.now() - t0);
+      const data = await res.json().catch(() => null);
+      return { status: res.status, data, ms };
+    }
+
+    async function internalCall(baseUrl, method, path, body) {
+      const headers = {};
+      if (body) headers['Content-Type'] = 'application/json';
+      const t0 = performance.now();
+      const res = await fetch(baseUrl + path, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const ms = Math.round(performance.now() - t0);
+      const data = await res.json().catch(() => null);
+      return { status: res.status, data, ms };
+    }
+
+    // ── Response pane ─────────────────────────────────────────────────────
+    function showResponse(status, data, ms, metaElId, elapsedElId, tokenReveal) {
+      const cls = status < 300 ? 's2xx' : status < 500 ? 's4xx' : 's5xx';
+      if (metaElId) {
+        document.getElementById(metaElId).innerHTML =
+          `<span class="status-badge ${cls}">${status}</span>`;
+      }
+      if (elapsedElId) {
+        document.getElementById(elapsedElId).textContent = ms + 'ms';
+      }
+
+      const scroll = document.getElementById('preview-scroll');
+      let html = '';
+
+      if (tokenReveal) {
+        html += `
+          <div class="token-banner">
+            <div class="token-banner-title">Token created — copy now, never shown again</div>
+            <div class="token-reveal-val" onclick="copyToken(this)" title="Click to copy">${esc(tokenReveal)}</div>
+            <div class="token-reveal-hint">Click the token to copy it to clipboard.</div>
+          </div>
+          <hr class="divider">`;
+      }
+
+      html += `<div class="response-section">${data !== null
+        ? highlight(JSON.stringify(data, null, 2))
+        : '<span style="color:var(--text-dim)">(empty body)</span>'}</div>`;
+
+      scroll.innerHTML = html;
+    }
+
+    function showError(err, metaElId) {
+      if (metaElId) {
+        document.getElementById(metaElId).innerHTML =
+          `<span class="status-badge s4xx">Network Error</span>`;
+      }
+      document.getElementById('preview-scroll').innerHTML =
+        `<div class="response-section" style="color:var(--red)">${esc(String(err))}</div>`;
+    }
+
+    function clearResponse() {
+      document.getElementById('preview-scroll').innerHTML =
+        `<div class="response-section" id="res-body"><span style="color:var(--text-dim)">Make an API call to see the response.</span></div>`;
+    }
+
+    function copyToken(el) {
+      navigator.clipboard.writeText(el.textContent).then(() => {
+        el.style.background = '#dcfce7';
+        setTimeout(() => el.style.background = '#fff', 1000);
+      });
+    }
+
+    // ── PROJECT ───────────────────────────────────────────────────────────
+    async function fetchProject() {
+      document.getElementById('project-details').innerHTML =
+        '<div class="list-empty">Loading…</div>';
+      try {
+        const { status, data, ms } = await apiCall('GET', '/v1/admin/project');
+        showResponse(status, data, ms, 'proj-meta', 'proj-elapsed');
+        if (status === 200 && data) renderProjectDetails(data);
+      } catch (e) { showError(e, 'proj-meta'); }
+    }
+
+    function renderProjectDetails(doc) {
+      const rows = [
+        ['project_id',        doc.project_id],
+        ['name',              doc.name],
+        ['timezone',          doc.settings?.timezone],
+        ['retention_months',  doc.settings?.retention_months],
+        ['created_at',        doc.created_at],
+      ];
+      document.getElementById('project-details').innerHTML =
+        rows.map(([k, v]) =>
+          `<div class="kv-row">
+            <span class="kv-key">${esc(k)}</span>
+            <span class="kv-val">${esc(String(v ?? '—'))}</span>
+          </div>`
+        ).join('');
+      if (doc.settings?.timezone)
+        document.getElementById('proj-tz').value = doc.settings.timezone;
+      if (doc.settings?.retention_months)
+        document.getElementById('proj-retention').value = doc.settings.retention_months;
+    }
+
+    async function updateProject() {
+      const updates = {};
+      const tz = document.getElementById('proj-tz').value.trim();
+      const ret = document.getElementById('proj-retention').value.trim();
+      if (tz)  updates.timezone = tz;
+      if (ret) updates.retention_months = parseInt(ret);
+      if (!Object.keys(updates).length) return;
+      try {
+        const { status, data, ms } = await apiCall('PATCH', '/v1/admin/project', updates);
+        showResponse(status, data, ms, 'proj-meta', 'proj-elapsed');
+        if (status === 200 && data) renderProjectDetails(data);
+      } catch (e) { showError(e, 'proj-meta'); }
+    }
+
+    // ── TOKENS ────────────────────────────────────────────────────────────
+    async function fetchTokens() {
+      document.getElementById('token-list').innerHTML =
+        '<div class="list-empty">Loading…</div>';
+      try {
+        const { status, data } = await apiCall('GET', '/v1/admin/tokens');
+        if (status === 200 && Array.isArray(data)) renderTokenList(data);
+        else document.getElementById('token-list').innerHTML =
+          `<div class="list-empty">Error ${status}</div>`;
+      } catch (e) {
+        document.getElementById('token-list').innerHTML =
+          '<div class="list-empty">Could not reach api-service</div>';
+      }
+    }
+
+    function renderTokenList(tokens) {
+      if (!tokens.length) {
+        document.getElementById('token-list').innerHTML =
+          '<div class="list-empty">No tokens yet.</div>';
+        return;
+      }
+      document.getElementById('token-list').innerHTML = tokens.map(t => {
+        const scopes = (t.scope || []).map(s =>
+          `<span class="chip chip-${s === 'admin' ? 'admin' : 'write'}">${esc(s)}</span>`
+        ).join(' ');
+        const revokeBtn = t.status === 'active'
+          ? `<button class="action-btn danger" onclick="revokeToken('${esc(t.token_id)}')">Revoke</button>`
+          : '';
+        const lastUsed = t.last_used_at
+          ? new Date(t.last_used_at).toLocaleString()
+          : 'never';
+        return `
+          <div class="list-row no-hover">
+            <div style="flex:1;min-width:0">
+              <div class="row-primary">${esc(t.label || t.token_id)}</div>
+              <div class="row-sub">${esc(t.token_id)} · last used ${esc(lastUsed)}</div>
+            </div>
+            <div style="display:flex;gap:4px;align-items:center">
+              ${scopes}
+              <span class="chip chip-${esc(t.status)}">${esc(t.status)}</span>
+            </div>
+            ${revokeBtn}
+          </div>`;
+      }).join('');
+    }
+
+    async function createToken() {
+      const scope = [];
+      if (document.getElementById('scope-write').checked) scope.push('events:write');
+      if (document.getElementById('scope-admin').checked) scope.push('admin');
+      if (!scope.length) {
+        alert('Select at least one scope.');
+        return;
+      }
+      const body = {
+        scope,
+        env: document.getElementById('tok-env').value,
+        label: document.getElementById('tok-label').value.trim() || null,
+      };
+      const btn = document.getElementById('tok-btn');
+      btn.disabled = true; btn.textContent = 'Creating…';
+      try {
+        const { status, data, ms } = await apiCall('POST', '/v1/admin/tokens', body);
+        showResponse(status, data, ms, 'tok-meta', 'tok-elapsed',
+          status === 201 ? data?.token : null);
+        if (status === 201) {
+          document.getElementById('tok-label').value = '';
+          await fetchTokens();
+        }
+      } catch (e) { showError(e, 'tok-meta'); }
+      finally { btn.disabled = false; btn.textContent = 'Create Token'; }
+    }
+
+    async function revokeToken(tokenId) {
+      if (!confirm('Revoke this token? Any SDK using it will immediately stop working.')) return;
+      try {
+        const { status, data, ms } = await apiCall('DELETE', `/v1/admin/tokens/${tokenId}`);
+        showResponse(status, data, ms, 'tok-meta', 'tok-elapsed');
+        await fetchTokens();
+      } catch (e) { showError(e, 'tok-meta'); }
+    }
+
+    // ── EVENT ROUTES ──────────────────────────────────────────────────────
+    async function fetchRoutes() {
+      document.getElementById('route-list').innerHTML =
+        '<div class="list-empty">Loading…</div>';
+      try {
+        const { status, data } = await apiCall('GET', '/v1/admin/event-routes');
+        if (status === 200 && Array.isArray(data)) renderRouteList(data);
+        else document.getElementById('route-list').innerHTML =
+          `<div class="list-empty">Error ${status}</div>`;
+      } catch (e) {
+        document.getElementById('route-list').innerHTML =
+          '<div class="list-empty">Could not reach api-service</div>';
+      }
+    }
+
+    function renderRouteList(routes) {
+      if (!routes.length) {
+        document.getElementById('route-list').innerHTML =
+          '<div class="list-empty">No routes configured.</div>';
+        return;
+      }
+      document.getElementById('route-list').innerHTML = routes.map(r => `
+        <div class="list-row no-hover">
+          <div style="flex:1;min-width:0">
+            <div class="row-primary">${esc(r.topic)}</div>
+            <div class="row-sub">${esc((r.event_names || []).join(', '))}</div>
+          </div>
+          <button class="action-btn danger"
+            onclick="deleteRoute('${esc(r.topic)}')">Delete</button>
+        </div>`
+      ).join('');
+    }
+
+    async function createRoute() {
+      const topic = document.getElementById('route-topic').value.trim();
+      const raw   = document.getElementById('route-events').value.trim();
+      if (!topic || !raw) return;
+      const event_names = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+      const btn = document.getElementById('route-btn');
+      btn.disabled = true; btn.textContent = 'Adding…';
+      try {
+        const { status, data, ms } = await apiCall('POST', '/v1/admin/event-routes',
+          { topic, event_names });
+        showResponse(status, data, ms, 'route-meta', 'route-elapsed');
+        if (status === 201) {
+          document.getElementById('route-topic').value = '';
+          document.getElementById('route-events').value = '';
+          await fetchRoutes();
+        }
+      } catch (e) { showError(e, 'route-meta'); }
+      finally { btn.disabled = false; btn.textContent = 'Add Route'; }
+    }
+
+    async function deleteRoute(topic) {
+      if (!confirm(`Delete route for topic "${topic}"?\nThis will invalidate the event route cache.`))
+        return;
+      try {
+        const { status, data, ms } =
+          await apiCall('DELETE', `/v1/admin/event-routes/${encodeURIComponent(topic)}`);
+        showResponse(status, data, ms, 'route-meta', 'route-elapsed');
+        await fetchRoutes();
+      } catch (e) { showError(e, 'route-meta'); }
+    }
+
+    // ── USERS ─────────────────────────────────────────────────────────────
+    async function lookupUser() {
+      const userId = document.getElementById('user-id').value.trim();
+      if (!userId) return;
+      try {
+        const { status, data, ms } =
+          await apiCall('GET', `/v1/admin/users/${encodeURIComponent(userId)}`);
+        showResponse(status, data, ms, 'user-meta', 'user-elapsed');
+      } catch (e) { showError(e, 'user-meta'); }
+    }
+
+    async function deleteUser() {
+      const userId = document.getElementById('user-id').value.trim();
+      if (!userId) return;
+      if (!confirm(`Permanently delete user "${userId}" and all their traits?\nThis cannot be undone.`))
+        return;
+      try {
+        const { status, data, ms } =
+          await apiCall('DELETE', `/v1/admin/users/${encodeURIComponent(userId)}`);
+        showResponse(status, data, ms, 'user-meta', 'user-elapsed');
+        if (status === 200) document.getElementById('user-id').value = '';
+      } catch (e) { showError(e, 'user-meta'); }
+    }
+
+    // ── SEGMENTS ──────────────────────────────────────────────────────────
+    async function fetchSegments() {
+      document.getElementById('segment-list').innerHTML =
+        '<div class="list-empty">Loading…</div>';
+      try {
+        const { status, data } = await internalCall(
+          cfg.seg(), 'GET',
+          `/v1/admin/projects/${encodeURIComponent(cfg.project())}/segments`
+        );
+        if (status === 200 && Array.isArray(data)) renderSegmentList(data);
+        else document.getElementById('segment-list').innerHTML =
+          `<div class="list-empty">Error ${status}</div>`;
+      } catch (e) {
+        document.getElementById('segment-list').innerHTML =
+          '<div class="list-empty">Could not reach segmentation-engine</div>';
+      }
+    }
+
+    function renderSegmentList(segments) {
+      if (!segments.length) {
+        document.getElementById('segment-list').innerHTML =
+          '<div class="list-empty">No segments yet.</div>';
+        return;
+      }
+      document.getElementById('segment-list').innerHTML = segments.map(s => {
+        const size = s.size != null ? s.size.toLocaleString() + ' members' : 'not computed';
+        return `
+          <div class="list-row clickable" onclick="fetchSegmentDetail('${esc(s.segment_id)}')">
+            <div style="flex:1;min-width:0">
+              <div class="row-primary">${esc(s.name)}</div>
+              <div class="row-sub">${esc(s.segment_id)} · ${esc(s.refresh_strategy)}</div>
+            </div>
+            <span class="row-meta">${esc(size)}</span>
+          </div>`;
+      }).join('');
+    }
+
+    async function fetchSegmentDetail(segmentId) {
+      document.getElementById('preview-head').textContent = 'Segment Detail — ' + segmentId;
+      try {
+        const { status, data, ms } = await internalCall(
+          cfg.seg(), 'GET',
+          `/v1/admin/projects/${encodeURIComponent(cfg.project())}/segments/${encodeURIComponent(segmentId)}`
+        );
+        showResponse(status, data, ms, null, null);
+      } catch (e) { showError(e, null); }
+    }
+
+    // ── CAMPAIGNS ─────────────────────────────────────────────────────────
+    async function fetchAdminCampaigns() {
+      document.getElementById('admin-campaign-list').innerHTML =
+        '<div class="list-empty">Loading…</div>';
+      try {
+        const { status, data } = await internalCall(
+          cfg.camp(), 'GET',
+          `/v1/admin/projects/${encodeURIComponent(cfg.project())}/campaigns`
+        );
+        if (status === 200 && Array.isArray(data)) renderAdminCampaignList(data);
+        else document.getElementById('admin-campaign-list').innerHTML =
+          `<div class="list-empty">Error ${status}</div>`;
+      } catch (e) {
+        document.getElementById('admin-campaign-list').innerHTML =
+          '<div class="list-empty">Could not reach campaign-engine</div>';
+      }
+    }
+
+    function renderAdminCampaignList(campaigns) {
+      if (!campaigns.length) {
+        document.getElementById('admin-campaign-list').innerHTML =
+          '<div class="list-empty">No campaigns yet.</div>';
+        return;
+      }
+      document.getElementById('admin-campaign-list').innerHTML = campaigns.map(c => {
+        const triggerLabel = c.trigger?.type === 'event'
+          ? `event: ${c.trigger.event_name || '?'}`
+          : c.trigger?.type === 'scheduled'
+          ? `cron: ${c.trigger.cron || '?'}`
+          : 'one_off';
+        return `
+          <div class="list-row clickable" onclick="fetchAdminCampaignDetail('${esc(c.campaign_id)}')">
+            <div style="flex:1;min-width:0">
+              <div class="row-primary">${esc(c.name)}</div>
+              <div class="row-sub">${esc(c.campaign_id)} · ${esc(triggerLabel)}</div>
+            </div>
+            <span class="chip chip-${esc(c.channel)}" style="margin-right:4px">${esc(c.channel)}</span>
+            <span class="chip chip-${esc(c.status)}">${esc(c.status)}</span>
+          </div>`;
+      }).join('');
+    }
+
+    async function fetchAdminCampaignDetail(campaignId) {
+      document.getElementById('preview-head').textContent = 'Campaign Detail — ' + campaignId;
+      try {
+        const { status, data, ms } = await internalCall(
+          cfg.camp(), 'GET',
+          `/v1/admin/projects/${encodeURIComponent(cfg.project())}/campaigns/${encodeURIComponent(campaignId)}`
+        );
+        showResponse(status, data, ms, null, null);
+      } catch (e) { showError(e, null); }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function highlight(json) {
+      return escHtml(json).replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+        m => {
+          if (/^"/.test(m)) {
+            if (/:$/.test(m)) return `<span class="jk">${m}</span>`;
+            return `<span class="js">${m}</span>`;
+          }
+          if (/true|false/.test(m)) return `<span class="jb">${m}</span>`;
+          if (/null/.test(m))       return `<span class="jl">${m}</span>`;
+          return `<span class="jn">${m}</span>`;
+        }
+      );
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────
+    loadConfig();
+  </script>
+
+</body>
+</html>
