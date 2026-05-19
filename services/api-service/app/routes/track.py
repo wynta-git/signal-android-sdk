@@ -5,6 +5,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, ValidationError
 
+from app.middleware.idempotency import check_idempotency, store_idempotency
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 from shared.auth.token import TokenContext
 from app.config import settings
@@ -55,6 +56,10 @@ async def track(
     body: TrackRequest,
     ctx: TokenContext = Depends(project_rate_limit),
 ) -> TrackResponse:
+    cached = await check_idempotency(request, ctx)
+    if cached:
+        return TrackResponse(**cached)
+
     if len(body.events) > MAX_EVENTS_PER_BATCH:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -141,4 +146,6 @@ async def track(
                 log.warning("fanout_publish_failed", topic=topic, count=len(events), exc_info=True)
 
     log.info("track", accepted=len(accepted), rejected=len(errors))
-    return TrackResponse(accepted=len(accepted), rejected=len(errors), errors=errors)
+    response = TrackResponse(accepted=len(accepted), rejected=len(errors), errors=errors)
+    await store_idempotency(request, ctx, response.model_dump(mode="json"))
+    return response

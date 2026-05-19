@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from shared.auth.token import TokenContext
 from app.config import settings
+from app.middleware.idempotency import check_idempotency, store_idempotency
 from app.middleware.ratelimit import project_rate_limit
 
 router = APIRouter()
@@ -33,6 +34,10 @@ async def alias(
     body: AliasRequest,
     ctx: TokenContext = Depends(project_rate_limit),
 ) -> AliasResponse:
+    cached = await check_idempotency(request, ctx)
+    if cached:
+        return AliasResponse(**cached)
+
     now = datetime.now(timezone.utc).isoformat()
 
     payload = {
@@ -56,4 +61,6 @@ async def alias(
         )
 
     log.info("alias", previous_user_id=body.previous_user_id, user_id=body.user_id)
-    return AliasResponse(previous_user_id=body.previous_user_id, user_id=body.user_id)
+    response = AliasResponse(previous_user_id=body.previous_user_id, user_id=body.user_id)
+    await store_idempotency(request, ctx, response.model_dump(mode="json"))
+    return response
