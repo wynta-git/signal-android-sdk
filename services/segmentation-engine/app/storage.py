@@ -147,6 +147,18 @@ async def delete_memberships(
     )
 
 
+async def get_membership(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    segment_id: str,
+    user_id: str,
+) -> dict[str, Any] | None:
+    return await db[MEMBERSHIPS_COL].find_one(
+        {"project_id": project_id, "segment_id": segment_id, "user_id": user_id},
+        {"_id": 0},
+    )
+
+
 async def get_user_segment_ids(
     db: AsyncIOMotorDatabase, project_id: str, user_id: str
 ) -> list[str]:

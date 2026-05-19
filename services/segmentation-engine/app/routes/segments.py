@@ -4,7 +4,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from app import storage
+from app import cache, storage
 from app.config import settings
 from app.dependencies import AuthDep
 from app.dsl.validator import InSegmentFilter, SegmentRule
@@ -147,6 +147,36 @@ async def delete_segment(
     if not deleted:
         raise HTTPException(status_code=404, detail="segment not found")
     scheduled.unregister_segment(ctx.project_id, segment_id)
+
+
+@router.get("/{segment_id}/members/{user_id}")
+async def check_membership(
+    ctx: AuthDep,
+    segment_id: str,
+    user_id: str,
+    db=Depends(_db),
+    redis=Depends(_redis),
+) -> dict[str, Any]:
+    if not settings.membership_tracking_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="membership_tracking_enabled is false — membership data is not persisted",
+        )
+
+    seg = await storage.get_segment(db, ctx.project_id, segment_id)
+    if not seg:
+        raise HTTPException(status_code=404, detail="segment not found")
+
+    # Fast negative: if Redis has a warm cache for this user and segment is absent, skip Mongo.
+    cached = await cache.get_user_segments(redis, ctx.project_id, user_id)
+    if cached is not None and segment_id not in cached:
+        return {"segment_id": segment_id, "user_id": user_id, "is_member": False, "joined_at": None}
+
+    doc = await storage.get_membership(db, ctx.project_id, segment_id, user_id)
+    if doc is None:
+        return {"segment_id": segment_id, "user_id": user_id, "is_member": False, "joined_at": None}
+
+    return {"segment_id": segment_id, "user_id": user_id, "is_member": True, "joined_at": doc["joined_at"]}
 
 
 @router.post("/{segment_id}/evaluate", status_code=status.HTTP_202_ACCEPTED)
