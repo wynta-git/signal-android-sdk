@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app import cache, storage
@@ -147,6 +147,38 @@ async def delete_segment(
     if not deleted:
         raise HTTPException(status_code=404, detail="segment not found")
     scheduled.unregister_segment(ctx.project_id, segment_id)
+
+
+@router.get("/{segment_id}/members")
+async def list_segment_members(
+    ctx: AuthDep,
+    segment_id: str,
+    db=Depends(_db),
+    limit: int = Query(default=100, ge=1, le=1000),
+    cursor: str | None = Query(default=None),
+) -> dict[str, Any]:
+    if not settings.membership_tracking_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="membership_tracking_enabled is false — membership data is not persisted",
+        )
+
+    seg = await storage.get_segment(db, ctx.project_id, segment_id)
+    if not seg:
+        raise HTTPException(status_code=404, detail="segment not found")
+
+    # Fetch one extra to determine if a next page exists.
+    rows = await storage.list_segment_members(db, ctx.project_id, segment_id, limit + 1, cursor)
+    has_more = len(rows) > limit
+    members = rows[:limit]
+
+    return {
+        "segment_id": segment_id,
+        "members": members,
+        "has_more": has_more,
+        "next_cursor": members[-1]["user_id"] if has_more else None,
+        "total_members": seg.get("members_count"),
+    }
 
 
 @router.get("/{segment_id}/members/{user_id}")

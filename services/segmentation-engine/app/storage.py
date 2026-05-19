@@ -147,6 +147,25 @@ async def delete_memberships(
     )
 
 
+async def list_segment_members(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    segment_id: str,
+    limit: int,
+    cursor: str | None,
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {"project_id": project_id, "segment_id": segment_id}
+    if cursor:
+        query["user_id"] = {"$gt": cursor}
+    result = (
+        db[MEMBERSHIPS_COL]
+        .find(query, {"_id": 0, "user_id": 1, "joined_at": 1})
+        .sort("user_id", ASCENDING)
+        .limit(limit)
+    )
+    return await result.to_list(length=limit)
+
+
 async def get_membership(
     db: AsyncIOMotorDatabase,
     project_id: str,
