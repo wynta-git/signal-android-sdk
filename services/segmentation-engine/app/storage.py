@@ -78,12 +78,12 @@ async def update_segment_size(
     db: AsyncIOMotorDatabase,
     project_id: str,
     segment_id: str,
-    size: int,
-    computed_at: datetime,
+    members_count: int,
+    last_refresh_time: datetime,
 ) -> None:
     await db[SEGMENTS_COL].update_one(
         {"project_id": project_id, "segment_id": segment_id},
-        {"$set": {"size": size, "computed_at": computed_at}},
+        {"$set": {"members_count": members_count, "last_refresh_time": last_refresh_time}},
     )
 
 

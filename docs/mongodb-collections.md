@@ -98,8 +98,9 @@ Database: `pam`
   rule: { /* DSL — see docs/segmentation-dsl.md */ },
   refresh_strategy: "on_event" | "scheduled",
   scheduled_cron: "0 */6 * * *",    // if scheduled
-  size: 12345,                       // last computed size
-  computed_at: ISODate
+  created_by: "alice" | null,        // free-form label set at creation time
+  members_count: 12345,              // last computed membership size (null until first run)
+  last_refresh_time: ISODate         // when members_count was last updated (null until first run)
 }
 // Indexes: { project_id: 1, segment_id: 1 } unique
 ```

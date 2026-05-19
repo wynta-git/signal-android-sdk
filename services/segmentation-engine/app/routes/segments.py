@@ -42,6 +42,7 @@ class SegmentCreateRequest(BaseModel):
     rule: SegmentRule
     refresh_strategy: Literal["scheduled", "on_event"]
     scheduled_cron: str | None = Field(default=None)
+    created_by: str | None = Field(default=None)
 
 
 class SegmentUpdateRequest(BaseModel):
@@ -73,8 +74,9 @@ async def create_segment(
         "rule": body.rule.model_dump(),
         "refresh_strategy": body.refresh_strategy,
         "scheduled_cron": body.scheduled_cron,
-        "size": None,
-        "computed_at": None,
+        "created_by": body.created_by,
+        "members_count": None,
+        "last_refresh_time": None,
     }
     await storage.create_segment(db, doc)
 
