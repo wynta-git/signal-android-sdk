@@ -5,7 +5,7 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import AdminDep, get_db
+from app.dependencies import AuthDep, get_db
 from app.models import CreateTemplateRequest, UpdateTemplateRequest
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from shared.clients.mongo import (
@@ -24,7 +24,7 @@ DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 
 @router.post("", status_code=201)
 async def create_template(
-    ctx: AdminDep,
+    ctx: AuthDep,
     body: CreateTemplateRequest,
     db: DbDep,
 ) -> dict:
@@ -46,12 +46,12 @@ async def create_template(
 
 
 @router.get("")
-async def list_templates_route(ctx: AdminDep, db: DbDep) -> list[dict]:
+async def list_templates_route(ctx: AuthDep, db: DbDep) -> list[dict]:
     return await list_templates(db, ctx.project_id)
 
 
 @router.get("/{template_id}")
-async def get_template_route(ctx: AdminDep, template_id: str, db: DbDep) -> dict:
+async def get_template_route(ctx: AuthDep, template_id: str, db: DbDep) -> dict:
     doc = await get_template(db, ctx.project_id, template_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -60,7 +60,7 @@ async def get_template_route(ctx: AdminDep, template_id: str, db: DbDep) -> dict
 
 @router.patch("/{template_id}")
 async def update_template_route(
-    ctx: AdminDep,
+    ctx: AuthDep,
     template_id: str,
     body: UpdateTemplateRequest,
     db: DbDep,
@@ -81,7 +81,7 @@ async def update_template_route(
 
 @router.delete("/{template_id}", status_code=204)
 async def delete_template_route(
-    ctx: AdminDep,
+    ctx: AuthDep,
     template_id: str,
     db: DbDep,
 ) -> None:

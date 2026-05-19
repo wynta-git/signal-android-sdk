@@ -6,7 +6,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.config import settings
-from app.dependencies import AdminDep, get_db, get_producer
+from app.dependencies import AuthDep, get_db, get_producer
 from app.models import Campaign, CreateCampaignRequest, UpdateCampaignRequest
 from app.triggers import scheduled as scheduler
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -28,7 +28,7 @@ ProducerDep = Annotated[AIOKafkaProducer, Depends(get_producer)]
 
 @router.post("", status_code=201)
 async def create_campaign(
-    ctx: AdminDep,
+    ctx: AuthDep,
     body: CreateCampaignRequest,
     db: DbDep,
 ) -> dict:
@@ -56,7 +56,7 @@ async def create_campaign(
 
 @router.get("")
 async def list_campaigns_route(
-    ctx: AdminDep,
+    ctx: AuthDep,
     db: DbDep,
     status: str | None = None,
 ) -> list[dict]:
@@ -65,7 +65,7 @@ async def list_campaigns_route(
 
 @router.get("/{campaign_id}")
 async def get_campaign_route(
-    ctx: AdminDep,
+    ctx: AuthDep,
     campaign_id: str,
     db: DbDep,
 ) -> dict:
@@ -77,7 +77,7 @@ async def get_campaign_route(
 
 @router.patch("/{campaign_id}")
 async def update_campaign_route(
-    ctx: AdminDep,
+    ctx: AuthDep,
     campaign_id: str,
     body: UpdateCampaignRequest,
     db: DbDep,
@@ -103,7 +103,7 @@ async def update_campaign_route(
 
 @router.delete("/{campaign_id}", status_code=204)
 async def delete_campaign_route(
-    ctx: AdminDep,
+    ctx: AuthDep,
     campaign_id: str,
     db: DbDep,
 ) -> None:
@@ -120,7 +120,7 @@ async def delete_campaign_route(
 
 @router.post("/{campaign_id}/activate", status_code=200)
 async def activate_campaign(
-    ctx: AdminDep,
+    ctx: AuthDep,
     campaign_id: str,
     db: DbDep,
 ) -> dict:
@@ -153,7 +153,7 @@ async def activate_campaign(
 
 @router.post("/{campaign_id}/pause", status_code=200)
 async def pause_campaign(
-    ctx: AdminDep,
+    ctx: AuthDep,
     campaign_id: str,
     db: DbDep,
 ) -> dict:
@@ -175,7 +175,7 @@ async def pause_campaign(
 
 @router.post("/{campaign_id}/resume", status_code=200)
 async def resume_campaign(
-    ctx: AdminDep,
+    ctx: AuthDep,
     campaign_id: str,
     db: DbDep,
 ) -> dict:
@@ -198,7 +198,7 @@ async def resume_campaign(
 
 @router.post("/{campaign_id}/cancel", status_code=200)
 async def cancel_campaign(
-    ctx: AdminDep,
+    ctx: AuthDep,
     campaign_id: str,
     db: DbDep,
 ) -> dict:

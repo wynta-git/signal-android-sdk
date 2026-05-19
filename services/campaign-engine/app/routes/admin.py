@@ -2,7 +2,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import AdminDep, get_db
+from app.dependencies import AuthDep, get_db
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from shared.clients.mongo import get_campaign, list_campaigns, list_campaign_runs
 
@@ -13,7 +13,7 @@ DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 
 @router.get("")
 async def list_campaigns_admin(
-    ctx: AdminDep,
+    ctx: AuthDep,
     db: DbDep,
     status: str | None = None,
 ) -> list[dict[str, Any]]:
@@ -22,7 +22,7 @@ async def list_campaigns_admin(
 
 @router.get("/{campaign_id}")
 async def get_campaign_admin(
-    ctx: AdminDep,
+    ctx: AuthDep,
     campaign_id: str,
     db: DbDep,
 ) -> dict[str, Any]:

@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app import storage
-from app.dependencies import AdminDep
+from app.dependencies import AuthDep
 
 router = APIRouter(prefix="/v1/admin/projects/{project_id}/segments", tags=["admin"])
 
@@ -14,7 +14,7 @@ def _db(request: Request):
 
 @router.get("")
 async def list_segments(
-    ctx: AdminDep,
+    ctx: AuthDep,
     db=Depends(_db),
 ) -> list[dict[str, Any]]:
     return await storage.list_segments(db, ctx.project_id)
@@ -22,7 +22,7 @@ async def list_segments(
 
 @router.get("/{segment_id}")
 async def get_segment(
-    ctx: AdminDep,
+    ctx: AuthDep,
     segment_id: str,
     db=Depends(_db),
 ) -> dict[str, Any]:

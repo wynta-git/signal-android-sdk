@@ -86,4 +86,4 @@ class RequireScope:
         return ctx
 
 
-AdminDep = Annotated[TokenContext, Depends(RequireScope("admin"))]
+AuthDep = Annotated[TokenContext, Depends(get_token_context)]
