@@ -1,7 +1,7 @@
 'use client';
 import HeadNode from './HeadNode';
 import PlayerSegmentsPanel from '@/components/segments/PlayerSegmentsPanel';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import type { BonusHead, SelectedNode, NodeType } from '@/types';
 
 interface MenuEvent {

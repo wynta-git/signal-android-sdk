@@ -1,5 +1,5 @@
 'use client';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import type { Player, Segment } from '@/types';
 
 interface PromoCodeResult {

@@ -1,6 +1,6 @@
 'use client';
 import { useCallback } from 'react';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import SubheadNodeFull from './SubheadNodeFull';
 import type { BonusHead, SelectedNode, NodeType } from '@/types';
 

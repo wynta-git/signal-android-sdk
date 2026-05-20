@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { useAppDispatch } from '@/store/hooks';
 import { createSegment } from '@/store/slices/segmentsSlice';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import RuleEditor from './RuleEditor';
 import type { SegmentRule } from '@/types';
 

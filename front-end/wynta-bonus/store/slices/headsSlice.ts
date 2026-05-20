@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import { api } from '@/services/api';
 import type { BonusHead, NormalizedState } from '@/types';
 
@@ -56,7 +56,11 @@ const headsSlice = createSlice({
   },
 });
 
-export const selectAllHeads    = (state: { heads: HeadsState }) => state.heads.ids.map(id => state.heads.entities[id]).filter(Boolean) as BonusHead[];
+export const selectAllHeads = createSelector(
+  (state: { heads: HeadsState }) => state.heads.ids,
+  (state: { heads: HeadsState }) => state.heads.entities,
+  (ids, entities) => ids.map(id => entities[id]).filter(Boolean) as BonusHead[]
+);
 export const selectHeadById    = (id: number) => (state: { heads: HeadsState }) => state.heads.entities[id];
 export const selectHeadsStatus = (state: { heads: HeadsState }) => state.heads.status;
 export default headsSlice.reducer;

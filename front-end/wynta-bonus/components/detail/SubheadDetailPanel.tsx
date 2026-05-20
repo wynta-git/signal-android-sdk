@@ -1,13 +1,13 @@
 'use client';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
 import { getUsage, getBudget, formatINRCompact, formatRelative } from '@/services/mocks/utils';
-import Badge from '@/components/primitives/Badge';
-import Icon from '@/components/primitives/Icon';
+import Badge from 'wynta-react-common/components/Badge';
+import Icon from 'wynta-react-common/components/Icon';
 import BudgetGrid from '@/components/primitives/BudgetGrid';
 import UsageBreakdown from '@/components/primitives/UsageBreakdown';
 import OwnerPill from '@/components/primitives/OwnerPill';
-import ActionBar from '@/components/primitives/ActionBar';
-import Toggle from '@/components/primitives/Toggle';
+import ActionBar from 'wynta-react-common/components/ActionBar';
+import Toggle from 'wynta-react-common/components/Toggle';
 import type { BonusSubhead, SelectedNode } from '@/types';
 
 interface SubheadDetailPanelProps {

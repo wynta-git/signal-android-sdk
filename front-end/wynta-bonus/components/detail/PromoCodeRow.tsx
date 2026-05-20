@@ -2,11 +2,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { getBudget, getUsage, isBudgetInherited, formatINRCompact, formatDateShort, formatRelative, usageGranted } from '@/services/mocks/utils';
 import type { BudgetPeriod } from '@/types';
-import BudgetRing from '@/components/primitives/BudgetRing';
+import BudgetRing from 'wynta-react-common/components/BudgetRing';
 import LifecycleBar from '@/components/primitives/LifecycleBar';
 import UsageBreakdown from '@/components/primitives/UsageBreakdown';
-import Icon from '@/components/primitives/Icon';
-import Badge from '@/components/primitives/Badge';
+import Icon from 'wynta-react-common/components/Icon';
+import Badge from 'wynta-react-common/components/Badge';
 import { useAppDispatch } from '@/store/hooks';
 import { openDrawer } from '@/store/slices/uiSlice';
 import type { DrawerState } from '@/types';

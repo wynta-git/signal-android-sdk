@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { formatDate, formatRelative } from '@/services/mocks/utils';
+import { formatDate, formatRelative } from '../utils';
 
 interface ValidityBarProps {
   start: string;
@@ -10,8 +10,7 @@ interface ValidityBarProps {
 export default function ValidityBar({ start, end }: ValidityBarProps) {
   const startMs = new Date(start).getTime();
   const endMs = new Date(end).getTime();
-  const fixedNow = new Date('2026-05-16T12:00:00Z').getTime();
-  const today = fixedNow;
+  const today = Date.now();
 
   const totalRange = endMs - startMs;
   const elapsed = Math.max(0, Math.min(totalRange, today - startMs));

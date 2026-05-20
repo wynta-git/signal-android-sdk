@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useAppDispatch } from '@/store/hooks';
 import { updateBudget } from '@/store/slices/budgetsSlice';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import DrawerFooter from '@/components/drawers/DrawerFooter';
 import { MOCK_HEADS } from '@/services/mocks/heads';
 import { MOCK_SUBHEADS } from '@/services/mocks/subheads';

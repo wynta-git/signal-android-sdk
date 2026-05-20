@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import { formatINRCompact } from '@/services/mocks/utils';
 import { _initials, _tierClass, _kycClass } from './SegmentPlayersList';
 import type { Player, Segment } from '@/types';

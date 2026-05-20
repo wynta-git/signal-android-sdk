@@ -10,7 +10,7 @@ import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
 import Sidebar from '@/components/shell/Sidebar';
 import Topbar from '@/components/shell/Topbar';
-import ContextMenu from '@/components/primitives/ContextMenu';
+import ContextMenu from 'wynta-react-common/components/ContextMenu';
 import Toast from '@/components/primitives/Toast';
 import SlideDrawer from '@/components/drawers/SlideDrawer';
 import HistoryDrawer from '@/components/drawers/HistoryDrawer';

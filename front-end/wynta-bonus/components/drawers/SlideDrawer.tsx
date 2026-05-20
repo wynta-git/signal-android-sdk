@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { closeDrawer } from '@/store/slices/uiSlice';
 import { createHead, updateHead } from '@/store/slices/headsSlice';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import DrawerForm from './DrawerForm';
 import type { DrawerType } from '@/types';
 

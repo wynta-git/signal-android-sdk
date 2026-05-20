@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import { MANUAL_SEGMENTS } from '@/services/mocks/constants';
 import type { Segment } from '@/types';
 

@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
-import Icon from '@/components/primitives/Icon';
-import Toggle from '@/components/primitives/Toggle';
+import Icon from 'wynta-react-common/components/Icon';
+import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '@/components/drawers/DrawerFooter';
 import { formatINRCompact, formatDateShort } from '@/services/mocks/utils';
 

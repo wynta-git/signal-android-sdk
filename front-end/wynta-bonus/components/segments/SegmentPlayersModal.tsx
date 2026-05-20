@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import SegmentPlayersList from './SegmentPlayersList';
 import PlayerProfileModal from './PlayerProfileModal';
 import type { Segment, Player } from '@/types';

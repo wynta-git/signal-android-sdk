@@ -1,10 +1,10 @@
 'use client';
-import Icon from '@/components/primitives/Icon';
-import Badge from '@/components/primitives/Badge';
-import Toggle from '@/components/primitives/Toggle';
-import ActionBar from '@/components/primitives/ActionBar';
+import Icon from 'wynta-react-common/components/Icon';
+import Badge from 'wynta-react-common/components/Badge';
+import Toggle from 'wynta-react-common/components/Toggle';
+import ActionBar from 'wynta-react-common/components/ActionBar';
 import BudgetGrid from '@/components/primitives/BudgetGrid';
-import ValidityBar from '@/components/primitives/ValidityBar';
+import ValidityBar from 'wynta-react-common/components/ValidityBar';
 import UsageBreakdown from '@/components/primitives/UsageBreakdown';
 import PlayerSegmentPicker from '@/components/segments/PlayerSegmentPicker';
 import PromoCodeRow from './PromoCodeRow';

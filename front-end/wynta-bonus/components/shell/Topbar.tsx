@@ -4,7 +4,7 @@ import { useAppSelector, useAppDispatch } from '@/store/hooks';
 import { setSelectedBrand, setToast } from '@/store/slices/uiSlice';
 import { fetchBrands, selectAllBrands } from '@/store/slices/brandsSlice';
 import { selectNode, expandAncestorsOf } from '@/store/slices/treeSlice';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import BrandSwitcher from './BrandSwitcher';
 import GlobalSearch from './GlobalSearch';
 import { MOCK_HEADS } from '@/services/mocks/heads';

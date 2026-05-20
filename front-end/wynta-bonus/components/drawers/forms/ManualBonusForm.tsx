@@ -2,8 +2,8 @@
 import { useState, useMemo } from 'react';
 import { useAppDispatch } from '@/store/hooks';
 import { createManualBonus } from '@/store/slices/subheadsSlice';
-import Icon from '@/components/primitives/Icon';
-import Toggle from '@/components/primitives/Toggle';
+import Icon from 'wynta-react-common/components/Icon';
+import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '@/components/drawers/DrawerFooter';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
 import { MANUAL_SEGMENTS } from '@/services/mocks/constants';

@@ -4,7 +4,7 @@ import { useAppSelector } from '@/store/hooks';
 import { selectHeadById } from '@/store/slices/headsSlice';
 import { selectAllUsers } from '@/store/slices/usersSlice';
 import { selectAllBrands } from '@/store/slices/brandsSlice';
-import Toggle from '@/components/primitives/Toggle';
+import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '@/components/drawers/DrawerFooter';
 import type { DrawerState } from '@/types';
 

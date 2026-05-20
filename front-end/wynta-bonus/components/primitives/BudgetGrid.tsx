@@ -1,5 +1,5 @@
 'use client';
-import BudgetRing from './BudgetRing';
+import BudgetRing from 'wynta-react-common/components/BudgetRing';
 import { formatINRCompact, formatRelative } from '@/services/mocks/utils';
 import type { BudgetPeriod } from '@/types';
 

@@ -3,8 +3,8 @@ import { useState } from 'react';
 import { useAppDispatch } from '@/store/hooks';
 import { createPromoCode } from '@/store/slices/configuresSlice';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import Icon from '@/components/primitives/Icon';
-import Toggle from '@/components/primitives/Toggle';
+import Icon from 'wynta-react-common/components/Icon';
+import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '@/components/drawers/DrawerFooter';
 import type { DrawerState } from '@/types';
 

@@ -1,7 +1,7 @@
 'use client';
 import { HISTORY_KIND_META } from '@/services/mocks/history';
 import { avatarGradient, initial, formatRelative, formatDate } from '@/services/mocks/utils';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 
 interface HistoryKindMeta {
   icon: string;

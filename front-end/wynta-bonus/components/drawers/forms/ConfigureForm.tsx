@@ -4,8 +4,8 @@ import { useAppDispatch } from '@/store/hooks';
 import { createConfigure, updateConfigure } from '@/store/slices/configuresSlice';
 import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import Icon from '@/components/primitives/Icon';
-import Toggle from '@/components/primitives/Toggle';
+import Icon from 'wynta-react-common/components/Icon';
+import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '@/components/drawers/DrawerFooter';
 import type { DrawerState } from '@/types';
 

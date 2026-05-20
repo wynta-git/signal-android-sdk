@@ -8,7 +8,7 @@ import { MOCK_CONFIGURES } from '@/services/mocks/configures';
 import HeadDetailPanel from '@/components/detail/HeadDetailPanel';
 import SubheadDetailPanel from '@/components/detail/SubheadDetailPanel';
 import ConfigureDetailPanel from '@/components/detail/ConfigureDetailPanel';
-import EmptyState from '@/components/primitives/EmptyState';
+import EmptyState from 'wynta-react-common/components/EmptyState';
 import type { DrawerState, HistoryDrawerState } from '@/types';
 
 interface ActionPayload {

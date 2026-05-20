@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo, useRef, useEffect } from 'react';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import SearchResultRow, { type SearchResultItem } from './SearchResultRow';
 import PlayerProfileModal from '@/components/segments/PlayerProfileModal';
 import SegmentPlayersModal from '@/components/segments/SegmentPlayersModal';

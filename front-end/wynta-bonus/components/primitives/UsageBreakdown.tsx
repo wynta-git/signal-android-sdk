@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import Icon from './Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import LifecycleBar from './LifecycleBar';
 import type { UsageData } from './LifecycleBar';
 import { LIFECYCLE_STATES } from '@/services/mocks/lifecycle';

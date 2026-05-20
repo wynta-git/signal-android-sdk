@@ -6,7 +6,7 @@ import { MOCK_CONFIGURES } from '@/services/mocks/configures';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { closeHistoryDrawer } from '@/store/slices/uiSlice';
 import { fetchHistory } from '@/store/slices/historySlice';
-import Icon from '@/components/primitives/Icon';
+import Icon from 'wynta-react-common/components/Icon';
 import ChangeHistory from '@/components/detail/ChangeHistory';
 import type { NodeType } from '@/types';
 

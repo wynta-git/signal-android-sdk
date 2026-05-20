@@ -1,6 +1,6 @@
 'use client';
-import Icon from '@/components/primitives/Icon';
-import MultiSelect from '@/components/primitives/MultiSelect';
+import Icon from 'wynta-react-common/components/Icon';
+import MultiSelect from 'wynta-react-common/components/MultiSelect';
 import { SEGMENT_FIELDS, OPS } from '@/services/mocks/constants';
 import type { SegmentRule, SegmentField, SegmentOp } from '@/types';
 

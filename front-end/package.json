@@ -1,0 +1,8 @@
+{
+  "name": "wynta-frontend",
+  "private": true,
+  "workspaces": [
+    "wynta-bonus",
+    "wynta-react-common"
+  ]
+}

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import Icon from '@/components/primitives/Icon';
-import Pager from '@/components/primitives/Pager';
+import Icon from 'wynta-react-common/components/Icon';
+import Pager from 'wynta-react-common/components/Pager';
 import { formatINRCompact } from '@/services/mocks/utils';
 import {
   PLAYER_FIRST_NAMES, PLAYER_LAST_NAMES, PLAYER_STATES,
