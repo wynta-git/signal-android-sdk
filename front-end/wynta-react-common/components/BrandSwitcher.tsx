@@ -1,8 +1,8 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { useAppSelector } from '../../store/hooks';
-import { selectAllBrands } from 'wynta-react-common/store/slices/brandsSlice';
-import Icon from 'wynta-react-common/components/Icon';
+import { useCommonSelector } from '../store/hooks';
+import { selectAllBrands } from '../store/slices/brandsSlice';
+import Icon from './Icon';
 
 interface BrandSwitcherProps {
   value: number | null;
@@ -16,7 +16,7 @@ function initials(name: string): string {
 }
 
 export default function BrandSwitcher({ value, onChange, compact = false }: BrandSwitcherProps) {
-  const brands = useAppSelector(selectAllBrands);
+  const brands = useCommonSelector(selectAllBrands);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const brand = brands.find(b => b.site_id === value) || brands[0];

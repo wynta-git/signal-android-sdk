@@ -4,13 +4,17 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { fetchHeads, fetchHead, selectAllHeads } from '../store/slices/headsSlice';
 import { fetchKpiSnapshot } from '../store/slices/kpiSlice';
 import { fetchUsers } from 'wynta-react-common/store/slices/usersSlice';
-import { openDrawer, openHistoryDrawer, closeContextMenu, openContextMenu } from '../store/slices/uiSlice';
+import { selectAllBrands } from 'wynta-react-common/store/slices/brandsSlice';
+import { openDrawer, openHistoryDrawer, closeContextMenu, openContextMenu, setSidebarActive, setSelectedBrand, setToast } from '../store/slices/uiSlice';
 import { toggleHead, selectNode, expandAncestorsOf, toggleSubheadExpand } from '../store/slices/treeSlice';
 import { MOCK_SUBHEADS } from '../services/mocks/subheads';
 import { MOCK_CONFIGURES } from '../services/mocks/configures';
-import Sidebar from '../components/shell/Sidebar';
+import AppShell from 'wynta-react-common/components/AppShell';
+import type { NavSection } from 'wynta-react-common/components/AppShell';
 import Topbar from '../components/shell/Topbar';
+import GlobalSearch from '../components/shell/GlobalSearch';
 import ContextMenu from 'wynta-react-common/components/ContextMenu';
+import Icon from 'wynta-react-common/components/Icon';
 import Toast from '../components/primitives/Toast';
 import SlideDrawer from '../components/drawers/SlideDrawer';
 import HistoryDrawer from '../components/drawers/HistoryDrawer';
@@ -18,6 +22,32 @@ import DetailPanel from '../components/detail/DetailPanel';
 import KpiStrip from '../components/shell/KpiStrip';
 import HierarchyTree from '../components/tree/HierarchyTree';
 import type { ContextMenuState, DrawerState, HistoryDrawerState, SelectedNode } from '../types';
+
+const BONUS_NAV: NavSection[] = [
+  {
+    label: 'Analytics',
+    items: [
+      { id: 'dashboard', label: 'Dashboard', icon: 'home' },
+    ],
+  },
+  {
+    label: 'Bonus',
+    items: [
+      { id: 'heads',      label: 'Bonus Heads', icon: 'folders'     },
+      { id: 'subheads',   label: 'Subheads',    icon: 'folder-tree' },
+      { id: 'configures', label: 'Configures',  icon: 'settings-2'  },
+      { id: 'codes',      label: 'Promo Codes', icon: 'ticket'      },
+    ],
+  },
+  {
+    label: 'Admin',
+    items: [
+      { id: 'players',  label: 'Players',  icon: 'users'       },
+      { id: 'reports',  label: 'Reports',  icon: 'bar-chart-3' },
+      { id: 'settings', label: 'Settings', icon: 'settings'    },
+    ],
+  },
+];
 
 interface ContextItem {
   icon?: string;
@@ -30,6 +60,7 @@ export default function BonusAdminApp() {
   const dispatch = useAppDispatch();
 
   const selectedBrand    = useAppSelector(s => s.ui.selectedBrand);
+  const sidebarActive    = useAppSelector(s => s.ui.sidebarActive);
   const toast            = useAppSelector(s => s.ui.toast);
   const contextMenu      = useAppSelector(s => s.ui.contextMenu);
   const expandedHeads    = useAppSelector(s => s.tree.expandedHeads);
@@ -38,6 +69,7 @@ export default function BonusAdminApp() {
   const selectedNode     = useAppSelector(s => s.tree.selectedNode);
   const heads            = useAppSelector(selectAllHeads);
   const headEntities     = useAppSelector(s => s.heads.entities);
+  const brands           = useAppSelector(selectAllBrands);
 
   const prevBrandRef = useRef<number | null>(null);
 
@@ -55,7 +87,6 @@ export default function BonusAdminApp() {
       .then((list) => {
         const headIds = new Set(list.map(h => h.id));
         list.forEach(h => dispatch(fetchHead(h.id)));
-        // Discard stored head node if it's no longer in the current data
         const nodeIsValid = !nodeAtLoad || nodeAtLoad.type !== 'head' || headIds.has(nodeAtLoad.id);
         const effectiveNode = nodeIsValid ? nodeAtLoad : null;
         if (!effectiveNode && list.length > 0) {
@@ -122,43 +153,58 @@ export default function BonusAdminApp() {
   };
 
   return (
-    <div className="shell" data-screen-label="Bonus Dashboard">
-      <Sidebar />
-      <main className="main">
-        <Topbar />
-        <KpiStrip />
-        <div className="three-zone">
-          <HierarchyTree
-            heads={heads}
-            expandedHeads={expandedHeadsSet}
-            expandedSubheads={expandedSubheadsSet}
-            loadingSubheads={loadingSubheadsSet}
-            selectedNode={selectedNode}
-            onSelectNode={handleSelectNode}
-            onToggleHead={(id: number) => dispatch(toggleHead(id))}
-            onToggleSubhead={(id: number) => dispatch(toggleSubheadExpand(id))}
-            onAddHead={() => dispatch(openDrawer({ type: 'NEW_HEAD' } as DrawerState))}
-            onMenu={(ctx: ContextMenuState) => dispatch(openContextMenu(ctx))}
-            selectedBrand={selectedBrand}
-          />
-          <div className="detail-panel">
-            <DetailPanel onAction={handleAction}/>
-          </div>
-        </div>
-      </main>
-
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={getContextItems(contextMenu.type, contextMenu.id)}
-          onClose={() => dispatch(closeContextMenu())}
+    <AppShell
+      appLabel="BONUS"
+      navSections={BONUS_NAV}
+      activeNav={sidebarActive}
+      onNavChange={(id) => dispatch(setSidebarActive(id))}
+      selectedBrand={selectedBrand}
+      onBrandChange={(siteId) => {
+        dispatch(setSelectedBrand(siteId));
+        dispatch(setToast('Switched to ' + (brands.find(b => b.site_id === siteId)?.name || siteId)));
+      }}
+      topbarCenter={<Topbar />}
+      topbarActions={
+        <>
+          <GlobalSearch onSelectNode={handleSelectNode} />
+          <button className="icon-btn" title="Filters"><Icon name="filter" size={15} /></button>
+        </>
+      }
+      overlays={
+        <>
+          {contextMenu && (
+            <ContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              items={getContextItems(contextMenu.type, contextMenu.id)}
+              onClose={() => dispatch(closeContextMenu())}
+            />
+          )}
+          <SlideDrawer />
+          <HistoryDrawer />
+          <Toast message={toast} />
+        </>
+      }
+    >
+      <KpiStrip />
+      <div className="three-zone">
+        <HierarchyTree
+          heads={heads}
+          expandedHeads={expandedHeadsSet}
+          expandedSubheads={expandedSubheadsSet}
+          loadingSubheads={loadingSubheadsSet}
+          selectedNode={selectedNode}
+          onSelectNode={handleSelectNode}
+          onToggleHead={(id: number) => dispatch(toggleHead(id))}
+          onToggleSubhead={(id: number) => dispatch(toggleSubheadExpand(id))}
+          onAddHead={() => dispatch(openDrawer({ type: 'NEW_HEAD' } as DrawerState))}
+          onMenu={(ctx: ContextMenuState) => dispatch(openContextMenu(ctx))}
+          selectedBrand={selectedBrand}
         />
-      )}
-
-      <SlideDrawer />
-      <HistoryDrawer />
-      <Toast message={toast}/>
-    </div>
+        <div className="detail-panel">
+          <DetailPanel onAction={handleAction} />
+        </div>
+      </div>
+    </AppShell>
   );
 }
