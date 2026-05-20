@@ -1,20 +1,17 @@
 {
-  "name": "wynta-bonus",
+  "name": "wynta-crm",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
+    "dev": "next dev --port 3002",
     "build": "next build",
-    "start": "next start --port 3001"
+    "start": "next start --port 3002"
   },
   "exports": {
-    "./BonusAdminApp": "./components/BonusAdminApp.tsx",
-    "./store": "./store/index.ts",
-    "./globals.css": "./app/globals.css"
+    "./CrmApp": "./components/CrmApp.tsx"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.12.0",
-    "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",

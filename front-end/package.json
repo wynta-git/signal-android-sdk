@@ -3,6 +3,8 @@
   "private": true,
   "workspaces": [
     "wynta-bonus",
-    "wynta-react-common"
+    "wynta-react-common",
+    "wynta-crm",
+    "wynta-web"
   ]
 }
