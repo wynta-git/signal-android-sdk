@@ -3,44 +3,67 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Wynta Bonus Admin — Dashboard</title>
+<title>Wynta Bonus Engine — Drop-in Module</title>
 <style>
 /* ============================================================
    Wynta Bonus Admin — Bonus Dashboard
    Tokens per the build spec
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
-
 :root {
-  --blue: #0091e0;
-  --bl:   #38b6ff;
-  --bp:   #e8f5ff;
-  --bm:   #bde3ff;
+  /* ── Wynta Design System tokens ── */
+  --wynta-blue:        #0091E0;
+  --wynta-blue-600:    #0082C9;
+  --wynta-blue-700:    #0073B2;
+  --wynta-blue-050:    #E6F4FB;
+  --wynta-blue-100:    #CCE9F9;
+  --wynta-white:       #FFFFFF;
+  --wynta-grey-050:    #F7F8FA;
+  --wynta-grey-100:    #F1F2F4;
+  --wynta-grey-150:    #E9EBEE;
+  --wynta-grey-200:    #DDE0E4;
+  --wynta-grey-300:    #C4C8CE;
+  --wynta-grey-400:    #9AA0A6;
+  --wynta-grey-500:    #6B7280;
+  --wynta-grey-700:    #3F4652;
+  --wynta-grey-900:    #1F2430;
+  --wynta-positive:    #17A552;
+  --wynta-positive-bg: #E6F6EC;
+  --wynta-negative:    #D64545;
+  --wynta-negative-bg: #FCE8E8;
+  --wynta-warning:     #E08A00;
+  --wynta-warning-bg:  #FFF4DE;
+  --font-sans:Arial,Helvetica,sans-serif;
 
-  --g50:  #f7f8fa;
-  --g100: #f0f2f5;
-  --g150: #e8eaee;
-  --g200: #dde1e8;
-  --g300: #c5ccd8;
-  --g400: #98a4b4;
-  --g500: #68788c;
-  --g600: #47566a;
-  --g700: #2d3a4a;
-  --g900: #111827;
+  /* ── Back-compat aliases used throughout this file ── */
+  --blue: var(--wynta-blue);
+  --bl:   #38B6FF;
+  --bp:   var(--wynta-blue-050);
+  --bm:   var(--wynta-blue-100);
 
-  --ok:   #10b981;
-  --warn: #f59e0b;
-  --err:  #ef4444;
+  --g50:  var(--wynta-grey-050);
+  --g100: var(--wynta-grey-100);
+  --g150: var(--wynta-grey-150);
+  --g200: var(--wynta-grey-200);
+  --g300: var(--wynta-grey-300);
+  --g400: var(--wynta-grey-400);
+  --g500: var(--wynta-grey-500);
+  --g600: #4B5360;
+  --g700: var(--wynta-grey-700);
+  --g900: var(--wynta-grey-900);
 
-  --r:    6px;
-  --rl:   10px;
-  --rxl:  14px;
+  --ok:   var(--wynta-positive);
+  --warn: var(--wynta-warning);
+  --err:  var(--wynta-negative);
 
-  --sh:   0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-  --shm:  0 6px 24px rgba(0,0,0,0.11);
+  --r:    4px;
+  --rl:   6px;
+  --rxl:  8px;
 
-  --font: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sh:   0 1px 2px rgba(17,24,39,0.06);
+  --shm:  0 6px 20px rgba(17,24,39,0.12);
+
+  --font:var(--font-sans);
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -3265,8 +3288,8 @@ a { color: inherit; text-decoration: none; }
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 </head>
-<body style="background-color: rgb(192, 200, 215)">
-<div id="root" data-screen-label="Bonus Dashboard"></div>
+<body style="background:var(--wynta-grey-050)">
+<div id="root" data-screen-label="Wynta Bonus Engine"></div>
 
 <script>
 // --- Mock data (plain JS) ---
@@ -8567,13 +8590,6 @@ function App() {
   return (
     <div className="shell">
       <main className="main">
-        <Topbar
-          selectedNode={selectedNode}
-          onClearSelection={() => setSelectedNode(null)}
-          selectedBrand={selectedBrand}
-          onBrandChange={(id) => { setSelectedBrand(id); setToast('Switched to ' + BRANDS.find(b=>b.id===id)?.name); }}
-          onSelectNode={handleSelectNode}
-        />
         <KpiStrip/>
         <div className="three-zone">
           <HierarchyTree

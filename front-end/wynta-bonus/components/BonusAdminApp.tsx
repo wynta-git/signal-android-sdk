@@ -53,13 +53,19 @@ export default function BonusAdminApp() {
 
     dispatch(fetchHeads(selectedBrand)).unwrap()
       .then((list) => {
+        const headIds = new Set(list.map(h => h.id));
         list.forEach(h => dispatch(fetchHead(h.id)));
-        if (!nodeAtLoad && list.length > 0) {
+        // Discard stored head node if it's no longer in the current data
+        const nodeIsValid = !nodeAtLoad || nodeAtLoad.type !== 'head' || headIds.has(nodeAtLoad.id);
+        const effectiveNode = nodeIsValid ? nodeAtLoad : null;
+        if (!effectiveNode && list.length > 0) {
           const first: SelectedNode = { type: 'head', id: list[0].id };
           dispatch(selectNode(first));
           dispatch(expandAncestorsOf({ ...first, subheads: MOCK_SUBHEADS, configures: MOCK_CONFIGURES }));
-        } else if (nodeAtLoad) {
-          dispatch(expandAncestorsOf({ ...nodeAtLoad, subheads: MOCK_SUBHEADS, configures: MOCK_CONFIGURES }));
+        } else if (effectiveNode) {
+          dispatch(expandAncestorsOf({ ...effectiveNode, subheads: MOCK_SUBHEADS, configures: MOCK_CONFIGURES }));
+        } else {
+          dispatch(selectNode(null));
         }
       })
       .catch(() => {});

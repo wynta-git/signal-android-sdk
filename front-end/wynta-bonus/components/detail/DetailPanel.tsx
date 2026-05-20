@@ -1,7 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { fetchHead } from '@/store/slices/headsSlice';
+import { fetchHead, selectHeadsStatus } from '@/store/slices/headsSlice';
 import { openDrawer, openHistoryDrawer } from '@/store/slices/uiSlice';
 import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
 import { MOCK_CONFIGURES } from '@/services/mocks/configures';
@@ -35,7 +35,9 @@ export default function DetailPanel({ onAction }: DetailPanelProps) {
     }
   }, [selectedNode, dispatch]);
 
-  const head = useAppSelector(s => selectedNode?.type === 'head' ? s.heads.entities[selectedNode.id] : null);
+  const head        = useAppSelector(s => selectedNode?.type === 'head' ? s.heads.entities[selectedNode.id] : null);
+  const headsStatus = useAppSelector(selectHeadsStatus);
+  const brandsStatus = useAppSelector(s => s.brands.status);
   const sub  = selectedNode?.type === 'subhead'   ? MOCK_SUBHEADS[selectedNode.id]   : null;
   const cfg  = selectedNode?.type === 'configure' ? MOCK_CONFIGURES[selectedNode.id] : null;
 
@@ -51,6 +53,8 @@ export default function DetailPanel({ onAction }: DetailPanelProps) {
 
   if (selectedNode.type === 'head') {
     if (!head || !head.owners) {
+      const settled = headsStatus === 'succeeded' || headsStatus === 'failed' || brandsStatus === 'failed';
+      if (settled) return <EmptyState/>;
       return (
         <div style={{ padding: 32, color: 'var(--g400)', fontSize: 13 }}>
           Loading…
