@@ -1,5 +1,23 @@
 // Export shared types here
 
+// ── Common ────────────────────────────────────────────────────────────────────
+
+export type AsyncStatus = 'idle' | 'loading' | 'succeeded' | 'failed';
+
+export interface Brand {
+  name: string;
+  description: string;
+  site_id: number;
+  color: string;
+}
+
+export interface SystemUser {
+  id: number;
+  username: string;
+  email: string;
+  user_type: string;
+}
+
 // ── Segments & Players ────────────────────────────────────────────────────────
 
 export interface Segment {

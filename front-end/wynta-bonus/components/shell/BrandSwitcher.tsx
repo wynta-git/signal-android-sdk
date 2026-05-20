@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useAppSelector } from '@/store/hooks';
-import { selectAllBrands } from '@/store/slices/brandsSlice';
+import { selectAllBrands } from 'wynta-react-common/store/slices/brandsSlice';
 import Icon from 'wynta-react-common/components/Icon';
 
 interface BrandSwitcherProps {

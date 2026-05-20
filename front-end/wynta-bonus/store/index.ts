@@ -1,6 +1,6 @@
 import { configureStore } from '@reduxjs/toolkit';
 import uiReducer from './slices/uiSlice';
-import brandsReducer from './slices/brandsSlice';
+import brandsReducer from 'wynta-react-common/store/slices/brandsSlice';
 import treeReducer from './slices/treeSlice';
 import headsReducer from './slices/headsSlice';
 import subheadsReducer from './slices/subheadsSlice';
@@ -11,7 +11,7 @@ import usageReducer from './slices/usageSlice';
 import historyReducer from './slices/historySlice';
 import segmentsReducer from './slices/segmentsSlice';
 import kpiReducer from './slices/kpiSlice';
-import usersReducer from './slices/usersSlice';
+import usersReducer from 'wynta-react-common/store/slices/usersSlice';
 import type { SelectedNode } from '@/types';
 
 const LS_NODE_KEY = 'bonus_selected_node';

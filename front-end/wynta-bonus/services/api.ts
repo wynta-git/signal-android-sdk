@@ -8,7 +8,7 @@ import {
   PLAYER_TIERS, PLAYER_KYC, PLAYER_PRODUCTS,
   PLAYERS_PAGE_SIZE, PLAYERS_SEARCH_CAP,
 } from './mocks/constants';
-import type { Player, PlayerPage, BonusHead, BonusSubhead, BonusConfigure, PromoCode, Trigger, EligibilityRule, BudgetPeriod, Segment, SystemUser } from '@/types';
+import type { Player, PlayerPage, BonusHead, BonusSubhead, BonusConfigure, PromoCode, Trigger, EligibilityRule, BudgetPeriod, Segment } from '@/types';
 
 const delay = (ms = 180): Promise<void> => new Promise(r => setTimeout(r, ms));
 
@@ -104,19 +104,9 @@ export function getGlobalPlayerPool(): Player[] {
 const BONUS_API = (process.env.NEXT_PUBLIC_BONUS_API_URL || 'http://localhost:8010') + '/api/v1';
 
 export const api = {
-  async fetchUsers(): Promise<SystemUser[]> {
-    const res = await fetch(`${BONUS_API}/users`);
-    if (!res.ok) throw new Error('Failed to fetch users');
-    return res.json();
-  },
   async fetchKpiSnapshot(siteId: string | number) {
     const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`);
     if (!res.ok) throw new Error('Failed to fetch bonus summary');
-    return res.json();
-  },
-  async fetchBrands(userId: number = 1) {
-    const res = await fetch(`${BONUS_API}/brands?user_id=${userId}`);
-    if (!res.ok) throw new Error('Failed to fetch brands');
     return res.json();
   },
   async fetchHeads(siteId: string | number) {
