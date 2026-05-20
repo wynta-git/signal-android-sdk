@@ -67,11 +67,12 @@ section "2. Installing campaign-engine dependencies"
 
 UV="$(as_user bash -c 'command -v uv')"
 
-info "Installing apscheduler into shared venv..."
+info "Installing campaign-engine deps into shared venv..."
 as_user "$UV" pip install --python "$VENV/bin/python" \
     "apscheduler>=3.10.0" \
+    "httpx>=0.27.0" \
     --quiet
-ok "apscheduler installed"
+ok "campaign-engine deps installed"
 
 # ── 3. write .env ─────────────────────────────────────────────────────────────
 section "3. Writing .env"
