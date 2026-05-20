@@ -38,7 +38,11 @@ echo ""
 # ── Backend ───────────────────────────────────────────────────────────────────
 echo "[backend]  starting uvicorn on :8010 …"
 cd "$SCRIPT_DIR"
-uv run uvicorn app.main:app --reload --port 8010 &
+if command -v uv &>/dev/null; then
+  uv run uvicorn app.main:app --reload --port 8010 &
+else
+  "$SCRIPT_DIR/.venv/bin/uvicorn" app.main:app --reload --port 8010 &
+fi
 BACKEND_PID=$!
 
 echo ""
