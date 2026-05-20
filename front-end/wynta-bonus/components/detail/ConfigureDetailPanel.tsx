@@ -3,9 +3,9 @@ import Icon from 'wynta-react-common/components/Icon';
 import Badge from 'wynta-react-common/components/Badge';
 import Toggle from 'wynta-react-common/components/Toggle';
 import ActionBar from 'wynta-react-common/components/ActionBar';
-import BudgetGrid from '@/components/primitives/BudgetGrid';
+import BudgetGrid from '../../components/primitives/BudgetGrid';
 import ValidityBar from 'wynta-react-common/components/ValidityBar';
-import UsageBreakdown from '@/components/primitives/UsageBreakdown';
+import UsageBreakdown from '../../components/primitives/UsageBreakdown';
 import PlayerSegmentPicker from 'wynta-react-common/components/segments/PlayerSegmentPicker';
 import PromoCodeRow from './PromoCodeRow';
 import {
@@ -15,7 +15,7 @@ import {
   getBudget,
   isBudgetInherited,
   formatRelative,
-} from '@/services/mocks/utils';
+} from '../../services/mocks/utils';
 
 interface ManualCode {
   id: string | number;

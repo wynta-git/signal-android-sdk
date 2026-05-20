@@ -1,5 +1,5 @@
 import { iso } from './iso';
-import type { BonusConfigure } from '@/types';
+import type { BonusConfigure } from '../../types';
 
 export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
   111: {

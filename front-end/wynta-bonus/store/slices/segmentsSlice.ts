@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { api } from '@/services/api';
-import type { Segment, Player, AsyncStatus, SegmentRule } from '@/types';
+import { api } from '../../services/api';
+import type { Segment, Player, AsyncStatus, SegmentRule } from '../../types';
 
 interface SegmentsState {
   ids: (string | number)[];

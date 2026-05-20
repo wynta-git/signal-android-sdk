@@ -8,7 +8,7 @@ import {
   PLAYER_TIERS, PLAYER_KYC, PLAYER_PRODUCTS,
   PLAYERS_PAGE_SIZE, PLAYERS_SEARCH_CAP,
 } from './mocks/constants';
-import type { Player, PlayerPage, BonusHead, BonusSubhead, BonusConfigure, PromoCode, Trigger, EligibilityRule, BudgetPeriod, Segment } from '@/types';
+import type { Player, PlayerPage, BonusHead, BonusSubhead, BonusConfigure, PromoCode, Trigger, EligibilityRule, BudgetPeriod, Segment } from '../types';
 
 const delay = (ms = 180): Promise<void> => new Promise(r => setTimeout(r, ms));
 

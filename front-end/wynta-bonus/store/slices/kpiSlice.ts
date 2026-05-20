@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '@/services/api';
-import type { KpiSnapshot, AsyncStatus } from '@/types';
+import { api } from '../../services/api';
+import type { KpiSnapshot, AsyncStatus } from '../../types';
 import { createHead, updateHead } from './headsSlice';
 import { createSubhead, updateSubhead } from './subheadsSlice';
 import { createConfigure, updateConfigure } from './configuresSlice';

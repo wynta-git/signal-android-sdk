@@ -1,14 +1,14 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { updateBudget } from '@/store/slices/budgetsSlice';
+import { useAppDispatch } from '../../../store/hooks';
+import { updateBudget } from '../../../store/slices/budgetsSlice';
 import Icon from 'wynta-react-common/components/Icon';
-import DrawerFooter from '@/components/drawers/DrawerFooter';
-import { MOCK_HEADS } from '@/services/mocks/heads';
-import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import { CONFIGURE_BUDGETS } from '@/services/mocks/budgets';
-import type { DrawerState } from '@/types';
+import DrawerFooter from '../../../components/drawers/DrawerFooter';
+import { MOCK_HEADS } from '../../../services/mocks/heads';
+import { MOCK_SUBHEADS } from '../../../services/mocks/subheads';
+import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
+import { CONFIGURE_BUDGETS } from '../../../services/mocks/budgets';
+import type { DrawerState } from '../../../types';
 
 interface BudgetFormProps {
   state: DrawerState;

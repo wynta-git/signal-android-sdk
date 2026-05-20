@@ -1,6 +1,6 @@
 'use client';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { setSidebarActive } from '@/store/slices/uiSlice';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { setSidebarActive } from '../../store/slices/uiSlice';
 import Icon from 'wynta-react-common/components/Icon';
 
 interface NavItem {

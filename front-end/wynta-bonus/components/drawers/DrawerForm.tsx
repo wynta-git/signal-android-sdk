@@ -8,7 +8,7 @@ import TriggerForm from './forms/TriggerForm';
 import BudgetForm from './forms/BudgetForm';
 import ManualBonusForm from './forms/ManualBonusForm';
 import IssueCodeBonusForm from './forms/IssueCodeBonusForm';
-import type { DrawerState } from '@/types';
+import type { DrawerState } from '../../types';
 
 interface DrawerFormProps {
   state: DrawerState;

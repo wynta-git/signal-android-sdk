@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { LIFECYCLE_STATES } from '@/services/mocks/lifecycle';
-import { STATE_META } from '@/services/mocks/history';
-import { usageGranted, formatINRCompact } from '@/services/mocks/utils';
+import { LIFECYCLE_STATES } from '../../services/mocks/lifecycle';
+import { STATE_META } from '../../services/mocks/history';
+import { usageGranted, formatINRCompact } from '../../services/mocks/utils';
 
 interface StateEntry {
   count: number;

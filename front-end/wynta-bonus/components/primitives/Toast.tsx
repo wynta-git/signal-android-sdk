@@ -1,8 +1,8 @@
 'use client';
 import { useEffect } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
-import { useAppDispatch } from '@/store/hooks';
-import { clearToast } from '@/store/slices/uiSlice';
+import { useAppDispatch } from '../../store/hooks';
+import { clearToast } from '../../store/slices/uiSlice';
 
 interface ToastProps {
   message: string;

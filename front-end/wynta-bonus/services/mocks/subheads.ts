@@ -1,5 +1,5 @@
 import { iso } from './iso';
-import type { BonusSubhead } from '@/types';
+import type { BonusSubhead } from '../../types';
 
 export const MOCK_SUBHEADS: Record<number, BonusSubhead> = {
   11: {

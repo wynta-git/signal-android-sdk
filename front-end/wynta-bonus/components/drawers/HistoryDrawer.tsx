@@ -1,14 +1,14 @@
 'use client';
 import { useEffect } from 'react';
-import { MOCK_HEADS } from '@/services/mocks/heads';
-import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { closeHistoryDrawer } from '@/store/slices/uiSlice';
-import { fetchHistory } from '@/store/slices/historySlice';
+import { MOCK_HEADS } from '../../services/mocks/heads';
+import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
+import { MOCK_CONFIGURES } from '../../services/mocks/configures';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { closeHistoryDrawer } from '../../store/slices/uiSlice';
+import { fetchHistory } from '../../store/slices/historySlice';
 import Icon from 'wynta-react-common/components/Icon';
-import ChangeHistory from '@/components/detail/ChangeHistory';
-import type { NodeType } from '@/types';
+import ChangeHistory from '../../components/detail/ChangeHistory';
+import type { NodeType } from '../../types';
 
 interface NodeMeta {
   kind: string;

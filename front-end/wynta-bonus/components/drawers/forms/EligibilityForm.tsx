@@ -1,12 +1,12 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { createEligibility } from '@/store/slices/configuresSlice';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
+import { useAppDispatch } from '../../../store/hooks';
+import { createEligibility } from '../../../store/slices/configuresSlice';
+import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
-import DrawerFooter from '@/components/drawers/DrawerFooter';
-import type { DrawerState } from '@/types';
+import DrawerFooter from '../../../components/drawers/DrawerFooter';
+import type { DrawerState } from '../../../types';
 
 const VALUE_TYPES = ['STRING', 'NUMBER', 'BOOL', 'ENUM'] as const;
 

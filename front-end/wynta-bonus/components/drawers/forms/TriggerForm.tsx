@@ -1,12 +1,12 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { createTrigger } from '@/store/slices/configuresSlice';
+import { useAppDispatch } from '../../../store/hooks';
+import { createTrigger } from '../../../store/slices/configuresSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
-import DrawerFooter from '@/components/drawers/DrawerFooter';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import type { DrawerState } from '@/types';
+import DrawerFooter from '../../../components/drawers/DrawerFooter';
+import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
+import type { DrawerState } from '../../../types';
 
 const TRIGGER_TYPES = ['DEPOSIT', 'WAGER', 'LOSS', 'CODE'] as const;
 

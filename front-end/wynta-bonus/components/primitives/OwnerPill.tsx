@@ -1,6 +1,6 @@
 'use client';
-import { avatarGradient, initial } from '@/services/mocks/utils';
-import type { OwnerEntry } from '@/types';
+import { avatarGradient, initial } from '../../services/mocks/utils';
+import type { OwnerEntry } from '../../types';
 
 interface OwnerPillProps {
   owner: OwnerEntry;

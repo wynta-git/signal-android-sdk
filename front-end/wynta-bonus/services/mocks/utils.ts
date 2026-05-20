@@ -6,7 +6,7 @@ import type { UsageData } from './lifecycle';
 import { CONFIGURE_BUDGETS, CODE_BUDGETS } from './budgets';
 import { HEAD_HISTORY, SUBHEAD_HISTORY, CONFIGURE_HISTORY } from './history';
 import type { HistoryEntry } from './history';
-import type { BudgetPeriod } from '@/types';
+import type { BudgetPeriod } from '../../types';
 
 const _now = new Date('2026-05-16T12:00:00Z');
 

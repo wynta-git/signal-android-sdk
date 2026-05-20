@@ -4,12 +4,12 @@ import Icon from 'wynta-react-common/components/Icon';
 import SearchResultRow, { type SearchResultItem } from './SearchResultRow';
 import PlayerProfileModal from 'wynta-react-common/components/segments/PlayerProfileModal';
 import SegmentPlayersModal from 'wynta-react-common/components/segments/SegmentPlayersModal';
-import { MOCK_HEADS } from '@/services/mocks/heads';
-import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import { MANUAL_SEGMENTS } from '@/services/mocks/constants';
-import { makePlayerById, getGlobalPlayerPool } from '@/services/api';
-import type { Player, Segment, SelectedNode } from '@/types';
+import { MOCK_HEADS } from '../../services/mocks/heads';
+import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
+import { MOCK_CONFIGURES } from '../../services/mocks/configures';
+import { MANUAL_SEGMENTS } from '../../services/mocks/constants';
+import { makePlayerById, getGlobalPlayerPool } from '../../services/api';
+import type { Player, Segment, SelectedNode } from '../../types';
 
 interface SearchGroup {
   kind: string;

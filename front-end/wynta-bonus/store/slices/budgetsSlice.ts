@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '@/services/api';
-import type { BudgetPeriod, AsyncStatus } from '@/types';
+import { api } from '../../services/api';
+import type { BudgetPeriod, AsyncStatus } from '../../types';
 
 interface BudgetsState {
   data: Record<string, BudgetPeriod[]>;

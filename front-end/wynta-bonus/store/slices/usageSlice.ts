@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '@/services/api';
-import type { UsageData } from '@/services/mocks/lifecycle';
+import { api } from '../../services/api';
+import type { UsageData } from '../../services/mocks/lifecycle';
 
 interface UsageState {
   configure: Record<number, UsageData>;

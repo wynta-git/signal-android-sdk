@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { DrawerState, HistoryDrawerState, ContextMenuState } from '@/types';
+import type { DrawerState, HistoryDrawerState, ContextMenuState } from '../../types';
 import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
 import { createHead, updateHead } from './headsSlice';
 import { createSubhead, updateSubhead } from './subheadsSlice';

@@ -1,4 +1,4 @@
-import BonusAdminApp from '@/components/BonusAdminApp';
+import BonusAdminApp from '../components/BonusAdminApp';
 
 export default function Page() {
   return <BonusAdminApp />;

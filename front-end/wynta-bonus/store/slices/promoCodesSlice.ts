@@ -1,5 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
-import type { PromoCode } from '@/types';
+import type { PromoCode } from '../../types';
 import { createPromoCode } from './configuresSlice';
 
 interface PromoCodesState {

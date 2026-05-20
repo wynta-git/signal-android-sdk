@@ -12,7 +12,7 @@ import historyReducer from './slices/historySlice';
 import segmentsReducer from './slices/segmentsSlice';
 import kpiReducer from './slices/kpiSlice';
 import usersReducer from 'wynta-react-common/store/slices/usersSlice';
-import type { SelectedNode } from '@/types';
+import type { SelectedNode } from '../types';
 
 const LS_NODE_KEY = 'bonus_selected_node';
 

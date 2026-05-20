@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import type { SelectedNode, NodeType, BonusHead, BonusSubhead, BonusConfigure } from '@/types';
+import type { SelectedNode, NodeType, BonusHead, BonusSubhead, BonusConfigure } from '../../types';
 
 const LS_NODE_KEY = 'bonus_selected_node';
 

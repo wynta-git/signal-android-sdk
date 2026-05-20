@@ -1,5 +1,5 @@
 import { iso } from './iso';
-import type { BonusHead } from '@/types';
+import type { BonusHead } from '../../types';
 
 export const MOCK_HEADS: Record<number, BonusHead> = {
   2: {

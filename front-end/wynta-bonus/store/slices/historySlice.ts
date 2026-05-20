@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '@/services/api';
-import type { HistoryEvent, NodeType } from '@/types';
+import { api } from '../../services/api';
+import type { HistoryEvent, NodeType } from '../../types';
 
 interface HistoryState {
   head: Record<number, HistoryEvent[]>;

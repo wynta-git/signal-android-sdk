@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '@/services/api';
-import type { BonusConfigure, PromoCode, Trigger, EligibilityRule, NormalizedState } from '@/types';
+import { api } from '../../services/api';
+import type { BonusConfigure, PromoCode, Trigger, EligibilityRule, NormalizedState } from '../../types';
 
 type ConfiguresState = NormalizedState<BonusConfigure>;
 

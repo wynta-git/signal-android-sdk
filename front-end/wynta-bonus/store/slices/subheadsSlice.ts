@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { api } from '@/services/api';
-import type { BonusSubhead, NormalizedState } from '@/types';
+import { api } from '../../services/api';
+import type { BonusSubhead, NormalizedState } from '../../types';
 
 type SubheadsState = NormalizedState<BonusSubhead>;
 

@@ -1,12 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { closeDrawer } from '@/store/slices/uiSlice';
-import { createHead, updateHead } from '@/store/slices/headsSlice';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { closeDrawer } from '../../store/slices/uiSlice';
+import { createHead, updateHead } from '../../store/slices/headsSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import DrawerForm from './DrawerForm';
-import type { DrawerType } from '@/types';
+import type { DrawerType } from '../../types';
 
 interface DrawerMeta {
   title: string;
@@ -62,7 +62,7 @@ export default function SlideDrawer() {
       } else if (drawerState?.type === 'EDIT_HEAD' && drawerState.id != null) {
         await dispatch(updateHead({
           id: drawerState.id,
-          patch: { ...data, owner: ownerIdent, updated_by: actor } as unknown as Partial<import('@/types').BonusHead>,
+          patch: { ...data, owner: ownerIdent, updated_by: actor } as unknown as Partial<import('../../types').BonusHead>,
         })).unwrap();
       }
     } catch (err) {

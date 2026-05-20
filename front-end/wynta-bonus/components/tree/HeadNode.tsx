@@ -2,7 +2,7 @@
 import { useCallback } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import SubheadNodeFull from './SubheadNodeFull';
-import type { BonusHead, SelectedNode, NodeType } from '@/types';
+import type { BonusHead, SelectedNode, NodeType } from '../../types';
 
 interface MenuEvent {
   type: NodeType;

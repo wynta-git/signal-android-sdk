@@ -2,9 +2,9 @@
 import { memo, useCallback } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import ConfigureNode from './ConfigureNode';
-import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import type { SubheadSummary, SelectedNode, NodeType, BonusConfigure } from '@/types';
+import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
+import { MOCK_CONFIGURES } from '../../services/mocks/configures';
+import type { SubheadSummary, SelectedNode, NodeType, BonusConfigure } from '../../types';
 
 interface MenuEvent {
   type: NodeType;

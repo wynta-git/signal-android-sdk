@@ -1,13 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { createSubhead, updateSubhead } from '@/store/slices/subheadsSlice';
-import { MOCK_HEADS } from '@/services/mocks/heads';
-import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
+import { useAppDispatch } from '../../../store/hooks';
+import { createSubhead, updateSubhead } from '../../../store/slices/subheadsSlice';
+import { MOCK_HEADS } from '../../../services/mocks/heads';
+import { MOCK_SUBHEADS } from '../../../services/mocks/subheads';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
-import DrawerFooter from '@/components/drawers/DrawerFooter';
-import type { DrawerState } from '@/types';
+import DrawerFooter from '../../../components/drawers/DrawerFooter';
+import type { DrawerState } from '../../../types';
 
 interface SubheadFormProps {
   mode: 'new' | 'edit';

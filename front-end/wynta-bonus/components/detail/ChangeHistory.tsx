@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { getHistory } from '@/services/mocks/utils';
-import { HISTORY_KIND_META } from '@/services/mocks/history';
+import { getHistory } from '../../services/mocks/utils';
+import { HISTORY_KIND_META } from '../../services/mocks/history';
 import Icon from 'wynta-react-common/components/Icon';
 import HistoryRow from './HistoryRow';
-import type { NodeType } from '@/types';
+import type { NodeType } from '../../types';
 
 interface ChangeHistoryProps {
   type?: NodeType;

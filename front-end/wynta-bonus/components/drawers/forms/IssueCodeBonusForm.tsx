@@ -2,8 +2,8 @@
 import { useState } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
-import DrawerFooter from '@/components/drawers/DrawerFooter';
-import { formatINRCompact, formatDateShort } from '@/services/mocks/utils';
+import DrawerFooter from '../../../components/drawers/DrawerFooter';
+import { formatINRCompact, formatDateShort } from '../../../services/mocks/utils';
 
 interface ManualCode {
   id: string | number;

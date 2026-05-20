@@ -1,6 +1,6 @@
 'use client';
 import { useCountUp } from 'wynta-react-common/components/CountUp';
-import { formatINRCompact } from '@/services/mocks/utils';
+import { formatINRCompact } from '../../services/mocks/utils';
 
 interface CountUpCurrencyProps {
   value: number;

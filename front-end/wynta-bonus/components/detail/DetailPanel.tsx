@@ -1,15 +1,15 @@
 'use client';
 import { useEffect } from 'react';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { fetchHead, selectHeadsStatus } from '@/store/slices/headsSlice';
-import { openDrawer, openHistoryDrawer } from '@/store/slices/uiSlice';
-import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import HeadDetailPanel from '@/components/detail/HeadDetailPanel';
-import SubheadDetailPanel from '@/components/detail/SubheadDetailPanel';
-import ConfigureDetailPanel from '@/components/detail/ConfigureDetailPanel';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { fetchHead, selectHeadsStatus } from '../../store/slices/headsSlice';
+import { openDrawer, openHistoryDrawer } from '../../store/slices/uiSlice';
+import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
+import { MOCK_CONFIGURES } from '../../services/mocks/configures';
+import HeadDetailPanel from '../../components/detail/HeadDetailPanel';
+import SubheadDetailPanel from '../../components/detail/SubheadDetailPanel';
+import ConfigureDetailPanel from '../../components/detail/ConfigureDetailPanel';
 import EmptyState from 'wynta-react-common/components/EmptyState';
-import type { DrawerState, HistoryDrawerState } from '@/types';
+import type { DrawerState, HistoryDrawerState } from '../../types';
 
 interface ActionPayload {
   type: string;

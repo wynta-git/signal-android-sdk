@@ -1,7 +1,7 @@
 'use client';
 import { memo, useCallback } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
-import type { BonusConfigure, NodeType } from '@/types';
+import type { BonusConfigure, NodeType } from '../../types';
 
 interface MenuEvent {
   type: NodeType;

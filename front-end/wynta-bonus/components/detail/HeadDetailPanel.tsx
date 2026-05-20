@@ -1,16 +1,16 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { selectNode } from '@/store/slices/treeSlice';
-import { getUsage, formatRelative } from '@/services/mocks/utils';
+import { useAppDispatch } from '../../store/hooks';
+import { selectNode } from '../../store/slices/treeSlice';
+import { getUsage, formatRelative } from '../../services/mocks/utils';
 import Badge from 'wynta-react-common/components/Badge';
 import Icon from 'wynta-react-common/components/Icon';
-import BudgetGrid from '@/components/primitives/BudgetGrid';
-import UsageBreakdown from '@/components/primitives/UsageBreakdown';
-import OwnerPill from '@/components/primitives/OwnerPill';
+import BudgetGrid from '../../components/primitives/BudgetGrid';
+import UsageBreakdown from '../../components/primitives/UsageBreakdown';
+import OwnerPill from '../../components/primitives/OwnerPill';
 import ActionBar from 'wynta-react-common/components/ActionBar';
 import Toggle from 'wynta-react-common/components/Toggle';
-import type { BonusHead } from '@/types';
+import type { BonusHead } from '../../types';
 
 interface HeadDetailPanelProps {
   head: BonusHead;

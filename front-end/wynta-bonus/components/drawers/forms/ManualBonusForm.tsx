@@ -1,14 +1,14 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { createManualBonus } from '@/store/slices/subheadsSlice';
+import { useAppDispatch } from '../../../store/hooks';
+import { createManualBonus } from '../../../store/slices/subheadsSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
-import DrawerFooter from '@/components/drawers/DrawerFooter';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import { MANUAL_SEGMENTS } from '@/services/mocks/constants';
-import { formatINRCompact } from '@/services/mocks/utils';
-import type { DrawerState, Segment } from '@/types';
+import DrawerFooter from '../../../components/drawers/DrawerFooter';
+import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
+import { MANUAL_SEGMENTS } from '../../../services/mocks/constants';
+import { formatINRCompact } from '../../../services/mocks/utils';
+import type { DrawerState, Segment } from '../../../types';
 
 interface ParsedRow {
   pid: string;

@@ -1,8 +1,8 @@
 'use client';
-import { useAppSelector } from '@/store/hooks';
-import { formatINRCompact } from '@/services/mocks/utils';
+import { useAppSelector } from '../../store/hooks';
+import { formatINRCompact } from '../../services/mocks/utils';
 import CountUp from 'wynta-react-common/components/CountUp';
-import CountUpCurrency from '@/components/primitives/CountUpCurrency';
+import CountUpCurrency from '../../components/primitives/CountUpCurrency';
 import Icon from 'wynta-react-common/components/Icon';
 
 export default function KpiStrip() {

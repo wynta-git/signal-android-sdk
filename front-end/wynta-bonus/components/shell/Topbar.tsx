@@ -1,16 +1,16 @@
 'use client';
 import { useEffect } from 'react';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
-import { setSelectedBrand, setToast } from '@/store/slices/uiSlice';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { setSelectedBrand, setToast } from '../../store/slices/uiSlice';
 import { fetchBrands, selectAllBrands } from 'wynta-react-common/store/slices/brandsSlice';
-import { selectNode, expandAncestorsOf } from '@/store/slices/treeSlice';
+import { selectNode, expandAncestorsOf } from '../../store/slices/treeSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import BrandSwitcher from './BrandSwitcher';
 import GlobalSearch from './GlobalSearch';
-import { MOCK_HEADS } from '@/services/mocks/heads';
-import { MOCK_SUBHEADS } from '@/services/mocks/subheads';
-import { MOCK_CONFIGURES } from '@/services/mocks/configures';
-import type { SelectedNode } from '@/types';
+import { MOCK_HEADS } from '../../services/mocks/heads';
+import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
+import { MOCK_CONFIGURES } from '../../services/mocks/configures';
+import type { SelectedNode } from '../../types';
 
 interface Crumb {
   label: string;

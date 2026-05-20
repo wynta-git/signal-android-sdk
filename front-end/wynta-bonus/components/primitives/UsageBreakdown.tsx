@@ -3,9 +3,9 @@ import { useState } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import LifecycleBar from './LifecycleBar';
 import type { UsageData } from './LifecycleBar';
-import { LIFECYCLE_STATES } from '@/services/mocks/lifecycle';
-import { STATE_META } from '@/services/mocks/history';
-import { usageGranted, formatINRCompact } from '@/services/mocks/utils';
+import { LIFECYCLE_STATES } from '../../services/mocks/lifecycle';
+import { STATE_META } from '../../services/mocks/history';
+import { usageGranted, formatINRCompact } from '../../services/mocks/utils';
 
 interface UsagePeriodEntry {
   id: string;

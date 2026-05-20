@@ -1,5 +1,5 @@
 import { iso } from './iso';
-import type { BudgetPeriod } from '@/types';
+import type { BudgetPeriod } from '../../types';
 
 // Configure-level budgets (cohort caps per period). Defaults to inheriting from parent if absent.
 export const CONFIGURE_BUDGETS: Record<number, BudgetPeriod[]> = {
