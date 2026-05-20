@@ -2,6 +2,7 @@
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { selectNode } from '../../store/slices/treeSlice';
 import Icon from 'wynta-react-common/components/Icon';
+import { MOCK_CONFIGURES } from '../../services/mocks/configures';
 
 interface Crumb {
   label: string;
@@ -11,29 +12,43 @@ interface Crumb {
 }
 
 export default function Topbar() {
-  const dispatch = useAppDispatch();
-  const selectedNode      = useAppSelector(s => s.tree.selectedNode);
-  const headEntities      = useAppSelector(s => s.heads.entities);
-  const subheadEntities   = useAppSelector(s => s.subheads.entities);
+  const dispatch       = useAppDispatch();
+  const selectedNode   = useAppSelector(s => s.tree.selectedNode);
+  const headEntities   = useAppSelector(s => s.heads.entities);
+  const headIds        = useAppSelector(s => s.heads.ids);
   const configureEntities = useAppSelector(s => s.configures.entities);
+
+  // Find a subhead summary and its parent head by subhead id
+  function findSubhead(subId: number) {
+    for (const hid of headIds) {
+      const h = headEntities[hid];
+      const s = h?.subheads?.find(sub => sub.id === subId);
+      if (s && h) return { sub: s, head: h };
+    }
+    return null;
+  }
 
   const crumbs: Crumb[] = [{ label: 'Bonus', onClick: () => dispatch(selectNode(null)) }];
   if (selectedNode) {
     if (selectedNode.type === 'head') {
       const h = headEntities[selectedNode.id];
       if (h) crumbs.push({ label: h.name, current: true });
+
     } else if (selectedNode.type === 'subhead') {
-      const s = subheadEntities[selectedNode.id];
-      if (s) {
-        crumbs.push({ label: s.parent_head_name ?? '' });
-        crumbs.push({ label: s.name, current: true });
+      const found = findSubhead(selectedNode.id);
+      if (found) {
+        crumbs.push({ label: found.head.name });
+        crumbs.push({ label: found.sub.name, current: true });
       }
+
     } else if (selectedNode.type === 'configure') {
-      const c = configureEntities[selectedNode.id];
-      const s = c && subheadEntities[c.subhead_id];
-      if (s) {
-        crumbs.push({ label: s.parent_head_name ?? '' });
-        crumbs.push({ label: s.name });
+      const c = configureEntities[selectedNode.id] ?? MOCK_CONFIGURES[selectedNode.id];
+      if (c) {
+        const found = findSubhead(c.subhead_id);
+        if (found) {
+          crumbs.push({ label: found.head.name });
+          crumbs.push({ label: found.sub.name });
+        }
         const fullName = c.name;
         const shortName = fullName.split(/\s+[—–-]\s+/)[0];
         crumbs.push({ label: shortName, fullLabel: fullName, current: true });
