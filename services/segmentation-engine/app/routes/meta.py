@@ -37,9 +37,10 @@ async def list_event_properties(
     event_name: str,
     ch=Depends(_ch),
     redis=Depends(_redis),
+    db=Depends(_db),
     meta=Depends(_meta),
 ) -> list[str]:
-    return await meta.get_event_properties(project_id, event_name, ch, redis)
+    return await meta.get_event_properties(project_id, event_name, ch, redis, db)
 
 
 @router.get("/traits")

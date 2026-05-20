@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAM — Campaign Builder</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f6fa;
+      --surface: #ffffff;
+      --surface2: #f0f1f5;
+      --border: #dde1ea;
+      --accent: #4f46e5;
+      --text: #1a1d2e;
+      --text-dim: #7c84a0;
+      --green: #16a34a;
+      --red: #dc2626;
+      --orange: #ea580c;
+      --blue: #2563eb;
+      --purple: #7c3aed;
+      --mono: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Config bar ── */
+    .config-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .config-bar h1 {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: 1px;
+      padding-bottom: 6px;
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+
+    .config-bar h1 span {
+      color: var(--text-dim);
+      font-weight: 400;
+      font-size: 13px;
+      letter-spacing: 0;
+    }
+
+    .cfg-field { display: flex; flex-direction: column; gap: 4px; }
+
+    .cfg-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .cfg-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: var(--mono);
+      transition: border-color 0.15s;
+    }
+
+    .cfg-input:focus { outline: none; border-color: var(--accent); }
+    .cfg-input.wide  { width: 260px; }
+    .cfg-input.med   { width: 180px; }
+    .cfg-input.small { width: 140px; }
+
+    /* ── Main layout ── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── Builder pane ── */
+    .builder {
+      width: 52%;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: none;
+      background: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      font-family: inherit;
+      transition: all 0.12s;
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    /* ── Tab content ── */
+    .tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; min-height: 0; }
+    .tab-content.active { display: flex; }
+
+    .builder-scroll {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .card-head {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+    /* ── Form rows ── */
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .form-row label {
+      font-size: 12px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      min-width: 90px;
+    }
+
+    .field {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color 0.15s;
+    }
+
+    .field:focus { outline: none; border-color: var(--accent); }
+    .field.grow { flex: 1; min-width: 120px; }
+    .field.small { width: 80px; }
+    .field.med { width: 160px; }
+    select.field { cursor: pointer; }
+
+    textarea.field {
+      resize: vertical;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.5;
+      min-height: 80px;
+    }
+
+    /* ── Send bar ── */
+    .send-bar {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .send-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 8px 22px;
+      border-radius: 5px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+    }
+
+    .send-btn:hover:not(:disabled) { opacity: 0.85; }
+    .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--mono);
+    }
+
+    .s2xx { background: #dcfce7; color: var(--green); }
+    .s4xx { background: #fee2e2; color: var(--red); }
+    .s5xx { background: #ffedd5; color: var(--orange); }
+    .elapsed { font-size: 11px; color: var(--text-dim); font-family: var(--mono); }
+
+    /* ── Campaign list ── */
+    .list-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .campaign-row {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .campaign-row:last-child { border-bottom: none; }
+
+    .campaign-row:hover { background: var(--bg); }
+
+    .campaign-name {
+      font-size: 13px;
+      font-weight: 600;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .campaign-id {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      margin-top: 2px;
+    }
+
+    .campaign-trigger {
+      font-size: 10px;
+      font-family: var(--mono);
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    /* ── Status chips ── */
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-family: var(--mono);
+      white-space: nowrap;
+      letter-spacing: 0.3px;
+    }
+
+    .chip-draft     { background: #f1f5f9; color: #64748b; }
+    .chip-scheduled { background: #dbeafe; color: var(--blue); }
+    .chip-running   { background: #dcfce7; color: var(--green); }
+    .chip-paused    { background: #ffedd5; color: var(--orange); }
+    .chip-completed { background: #f1f5f9; color: #64748b; }
+    .chip-cancelled { background: #fee2e2; color: var(--red); }
+    .chip-push      { background: #ede9fe; color: var(--purple); }
+    .chip-email     { background: #dbeafe; color: var(--blue); }
+    .chip-sms       { background: #dcfce7; color: var(--green); }
+    .chip-webhook   { background: #ffedd5; color: var(--orange); }
+
+    /* ── Action buttons ── */
+    .action-btn {
+      padding: 3px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      background: var(--surface);
+      color: var(--text-dim);
+      transition: all 0.12s;
+      white-space: nowrap;
+    }
+
+    .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+
+    /* ── Template row ── */
+    .template-row {
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .template-row:last-child { border-bottom: none; }
+    .template-name { font-size: 13px; font-weight: 600; flex: 1; }
+    .template-id { font-size: 10px; color: var(--text-dim); font-family: var(--mono); margin-top: 2px; }
+
+    /* ── Refresh btn ── */
+    .refresh-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: all 0.12s;
+    }
+
+    .refresh-btn:hover { background: var(--surface2); color: var(--text); }
+
+    /* ── Preview pane ── */
+    .preview {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .preview-head {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .preview-scroll {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .preview-section {
+      padding: 14px;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-all;
+      flex: 1;
+    }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    .preview-label {
+      padding: 7px 14px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .response-section {
+      padding: 14px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-all;
+      min-height: 80px;
+      flex-shrink: 0;
+    }
+
+    /* ── JSON highlight ── */
+    .jk { color: #1a1d2e; }
+    .js { color: #b45309; }
+    .jn { color: #16a34a; }
+    .jb { color: #7c3aed; }
+    .jl { color: #7c3aed; }
+
+    .text-dim { color: var(--text-dim); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+  <!-- Config bar -->
+  <div class="config-bar">
+    <h1>PAM <span>/ Campaign Builder</span></h1>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Campaign Engine URL</span>
+      <input class="cfg-input med" id="cfg-url" value="http://localhost:8004"
+             oninput="saveConfig(); refreshAll()">
+    </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Project ID</span>
+      <input class="cfg-input small" id="cfg-project" value="proj_abc123"
+             oninput="saveConfig(); refreshAll()">
+    </div>
+  </div>
+
+  <div class="main">
+
+    <!-- Builder pane -->
+    <div class="builder">
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-templates" onclick="switchTab('templates')">Templates</button>
+        <button class="tab-btn" id="tab-campaigns" onclick="switchTab('campaigns')">Campaigns</button>
+      </div>
+
+      <!-- ── Templates tab ── -->
+      <div class="tab-content active" id="content-templates">
+        <div class="builder-scroll">
+
+          <!-- Create template -->
+          <div class="card">
+            <div class="card-head">Create Template</div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Name</label>
+                <input class="field grow" id="tmpl-name" placeholder="Cart Recovery Push"
+                       oninput="renderTmplPreview()">
+              </div>
+              <div class="form-row">
+                <label>Channel</label>
+                <select class="field med" id="tmpl-channel" onchange="renderTmplPreview()">
+                  <option value="push">push</option>
+                  <option value="email">email</option>
+                  <option value="sms">sms</option>
+                  <option value="webhook">webhook</option>
+                </select>
+              </div>
+              <div class="form-row" style="align-items:flex-start">
+                <label style="padding-top:6px">Body (JSON)</label>
+                <textarea class="field grow" id="tmpl-body" rows="4"
+                          placeholder='{"title": "Hello!", "message": "Your message here."}'
+                          oninput="renderTmplPreview()"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- Existing templates -->
+          <div class="card">
+            <div class="card-head">
+              <span>Existing Templates</span>
+              <button class="refresh-btn" onclick="fetchTemplates()" title="Refresh">↻</button>
+            </div>
+            <div id="template-list">
+              <div class="list-empty">Loading…</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="send-bar">
+          <button class="send-btn" id="tmpl-send-btn" onclick="createTemplate()">Create Template</button>
+          <span id="tmpl-res-meta"></span>
+          <span class="elapsed" id="tmpl-res-elapsed"></span>
+        </div>
+      </div>
+
+      <!-- ── Campaigns tab ── -->
+      <div class="tab-content" id="content-campaigns">
+        <div class="builder-scroll">
+
+          <!-- Create campaign -->
+          <div class="card">
+            <div class="card-head">Create Campaign</div>
+            <div class="card-body">
+
+              <div class="form-row">
+                <label>Name</label>
+                <input class="field grow" id="camp-name" placeholder="Cart Abandonment Recovery"
+                       oninput="renderCampPreview()">
+              </div>
+
+              <div class="form-row">
+                <label>Trigger type</label>
+                <select class="field med" id="camp-trigger-type" onchange="onTriggerChange()">
+                  <option value="event">event</option>
+                  <option value="scheduled">scheduled</option>
+                  <option value="one_off">one_off</option>
+                </select>
+              </div>
+
+              <!-- event fields -->
+              <div id="trigger-event-fields">
+                <div class="form-row">
+                  <label>Event name</label>
+                  <input class="field grow" id="camp-event-name" placeholder="cart_abandoned"
+                         oninput="renderCampPreview()">
+                </div>
+                <div class="form-row">
+                  <label>Delay</label>
+                  <input class="field small" type="number" min="0" id="camp-delay" value="0"
+                         oninput="renderCampPreview()">
+                  <span class="text-dim">minutes after event</span>
+                </div>
+              </div>
+
+              <!-- scheduled fields -->
+              <div id="trigger-scheduled-fields" style="display:none">
+                <div class="form-row">
+                  <label>Cron</label>
+                  <input class="field grow" id="camp-cron" placeholder="0 9 * * MON"
+                         oninput="renderCampPreview()">
+                  <span class="text-dim" style="font-size:11px">UTC</span>
+                </div>
+              </div>
+
+              <!-- one_off fields -->
+              <div id="trigger-oneoff-fields" style="display:none">
+                <div class="form-row">
+                  <label>Send at</label>
+                  <input class="field grow" type="datetime-local" id="camp-send-at"
+                         oninput="renderCampPreview()">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label>Audience</label>
+                <select class="field med" id="camp-audience-type" onchange="onAudienceChange()">
+                  <option value="all">All users</option>
+                  <option value="segment">Segment</option>
+                </select>
+              </div>
+
+              <div id="audience-segment-field" style="display:none">
+                <div class="form-row">
+                  <label>Segment ID</label>
+                  <input class="field grow" id="camp-segment-id" placeholder="seg_active_buyers"
+                         oninput="renderCampPreview()">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label>Channel</label>
+                <select class="field med" id="camp-channel" onchange="renderCampPreview()">
+                  <option value="push">push</option>
+                  <option value="email">email</option>
+                  <option value="sms">sms</option>
+                  <option value="webhook">webhook</option>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <label>Template ID</label>
+                <select class="field grow" id="camp-template-id" onchange="renderCampPreview()">
+                  <option value="">— select template —</option>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <label>Per-user/day</label>
+                <input class="field small" type="number" min="1" id="camp-rate-day" value="1"
+                       oninput="renderCampPreview()">
+                <span class="text-dim">max sends per user per day</span>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Existing campaigns -->
+          <div class="card">
+            <div class="card-head">
+              <span>Existing Campaigns</span>
+              <button class="refresh-btn" onclick="fetchCampaigns()" title="Refresh">↻</button>
+            </div>
+            <div id="campaign-list">
+              <div class="list-empty">Loading…</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="send-bar">
+          <button class="send-btn" id="camp-send-btn" onclick="createCampaign()">Create Campaign</button>
+          <span id="camp-res-meta"></span>
+          <span class="elapsed" id="camp-res-elapsed"></span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Preview pane -->
+    <div class="preview">
+      <div class="preview-head" id="preview-head">JSON Preview</div>
+      <div class="preview-scroll">
+        <div class="preview-section" id="json-preview">
+          <span style="color:var(--text-dim)">Fill in the form to see the payload.</span>
+        </div>
+        <hr class="divider">
+        <div class="preview-label">Response</div>
+        <div class="response-section" id="res-body">
+          <span style="color:var(--text-dim)">Hit Create to see the response.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ── State ────────────────────────────────────────────────
+    let activeTab = 'templates';
+    let templates = [];
+    let campaigns = [];
+
+    function baseUrl()   { return document.getElementById('cfg-url').value.replace(/\/$/, ''); }
+    function projectId() { return document.getElementById('cfg-project').value.trim(); }
+
+    // ── Tabs ─────────────────────────────────────────────────
+    function switchTab(tab) {
+      activeTab = tab;
+      document.getElementById('tab-templates').classList.toggle('active', tab === 'templates');
+      document.getElementById('tab-campaigns').classList.toggle('active', tab === 'campaigns');
+      document.getElementById('content-templates').classList.toggle('active', tab === 'templates');
+      document.getElementById('content-campaigns').classList.toggle('active', tab === 'campaigns');
+
+      if (tab === 'templates') {
+        document.getElementById('preview-head').textContent = 'JSON Preview — POST /templates';
+        renderTmplPreview();
+      } else {
+        document.getElementById('preview-head').textContent = 'JSON Preview — POST /campaigns';
+        renderCampPreview();
+      }
+      clearResponse();
+    }
+
+    // ── Config persistence ────────────────────────────────────
+    function saveConfig() {
+      localStorage.setItem('pam_camp_url',     document.getElementById('cfg-url').value);
+      localStorage.setItem('pam_camp_project', document.getElementById('cfg-project').value);
+    }
+
+    function loadConfig() {
+      const url = localStorage.getItem('pam_camp_url');
+      const pid = localStorage.getItem('pam_camp_project');
+      if (url) document.getElementById('cfg-url').value = url;
+      if (pid) document.getElementById('cfg-project').value = pid;
+    }
+
+    // ── Trigger type change ───────────────────────────────────
+    function onTriggerChange() {
+      const t = document.getElementById('camp-trigger-type').value;
+      document.getElementById('trigger-event-fields').style.display     = t === 'event'     ? '' : 'none';
+      document.getElementById('trigger-scheduled-fields').style.display = t === 'scheduled' ? '' : 'none';
+      document.getElementById('trigger-oneoff-fields').style.display    = t === 'one_off'   ? '' : 'none';
+      renderCampPreview();
+    }
+
+    function onAudienceChange() {
+      const v = document.getElementById('camp-audience-type').value;
+      document.getElementById('audience-segment-field').style.display = v === 'segment' ? '' : 'none';
+      renderCampPreview();
+    }
+
+    // ── Fetch templates ───────────────────────────────────────
+    async function fetchTemplates() {
+      document.getElementById('template-list').innerHTML = '<div class="list-empty">Loading…</div>';
+      try {
+        const res = await fetch(`${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/templates`);
+        if (res.ok) {
+          templates = await res.json();
+          renderTemplateList();
+          populateTemplateSelect();
+        } else {
+          document.getElementById('template-list').innerHTML = `<div class="list-empty">Error ${res.status}</div>`;
+        }
+      } catch (e) {
+        document.getElementById('template-list').innerHTML = `<div class="list-empty">Could not reach campaign-engine</div>`;
+      }
+    }
+
+    function renderTemplateList() {
+      const el = document.getElementById('template-list');
+      if (!templates.length) {
+        el.innerHTML = '<div class="list-empty">No templates yet.</div>';
+        return;
+      }
+      el.innerHTML = templates.map(t => `
+        <div class="template-row">
+          <div style="flex:1; min-width:0">
+            <div class="template-name">${esc(t.name)}</div>
+            <div class="template-id">${esc(t.template_id)}</div>
+          </div>
+          <span class="chip chip-${esc(t.channel)}">${esc(t.channel)}</span>
+        </div>
+      `).join('');
+    }
+
+    function populateTemplateSelect() {
+      const sel = document.getElementById('camp-template-id');
+      const current = sel.value;
+      sel.innerHTML = '<option value="">— select template —</option>' +
+        templates.map(t =>
+          `<option value="${esc(t.template_id)}" ${current === t.template_id ? 'selected' : ''}>
+            ${esc(t.name)} (${esc(t.template_id)})
+          </option>`
+        ).join('');
+    }
+
+    // ── Fetch campaigns ───────────────────────────────────────
+    async function fetchCampaigns() {
+      document.getElementById('campaign-list').innerHTML = '<div class="list-empty">Loading…</div>';
+      try {
+        const res = await fetch(`${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns`);
+        if (res.ok) {
+          campaigns = await res.json();
+          renderCampaignList();
+        } else {
+          document.getElementById('campaign-list').innerHTML = `<div class="list-empty">Error ${res.status}</div>`;
+        }
+      } catch (e) {
+        document.getElementById('campaign-list').innerHTML = `<div class="list-empty">Could not reach campaign-engine</div>`;
+      }
+    }
+
+    function renderCampaignList() {
+      const el = document.getElementById('campaign-list');
+      if (!campaigns.length) {
+        el.innerHTML = '<div class="list-empty">No campaigns yet.</div>';
+        return;
+      }
+      el.innerHTML = campaigns.map(c => {
+        const actions = buildActions(c);
+        const triggerLabel = c.trigger.type === 'event'
+          ? `event: ${c.trigger.event_name || '?'}`
+          : c.trigger.type === 'scheduled'
+          ? `cron: ${c.trigger.cron || '?'}`
+          : `one_off`;
+        return `
+          <div class="campaign-row">
+            <div style="flex:1; min-width:0">
+              <div class="campaign-name">${esc(c.name)}</div>
+              <div class="campaign-id">${esc(c.campaign_id)} · <span class="campaign-trigger">${esc(triggerLabel)}</span></div>
+            </div>
+            <span class="chip chip-${esc(c.channel)}" style="margin-right:4px">${esc(c.channel)}</span>
+            <span class="chip chip-${esc(c.status)}">${esc(c.status)}</span>
+            <div style="display:flex; gap:4px; margin-left:8px">${actions}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function buildActions(c) {
+      const btns = [];
+      if (c.status === 'draft') {
+        btns.push(`<button class="action-btn" onclick="lifecycleAction('${c.campaign_id}','activate')">Activate</button>`);
+      }
+      if (c.status === 'running') {
+        btns.push(`<button class="action-btn" onclick="lifecycleAction('${c.campaign_id}','pause')">Pause</button>`);
+      }
+      if (c.status === 'paused') {
+        btns.push(`<button class="action-btn" onclick="lifecycleAction('${c.campaign_id}','resume')">Resume</button>`);
+      }
+      if (!['completed','cancelled'].includes(c.status)) {
+        btns.push(`<button class="action-btn danger" onclick="lifecycleAction('${c.campaign_id}','cancel')">Cancel</button>`);
+      }
+      return btns.join('');
+    }
+
+    async function lifecycleAction(campaignId, action) {
+      try {
+        const res = await fetch(
+          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns/${campaignId}/${action}`,
+          { method: 'POST' }
+        );
+        const data = await res.json().catch(() => null);
+        const cls = res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx';
+        document.getElementById('camp-res-meta').innerHTML = `<span class="status-badge ${cls}">${res.status} ${action}</span>`;
+        document.getElementById('res-body').innerHTML = data !== null
+          ? highlight(JSON.stringify(data, null, 2))
+          : '<span style="color:var(--text-dim)">(empty)</span>';
+        await fetchCampaigns();
+      } catch (e) {
+        document.getElementById('camp-res-meta').innerHTML = `<span class="status-badge s4xx">Network Error</span>`;
+        document.getElementById('res-body').textContent = String(e);
+      }
+    }
+
+    // ── Build payloads ────────────────────────────────────────
+    function buildTmplPayload() {
+      let body = {};
+      try { body = JSON.parse(document.getElementById('tmpl-body').value || '{}'); } catch (_) {}
+      return {
+        name:    document.getElementById('tmpl-name').value || 'Unnamed Template',
+        channel: document.getElementById('tmpl-channel').value,
+        body,
+      };
+    }
+
+    function buildCampPayload() {
+      const triggerType = document.getElementById('camp-trigger-type').value;
+      const trigger = { type: triggerType };
+
+      if (triggerType === 'event') {
+        trigger.event_name = document.getElementById('camp-event-name').value || '';
+      } else if (triggerType === 'scheduled') {
+        trigger.cron = document.getElementById('camp-cron').value || '';
+      } else if (triggerType === 'one_off') {
+        const dt = document.getElementById('camp-send-at').value;
+        trigger.send_at = dt ? new Date(dt).toISOString() : '';
+      }
+
+      const audienceType = document.getElementById('camp-audience-type').value;
+      const audience = audienceType === 'all'
+        ? { all: true }
+        : { segment_id: document.getElementById('camp-segment-id').value || '' };
+
+      const payload = {
+        name:        document.getElementById('camp-name').value || 'Unnamed Campaign',
+        trigger,
+        audience,
+        channel:     document.getElementById('camp-channel').value,
+        template_id: document.getElementById('camp-template-id').value || '',
+        rate_limit:  { per_user_per_day: parseInt(document.getElementById('camp-rate-day').value) || 1 },
+      };
+
+      if (triggerType === 'event') {
+        const delay = parseInt(document.getElementById('camp-delay').value) || 0;
+        if (delay > 0) payload.delay = { minutes: delay };
+      }
+
+      return payload;
+    }
+
+    // ── Preview render ────────────────────────────────────────
+    function renderTmplPreview() {
+      const payload = buildTmplPayload();
+      document.getElementById('json-preview').innerHTML = highlight(JSON.stringify(payload, null, 2));
+    }
+
+    function renderCampPreview() {
+      const payload = buildCampPayload();
+      document.getElementById('json-preview').innerHTML = highlight(JSON.stringify(payload, null, 2));
+    }
+
+    // ── Create template ───────────────────────────────────────
+    async function createTemplate() {
+      const payload = buildTmplPayload();
+
+      // Validate body JSON
+      const bodyRaw = document.getElementById('tmpl-body').value.trim();
+      if (bodyRaw) {
+        try { JSON.parse(bodyRaw); } catch (_) {
+          document.getElementById('res-body').innerHTML =
+            `<span style="color:var(--red)">Body is not valid JSON</span>`;
+          return;
+        }
+      }
+
+      const btn = document.getElementById('tmpl-send-btn');
+      btn.disabled = true; btn.textContent = 'Creating…';
+
+      const t0 = performance.now();
+      try {
+        const res = await fetch(
+          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/templates`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+        );
+        const ms = Math.round(performance.now() - t0);
+        const data = await res.json().catch(() => null);
+        const cls = res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx';
+        document.getElementById('tmpl-res-meta').innerHTML = `<span class="status-badge ${cls}">${res.status} ${res.statusText}</span>`;
+        document.getElementById('tmpl-res-elapsed').textContent = `${ms}ms`;
+        document.getElementById('res-body').innerHTML = data !== null
+          ? highlight(JSON.stringify(data, null, 2))
+          : '<span style="color:var(--text-dim)">(empty body)</span>';
+        if (res.ok) { await fetchTemplates(); }
+      } catch (e) {
+        document.getElementById('tmpl-res-meta').innerHTML = `<span class="status-badge s4xx">Network Error</span>`;
+        document.getElementById('res-body').textContent = String(e) + '\n\nIs campaign-engine running on port 8004?';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Create Template';
+      }
+    }
+
+    // ── Create campaign ───────────────────────────────────────
+    async function createCampaign() {
+      const payload = buildCampPayload();
+
+      if (!payload.template_id) {
+        document.getElementById('res-body').innerHTML =
+          `<span style="color:var(--red)">Select a template first</span>`;
+        return;
+      }
+
+      const btn = document.getElementById('camp-send-btn');
+      btn.disabled = true; btn.textContent = 'Creating…';
+
+      const t0 = performance.now();
+      try {
+        const res = await fetch(
+          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+        );
+        const ms = Math.round(performance.now() - t0);
+        const data = await res.json().catch(() => null);
+        const cls = res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx';
+        document.getElementById('camp-res-meta').innerHTML = `<span class="status-badge ${cls}">${res.status} ${res.statusText}</span>`;
+        document.getElementById('camp-res-elapsed').textContent = `${ms}ms`;
+        document.getElementById('res-body').innerHTML = data !== null
+          ? highlight(JSON.stringify(data, null, 2))
+          : '<span style="color:var(--text-dim)">(empty body)</span>';
+        if (res.ok) { await fetchCampaigns(); }
+      } catch (e) {
+        document.getElementById('camp-res-meta').innerHTML = `<span class="status-badge s4xx">Network Error</span>`;
+        document.getElementById('res-body').textContent = String(e) + '\n\nIs campaign-engine running on port 8004?';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Create Campaign';
+      }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────
+    function refreshAll() {
+      fetchTemplates();
+      fetchCampaigns();
+    }
+
+    function clearResponse() {
+      document.getElementById('res-body').innerHTML =
+        '<span style="color:var(--text-dim)">Hit Create to see the response.</span>';
+    }
+
+    function highlight(json) {
+      return escHtml(json).replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+        match => {
+          if (/^"/.test(match)) {
+            if (/:$/.test(match)) return `<span class="jk">${match}</span>`;
+            return `<span class="js">${match}</span>`;
+          }
+          if (/true|false/.test(match)) return `<span class="jb">${match}</span>`;
+          if (/null/.test(match))       return `<span class="jl">${match}</span>`;
+          return `<span class="jn">${match}</span>`;
+        }
+      );
+    }
+
+    function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+    function escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+    // ── Init ─────────────────────────────────────────────────
+    loadConfig();
+    renderTmplPreview();
+    fetchTemplates();
+    fetchCampaigns();
+  </script>
+
+</body>
+</html>

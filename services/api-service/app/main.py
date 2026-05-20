@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.kafka_producer import KafkaEventProducer
 from shared.logging_config import configure_logging
+from app.routes.admin import router as admin_router
 from app.routes.alias import router as alias_router
 from app.routes.identify import router as identify_router
 from app.routes.ready import router as ready_router
@@ -71,7 +72,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Client-Id"],
+    allow_headers=["Authorization", "Content-Type", "X-Client-Id", "X-Idempotency-Key"],
     expose_headers=["X-Request-Id"],
 )
 
@@ -100,6 +101,7 @@ async def body_size_limit(request: Request, call_next: object) -> Response:
     return await call_next(request)  # type: ignore[operator]
 
 
+app.include_router(admin_router)
 app.include_router(track_router)
 app.include_router(identify_router)
 app.include_router(alias_router)

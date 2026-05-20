@@ -1,6 +1,6 @@
 # Redis Usage
 
-Redis is used for ephemeral state only. **Nothing in Redis should be the source of truth for anything** — assume it can be flushed at any time.
+Redis is used for ephemeral state and segment membership. Most keys are caches that can be flushed safely; segment membership Sets are the primary store and will be rebuilt on the next evaluation run if lost.
 
 ## Use cases
 
@@ -10,7 +10,7 @@ Redis is used for ephemeral state only. **Nothing in Redis should be the source 
 | Token validation cache | api-service | yes |
 | Idempotency keys (recent `event_id`s) | api-service | yes |
 | Per-user campaign send dedupe | notifications-engine | yes |
-| Segment membership cache (hot reads) | campaign-engine | yes |
+| Segment membership (primary store) | segmentation-engine | rebuilt on next eval |
 | Pub/Sub for real-time triggers (optional) | various | yes |
 
 ## Key naming convention
@@ -23,7 +23,8 @@ Redis is used for ephemeral state only. **Nothing in Redis should be the source 
 - `pam:event_route_map` — Hash: field=`event_name`, value=JSON `["topic1","topic2"]`. Runtime index of event→fanout topics. Source of truth is `event_routes` in MongoDB. TTL 5 min; rebuilt on miss.
 - `pam:dedupe:event:{event_id}` — value=`1`, TTL 24h
 - `pam:campaign:sent:{campaign_id}:{user_id}` — TTL = campaign rate-limit window
-- `pam:segment:{segment_id}:members` — Set of user_ids, refreshed on segment compute
+- `pam:seg:{project_id}:{segment_id}:members` — **Set** of user_ids; written by segmentation-engine on every evaluation; no TTL (managed explicitly via delete + re-insert on each run)
+- `pam:seg:{project_id}:{segment_id}:joined` — **Hash** of `{user_id: ISO-timestamp}`; records when each user first joined the segment; cleared together with `:members` on segment delete or full re-evaluation
 
 ## TTLs (always set them)
 

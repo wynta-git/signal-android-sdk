@@ -4,24 +4,25 @@ from typing import Any
 import structlog
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ASCENDING, IndexModel
+from redis.asyncio import Redis
 
 log = structlog.get_logger()
 
 SEGMENTS_COL = "segments"
-MEMBERSHIPS_COL = "segment_memberships"
+
+
+def _members_key(project_id: str, segment_id: str) -> str:
+    return f"pam:seg:{project_id}:{segment_id}:members"
+
+
+def _joined_key(project_id: str, segment_id: str) -> str:
+    return f"pam:seg:{project_id}:{segment_id}:joined"
 
 
 async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     try:
         await db[SEGMENTS_COL].create_indexes([
             IndexModel([("project_id", ASCENDING), ("segment_id", ASCENDING)], unique=True),
-        ])
-        await db[MEMBERSHIPS_COL].create_indexes([
-            IndexModel(
-                [("project_id", ASCENDING), ("segment_id", ASCENDING), ("user_id", ASCENDING)],
-                unique=True,
-            ),
-            IndexModel([("project_id", ASCENDING), ("user_id", ASCENDING)]),
         ])
         log.info("mongodb_indexes.ensured")
     except Exception as exc:
@@ -69,7 +70,6 @@ async def delete_segment(
         {"project_id": project_id, "segment_id": segment_id}
     )
     if result.deleted_count:
-        await delete_memberships(db, project_id, segment_id)
         log.info("segment.deleted", project_id=project_id, segment_id=segment_id)
     return result.deleted_count > 0
 
@@ -78,45 +78,39 @@ async def update_segment_size(
     db: AsyncIOMotorDatabase,
     project_id: str,
     segment_id: str,
-    size: int,
-    computed_at: datetime,
+    members_count: int,
+    last_refresh_time: datetime,
 ) -> None:
     await db[SEGMENTS_COL].update_one(
         {"project_id": project_id, "segment_id": segment_id},
-        {"$set": {"size": size, "computed_at": computed_at}},
+        {"$set": {"members_count": members_count, "last_refresh_time": last_refresh_time}},
     )
 
 
 async def upsert_membership(
-    db: AsyncIOMotorDatabase, project_id: str, segment_id: str, user_id: str
+    redis: Redis, project_id: str, segment_id: str, user_id: str
 ) -> None:
-    await db[MEMBERSHIPS_COL].update_one(
-        {"project_id": project_id, "segment_id": segment_id, "user_id": user_id},
-        {"$setOnInsert": {"joined_at": datetime.now(tz=timezone.utc)}},
-        upsert=True,
-    )
+    now = datetime.now(tz=timezone.utc).isoformat()
+    async with redis.pipeline(transaction=False) as pipe:
+        pipe.sadd(_members_key(project_id, segment_id), user_id)
+        pipe.hsetnx(_joined_key(project_id, segment_id), user_id, now)
+        await pipe.execute()
 
 
 async def bulk_upsert_memberships(
-    db: AsyncIOMotorDatabase,
+    redis: Redis,
     project_id: str,
     segment_id: str,
     user_ids: set[str],
 ) -> None:
     if not user_ids:
         return
-    from pymongo import UpdateOne
-
-    now = datetime.now(tz=timezone.utc)
-    ops = [
-        UpdateOne(
-            {"project_id": project_id, "segment_id": segment_id, "user_id": uid},
-            {"$setOnInsert": {"joined_at": now}},
-            upsert=True,
-        )
-        for uid in user_ids
-    ]
-    await db[MEMBERSHIPS_COL].bulk_write(ops, ordered=False)
+    now = datetime.now(tz=timezone.utc).isoformat()
+    async with redis.pipeline(transaction=False) as pipe:
+        pipe.sadd(_members_key(project_id, segment_id), *user_ids)
+        for uid in user_ids:
+            pipe.hsetnx(_joined_key(project_id, segment_id), uid, now)
+        await pipe.execute()
     log.info(
         "memberships.upserted",
         project_id=project_id,
@@ -126,47 +120,60 @@ async def bulk_upsert_memberships(
 
 
 async def remove_membership(
-    db: AsyncIOMotorDatabase, project_id: str, segment_id: str, user_id: str
+    redis: Redis, project_id: str, segment_id: str, user_id: str
 ) -> None:
-    await db[MEMBERSHIPS_COL].delete_one(
-        {"project_id": project_id, "segment_id": segment_id, "user_id": user_id}
-    )
+    async with redis.pipeline(transaction=False) as pipe:
+        pipe.srem(_members_key(project_id, segment_id), user_id)
+        pipe.hdel(_joined_key(project_id, segment_id), user_id)
+        await pipe.execute()
 
 
 async def delete_memberships(
-    db: AsyncIOMotorDatabase, project_id: str, segment_id: str
+    redis: Redis, project_id: str, segment_id: str
 ) -> None:
-    result = await db[MEMBERSHIPS_COL].delete_many(
-        {"project_id": project_id, "segment_id": segment_id}
+    await redis.delete(
+        _members_key(project_id, segment_id),
+        _joined_key(project_id, segment_id),
     )
-    log.info(
-        "memberships.cleared",
-        project_id=project_id,
-        segment_id=segment_id,
-        deleted=result.deleted_count,
-    )
+    log.info("memberships.cleared", project_id=project_id, segment_id=segment_id)
 
 
-async def get_user_segment_ids(
-    db: AsyncIOMotorDatabase, project_id: str, user_id: str
-) -> list[str]:
-    cursor = db[MEMBERSHIPS_COL].find(
-        {"project_id": project_id, "user_id": user_id},
-        {"_id": 0, "segment_id": 1},
-    )
-    docs = await cursor.to_list(length=None)
-    return [d["segment_id"] for d in docs]
+async def list_segment_members(
+    redis: Redis,
+    project_id: str,
+    segment_id: str,
+    limit: int,
+    cursor: str | None,
+) -> list[dict[str, Any]]:
+    all_ids = sorted(await redis.smembers(_members_key(project_id, segment_id)))
+    if cursor:
+        all_ids = [uid for uid in all_ids if uid > cursor]
+    page_ids = all_ids[:limit]
+    if not page_ids:
+        return []
+    joined_values = await redis.hmget(_joined_key(project_id, segment_id), *page_ids)
+    return [{"user_id": uid, "joined_at": ts} for uid, ts in zip(page_ids, joined_values)]
+
+
+async def get_membership(
+    redis: Redis,
+    project_id: str,
+    segment_id: str,
+    user_id: str,
+) -> dict[str, Any] | None:
+    async with redis.pipeline(transaction=False) as pipe:
+        pipe.sismember(_members_key(project_id, segment_id), user_id)
+        pipe.hget(_joined_key(project_id, segment_id), user_id)
+        is_member, joined_at = await pipe.execute()
+    if not is_member:
+        return None
+    return {"segment_id": segment_id, "user_id": user_id, "joined_at": joined_at}
 
 
 async def get_segment_member_ids(
-    db: AsyncIOMotorDatabase, project_id: str, segment_id: str
+    redis: Redis, project_id: str, segment_id: str
 ) -> set[str]:
-    cursor = db[MEMBERSHIPS_COL].find(
-        {"project_id": project_id, "segment_id": segment_id},
-        {"_id": 0, "user_id": 1},
-    )
-    docs = await cursor.to_list(length=None)
-    return {d["user_id"] for d in docs}
+    return await redis.smembers(_members_key(project_id, segment_id))
 
 
 async def list_scheduled_segments(

@@ -8,6 +8,8 @@ from clickhouse_connect.driver.asyncclient import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
 
+from shared.clients.mongo import get_field_aliases
+
 log = structlog.get_logger()
 
 _SOFT_TTL = 300   # return stale + background-refresh after this many seconds
@@ -29,11 +31,11 @@ class MetaService:
         return await self._cached(key, redis, lambda: self._fetch_events(project_id, ch))
 
     async def get_event_properties(
-        self, project_id: str, event_name: str, ch: AsyncClient, redis: Redis
+        self, project_id: str, event_name: str, ch: AsyncClient, redis: Redis, db: AsyncIOMotorDatabase
     ) -> list[str]:
         key = f"meta:{project_id}:event_props:{event_name}"
         return await self._cached(
-            key, redis, lambda: self._fetch_event_properties(project_id, event_name, ch)
+            key, redis, lambda: self._fetch_event_properties(project_id, event_name, ch, db)
         )
 
     async def get_traits(
@@ -87,7 +89,7 @@ class MetaService:
             return []
 
     async def _fetch_event_properties(
-        self, project_id: str, event_name: str, ch: AsyncClient
+        self, project_id: str, event_name: str, ch: AsyncClient, db: AsyncIOMotorDatabase
     ) -> list[str]:
         table = f"pam.events_{project_id}"
         try:
@@ -98,7 +100,7 @@ class MetaService:
                 f"ORDER BY prop LIMIT 1000",
                 parameters={"event_name": event_name},
             )
-            return [row[0] for row in result.result_rows]
+            ch_props = [row[0] for row in result.result_rows]
         except Exception as exc:
             log.warning(
                 "meta.fetch_event_properties_failed",
@@ -106,7 +108,10 @@ class MetaService:
                 event_name=event_name,
                 error=str(exc),
             )
-            return []
+            ch_props = []
+
+        aliases = await get_field_aliases(db, project_id, event_name)
+        return sorted(set(ch_props) | set(aliases.keys()))
 
     async def _fetch_traits(self, project_id: str, db: AsyncIOMotorDatabase) -> list[str]:
         pipeline = [

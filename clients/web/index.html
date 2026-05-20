@@ -84,6 +84,36 @@
     .cfg-input.med   { width: 200px; }
     .cfg-input.small { width: 130px; }
 
+    .idem-row { display: flex; gap: 6px; align-items: center; }
+    .idem-key {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-family: var(--mono);
+      width: 270px;
+    }
+    .idem-key.active { color: var(--text); border-color: #3a5a3a; }
+    .regen-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      padding: 6px 9px;
+      border-radius: 5px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .regen-btn:hover { color: var(--text); border-color: var(--accent); }
+    .idem-toggle {
+      width: 14px; height: 14px;
+      cursor: pointer;
+      accent-color: var(--accent);
+      flex-shrink: 0;
+    }
+
     /* ── Layout ── */
     .main {
       display: flex;
@@ -384,6 +414,15 @@
       <input class="cfg-input small" id="cfg-user" value="user_001"
              oninput="saveConfig()">
     </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">X-Idempotency-Key</span>
+      <div class="idem-row">
+        <input type="checkbox" class="idem-toggle" id="cfg-idem-on" onchange="toggleIdem()">
+        <input class="idem-key" id="cfg-idem-key" readonly placeholder="enable to generate">
+        <button class="regen-btn" onclick="regenIdemKey()" title="Generate new key">↺</button>
+      </div>
+    </div>
   </div>
 
   <div class="main">
@@ -504,6 +543,9 @@
         </button>
         <button class="ep-btn" onclick="selectEp('step_over_limit', this)">
           <span class="step-num">9</span>Over limit → 400
+        </button>
+        <button class="ep-btn" onclick="selectEp('step_idempotency', this)">
+          <span class="step-num">10</span>Idempotency key
         </button>
       </div>
 
@@ -936,6 +978,9 @@
         label: 'over limit (101 events) → /v1/track',
         hint: 'Expect HTTP 400 with error_code "payload_too_large". Max allowed is 100 events per request.',
         sample: () => ({ events: Array.from({ length: 101 }, () => ({ event_id: uuidv4(), event_name: 'screen_viewed', schema_version: 1, user_id: userId(), timestamp: nowIso(), sdk: { name: 'pam-web', version: '1.0.0' }, properties: { screen_name: 'home' } })) }) },
+      step_idempotency: { method: 'POST', path: '/v1/track', auth: true, bulk: false,
+        hint: 'Enable X-Idempotency-Key in the config bar, then hit Send twice with the same key. First call processes normally (Kafka publish). Second call returns the same response from Redis — Kafka is never touched. Use ↺ to generate a new key and repeat.',
+        sample: () => ({ events: [{ event_id: uuidv4(), event_name: 'purchase_completed', schema_version: 1, user_id: userId(), session_id: 'sess_' + randHex(8), timestamp: nowIso(), sdk: { name: 'pam-web', version: '1.0.0' }, device: { platform: 'web', os: navigator.platform }, properties: { order_id: 'dep_' + randHex(12), amount: randomAmount(), currency: 'INR' } }] }) },
 
       // ── Session events ──
       login: {
@@ -986,18 +1031,47 @@
     // ── Persist config in localStorage ──────────────────────
 
     function saveConfig() {
-      localStorage.setItem('pam_url',   document.getElementById('cfg-url').value);
-      localStorage.setItem('pam_token', document.getElementById('cfg-token').value);
-      localStorage.setItem('pam_user',  document.getElementById('cfg-user').value);
+      localStorage.setItem('pam_url',      document.getElementById('cfg-url').value);
+      localStorage.setItem('pam_token',    document.getElementById('cfg-token').value);
+      localStorage.setItem('pam_user',     document.getElementById('cfg-user').value);
+      localStorage.setItem('pam_idem_on',  document.getElementById('cfg-idem-on').checked ? '1' : '');
+      localStorage.setItem('pam_idem_key', document.getElementById('cfg-idem-key').value);
     }
 
     function loadConfig() {
-      const url   = localStorage.getItem('pam_url');
-      const token = localStorage.getItem('pam_token');
-      const user  = localStorage.getItem('pam_user');
+      const url    = localStorage.getItem('pam_url');
+      const token  = localStorage.getItem('pam_token');
+      const user   = localStorage.getItem('pam_user');
+      const iemOn  = localStorage.getItem('pam_idem_on');
+      const iemKey = localStorage.getItem('pam_idem_key');
       if (url)   document.getElementById('cfg-url').value   = url;
       if (token) document.getElementById('cfg-token').value = token;
       if (user)  document.getElementById('cfg-user').value  = user;
+      if (iemOn) {
+        document.getElementById('cfg-idem-on').checked = true;
+        document.getElementById('cfg-idem-key').value  = iemKey || uuidv4();
+        document.getElementById('cfg-idem-key').classList.add('active');
+      }
+    }
+
+    function toggleIdem() {
+      const on  = document.getElementById('cfg-idem-on').checked;
+      const inp = document.getElementById('cfg-idem-key');
+      if (on) {
+        if (!inp.value) inp.value = uuidv4();
+        inp.classList.add('active');
+      } else {
+        inp.classList.remove('active');
+      }
+      saveConfig();
+    }
+
+    function regenIdemKey() {
+      const inp = document.getElementById('cfg-idem-key');
+      inp.value = uuidv4();
+      document.getElementById('cfg-idem-on').checked = true;
+      inp.classList.add('active');
+      saveConfig();
     }
 
     // ── Endpoint selection ───────────────────────────────────
@@ -1076,6 +1150,9 @@
       if (!ep.customHeaders) {
         if (ep.sample) headers['Content-Type'] = 'application/json';
         if (ep.auth && token) headers['Authorization'] = `Bearer ${token}`;
+        const idemOn  = document.getElementById('cfg-idem-on').checked;
+        const idemKey = document.getElementById('cfg-idem-key').value.trim();
+        if (idemOn && idemKey && ep.method === 'POST') headers['X-Idempotency-Key'] = idemKey;
       }
 
       const ta = document.getElementById('req-textarea');

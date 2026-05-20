@@ -6,6 +6,7 @@ import structlog
 from redis.asyncio import Redis
 from shared.clients.redis import pipeline_set_nx_ex
 
+from .alias_manager import AliasManager
 from .schema_manager import SchemaManager
 
 log = structlog.get_logger()
@@ -105,10 +106,11 @@ _DEDUP_TTL = 86400  # 24 hours — covers any realistic client retry window
 
 
 class ClickHouseWriter:
-    def __init__(self, client: Any, schema_mgr: SchemaManager, redis: Redis) -> None:
+    def __init__(self, client: Any, schema_mgr: SchemaManager, redis: Redis, alias_mgr: AliasManager) -> None:
         self._client = client
         self._schema_mgr = schema_mgr
         self._redis = redis
+        self._alias_mgr = alias_mgr
 
     async def _filter_duplicates(
         self, project_id: str, events: list[dict[str, Any]]
@@ -128,6 +130,15 @@ class ClickHouseWriter:
         events = await self._filter_duplicates(project_id, events)
         if not events:
             return
+
+        # Resolve field aliases per event before schema inference and writing.
+        resolved: list[dict[str, Any]] = []
+        for e in events:
+            props = e.get("properties") or {}
+            event_name = str(e.get("event_name") or "")
+            renamed = await self._alias_mgr.resolve(project_id, event_name, props)
+            resolved.append({**e, "properties": renamed} if renamed is not props else e)
+        events = resolved
 
         # Ensure the per-client table exists (no-op after first call per instance).
         await self._schema_mgr.bootstrap_table(project_id)

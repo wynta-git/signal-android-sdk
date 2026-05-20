@@ -12,7 +12,6 @@ Database: `pam`
 | `users` | api-service (`/v1/identify`) | segmentation-engine, campaign-engine, notifications-engine | User profiles. Identified ids, traits, last_seen. |
 | `anonymous_to_user` | api-service (`/v1/identify`) | api-service | Mapping from anonymous device id → user_id (set by `/v1/identify`). |
 | `segments` | segmentation-engine | campaign-engine | Segment definitions and metadata. |
-| `segment_memberships` | segmentation-engine | campaign-engine | `{segment_id, user_id, joined_at}`. |
 | `campaigns` | campaign-engine | notifications-engine | Campaign definitions, schedule, audience, channel, template. |
 | `campaign_runs` | campaign-engine | notifications-engine | Each execution of a campaign. |
 | `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook templates. |
@@ -98,24 +97,11 @@ Database: `pam`
   rule: { /* DSL — see docs/segmentation-dsl.md */ },
   refresh_strategy: "on_event" | "scheduled",
   scheduled_cron: "0 */6 * * *",    // if scheduled
-  size: 12345,                       // last computed size
-  computed_at: ISODate
+  created_by: "alice" | null,        // free-form label set at creation time
+  members_count: 12345,              // last computed membership size (null until first run)
+  last_refresh_time: ISODate         // when members_count was last updated (null until first run)
 }
 // Indexes: { project_id: 1, segment_id: 1 } unique
-```
-
-### `segment_memberships`
-```js
-{
-  _id: ObjectId,
-  project_id: "proj_abc123",
-  segment_id: "seg_active_buyers",
-  user_id: "user_42",
-  joined_at: ISODate
-}
-// Indexes:
-//   { project_id: 1, segment_id: 1, user_id: 1 } unique
-//   { project_id: 1, user_id: 1 }    // for "what segments is this user in?"
 ```
 
 ### `campaigns`
@@ -179,6 +165,26 @@ Database: `pam`
 // Indexes: { project_id: 1 } unique
 // Owner: event-processor (writes). Read by: event-processor (Redis warm-up), segmentation-engine (fallback).
 // Never TTL'd — mapping is permanent once written.
+```
+
+### `field_aliases`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  event_name: "deposit_event",
+  aliases: {
+    "deposit_amount": "amount",   // source field → canonical field
+    "txn_currency":  "currency"
+  },
+  created_at: ISODate,
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1, event_name: 1 } unique
+// Owner: api-service admin API (writes). Read by: event-processor (30s in-memory cache),
+//        segmentation-engine (query-time col_map enrichment, meta property discovery).
+// canonical field can be a base column (amount, currency, order_id) or any dynamic column name.
+// Alias wins on conflict: if both source and canonical arrive in the same event, source value is used.
 ```
 
 ## Conventions

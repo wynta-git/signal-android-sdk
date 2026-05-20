@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from shared.auth.token import TokenContext
 from app.config import settings
+from app.middleware.idempotency import check_idempotency, store_idempotency
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
 from shared.clients.mongo import upsert_user_profile
 
@@ -36,6 +37,10 @@ async def identify(
     body: IdentifyRequest,
     ctx: TokenContext = Depends(project_rate_limit),
 ) -> IdentifyResponse:
+    cached = await check_idempotency(request, ctx)
+    if cached:
+        return IdentifyResponse(**cached)
+
     await user_rate_limit(ctx.project_id, body.user_id, request.app.state.redis)
 
     conflict = set(body.traits) & set(body.unset_traits)
@@ -68,4 +73,6 @@ async def identify(
         )
 
     log.info("identify", user_id=body.user_id, project_id=ctx.project_id)
-    return IdentifyResponse(user_id=body.user_id)
+    response = IdentifyResponse(user_id=body.user_id)
+    await store_idempotency(request, ctx, response.model_dump(mode="json"))
+    return response

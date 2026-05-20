@@ -165,8 +165,10 @@ create_topic() {
     fi
 }
 
-create_topic "pam.events.raw.v1"    3
-create_topic "pam.events.invalid.v1" 1
+create_topic "pam.events.raw.v1"           3
+create_topic "pam.events.invalid.v1"       1
+create_topic "pam.campaigns.send.v1"       12
+create_topic "pam.notifications.delivery.v1" 12
 
 # ── 6. verify mongodb ─────────────────────────────────────────────────────────
 section "6. Verifying MongoDB"
@@ -207,8 +209,10 @@ echo "======================================================"
 echo "  Instance 1 setup complete."
 echo ""
 echo "  Topics ready:"
-echo "    pam.events.raw.v1      (3 partitions)"
-echo "    pam.events.invalid.v1  (1 partition)"
+echo "    pam.events.raw.v1              (3 partitions)"
+echo "    pam.events.invalid.v1          (1 partition)"
+echo "    pam.campaigns.send.v1          (12 partitions)"
+echo "    pam.notifications.delivery.v1  (12 partitions)"
 echo ""
 echo "  Next: SSH into Instance 2 (172.31.44.32) and run:"
 echo "    sudo bash /home/ubuntu/pam/infra/deploy-instance2.sh"

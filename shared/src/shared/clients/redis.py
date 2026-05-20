@@ -1,5 +1,5 @@
 import json
-from collections.abc import Iterable
+from collections.abc import AsyncGenerator, Iterable
 from typing import TypedDict
 
 from redis.asyncio import Redis
@@ -49,6 +49,10 @@ async def write_event_route_map(
             pipe.hset(key, event_name, json.dumps(topics))
         pipe.expire(key, ttl)
         await pipe.execute()
+
+
+async def get_str(redis: Redis, key: str) -> str | None:
+    return await redis.get(key)
 
 
 async def set_with_ttl(redis: Redis, key: str, value: str, ttl: int) -> None:
@@ -116,3 +120,28 @@ async def pipeline_hsetnx_multi(
 
 async def ping_redis(redis: Redis) -> None:
     await redis.ping()
+
+
+# ---------------------------------------------------------------------------
+# Segment membership helpers
+# ---------------------------------------------------------------------------
+
+def _members_key(project_id: str, segment_id: str) -> str:
+    return f"pam:seg:{project_id}:{segment_id}:members"
+
+
+async def is_segment_member(
+    redis: Redis, project_id: str, segment_id: str, user_id: str
+) -> bool:
+    return bool(await redis.sismember(_members_key(project_id, segment_id), user_id))
+
+
+async def stream_segment_members(
+    redis: Redis,
+    project_id: str,
+    segment_id: str,
+    batch_size: int = 500,
+) -> AsyncGenerator[list[str], None]:
+    all_members = list(await redis.smembers(_members_key(project_id, segment_id)))
+    for i in range(0, len(all_members), batch_size):
+        yield all_members[i : i + batch_size]
