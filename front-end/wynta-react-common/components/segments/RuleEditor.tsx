@@ -1,8 +1,8 @@
 'use client';
-import Icon from 'wynta-react-common/components/Icon';
-import MultiSelect from 'wynta-react-common/components/MultiSelect';
-import { SEGMENT_FIELDS, OPS } from '@/services/mocks/constants';
-import type { SegmentRule, SegmentField, SegmentOp } from '@/types';
+import Icon from '../Icon';
+import MultiSelect from '../MultiSelect';
+import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
+import type { SegmentRule, SegmentField, SegmentOp } from '../../types';
 
 interface RuleEditorProps {
   rule: SegmentRule & { id: number; unit?: string; value2?: string };

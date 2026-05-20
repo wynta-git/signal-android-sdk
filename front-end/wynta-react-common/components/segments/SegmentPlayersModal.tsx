@@ -1,10 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import Icon from 'wynta-react-common/components/Icon';
+import Icon from '../Icon';
 import SegmentPlayersList from './SegmentPlayersList';
 import PlayerProfileModal from './PlayerProfileModal';
-import type { Segment, Player } from '@/types';
+import type { Segment, Player } from '../../types';
 
 interface SegmentPlayersModalProps {
   segment: Segment;

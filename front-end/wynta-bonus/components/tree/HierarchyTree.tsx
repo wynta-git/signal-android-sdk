@@ -1,7 +1,9 @@
 'use client';
 import HeadNode from './HeadNode';
-import PlayerSegmentsPanel from '@/components/segments/PlayerSegmentsPanel';
+import PlayerSegmentsPanel from 'wynta-react-common/components/segments/PlayerSegmentsPanel';
 import Icon from 'wynta-react-common/components/Icon';
+import { useAppDispatch } from '@/store/hooks';
+import { createSegment } from '@/store/slices/segmentsSlice';
 import type { BonusHead, SelectedNode, NodeType } from '@/types';
 
 interface MenuEvent {
@@ -38,6 +40,7 @@ export default function HierarchyTree({
   selectedBrand,
   onBrandChange,
 }: HierarchyTreeProps) {
+  const dispatch = useAppDispatch();
   return (
     <aside className="tree-panel" role="tree" aria-label="Bonus hierarchy">
       <div className="tree-header">
@@ -63,7 +66,7 @@ export default function HierarchyTree({
           />
         ))}
       </div>
-      <PlayerSegmentsPanel/>
+      <PlayerSegmentsPanel onCreateSegment={(data) => dispatch(createSegment(data))}/>
     </aside>
   );
 }

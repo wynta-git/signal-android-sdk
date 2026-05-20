@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import Icon from 'wynta-react-common/components/Icon';
-import { MANUAL_SEGMENTS } from '@/services/mocks/constants';
-import type { Segment } from '@/types';
+import Icon from '../Icon';
+import { MANUAL_SEGMENTS } from '../../services/mocks/segments';
+import type { Segment } from '../../types';
 
 interface PlayerSegmentPickerProps {
   configureId: number;

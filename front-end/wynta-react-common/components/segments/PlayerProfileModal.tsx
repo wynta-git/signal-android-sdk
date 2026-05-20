@@ -1,10 +1,10 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import Icon from 'wynta-react-common/components/Icon';
-import { formatINRCompact } from '@/services/mocks/utils';
+import Icon from '../Icon';
+import { formatINRCompact } from '../../utils';
 import { _initials, _tierClass, _kycClass } from './SegmentPlayersList';
-import type { Player, Segment } from '@/types';
+import type { Player, Segment } from '../../types';
 
 function _strHash(s: string): number {
   let h = 2166136261;

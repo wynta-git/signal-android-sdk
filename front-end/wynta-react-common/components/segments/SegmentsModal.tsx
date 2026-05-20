@@ -1,10 +1,10 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import Icon from 'wynta-react-common/components/Icon';
+import Icon from '../Icon';
 import SegmentsBrowse from './SegmentsBrowse';
 import SegmentBuilder from './SegmentBuilder';
-import { MANUAL_SEGMENTS } from '@/services/mocks/constants';
-import type { Segment } from '@/types';
+import { MANUAL_SEGMENTS } from '../../services/mocks/segments';
+import type { Segment, SegmentRule } from '../../types';
 
 type ModalMode = 'browse' | 'create';
 type SortBy = 'RECENT' | 'NAME' | 'SIZE';
@@ -13,9 +13,10 @@ interface SegmentsModalProps {
   initialMode: ModalMode;
   onClose: () => void;
   onOpenSegment?: (s: Segment) => void;
+  onCreateSegment?: (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) => void;
 }
 
-export default function SegmentsModal({ initialMode, onClose, onOpenSegment }: SegmentsModalProps) {
+export default function SegmentsModal({ initialMode, onClose, onOpenSegment, onCreateSegment }: SegmentsModalProps) {
   const [mode, setMode]     = useState<ModalMode>(initialMode);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('RECENT');
@@ -75,7 +76,7 @@ export default function SegmentsModal({ initialMode, onClose, onOpenSegment }: S
         </div>
         {mode === 'browse'
           ? <SegmentsBrowse list={filtered} search={search} setSearch={setSearch} sortBy={sortBy} setSortBy={(s) => setSortBy(s as SortBy)} onCreate={() => setMode('create')} onPick={onOpenSegment}/>
-          : <SegmentBuilder onCancel={() => setMode('browse')} onSave={onClose}/>}
+          : <SegmentBuilder onCancel={() => setMode('browse')} onSave={(data) => { onCreateSegment?.(data); onClose(); }}/>}
       </div>
     </div>
   );

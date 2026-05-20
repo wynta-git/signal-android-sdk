@@ -1,10 +1,8 @@
 'use client';
 import { useState, useMemo } from 'react';
-import { useAppDispatch } from '@/store/hooks';
-import { createSegment } from '@/store/slices/segmentsSlice';
-import Icon from 'wynta-react-common/components/Icon';
+import Icon from '../Icon';
 import RuleEditor from './RuleEditor';
-import type { SegmentRule } from '@/types';
+import type { SegmentRule } from '../../types';
 
 interface RuleWithMeta extends SegmentRule {
   id: number;
@@ -14,11 +12,10 @@ interface RuleWithMeta extends SegmentRule {
 
 interface SegmentBuilderProps {
   onCancel: () => void;
-  onSave: () => void;
+  onSave: (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) => void;
 }
 
 export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps) {
-  const dispatch = useAppDispatch();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [combinator, setCombinator] = useState<'AND' | 'OR'>('AND');
@@ -51,8 +48,7 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
 
   const handleSave = () => {
     if (!canSave) return;
-    dispatch(createSegment({ name, description, combinator, rules }));
-    onSave();
+    onSave({ name, description, combinator, rules });
   };
 
   return (

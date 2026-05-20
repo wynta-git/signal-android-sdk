@@ -1,16 +1,20 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import Icon from 'wynta-react-common/components/Icon';
-import { formatRelative } from '@/services/mocks/utils';
-import { MANUAL_SEGMENTS } from '@/services/mocks/constants';
+import Icon from '../Icon';
+import { formatRelative } from '../../utils';
+import { MANUAL_SEGMENTS } from '../../services/mocks/segments';
 import SegmentsModal from './SegmentsModal';
 import SegmentPlayersModal from './SegmentPlayersModal';
-import type { Segment } from '@/types';
+import type { Segment, SegmentRule } from '../../types';
 
 type ModalMode = 'browse' | 'create';
 
-export default function PlayerSegmentsPanel() {
+interface PlayerSegmentsPanelProps {
+  onCreateSegment?: (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) => void;
+}
+
+export default function PlayerSegmentsPanel({ onCreateSegment }: PlayerSegmentsPanelProps) {
   const [open, setOpen]             = useState(true);
   const [hovered, setHovered]       = useState<string | number | null>(null);
   const [modal, setModal]           = useState<ModalMode | null>(null);
@@ -81,6 +85,7 @@ export default function PlayerSegmentsPanel() {
           initialMode={modal}
           onClose={() => setModal(null)}
           onOpenSegment={(s) => { setModal(null); setViewSegment(s); }}
+          onCreateSegment={onCreateSegment}
         />,
         document.body
       )}

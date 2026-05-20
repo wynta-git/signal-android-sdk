@@ -6,7 +6,7 @@ import ActionBar from 'wynta-react-common/components/ActionBar';
 import BudgetGrid from '@/components/primitives/BudgetGrid';
 import ValidityBar from 'wynta-react-common/components/ValidityBar';
 import UsageBreakdown from '@/components/primitives/UsageBreakdown';
-import PlayerSegmentPicker from '@/components/segments/PlayerSegmentPicker';
+import PlayerSegmentPicker from 'wynta-react-common/components/segments/PlayerSegmentPicker';
 import PromoCodeRow from './PromoCodeRow';
 import {
   formatINRCompact,

@@ -1,14 +1,14 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import Icon from 'wynta-react-common/components/Icon';
-import Pager from 'wynta-react-common/components/Pager';
-import { formatINRCompact } from '@/services/mocks/utils';
+import Icon from '../Icon';
+import Pager from '../Pager';
+import { formatINRCompact } from '../../utils';
 import {
   PLAYER_FIRST_NAMES, PLAYER_LAST_NAMES, PLAYER_STATES,
   PLAYER_TIERS, PLAYER_KYC, PLAYER_PRODUCTS,
   PLAYERS_PAGE_SIZE, PLAYERS_SEARCH_CAP,
-} from '@/services/mocks/constants';
-import type { Segment, Player } from '@/types';
+} from '../../services/mocks/segments';
+import type { Segment, Player } from '../../types';
 
 // ── Deterministic player generation ────────────────────────────────────────────
 
