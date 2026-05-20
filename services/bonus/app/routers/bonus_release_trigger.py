@@ -36,8 +36,7 @@ async def create_bonus_release_trigger(
 
     - **code**: promo code that resolves to the parent bonus_configure
     - **site_id**: positive integer identifying the site
-    - **trigger_type**: ``DEPOSIT``, ``REGISTRATION``, ``MANUAL``, ``REFERRAL``,
-      ``PROMO_CODE``, or ``MILESTONE``
+    - **trigger_type**: see ``TriggerType`` in ``models/bonus_release_trigger.py`` for the full canonical list
     - **occurrence**: ``0`` = every event, ``1`` = first only, ``N`` = Nth occurrence
     - **min_trigger_amount / max_trigger_amount**: qualifying amount window (both optional)
     - **payment_method**: restrict to a payment method, e.g. ``UPI`` (optional)

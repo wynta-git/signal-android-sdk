@@ -117,7 +117,7 @@ bonus_head                    Top-level category (e.g. "Welcome", "Reload", "Cas
 
 ### Budget check order at grant time
 
-All levels are checked in sequence before writing `player_bonus_grant`:
+All levels are checked in sequence before writing `user_bonus_grant`:
 
 ```
 bonus_configure_code → bonus_code_usage_limit / bonus_code_usage   (if a code was used)
@@ -215,7 +215,7 @@ ORDER BY week_start DESC;
 
 | Table | Purpose |
 |---|---|
-| `player_bonus_grant` | Immutable grant record; full mechanics snapshot at grant time; one row per grant |
+| `user_bonus_grant` | Immutable grant record; full mechanics snapshot at grant time; one row per grant |
 | `bonus_chunk` | One row per chunk within a grant; tracks status (PENDING/RELEASE/EXPIRED/CONSUMED) and wager progress |
 | `bonus_chunk_wager` | Each qualifying wager settlement contributing toward a chunk's release threshold |
 | `bonus_chunk_release` | Audit record per wager event that triggered a chunk release to wallet |

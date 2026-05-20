@@ -150,7 +150,7 @@ class DatabaseError(BonusServiceError):
 
 
 class PlayerBonusNotFoundError(BonusServiceError):
-    """Raised when a player_bonus_grant or bonus_consumed row cannot be found."""
+    """Raised when a user_bonus_grant or bonus_consumed row cannot be found."""
 
     def __init__(self, ref: int | str) -> None:
         self.ref = ref

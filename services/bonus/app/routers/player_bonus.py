@@ -37,10 +37,10 @@ router = APIRouter(prefix="/player-bonuses", tags=["player-bonuses"])
 
 @router.get("/applicable-codes", response_model=list[ApplicableCodeResponse])
 async def get_applicable_codes(
-    player_id: str = Query(..., min_length=1, max_length=50),
+    user_id: str = Query(..., min_length=1, max_length=50),
     chip_type: str = Query(..., pattern=r'^(cash|in_app_purchase)$'),
 ) -> list[ApplicableCodeResponse]:
-    return await list_applicable_codes(player_id, chip_type)
+    return await list_applicable_codes(user_id, chip_type)
 
 
 @router.post("/consume", response_model=PlayerBonusConsumedResponse, status_code=201)
@@ -55,34 +55,34 @@ async def revert_bonus_consumption(consume_txn_id: str) -> PlayerBonusRevertResp
     return await revert_consumption(consume_txn_id)
 
 
-@router.get("/{player_id}/summary", response_model=list[PlayerBonusSummaryResponse])
-async def get_summary(player_id: str) -> list[PlayerBonusSummaryResponse]:
-    return await get_player_bonus_summary(player_id)
+@router.get("/{user_id}/summary", response_model=list[PlayerBonusSummaryResponse])
+async def get_summary(user_id: str) -> list[PlayerBonusSummaryResponse]:
+    return await get_player_bonus_summary(user_id)
 
 
-@router.get("/{player_id}/transactions", response_model=list[PlayerBonusTransactionSummary])
+@router.get("/{user_id}/transactions", response_model=list[PlayerBonusTransactionSummary])
 async def get_transactions(
-    player_id: str,
+    user_id: str,
     chip_type: str = Query(..., pattern=r'^(cash|in_app_purchase)$'),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> list[PlayerBonusTransactionSummary]:
-    return await list_player_transactions(player_id, chip_type, limit, offset)
+    return await list_player_transactions(user_id, chip_type, limit, offset)
 
 
 @router.get(
-    "/{player_id}/transactions/{txn_id}",
+    "/{user_id}/transactions/{txn_id}",
     response_model=PlayerBonusTransactionDetail,
 )
 async def get_transaction_detail(
-    player_id: str, txn_id: int
+    user_id: str, txn_id: int
 ) -> PlayerBonusTransactionDetail:
-    return await get_player_transaction_detail(player_id, txn_id)
+    return await get_player_transaction_detail(user_id, txn_id)
 
 
-@router.get("/{player_id}/referral-code", response_model=PlayerReferralCodeResponse)
-async def get_referral_code(player_id: str) -> PlayerReferralCodeResponse:
-    return await get_player_referral_code(player_id)
+@router.get("/{user_id}/referral-code", response_model=PlayerReferralCodeResponse)
+async def get_referral_code(user_id: str) -> PlayerReferralCodeResponse:
+    return await get_player_referral_code(user_id)
 
 
 def register_exception_handlers(app: "FastAPI") -> None:

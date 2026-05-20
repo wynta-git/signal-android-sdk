@@ -9,18 +9,18 @@ import structlog
 log = structlog.get_logger(__name__)
 
 _OCCURRENCE_COUNT_SQL = """
-    SELECT COUNT(*) FROM player_bonus_grant
-    WHERE player_id = %s AND configure_id = %s
+    SELECT COUNT(*) FROM user_bonus_grant
+    WHERE user_id = %s AND configure_id = %s
 """
 
 _APPLICABILITY_COUNT_SQL = """
-    SELECT COUNT(*) FROM player_bonus_grant
-    WHERE player_id = %s AND configure_id = %s AND {where_extra}
+    SELECT COUNT(*) FROM user_bonus_grant
+    WHERE user_id = %s AND configure_id = %s AND {where_extra}
 """
 
 _INSERT_GRANT_SQL = """
-    INSERT INTO player_bonus_grant
-        (player_bonus_id, configure_id, subhead_id, head_id, site_id, player_id,
+    INSERT INTO user_bonus_grant
+        (player_bonus_id, configure_id, subhead_id, head_id, site_id, user_id,
          product, wager_multiplier, no_of_chunks,
          chunk_expiry_days, bonus_expiry_days,
          wager_chip_type, credit_chip_type, grant_amount)
@@ -62,13 +62,13 @@ def compute_grant_amount(configure: dict[str, Any], trigger_amount: float | None
 
 async def check_occurrence(
     cur: aiomysql.Cursor,
-    player_id: str,
+    user_id: str,
     configure_id: int,
     occurrence: int,
 ) -> bool:
     if occurrence == 0:
         return True
-    await cur.execute(_OCCURRENCE_COUNT_SQL, (player_id, configure_id))
+    await cur.execute(_OCCURRENCE_COUNT_SQL, (user_id, configure_id))
     row = await cur.fetchone()
     count: int = row[0] if row else 0
     return count == occurrence - 1
@@ -76,7 +76,7 @@ async def check_occurrence(
 
 async def check_applicability(
     cur: aiomysql.Cursor,
-    player_id: str,
+    user_id: str,
     configure_id: int,
     freq: str,
 ) -> bool:
@@ -97,7 +97,7 @@ async def check_applicability(
         log.warning("unknown_applicability_frequency", freq=freq)
         return True
 
-    await cur.execute(sql, (player_id, configure_id))
+    await cur.execute(sql, (user_id, configure_id))
     row = await cur.fetchone()
     return (row[0] if row else 0) == 0
 
@@ -106,12 +106,12 @@ async def write_grant(
     conn: aiomysql.Connection,
     trigger: dict[str, Any],
     configure: dict[str, Any],
-    player_id: str,
+    user_id: str,
     site_id: int,
     grant_amount: Decimal,
 ) -> int:
     async with conn.cursor() as cur:
-        # 1. Insert player_bonus_grant
+        # 1. Insert user_bonus_grant
         await cur.execute(
             _INSERT_GRANT_SQL,
             (
@@ -119,7 +119,7 @@ async def write_grant(
                 configure["subhead_id"],
                 configure["head_id"],
                 site_id,
-                player_id,
+                user_id,
                 trigger["product"],  # sourced from bonus_release_trigger; may be None
                 configure["wager_multiplier"],
                 configure["no_of_chunks"],
@@ -165,7 +165,7 @@ async def write_grant(
         "bonus_grant_written",
         grant_id=grant_id,
         configure_id=configure["id"],
-        player_id=player_id,
+        user_id=user_id,
         site_id=site_id,
         grant_amount=str(grant_amount),
         no_of_chunks=no_of_chunks,

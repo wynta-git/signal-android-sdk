@@ -126,7 +126,7 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                         if not await check_occurrence(cur, user_id, cfg["id"], t["occurrence"]):
                             log.info(
                                 "bonus_skipped_occurrence",
-                                player_id=user_id,
+                                user_id=user_id,
                                 configure_id=cfg["id"],
                                 occurrence=t["occurrence"],
                             )
@@ -137,7 +137,7 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                         ):
                             log.info(
                                 "bonus_skipped_applicability",
-                                player_id=user_id,
+                                user_id=user_id,
                                 configure_id=cfg["id"],
                                 freq=cfg["applicability_frequency"],
                             )
@@ -146,7 +146,7 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                     if not await check_eligibility(_redis, cfg["id"], props):
                         log.info(
                             "bonus_skipped_eligibility",
-                            player_id=user_id,
+                            user_id=user_id,
                             configure_id=cfg["id"],
                         )
                         continue
@@ -160,7 +160,7 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                         "bonus_granted",
                         grant_id=grant_id,
                         configure_id=cfg["id"],
-                        player_id=user_id,
+                        user_id=user_id,
                         site_id=site_id,
                         event_name=event_name,
                         grant_amount=str(grant_amount),

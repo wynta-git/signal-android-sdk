@@ -51,7 +51,7 @@ client_secret = "your_shared_secret"
 timestamp = str(int(time.time()))
 
 body = json.dumps({
-    "player_id": "PLAYER_001",
+    "user_id": "PLAYER_001",
     "consume_txn_id": "TXN20250519001",
     "wager_amount": "300.00",
     "bonus_amount": "100.00",
@@ -83,7 +83,7 @@ const clientSecret = "your_shared_secret";
 const timestamp = String(Math.floor(Date.now() / 1000));
 
 const body = JSON.stringify({
-  player_id: "PLAYER_001",
+  user_id: "PLAYER_001",
   consume_txn_id: "TXN20250519001",
   wager_amount: "300.00",
   bonus_amount: "100.00",
@@ -117,7 +117,7 @@ signature = hmac.new(client_secret.encode(), canonical, hashlib.sha256).hexdiges
 
 requests.get(
     "http://localhost:8010/api/v1/player-bonuses/applicable-codes",
-    params={"player_id": "PLAYER_001", "chip_type": "cash"},
+    params={"user_id": "PLAYER_001", "chip_type": "cash"},
     headers={"X-Client-Id": client_id, "X-Timestamp": timestamp, "X-Signature": signature},
 )
 ```
@@ -149,7 +149,7 @@ GET /api/v1/player-bonuses/applicable-codes
 
 | Parameter   | Type   | Required | Description                                             |
 | ----------- | ------ | -------- | ------------------------------------------------------- |
-| `player_id` | string | Yes      | Platform player identifier (max 50 chars)               |
+| `user_id` | string | Yes      | Platform player identifier (max 50 chars)               |
 | `chip_type` | string | Yes      | Filter codes by chip type — `cash` or `in_app_purchase` |
 
 **Response `200 OK`**
@@ -204,74 +204,7 @@ GET /api/v1/player-bonuses/applicable-codes
 
 ---
 
-### 2. Apply Promo Code
-
-Applies a promo code for a player, creating a bonus grant. Call this after the player selects a code from the applicable-codes list or manually enters a code at checkout. The grant is created in `PENDING` status — chunks are released as the player meets the configured release triggers.
-
-```
-POST /api/v1/player-bonuses/apply-code
-```
-
-**Query Parameters**
-
-| Parameter    | Type   | Required | Description                               |
-| ------------ | ------ | -------- | ----------------------------------------- |
-| `player_id`  | string | Yes      | Platform player identifier (max 50 chars) |
-| `promo_code` | string | Yes      | The promo / bonus code being applied      |
-
-**Request Body** `application/json`
-
-```json
-{
-  "txn_amount": "500.00",
-  "chip_type": "cash"
-}
-```
-
-**Request Fields**
-
-| Field        | Type    | Required | Description                                                |
-| ------------ | ------- | -------- | ---------------------------------------------------------- |
-| `txn_amount` | decimal | Yes      | Transaction amount used to calculate the bonus value (≥ 0) |
-| `chip_type`  | string  | Yes      | Chip type for the bonus — `cash` or `in_app_purchase`      |
-
-**Response `201 Created`**
-
-```json
-{
-  "grant_id": 15,
-  "player_id": "PLAYER_001",
-  "promo_code": "WELCOME100",
-  "bonus_amount": "500.00",
-  "no_of_chunks": 3,
-  "wager_multiplier": "3.00",
-  "status": "PENDING"
-}
-```
-
-**Response Fields**
-
-| Field              | Type    | Description                                                       |
-| ------------------ | ------- | ----------------------------------------------------------------- |
-| `grant_id`         | integer | Unique bonus grant ID — use this in transaction detail calls      |
-| `player_id`        | string  | Echo of the player identifier                                     |
-| `promo_code`       | string  | Echo of the applied code                                          |
-| `bonus_amount`     | decimal | Total bonus amount granted (capped at `max_amount` if configured) |
-| `no_of_chunks`     | integer | Number of chunks the bonus is split into                          |
-| `wager_multiplier` | decimal | Wagering multiplier applied to each chunk                         |
-| `status`           | string  | Always `PENDING` on creation                                      |
-
-**Error Cases**
-
-| HTTP Status | Scenario                                                                  |
-| ----------- | ------------------------------------------------------------------------- |
-| `404`       | `promo_code` not found or inactive for the client's site                  |
-| `409`       | Player has already used this code and `applicability_frequency` is `ONCE` |
-| `422`       | Validation failure (missing fields, invalid `chip_type`)                  |
-
----
-
-### 3. Consume a Bonus Chunk
+### 2. Consume a Bonus Chunk
 
 Records that a specific bonus chunk has been consumed against a wager event. Call this from the game server immediately after a successful wager that should draw from a player's bonus.
 
@@ -283,7 +216,7 @@ POST /api/v1/player-bonuses/consume
 
 ```json
 {
-  "player_id": "PLAYER_001",
+  "user_id": "PLAYER_001",
   "consume_txn_id": "TXN20250519001",
   "wager_amount": "300.00",
   "bonus_amount": "100.00",
@@ -298,7 +231,7 @@ POST /api/v1/player-bonuses/consume
 
 | Field            | Type           | Required | Description                                                   |
 | ---------------- | -------------- | -------- | ------------------------------------------------------------- |
-| `player_id`      | string         | Yes      | Platform player identifier (max 50 chars)                     |
+| `user_id`      | string         | Yes      | Platform player identifier (max 50 chars)                     |
 | `consume_txn_id` | string         | Yes      | Idempotency key — unique per consumption event (max 50 chars) |
 | `wager_amount`   | decimal        | Yes      | Total wager amount placed (≥ 0)                               |
 | `bonus_amount`   | decimal        | Yes      | Bonus amount being consumed (≥ 0)                             |
@@ -333,7 +266,7 @@ POST /api/v1/player-bonuses/consume
 
 ---
 
-### 4. Revert a Bonus Consumption
+### 3. Revert a Bonus Consumption
 
 Cancels a previously recorded consumption — for example, when a wager is voided or rolled back. Reverting decrements the player's consumed balance by the original consumption amount.
 
@@ -369,19 +302,19 @@ POST /api/v1/player-bonuses/consume/{consume_txn_id}/revert
 
 ---
 
-### 5. Get Player Bonus Summary
+### 4. Get Player Bonus Summary
 
 Returns bonus figures for a player broken down by chip type. Each element in the array represents one chip type the player has active or historical grants for.
 
 ```
-GET /api/v1/player-bonuses/{player_id}/summary
+GET /api/v1/player-bonuses/{user_id}/summary
 ```
 
 **Path Parameters**
 
 | Parameter   | Type   | Description                |
 | ----------- | ------ | -------------------------- |
-| `player_id` | string | Platform player identifier |
+| `user_id` | string | Platform player identifier |
 
 **Response `200 OK`**
 
@@ -413,19 +346,19 @@ GET /api/v1/player-bonuses/{player_id}/summary
 
 ---
 
-### 6. List Player Transactions
+### 5. List Player Transactions
 
 Returns a paginated list of bonus grant transactions for a player, ordered by most recent first. Each item shows a summary with a derived lifecycle status.
 
 ```
-GET /api/v1/player-bonuses/{player_id}/transactions
+GET /api/v1/player-bonuses/{user_id}/transactions
 ```
 
 **Path Parameters**
 
 | Parameter   | Type   | Description                |
 | ----------- | ------ | -------------------------- |
-| `player_id` | string | Platform player identifier |
+| `user_id` | string | Platform player identifier |
 
 **Query Parameters**
 
@@ -501,19 +434,19 @@ A flat ledger ordered by most recent first. Every bonus event — grant, chunk r
 
 ---
 
-### 7. Get Transaction Detail
+### 6. Get Transaction Detail
 
 Returns the full detail of a single bonus grant including all chunks, forfeit record (if any), and expiry events.
 
 ```
-GET /api/v1/player-bonuses/{player_id}/transactions/{txn_id}
+GET /api/v1/player-bonuses/{user_id}/transactions/{txn_id}
 ```
 
 **Path Parameters**
 
 | Parameter   | Type    | Description                                              |
 | ----------- | ------- | -------------------------------------------------------- |
-| `player_id` | string  | Platform player identifier                               |
+| `user_id` | string  | Platform player identifier                               |
 | `txn_id`    | integer | Grant record ID (the `txn_id` from the transaction list) |
 
 **Response `200 OK`**
@@ -521,7 +454,7 @@ GET /api/v1/player-bonuses/{player_id}/transactions/{txn_id}
 ```json
 {
   "txn_id": 15,
-  "player_id": "PLAYER_001",
+  "user_id": "PLAYER_001",
   "bonus_code": "WELCOME100",
   "wager_multiplier": "3.00",
   "no_of_chunks": 3,
@@ -556,7 +489,7 @@ GET /api/v1/player-bonuses/{player_id}/transactions/{txn_id}
 | Field               | Type            | Description                                |
 | ------------------- | --------------- | ------------------------------------------ |
 | `txn_id`            | integer         | Grant record ID                            |
-| `player_id`         | string          | Player identifier                          |
+| `user_id`         | string          | Player identifier                          |
 | `bonus_code`        | string \| null  | Promo code used                            |
 | `wager_multiplier`  | decimal         | Wagering requirement multiplier            |
 | `no_of_chunks`      | integer         | Total number of chunks                     |
@@ -609,25 +542,25 @@ GET /api/v1/player-bonuses/{player_id}/transactions/{txn_id}
 
 ---
 
-### 8. Get Player Referral Code
+### 7. Get Player Referral Code
 
 Returns the referral code assigned to a player. This code can be shared with friends to track referral-driven bonus eligibility.
 
 ```
-GET /api/v1/player-bonuses/{player_id}/referral-code
+GET /api/v1/player-bonuses/{user_id}/referral-code
 ```
 
 **Path Parameters**
 
 | Parameter   | Type   | Description                |
 | ----------- | ------ | -------------------------- |
-| `player_id` | string | Platform player identifier |
+| `user_id` | string | Platform player identifier |
 
 **Response `200 OK`**
 
 ```json
 {
-  "player_id": "PLAYER_001",
+  "user_id": "PLAYER_001",
   "referral_code": "REF_XYZ99"
 }
 ```
@@ -636,14 +569,14 @@ GET /api/v1/player-bonuses/{player_id}/referral-code
 
 | Field           | Type   | Description                                  |
 | --------------- | ------ | -------------------------------------------- |
-| `player_id`     | string | Player identifier                            |
+| `user_id`     | string | Player identifier                            |
 | `referral_code` | string | Unique referral code assigned to this player |
 
 **Error Cases**
 
 | HTTP Status | Scenario                               |
 | ----------- | -------------------------------------- |
-| `404`       | No referral code found for `player_id` |
+| `404`       | No referral code found for `user_id` |
 
 ---
 
@@ -672,12 +605,12 @@ All errors follow a consistent envelope:
 1. Player initiates a deposit / game round
        │
        ▼
-2. Call GET /api/v1/player-bonuses/applicable-codes?player_id=&chip_type=
+2. Call GET /api/v1/player-bonuses/applicable-codes?user_id=&chip_type=
    → Display eligible bonus offers to the player
        │
        ▼
 3. Player selects a code
-   → POST /api/v1/player-bonuses/apply-code?player_id=&promo_code=  { txn_amount, chip_type }
+   → POST /api/v1/player-bonuses/apply-code?user_id=&promo_code=  { txn_amount, chip_type }
    → Returns grant_id — bonus grant created in PENDING status
        │
        ▼
@@ -686,7 +619,7 @@ All errors follow a consistent envelope:
        │
        ▼
 5. Player wagers using released bonus
-   → POST /api/v1/player-bonuses/consume  { player_id, consume_txn_id, bonus_amount, wager_amount, wager_tnx_id, ... }
+   → POST /api/v1/player-bonuses/consume  { user_id, consume_txn_id, bonus_amount, wager_amount, wager_tnx_id, ... }
        │
        ▼
 6. If wager is voided:
@@ -694,9 +627,9 @@ All errors follow a consistent envelope:
        │
        ▼
 6. Display wallet / history:
-     GET /api/v1/player-bonuses/{player_id}/summary
-     GET /api/v1/player-bonuses/{player_id}/transactions?chip_type=cash
-     GET /api/v1/player-bonuses/{player_id}/transactions/{txn_id}
+     GET /api/v1/player-bonuses/{user_id}/summary
+     GET /api/v1/player-bonuses/{user_id}/transactions?chip_type=cash
+     GET /api/v1/player-bonuses/{user_id}/transactions/{txn_id}
 ```
 
 ---

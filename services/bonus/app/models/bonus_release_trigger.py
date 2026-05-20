@@ -14,7 +14,16 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-TriggerType = Literal["DEPOSIT", "REGISTRATION", "MANUAL", "REFERRAL", "PROMO_CODE", "MILESTONE"]
+TriggerType = Literal[
+    "LOGIN",
+    "REGISTRATION",
+    "APP_VISIT",
+    "DEPOSIT",
+    "BET_PLACED",
+    "LEADERBOARD_WON",
+    "TOURNAMENT_WON",
+    "FRIEND_SIGNUP",
+]
 
 
 class BonusReleaseTriggerCreate(BaseModel):

@@ -72,7 +72,7 @@
       "type": "string"
     },
     {
-      "key": "player_id",
+      "key": "user_id",
       "value": "P1001",
       "type": "string"
     },
@@ -2572,11 +2572,11 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?player_id={{player_id}}&chip_type=cash",
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?user_id={{user_id}}&chip_type=cash",
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "player-bonuses", "applicable-codes"],
               "query": [
-                { "key": "player_id", "value": "{{player_id}}" },
+                { "key": "user_id", "value": "{{user_id}}" },
                 { "key": "chip_type", "value": "cash" }
               ]
             },
@@ -2602,11 +2602,11 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?player_id={{player_id}}&chip_type=cash",
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?user_id={{user_id}}&chip_type=cash",
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "player-bonuses", "applicable-codes"],
               "query": [
-                { "key": "player_id", "value": "{{player_id}}" },
+                { "key": "user_id", "value": "{{user_id}}" },
                 { "key": "chip_type", "value": "cash" }
               ]
             },
@@ -2636,11 +2636,11 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?player_id={{player_id}}&chip_type=cash",
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?user_id={{user_id}}&chip_type=cash",
               "host": ["{{base_url}}"],
               "path": ["player-bonuses", "applicable-codes"],
               "query": [
-                { "key": "player_id", "value": "{{player_id}}" },
+                { "key": "user_id", "value": "{{user_id}}" },
                 { "key": "chip_type", "value": "cash" }
               ]
             }
@@ -2666,7 +2666,7 @@
           ]
         },
         {
-          "name": "Applicable codes — missing player_id → 422",
+          "name": "Applicable codes — missing user_id → 422",
           "request": {
             "method": "GET",
             "url": {
@@ -2692,10 +2692,10 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?player_id={{player_id}}",
+              "raw": "{{base_url}}/api/v1/player-bonuses/applicable-codes?user_id={{user_id}}",
               "host": ["{{base_url}}"],
               "path": ["player-bonuses", "applicable-codes"],
-              "query": [{ "key": "player_id", "value": "{{player_id}}" }]
+              "query": [{ "key": "user_id", "value": "{{user_id}}" }]
             }
           },
           "event": [
@@ -2717,7 +2717,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"player_id\": \"{{player_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"wager_amount\": \"200.00\",\n  \"bonus_amount\": \"100.00\",\n  \"chip_type\": \"cash\",\n  \"wager_tnx_id\": \"W001\",\n  \"game_id\": \"CRICKET_EXPRESS\",\n  \"round_id\": \"R001\"\n}"
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"wager_amount\": \"200.00\",\n  \"bonus_amount\": \"100.00\",\n  \"chip_type\": \"cash\",\n  \"wager_tnx_id\": \"W001\",\n  \"game_id\": \"CRICKET_EXPRESS\",\n  \"round_id\": \"R001\"\n}"
             }
           },
           "event": [
@@ -2751,7 +2751,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"player_id\": \"{{player_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"wager_amount\": \"200.00\",\n  \"bonus_amount\": \"100.00\",\n  \"chip_type\": \"cash\",\n  \"wager_tnx_id\": \"W001\"\n}"
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"wager_amount\": \"200.00\",\n  \"bonus_amount\": \"100.00\",\n  \"chip_type\": \"cash\",\n  \"wager_tnx_id\": \"W001\"\n}"
             }
           },
           "event": [
@@ -2775,7 +2775,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"player_id\": \"{{player_id}}\"\n}"
+              "raw": "{\n  \"user_id\": \"{{user_id}}\"\n}"
             }
           },
           "event": [
@@ -2797,7 +2797,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"player_id\": \"NONEXISTENT_PLAYER_999\",\n  \"consume_txn_id\": \"TXN_NOTFOUND_999\",\n  \"wager_amount\": \"50.00\",\n  \"bonus_amount\": \"50.00\",\n  \"wager_tnx_id\": \"W999\"\n}"
+              "raw": "{\n  \"user_id\": \"NONEXISTENT_PLAYER_999\",\n  \"consume_txn_id\": \"TXN_NOTFOUND_999\",\n  \"wager_amount\": \"50.00\",\n  \"bonus_amount\": \"50.00\",\n  \"wager_tnx_id\": \"W999\"\n}"
             }
           },
           "event": [
@@ -2879,9 +2879,9 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/summary?site_id=1",
+              "raw": "{{base_url}}/api/v1/player-bonuses/{{user_id}}/summary?site_id=1",
               "host": ["{{base_url}}"],
-              "path": ["player-bonuses", "{{player_id}}", "summary"],
+              "path": ["player-bonuses", "{{user_id}}", "summary"],
               "query": [{ "key": "site_id", "value": "1" }]
             }
           },
@@ -2892,7 +2892,7 @@
                 "exec": [
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
-                  "pm.test('has player_id', () => pm.expect(body.player_id).to.be.a('string'));",
+                  "pm.test('has user_id', () => pm.expect(body.user_id).to.be.a('string'));",
                   "pm.test('has bonus_balance', () => pm.expect(body).to.have.property('bonus_balance'));",
                   "pm.test('has pending_bonus', () => pm.expect(body).to.have.property('pending_bonus'));",
                   "pm.test('has wagering_required', () => pm.expect(body).to.have.property('wagering_required'));"
@@ -2905,7 +2905,7 @@
           "name": "Player summary — without site_id",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/summary"
+            "url": "{{base_url}}/api/v1/player-bonuses/{{user_id}}/summary"
           },
           "event": [
             {
@@ -2915,7 +2915,7 @@
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "pm.test('has all summary fields', () => {",
                   "    const body = pm.response.json();",
-                  "    ['player_id','bonus_balance','pending_bonus','wagering_required'].forEach(k => {",
+                  "    ['user_id','bonus_balance','pending_bonus','wagering_required'].forEach(k => {",
                   "        pm.expect(body).to.have.property(k);",
                   "    });",
                   "});"
@@ -2929,9 +2929,9 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions?chip_type=cash",
+              "raw": "{{base_url}}/api/v1/player-bonuses/{{user_id}}/transactions?chip_type=cash",
               "host": ["{{base_url}}"],
-              "path": ["player-bonuses", "{{player_id}}", "transactions"],
+              "path": ["player-bonuses", "{{user_id}}", "transactions"],
               "query": [
                 { "key": "chip_type", "value": "cash" }
               ]
@@ -2967,9 +2967,9 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions?chip_type=cash&limit=10&offset=0",
+              "raw": "{{base_url}}/api/v1/player-bonuses/{{user_id}}/transactions?chip_type=cash&limit=10&offset=0",
               "host": ["{{base_url}}"],
-              "path": ["player-bonuses", "{{player_id}}", "transactions"],
+              "path": ["player-bonuses", "{{user_id}}", "transactions"],
               "query": [
                 { "key": "chip_type", "value": "cash" },
                 { "key": "limit", "value": "10" },
@@ -2995,9 +2995,9 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions?chip_type=cash&limit=999",
+              "raw": "{{base_url}}/api/v1/player-bonuses/{{user_id}}/transactions?chip_type=cash&limit=999",
               "host": ["{{base_url}}"],
-              "path": ["player-bonuses", "{{player_id}}", "transactions"],
+              "path": ["player-bonuses", "{{user_id}}", "transactions"],
               "query": [
                 { "key": "chip_type", "value": "cash" },
                 { "key": "limit", "value": "999" }
@@ -3019,7 +3019,7 @@
           "name": "Transaction detail — existing grant",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions/{{player_grant_id}}"
+            "url": "{{base_url}}/api/v1/player-bonuses/{{user_id}}/transactions/{{player_grant_id}}"
           },
           "event": [
             {
@@ -3031,13 +3031,13 @@
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
                   "pm.test('has grant fields', () => {",
-                  "    pm.expect(body).to.include.all.keys('txn_id','player_id',",
+                  "    pm.expect(body).to.include.all.keys('txn_id','user_id',",
                   "        'grant_amount','status','created_at','chunks','expiry_events');",
                   "});",
                   "pm.test('has chunks array', () => pm.expect(body.chunks).to.be.an('array'));",
                   "pm.test('has expiry_events array', () => pm.expect(body.expiry_events).to.be.an('array'));",
-                  "pm.test('player_id matches', () => {",
-                  "    pm.expect(body.player_id).to.eql(pm.collectionVariables.get('player_id'));",
+                  "pm.test('user_id matches', () => {",
+                  "    pm.expect(body.user_id).to.eql(pm.collectionVariables.get('user_id'));",
                   "});",
                   "if (body.chunks.length > 0) {",
                   "    const c = body.chunks[0];",
@@ -3059,7 +3059,7 @@
           "name": "Transaction detail — not found → 404",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/transactions/999999"
+            "url": "{{base_url}}/api/v1/player-bonuses/{{user_id}}/transactions/999999"
           },
           "event": [
             {
@@ -3073,7 +3073,7 @@
           ]
         },
         {
-          "name": "Transaction detail — wrong player_id → 404",
+          "name": "Transaction detail — wrong user_id → 404",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/api/v1/player-bonuses/WRONG_PLAYER/transactions/1"
@@ -3093,7 +3093,7 @@
           "name": "Referral code — valid player",
           "request": {
             "method": "GET",
-            "url": "{{base_url}}/api/v1/player-bonuses/{{player_id}}/referral-code"
+            "url": "{{base_url}}/api/v1/player-bonuses/{{user_id}}/referral-code"
           },
           "event": [
             {
@@ -3103,10 +3103,10 @@
                   "pm.test('200 OK', () => pm.response.to.have.status(200));",
                   "const body = pm.response.json();",
                   "pm.test('has required fields', () => {",
-                  "    pm.expect(body).to.include.all.keys('player_id', 'referral_code', 'created_at');",
+                  "    pm.expect(body).to.include.all.keys('user_id', 'referral_code', 'created_at');",
                   "});",
-                  "pm.test('player_id matches', () => {",
-                  "    pm.expect(body.player_id).to.eql(pm.collectionVariables.get('player_id'));",
+                  "pm.test('user_id matches', () => {",
+                  "    pm.expect(body.user_id).to.eql(pm.collectionVariables.get('user_id'));",
                   "});",
                   "pm.test('referral_code is a non-empty string', () => {",
                   "    pm.expect(body.referral_code).to.be.a('string').and.to.have.length.above(0);",

@@ -24,7 +24,7 @@ DROP TABLE IF EXISTS `bonus_chunk_expiry`;
 DROP TABLE IF EXISTS `bonus_chunk_release`;
 DROP TABLE IF EXISTS `bonus_chunk_wager`;
 DROP TABLE IF EXISTS `bonus_chunk`;
-DROP TABLE IF EXISTS `player_bonus_grant`;
+DROP TABLE IF EXISTS `user_bonus_grant`;
 DROP TABLE IF EXISTS `bonus_code_usage_limit`;
 DROP TABLE IF EXISTS `bonus_budget_limit`;
 DROP TABLE IF EXISTS `bonus_release_trigger`;
@@ -335,8 +335,8 @@ CREATE TABLE `bonus_code_usage_limit` (
     KEY `idx_code_usage_limit_site`       (`site_id`)
 );
 
--- player_bonus_grant
-CREATE TABLE `player_bonus_grant` (
+-- user_bonus_grant
+CREATE TABLE `user_bonus_grant` (
     `id`                 BIGINT        NOT NULL AUTO_INCREMENT,
     `player_bonus_id`    BIGINT        NOT NULL,
     -- references userapp_player_bonus.id; unique — one log entry per grant
@@ -347,7 +347,7 @@ CREATE TABLE `player_bonus_grant` (
     `head_id`            INT           NOT NULL,
     -- references bonus_head.id
     `site_id`            INT           NOT NULL,
-    `player_id`          VARCHAR(50)   NOT NULL,
+    `user_id`            VARCHAR(50)   NOT NULL,
 
     -- ── Config snapshot (copied from bonus_configure at grant time) ───────────
     `bonus_code`         VARCHAR(50)   DEFAULT NULL,
@@ -378,13 +378,13 @@ CREATE TABLE `player_bonus_grant` (
     `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_player_bonus_grant_player_bonus_id`    (`player_bonus_id`),
-    KEY `idx_player_bonus_grant_configure_id`             (`configure_id`),
-    KEY `idx_player_bonus_grant_subhead_id`               (`subhead_id`),
-    KEY `idx_player_bonus_grant_head_id`                  (`head_id`),
-    KEY `idx_player_bonus_grant_player_id`                (`player_id`),
-    KEY `idx_player_bonus_grant_site_date`                (`site_id`, `created_at`),
-    KEY `idx_player_bonus_grant_bonus_code`               (`bonus_code`)
+    UNIQUE KEY `uk_user_bonus_grant_player_bonus_id`    (`player_bonus_id`),
+    KEY `idx_user_bonus_grant_configure_id`             (`configure_id`),
+    KEY `idx_user_bonus_grant_subhead_id`               (`subhead_id`),
+    KEY `idx_user_bonus_grant_head_id`                  (`head_id`),
+    KEY `idx_user_bonus_grant_user_id`                  (`user_id`),
+    KEY `idx_user_bonus_grant_site_date`                (`site_id`, `created_at`),
+    KEY `idx_user_bonus_grant_bonus_code`               (`bonus_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- bonus_chunk

@@ -30,7 +30,7 @@ class ApplicableCodeResponse(BaseModel):
 # ── API 2: consume ────────────────────────────────────────────────────────────
 
 class PlayerBonusConsumeCreate(BaseModel):
-    player_id: str = Field(..., min_length=1, max_length=50)
+    user_id: str = Field(..., min_length=1, max_length=50)
     consume_txn_id: str = Field(..., min_length=1, max_length=50)
     wager_amount: Decimal = Field(..., ge=0)
     bonus_amount: Decimal = Field(..., ge=0)
@@ -69,7 +69,7 @@ class PlayerBonusSummaryResponse(BaseModel):
 # ── API 5: referral code ─────────────────────────────────────────────────────
 
 class PlayerReferralCodeResponse(BaseModel):
-    player_id: str
+    user_id: str
     referral_code: str
     created_at: datetime
 
@@ -116,7 +116,7 @@ class BonusExpiryDetail(BaseModel):
 
 class PlayerBonusTransactionDetail(BaseModel):
     txn_id: int
-    player_id: str
+    user_id: str
     bonus_code: str | None
     wager_multiplier: Decimal
     no_of_chunks: int

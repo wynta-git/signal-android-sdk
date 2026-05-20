@@ -1,5 +1,5 @@
 -- =============================================================================
--- TABLE: player_bonus_grant
+-- TABLE: user_bonus_grant
 -- =============================================================================
 --
 -- DESCRIPTION
@@ -11,7 +11,7 @@
 -- COLUMN GROUPS
 -- ─────────────
 -- Identity        : id, player_bonus_id, configure_id, subhead_id, head_id,
---                   site_id, player_id
+--                   site_id, user_id
 -- Config snapshot : bonus_code, product,
 --                   wager_multiplier, no_of_chunks,
 --                   chunk_expiry_days, bonus_expiry_days,
@@ -38,14 +38,14 @@
 --
 -- RELATIONSHIPS
 -- ─────────────
--- userapp_player_bonus.id ← player_bonus_grant.player_bonus_id
--- bonus_configure.id      ← player_bonus_grant.configure_id
--- bonus_subhead.id        ← player_bonus_grant.subhead_id
--- bonus_head.id           ← player_bonus_grant.head_id
+-- userapp_player_bonus.id ← user_bonus_grant.player_bonus_id
+-- bonus_configure.id      ← user_bonus_grant.configure_id
+-- bonus_subhead.id        ← user_bonus_grant.subhead_id
+-- bonus_head.id           ← user_bonus_grant.head_id
 --
 -- =============================================================================
 
-CREATE TABLE `player_bonus_grant` (
+CREATE TABLE `user_bonus_grant` (
     `id`                 BIGINT        NOT NULL AUTO_INCREMENT,
     `player_bonus_id`    BIGINT        NOT NULL,
     -- references userapp_player_bonus.id; unique — one log entry per grant
@@ -56,7 +56,7 @@ CREATE TABLE `player_bonus_grant` (
     `head_id`            INT           NOT NULL,
     -- references bonus_head.id
     `site_id`            INT           NOT NULL,
-    `player_id`          VARCHAR(50)   NOT NULL,
+    `user_id`          VARCHAR(50)   NOT NULL,
 
     -- ── Config snapshot (copied from bonus_configure at grant time) ───────────
     `bonus_code`         VARCHAR(50)   DEFAULT NULL,
@@ -87,21 +87,21 @@ CREATE TABLE `player_bonus_grant` (
     `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_player_bonus_grant_player_bonus_id`    (`player_bonus_id`),
-    KEY `idx_player_bonus_grant_configure_id`             (`configure_id`),
-    KEY `idx_player_bonus_grant_subhead_id`               (`subhead_id`),
-    KEY `idx_player_bonus_grant_head_id`                  (`head_id`),
-    KEY `idx_player_bonus_grant_player_id`                (`player_id`),
-    KEY `idx_player_bonus_grant_site_date`                (`site_id`, `created_at`),
-    KEY `idx_player_bonus_grant_bonus_code`               (`bonus_code`)
+    UNIQUE KEY `uk_user_bonus_grant_player_bonus_id`    (`player_bonus_id`),
+    KEY `idx_user_bonus_grant_configure_id`             (`configure_id`),
+    KEY `idx_user_bonus_grant_subhead_id`               (`subhead_id`),
+    KEY `idx_user_bonus_grant_head_id`                  (`head_id`),
+    KEY `idx_user_bonus_grant_user_id`                (`user_id`),
+    KEY `idx_user_bonus_grant_site_date`                (`site_id`, `created_at`),
+    KEY `idx_user_bonus_grant_bonus_code`               (`bonus_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- -----------------------------------------------------------------------------
 -- Sample data
 -- -----------------------------------------------------------------------------
-INSERT INTO `player_bonus_grant`
+INSERT INTO `user_bonus_grant`
     (`id`, `player_bonus_id`, `configure_id`, `subhead_id`, `head_id`,
-     `site_id`, `player_id`,
+     `site_id`, `user_id`,
      `bonus_code`, `product`,
      `wager_multiplier`, `no_of_chunks`, `chunk_expiry_days`, `bonus_expiry_days`,
      `wager_chip_type`, `credit_chip_type`,

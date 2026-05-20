@@ -1,0 +1,3 @@
+# Bonus Module — Business Overview
+
+The Bonus Module enables operators to run structured promotional campaigns that reward players with bonus funds tied to wagering activity. Operators configure promo codes with grant amounts, wagering multipliers, and release triggers — bonuses unlock in chunks as players meet wager milestones, ensuring promotional spend is tied to genuine engagement. The module tracks the full lifecycle of every bonus from grant through consumption, expiry, and forfeit, giving operators a complete audit trail and players a transparent view of their rewards. It also supports referral tracking, allowing operators to attribute new player acquisition directly to existing player advocacy.
