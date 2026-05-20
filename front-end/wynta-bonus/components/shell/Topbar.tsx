@@ -1,8 +1,9 @@
 'use client';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { selectNode } from '../../store/slices/treeSlice';
+import { selectNode, expandAncestorsOf } from '../../store/slices/treeSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import { MOCK_CONFIGURES } from '../../services/mocks/configures';
+import type { BonusSubhead } from '../../types';
 
 interface Crumb {
   label: string;
@@ -12,13 +13,12 @@ interface Crumb {
 }
 
 export default function Topbar() {
-  const dispatch       = useAppDispatch();
-  const selectedNode   = useAppSelector(s => s.tree.selectedNode);
-  const headEntities   = useAppSelector(s => s.heads.entities);
-  const headIds        = useAppSelector(s => s.heads.ids);
+  const dispatch          = useAppDispatch();
+  const selectedNode      = useAppSelector(s => s.tree.selectedNode);
+  const headEntities      = useAppSelector(s => s.heads.entities);
+  const headIds           = useAppSelector(s => s.heads.ids);
   const configureEntities = useAppSelector(s => s.configures.entities);
 
-  // Find a subhead summary and its parent head by subhead id
   function findSubhead(subId: number) {
     for (const hid of headIds) {
       const h = headEntities[hid];
@@ -29,6 +29,7 @@ export default function Topbar() {
   }
 
   const crumbs: Crumb[] = [{ label: 'Bonus', onClick: () => dispatch(selectNode(null)) }];
+
   if (selectedNode) {
     if (selectedNode.type === 'head') {
       const h = headEntities[selectedNode.id];
@@ -37,7 +38,13 @@ export default function Topbar() {
     } else if (selectedNode.type === 'subhead') {
       const found = findSubhead(selectedNode.id);
       if (found) {
-        crumbs.push({ label: found.head.name });
+        crumbs.push({
+          label: found.head.name,
+          onClick: () => {
+            dispatch(selectNode({ type: 'head', id: found.head.id }));
+            dispatch(expandAncestorsOf({ type: 'head', id: found.head.id }));
+          },
+        });
         crumbs.push({ label: found.sub.name, current: true });
       }
 
@@ -46,8 +53,24 @@ export default function Topbar() {
       if (c) {
         const found = findSubhead(c.subhead_id);
         if (found) {
-          crumbs.push({ label: found.head.name });
-          crumbs.push({ label: found.sub.name });
+          crumbs.push({
+            label: found.head.name,
+            onClick: () => {
+              dispatch(selectNode({ type: 'head', id: found.head.id }));
+              dispatch(expandAncestorsOf({ type: 'head', id: found.head.id }));
+            },
+          });
+          crumbs.push({
+            label: found.sub.name,
+            onClick: () => {
+              dispatch(selectNode({ type: 'subhead', id: found.sub.id }));
+              dispatch(expandAncestorsOf({
+                type: 'subhead',
+                id: found.sub.id,
+                subheads: { [found.sub.id]: { head_id: found.head.id } as BonusSubhead },
+              }));
+            },
+          });
         }
         const fullName = c.name;
         const shortName = fullName.split(/\s+[—–-]\s+/)[0];
@@ -64,7 +87,13 @@ export default function Topbar() {
           {c.current ? (
             <span className="current" title={c.fullLabel || c.label}>{c.label}</span>
           ) : (
-            <span title={c.fullLabel || c.label} style={{ cursor: c.onClick ? 'pointer' : 'default' }} onClick={c.onClick}>{c.label}</span>
+            <span
+              title={c.fullLabel || c.label}
+              style={{ cursor: c.onClick ? 'pointer' : 'default' }}
+              onClick={c.onClick}
+            >
+              {c.label}
+            </span>
           )}
         </span>
       ))}
