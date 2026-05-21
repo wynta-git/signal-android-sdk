@@ -7,6 +7,7 @@ from app.alias_manager import AliasManager
 from app.config import settings
 from app.consumer import run_consumer
 from shared.logging_config import configure_logging
+from app.profile_updater import ProfileUpdater
 from app.schema_manager import SchemaManager
 from app.writer import ClickHouseWriter
 from shared.clients.clickhouse import make_clickhouse_client
@@ -42,7 +43,8 @@ async def main() -> None:
 
     schema_mgr = SchemaManager(redis=redis_client, ch_client=ch_client, db=db)
     alias_mgr = AliasManager(db)
-    writer = ClickHouseWriter(ch_client, schema_mgr, redis=redis_client, alias_mgr=alias_mgr)
+    profile_updater = ProfileUpdater(db)
+    writer = ClickHouseWriter(ch_client, schema_mgr, redis=redis_client, alias_mgr=alias_mgr, profile_updater=profile_updater)
     consumer_task = asyncio.create_task(run_consumer(writer))
 
     loop = asyncio.get_running_loop()

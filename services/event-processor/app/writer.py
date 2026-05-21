@@ -7,6 +7,7 @@ from redis.asyncio import Redis
 from shared.clients.redis import pipeline_set_nx_ex
 
 from .alias_manager import AliasManager
+from .profile_updater import ProfileUpdater
 from .schema_manager import SchemaManager
 
 log = structlog.get_logger()
@@ -106,11 +107,19 @@ _DEDUP_TTL = 86400  # 24 hours — covers any realistic client retry window
 
 
 class ClickHouseWriter:
-    def __init__(self, client: Any, schema_mgr: SchemaManager, redis: Redis, alias_mgr: AliasManager) -> None:
+    def __init__(
+        self,
+        client: Any,
+        schema_mgr: SchemaManager,
+        redis: Redis,
+        alias_mgr: AliasManager,
+        profile_updater: ProfileUpdater,
+    ) -> None:
         self._client = client
         self._schema_mgr = schema_mgr
         self._redis = redis
         self._alias_mgr = alias_mgr
+        self._profile_updater = profile_updater
 
     async def _filter_duplicates(
         self, project_id: str, events: list[dict[str, Any]]
@@ -162,3 +171,5 @@ class ClickHouseWriter:
         rows = [_to_row(e, col_map, prop_cols) for e in events]
         await self._client.insert(tbl, rows, column_names=column_names)
         log.info("ch_batch_written", project_id=project_id, table=tbl, count=len(rows))
+
+        await self._profile_updater.update_from_events(project_id, events)
