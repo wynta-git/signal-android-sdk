@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['wynta-react-common'],
-  basePath: '/bonus',
+  basePath: '/product/bonus',
+  output: 'export',
 };
 
 export default nextConfig;

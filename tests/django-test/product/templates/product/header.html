@@ -1,0 +1,31 @@
+<div id="dj-header">
+  <div class="dj-header-inner">
+    <span class="dj-header-logo">Wynta</span>
+    <nav class="dj-header-nav">
+      <a href="/product/bonus/" class="dj-header-link{% if app == 'bonus' %} active{% endif %}">Bonus</a>
+      <a href="/product/crm/" class="dj-header-link{% if app == 'crm' %} active{% endif %}">CRM</a>
+    </nav>
+    <span class="dj-header-env">!!!!{{ request.META.SERVER_NAME }}</span>
+  </div>
+</div>
+<style>
+  #dj-header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: #0f1c2e; color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 13px; height: 36px;
+  }
+  .dj-header-inner {
+    display: flex; align-items: center; gap: 20px;
+    height: 100%; padding: 0 20px;
+  }
+  .dj-header-logo { font-weight: 700; letter-spacing: 0.05em; color: #38b6ff; }
+  .dj-header-nav  { display: flex; gap: 4px; }
+  .dj-header-link {
+    padding: 4px 10px; border-radius: 4px; color: #94a3b8;
+    text-decoration: none; transition: background 0.12s, color 0.12s;
+  }
+  .dj-header-link:hover  { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+  .dj-header-link.active { background: rgba(56,182,255,0.15);  color: #38b6ff; font-weight: 600; }
+  .dj-header-env  { margin-left: auto; font-size: 11px; color: #475569; }
+</style>
