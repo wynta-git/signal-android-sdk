@@ -4,6 +4,11 @@ Change the password for a service account in MongoDB.
 Usage:
     python scripts/change_service_password.py --username segmentation-engine
     python scripts/change_service_password.py --username bonus-api --mongo mongodb://...
+
+On the EC2 server:
+    MONGO_URL="mongodb://admin:glgpam2026@172.31.6.243:27017/?authSource=admin" \
+      /home/ubuntu/pam/.venv/bin/python /home/ubuntu/pam/scripts/change_service_password.py \
+      --username segmentation-engine
 """
 
 import argparse
