@@ -51,7 +51,57 @@ Every DB query in every service must filter by `project_id`. The `project_id` co
 
 ## Internal service-to-service auth
 
-Services inside the cluster (campaign-engine → segmentation-engine, etc.) authenticate with mTLS or shared service-to-service JWTs. **No public tokens flow internally.** Internal calls do not pass through `api-service`'s public endpoint.
+Services inside the cluster (campaign-engine → segmentation-engine, bonus-api → segmentation-engine, etc.) authenticate with **RS256 JWTs issued by `auth-service`**. Public opaque tokens never flow on internal paths.
+
+### How it works
+
+1. A service (e.g. `bonus-api`) calls `POST /v1/system/token` on `auth-service` with its `username` and `password`.
+2. `auth-service` verifies credentials against the `service_accounts` MongoDB collection (bcrypt).
+3. On success, it returns a signed RS256 JWT (`exp` = 1 hour). The caller should cache this and refresh before expiry.
+4. The caller attaches the JWT as `Authorization: Bearer <token>` on internal API calls.
+5. The receiving service (e.g. `segmentation-engine`) validates the JWT via `shared.auth.system_token.validate_system_jwt()` using its `SYSTEM_JWT_PUBLIC_KEY` env var.
+
+### JWT claims
+
+| Claim | Value |
+|---|---|
+| `sub` | service username (e.g. `"bonus-api"`) |
+| `iss` | `"pam-auth-service"` |
+| `scope` | list of permissions (e.g. `["segments:read"]`) |
+| `exp` | issued-at + 3600 seconds |
+
+### Key management
+
+| Key | Location | Purpose |
+|---|---|---|
+| Private key (PEM) | `JWT_PRIVATE_KEY` on `auth-service` only | Signs tokens |
+| Public key (PEM) | `SYSTEM_JWT_PUBLIC_KEY` on every consumer service | Verifies tokens |
+
+Generate a key pair (once, store in secrets manager):
+```bash
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
+```
+
+### Consumer service integration
+
+Each service that accepts system tokens has `get_system_token_context` and `SystemAuthDep` in its `dependencies.py`:
+
+```python
+from app.dependencies import SystemAuthDep
+
+@router.get("/internal/segments")
+async def list_segments(ctx: SystemAuthDep) -> ...:
+    # ctx.service — caller service name
+    # ctx.has_scope("segments:read") — scope check
+```
+
+### Seeding service accounts
+
+```bash
+MONGO_URL=mongodb://... uv run python scripts/seed_service_accounts.py
+# --dry-run to preview without writing
+```
 
 ## Don'ts
 

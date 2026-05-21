@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Internal URL for the segmentation engine admin API
     segmentation_engine_url: str = "http://localhost:8003"
 
+    # RS256 public key in PEM format — used to verify system JWTs from auth-service
+    system_jwt_public_key: str = ""
+
     debug: bool = False
     version: str = "0.1.0"
 
