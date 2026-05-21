@@ -119,7 +119,7 @@ def test_get_system_token_success(client: TestClient, rsa_key_pair: tuple[str, s
     doc = _make_doc("bonus-api", "secret", ["segments:read"])
     client.app.state.mongo = _mock_db(doc)
 
-    resp = client.post("/v1/system/token", json={"username": "bonus-api", "password": "secret"})
+    resp = client.post("/api/v1/system/token", json={"username": "bonus-api", "password": "secret"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["token_type"] == "bearer"
@@ -134,12 +134,12 @@ def test_get_system_token_wrong_password(client: TestClient) -> None:
     doc = _make_doc("bonus-api", "correct", ["segments:read"])
     client.app.state.mongo = _mock_db(doc)
 
-    resp = client.post("/v1/system/token", json={"username": "bonus-api", "password": "wrong"})
+    resp = client.post("/api/v1/system/token", json={"username": "bonus-api", "password": "wrong"})
     assert resp.status_code == 401
 
 
 def test_get_system_token_unknown_user(client: TestClient) -> None:
     client.app.state.mongo = _mock_db(None)
 
-    resp = client.post("/v1/system/token", json={"username": "ghost", "password": "x"})
+    resp = client.post("/api/v1/system/token", json={"username": "ghost", "password": "x"})
     assert resp.status_code == 401

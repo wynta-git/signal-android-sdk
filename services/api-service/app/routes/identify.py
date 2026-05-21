@@ -28,7 +28,7 @@ class IdentifyResponse(BaseModel):
 
 
 @router.post(
-    "/v1/events/identify",
+    "/api/v1/events/identify",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=IdentifyResponse,
 )

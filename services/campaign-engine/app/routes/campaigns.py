@@ -20,7 +20,7 @@ from shared.clients.mongo import (
 )
 
 log = structlog.get_logger()
-router = APIRouter(prefix="/v1/campaign/projects/{project_id}", tags=["campaigns"])
+router = APIRouter(prefix="/api/v1/campaign/projects/{project_id}", tags=["campaigns"])
 
 DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 ProducerDep = Annotated[AIOKafkaProducer, Depends(get_producer)]
