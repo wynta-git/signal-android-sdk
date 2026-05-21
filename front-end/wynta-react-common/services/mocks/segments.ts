@@ -1,5 +1,67 @@
 import { iso } from './iso';
-import type { ManualSegment } from '../../types';
+import type { ManualSegment, Player } from '../../types';
+
+function _strHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+function _seedRng(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = Math.imul(s ^ (s >>> 15), 1 | s);
+    s ^= s + Math.imul(s ^ (s >>> 7), 61 | s);
+    return ((s ^ (s >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function makePlayerById(id: number): Player {
+  const r = _seedRng(_strHash('pid:' + id));
+  const pick = <T>(arr: T[]): T => arr[Math.floor(r() * arr.length)];
+  const fn = pick(PLAYER_FIRST_NAMES);
+  const ln = pick(PLAYER_LAST_NAMES);
+  const name = `${fn} ${ln}`;
+  const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${Math.floor(r() * 99)}@wynta.in`;
+  const lifetimeDep = Math.floor((r() * 200000 + 1000) / 100) * 100;
+  const lifetimeWager = Math.round(lifetimeDep * (3 + r() * 8));
+  return {
+    id, name, email,
+    phone: '+91 ' + (60000 + Math.floor(r() * 39999)) + ' ' + (10000 + Math.floor(r() * 89999)),
+    state: pick(PLAYER_STATES), country: 'India', tier: pick(PLAYER_TIERS), kyc: pick(PLAYER_KYC),
+    lifetimeDep, lifetimeWager, lifetimeGgr: Math.round(lifetimeWager * (0.03 + r() * 0.07)),
+    totalBonuses: Math.floor(r() * 28), sessions7: Math.floor(r() * 28),
+    daysAgoReg: Math.floor(r() * 720) + 1, daysAgoLogin: Math.floor(r() * 30),
+    product: pick(PLAYER_PRODUCTS),
+  };
+}
+
+let _GLOBAL_PLAYER_POOL: Player[] | null = null;
+export function getGlobalPlayerPool(): Player[] {
+  if (_GLOBAL_PLAYER_POOL) return _GLOBAL_PLAYER_POOL;
+  const r = _seedRng(_strHash('global-pool'));
+  const pick = <T>(arr: T[]): T => arr[Math.floor(r() * arr.length)];
+  const pool: Player[] = [];
+  for (let i = 1; i <= 500; i++) {
+    const fn = pick(PLAYER_FIRST_NAMES);
+    const ln = pick(PLAYER_LAST_NAMES);
+    const id = 10000 + Math.floor(r() * 89999);
+    const lifetimeDep = Math.floor((r() * 200000 + 1000) / 100) * 100;
+    const lifetimeWager = Math.round(lifetimeDep * (3 + r() * 8));
+    pool.push({
+      id, name: `${fn} ${ln}`,
+      email: `${fn.toLowerCase()}.${ln.toLowerCase()}${Math.floor(r() * 99)}@wynta.in`,
+      phone: '+91 ' + (60000 + Math.floor(r() * 39999)) + ' ' + (10000 + Math.floor(r() * 89999)),
+      state: pick(PLAYER_STATES), country: 'India', tier: pick(PLAYER_TIERS), kyc: pick(PLAYER_KYC),
+      lifetimeDep, lifetimeWager, lifetimeGgr: Math.round(lifetimeWager * (0.03 + r() * 0.07)),
+      totalBonuses: Math.floor(r() * 28), sessions7: Math.floor(r() * 28),
+      daysAgoReg: Math.floor(r() * 720) + 1, daysAgoLogin: Math.floor(r() * 30),
+      product: pick(PLAYER_PRODUCTS),
+    });
+  }
+  _GLOBAL_PLAYER_POOL = pool;
+  return pool;
+}
 
 export const PLAYER_FIRST_NAMES: string[] = [
   'Aarav','Vihaan','Aditya','Vivaan','Krishna','Arjun','Reyansh','Ayaan','Atharv','Rohan',
