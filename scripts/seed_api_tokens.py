@@ -2,9 +2,9 @@
 Seed a project and generate a live API token for local development.
 
 Usage:
-    python infra/seed.py
-    python infra/seed.py --mongo mongodb://localhost:27017 --db pam
-    python infra/seed.py --project-id proj_demo --project-name "Demo App"
+    python scripts/seed_api_tokens.py
+    python scripts/seed_api_tokens.py --mongo mongodb://localhost:27017 --db pam
+    python scripts/seed_api_tokens.py --project-id proj_demo --project-name "Demo App"
 """
 
 import argparse
