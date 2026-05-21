@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
 
+from shared.auth.system_token import InvalidSystemTokenError, SystemTokenContext, validate_system_jwt
 from shared.auth.token import (
     InvalidTokenError,
     TokenContext,
@@ -87,3 +88,25 @@ class RequireScope:
 
 
 AuthDep = Annotated[TokenContext, Depends(get_token_context)]
+
+
+def get_system_token_context(
+    credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
+) -> SystemTokenContext:
+    from app.config import settings
+
+    if not credentials:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_token", "message": "Missing or malformed Authorization header"},
+        )
+    try:
+        return validate_system_jwt(credentials.credentials, settings.system_jwt_public_key)
+    except InvalidSystemTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_token", "message": "Invalid or expired system token"},
+        )
+
+
+SystemAuthDep = Annotated[SystemTokenContext, Depends(get_system_token_context)]

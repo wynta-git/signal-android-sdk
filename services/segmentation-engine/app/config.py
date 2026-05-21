@@ -19,6 +19,9 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379"
 
+    # RS256 public key in PEM format — used to verify system JWTs from auth-service
+    system_jwt_public_key: str = ""
+
     debug: bool = False
     version: str = "0.1.0"
 
