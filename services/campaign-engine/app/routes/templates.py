@@ -17,7 +17,7 @@ from shared.clients.mongo import (
 )
 
 log = structlog.get_logger()
-router = APIRouter(prefix="/v1/projects/{project_id}/templates", tags=["templates"])
+router = APIRouter(prefix="/v1/campaign/projects/{project_id}/templates", tags=["templates"])
 
 DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 
