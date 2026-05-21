@@ -1,8 +1,8 @@
-# Player Bonus API
+# User Bonus API
 
-Base path: `/api/v1/player-bonuses`
+Base path: `/api/v1/user-bonuses`
 
-This API allows game clients and back-office integrations to query a player's applicable bonuses, record bonus consumption against wager events, revert erroneous consumptions, and inspect the full bonus transaction history.
+This API allows game clients and back-office integrations to query a user's applicable bonuses, record bonus consumption against wager events, revert erroneous consumptions, and inspect the full bonus transaction history.
 
 ---
 
@@ -51,7 +51,7 @@ client_secret = "your_shared_secret"
 timestamp = str(int(time.time()))
 
 body = json.dumps({
-    "user_id": "PLAYER_001",
+    "user_id": "USER_001",
     "consume_txn_id": "TXN20250519001",
     "wager_amount": "300.00",
     "bonus_amount": "100.00",
@@ -62,7 +62,7 @@ canonical = f"{client_id}\n{timestamp}\n{body}".encode()
 signature = hmac.new(client_secret.encode(), canonical, hashlib.sha256).hexdigest()
 
 resp = requests.post(
-    "http://localhost:8010/api/v1/player-bonuses/consume",
+    "http://localhost:8010/api/v1/user-bonuses/consume",
     data=body,
     headers={
         "Content-Type": "application/json",
@@ -83,7 +83,7 @@ const clientSecret = "your_shared_secret";
 const timestamp = String(Math.floor(Date.now() / 1000));
 
 const body = JSON.stringify({
-  user_id: "PLAYER_001",
+  user_id: "USER_001",
   consume_txn_id: "TXN20250519001",
   wager_amount: "300.00",
   bonus_amount: "100.00",
@@ -96,7 +96,7 @@ const signature = crypto
   .update(canonical)
   .digest("hex");
 
-fetch("http://localhost:8010/api/v1/player-bonuses/consume", {
+fetch("http://localhost:8010/api/v1/user-bonuses/consume", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
@@ -116,8 +116,8 @@ canonical = f"{client_id}\n{timestamp}\n".encode()   # empty body
 signature = hmac.new(client_secret.encode(), canonical, hashlib.sha256).hexdigest()
 
 requests.get(
-    "http://localhost:8010/api/v1/player-bonuses/applicable-codes",
-    params={"user_id": "PLAYER_001", "chip_type": "cash"},
+    "http://localhost:8010/api/v1/user-bonuses/applicable-codes",
+    params={"user_id": "USER_001", "chip_type": "cash"},
     headers={"X-Client-Id": client_id, "X-Timestamp": timestamp, "X-Signature": signature},
 )
 ```
@@ -139,17 +139,17 @@ requests.get(
 
 ### 1. List Applicable Bonus Codes
 
-Returns all active bonus codes available to a player on a given site. Codes are ordered by `display_order` ascending and can be used to render a bonus selection UI before a wager.
+Returns all active bonus codes available to a user on a given site. Codes are ordered by `display_order` ascending and can be used to render a bonus selection UI before a wager.
 
 ```
-GET /api/v1/player-bonuses/applicable-codes
+GET /api/v1/user-bonuses/applicable-codes
 ```
 
 **Query Parameters**
 
 | Parameter   | Type   | Required | Description                                             |
 | ----------- | ------ | -------- | ------------------------------------------------------- |
-| `user_id` | string | Yes      | Platform player identifier (max 50 chars)               |
+| `user_id`   | string | Yes      | Platform user identifier (max 50 chars)                 |
 | `chip_type` | string | Yes      | Filter codes by chip type — `cash` or `in_app_purchase` |
 
 **Response `200 OK`**
@@ -194,7 +194,7 @@ GET /api/v1/player-bonuses/applicable-codes
 | `banner_image_url`        | string \| null   | Promotional banner image URL                          |
 | `badge_text`              | string \| null   | Label shown on badge (e.g. "Hot", "New")              |
 | `cta_text`                | string \| null   | Call-to-action button label                           |
-| `auto_apply`              | boolean          | If `true`, apply without player selection             |
+| `auto_apply`              | boolean          | If `true`, apply without user selection               |
 | `display_order`           | integer          | Sort order for UI rendering                           |
 | `display_on`              | string \| null   | Trigger context (e.g. `DEPOSIT`, `SIGNUP`)            |
 | `min_display_amount`      | decimal \| null  | Minimum transaction amount to show this bonus         |
@@ -206,17 +206,17 @@ GET /api/v1/player-bonuses/applicable-codes
 
 ### 2. Consume a Bonus Chunk
 
-Records that a specific bonus chunk has been consumed against a wager event. Call this from the game server immediately after a successful wager that should draw from a player's bonus.
+Records that a specific bonus chunk has been consumed against a wager event. Call this from the game server immediately after a successful wager that should draw from a user's bonus.
 
 ```
-POST /api/v1/player-bonuses/consume
+POST /api/v1/user-bonuses/consume
 ```
 
 **Request Body** `application/json`
 
 ```json
 {
-  "user_id": "PLAYER_001",
+  "user_id": "USER_001",
   "consume_txn_id": "TXN20250519001",
   "wager_amount": "300.00",
   "bonus_amount": "100.00",
@@ -231,7 +231,7 @@ POST /api/v1/player-bonuses/consume
 
 | Field            | Type           | Required | Description                                                   |
 | ---------------- | -------------- | -------- | ------------------------------------------------------------- |
-| `user_id`      | string         | Yes      | Platform player identifier (max 50 chars)                     |
+| `user_id`        | string         | Yes      | Platform user identifier (max 50 chars)                       |
 | `consume_txn_id` | string         | Yes      | Idempotency key — unique per consumption event (max 50 chars) |
 | `wager_amount`   | decimal        | Yes      | Total wager amount placed (≥ 0)                               |
 | `bonus_amount`   | decimal        | Yes      | Bonus amount being consumed (≥ 0)                             |
@@ -240,7 +240,7 @@ POST /api/v1/player-bonuses/consume
 | `game_id`        | string \| null | No       | Game identifier (max 50 chars)                                |
 | `round_id`       | string \| null | No       | Game round identifier (max 50 chars)                          |
 
-> **Idempotency:** If a request is retried with the same `consume_txn_id`, the server returns `409 Conflict`. Store `consume_txn_id` values on your side to safely detect duplicates. The service auto-selects the player's next available released bonus chunk.
+> **Idempotency:** If a request is retried with the same `consume_txn_id`, the server returns `409 Conflict`. Store `consume_txn_id` values on your side to safely detect duplicates. The service auto-selects the user's next available released bonus chunk.
 
 **Response `201 Created`**
 
@@ -268,10 +268,10 @@ POST /api/v1/player-bonuses/consume
 
 ### 3. Revert a Bonus Consumption
 
-Cancels a previously recorded consumption — for example, when a wager is voided or rolled back. Reverting decrements the player's consumed balance by the original consumption amount.
+Cancels a previously recorded consumption — for example, when a wager is voided or rolled back. Reverting decrements the user's consumed balance by the original consumption amount.
 
 ```
-POST /api/v1/player-bonuses/consume/{consume_txn_id}/revert
+POST /api/v1/user-bonuses/consume/{consume_txn_id}/revert
 ```
 
 **Path Parameters**
@@ -302,19 +302,19 @@ POST /api/v1/player-bonuses/consume/{consume_txn_id}/revert
 
 ---
 
-### 4. Get Player Bonus Summary
+### 4. Get user Bonus Summary
 
-Returns bonus figures for a player broken down by chip type. Each element in the array represents one chip type the player has active or historical grants for.
+Returns bonus figures for a user broken down by chip type. Each element in the array represents one chip type the user has active or historical grants for.
 
 ```
-GET /api/v1/player-bonuses/{user_id}/summary
+GET /api/v1/user-bonuses/{user_id}/summary
 ```
 
 **Path Parameters**
 
-| Parameter   | Type   | Description                |
-| ----------- | ------ | -------------------------- |
-| `user_id` | string | Platform player identifier |
+| Parameter | Type   | Description              |
+| --------- | ------ | ------------------------ |
+| `user_id` | string | Platform user identifier |
 
 **Response `200 OK`**
 
@@ -346,19 +346,19 @@ GET /api/v1/player-bonuses/{user_id}/summary
 
 ---
 
-### 5. List Player Transactions
+### 5. List user Transactions
 
-Returns a paginated list of bonus grant transactions for a player, ordered by most recent first. Each item shows a summary with a derived lifecycle status.
+Returns a paginated list of bonus grant transactions for a user, ordered by most recent first. Each item shows a summary with a derived lifecycle status.
 
 ```
-GET /api/v1/player-bonuses/{user_id}/transactions
+GET /api/v1/user-bonuses/{user_id}/transactions
 ```
 
 **Path Parameters**
 
-| Parameter   | Type   | Description                |
-| ----------- | ------ | -------------------------- |
-| `user_id` | string | Platform player identifier |
+| Parameter | Type   | Description              |
+| --------- | ------ | ------------------------ |
+| `user_id` | string | Platform user identifier |
 
 **Query Parameters**
 
@@ -426,7 +426,7 @@ A flat ledger ordered by most recent first. Every bonus event — grant, chunk r
 
 | Type        | Meaning                                         |
 | ----------- | ----------------------------------------------- |
-| `grant`     | Bonus was granted to the player                 |
+| `grant`     | Bonus was granted to the user                   |
 | `released`  | A bonus chunk moved from pending to released    |
 | `consumed`  | A released chunk was consumed against a wager   |
 | `expiry`    | A chunk or bonus expired before being consumed  |
@@ -439,22 +439,22 @@ A flat ledger ordered by most recent first. Every bonus event — grant, chunk r
 Returns the full detail of a single bonus grant including all chunks, forfeit record (if any), and expiry events.
 
 ```
-GET /api/v1/player-bonuses/{user_id}/transactions/{txn_id}
+GET /api/v1/user-bonuses/{user_id}/transactions/{txn_id}
 ```
 
 **Path Parameters**
 
-| Parameter   | Type    | Description                                              |
-| ----------- | ------- | -------------------------------------------------------- |
-| `user_id` | string  | Platform player identifier                               |
-| `txn_id`    | integer | Grant record ID (the `txn_id` from the transaction list) |
+| Parameter | Type    | Description                                              |
+| --------- | ------- | -------------------------------------------------------- |
+| `user_id` | string  | Platform user identifier                                 |
+| `txn_id`  | integer | Grant record ID (the `txn_id` from the transaction list) |
 
 **Response `200 OK`**
 
 ```json
 {
   "txn_id": 15,
-  "user_id": "PLAYER_001",
+  "user_id": "USER_001",
   "bonus_code": "WELCOME100",
   "wager_multiplier": "3.00",
   "no_of_chunks": 3,
@@ -489,7 +489,7 @@ GET /api/v1/player-bonuses/{user_id}/transactions/{txn_id}
 | Field               | Type            | Description                                |
 | ------------------- | --------------- | ------------------------------------------ |
 | `txn_id`            | integer         | Grant record ID                            |
-| `user_id`         | string          | Player identifier                          |
+| `user_id`           | string          | user identifier                            |
 | `bonus_code`        | string \| null  | Promo code used                            |
 | `wager_multiplier`  | decimal         | Wagering requirement multiplier            |
 | `no_of_chunks`      | integer         | Total number of chunks                     |
@@ -542,40 +542,40 @@ GET /api/v1/player-bonuses/{user_id}/transactions/{txn_id}
 
 ---
 
-### 7. Get Player Referral Code
+### 7. Get user Referral Code
 
-Returns the referral code assigned to a player. This code can be shared with friends to track referral-driven bonus eligibility.
+Returns the referral code assigned to a user. This code can be shared with friends to track referral-driven bonus eligibility.
 
 ```
-GET /api/v1/player-bonuses/{user_id}/referral-code
+GET /api/v1/user-bonuses/{user_id}/referral-code
 ```
 
 **Path Parameters**
 
-| Parameter   | Type   | Description                |
-| ----------- | ------ | -------------------------- |
-| `user_id` | string | Platform player identifier |
+| Parameter | Type   | Description              |
+| --------- | ------ | ------------------------ |
+| `user_id` | string | Platform user identifier |
 
 **Response `200 OK`**
 
 ```json
 {
-  "user_id": "PLAYER_001",
+  "user_id": "USER_001",
   "referral_code": "REF_XYZ99"
 }
 ```
 
 **Response Fields**
 
-| Field           | Type   | Description                                  |
-| --------------- | ------ | -------------------------------------------- |
-| `user_id`     | string | Player identifier                            |
-| `referral_code` | string | Unique referral code assigned to this player |
+| Field           | Type   | Description                                |
+| --------------- | ------ | ------------------------------------------ |
+| `user_id`       | string | user identifier                            |
+| `referral_code` | string | Unique referral code assigned to this user |
 
 **Error Cases**
 
-| HTTP Status | Scenario                               |
-| ----------- | -------------------------------------- |
+| HTTP Status | Scenario                             |
+| ----------- | ------------------------------------ |
 | `404`       | No referral code found for `user_id` |
 
 ---
@@ -590,49 +590,324 @@ All errors follow a consistent envelope:
 }
 ```
 
-| HTTP Status                 | Scenario                                                                                                                           |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `400 Bad Request`           | Request validation failed (missing fields, out-of-range values)                                                                    |
-| `404 Not Found`             | The referenced bonus grant, chunk, or consumption record does not exist, or does not belong to the given player                    |
-| `409 Conflict`              | Duplicate consumption (`consume_txn_id` already recorded), no released chunk available for player, or consumption already reverted |
-| `500 Internal Server Error` | Unexpected database error                                                                                                          |
+| HTTP Status                 | Scenario                                                                                                                         |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `400 Bad Request`           | Request validation failed (missing fields, out-of-range values)                                                                  |
+| `404 Not Found`             | The referenced bonus grant, chunk, or consumption record does not exist, or does not belong to the given user                    |
+| `409 Conflict`              | Duplicate consumption (`consume_txn_id` already recorded), no released chunk available for user, or consumption already reverted |
+| `500 Internal Server Error` | Unexpected database error                                                                                                        |
 
 ---
 
 ## Integration Flow
 
 ```
-1. Player initiates a deposit / game round
+1. user initiates a deposit / game round
        │
        ▼
-2. Call GET /api/v1/player-bonuses/applicable-codes?user_id=&chip_type=
-   → Display eligible bonus offers to the player
+2. Call GET /api/v1/user-bonuses/applicable-codes?user_id=&chip_type=
+   → Display eligible bonus offers to the user
        │
        ▼
-3. Player selects a code
-   → POST /api/v1/player-bonuses/apply-code?user_id=&promo_code=  { txn_amount, chip_type }
+3. user selects a code
+   → POST /api/v1/user-bonuses/apply-code?user_id=&promo_code=  { txn_amount, chip_type }
    → Returns grant_id — bonus grant created in PENDING status
        │
        ▼
 4. Release triggers fire (event-driven, internal)
-   → Chunks move from PENDING → RELEASE as player meets trigger conditions
+   → Chunks move from PENDING → RELEASE as user meets trigger conditions
        │
        ▼
-5. Player wagers using released bonus
-   → POST /api/v1/player-bonuses/consume  { user_id, consume_txn_id, bonus_amount, wager_amount, wager_tnx_id, ... }
+5. user wagers using released bonus
+   → POST /api/v1/user-bonuses/consume  { user_id, consume_txn_id, bonus_amount, wager_amount, wager_tnx_id, ... }
        │
        ▼
 6. If wager is voided:
-     POST /api/v1/player-bonuses/consume/{consume_txn_id}/revert
+     POST /api/v1/user-bonuses/consume/{consume_txn_id}/revert
        │
        ▼
 6. Display wallet / history:
-     GET /api/v1/player-bonuses/{user_id}/summary
-     GET /api/v1/player-bonuses/{user_id}/transactions?chip_type=cash
-     GET /api/v1/player-bonuses/{user_id}/transactions/{txn_id}
+     GET /api/v1/user-bonuses/{user_id}/summary
+     GET /api/v1/user-bonuses/{user_id}/transactions?chip_type=cash
+     GET /api/v1/user-bonuses/{user_id}/transactions/{txn_id}
 ```
 
 ---
+
+# Bonus Events
+
+Events consumed by the bonus service to evaluate eligibility, trigger grants, and update wager progress. All events share the standard PAM envelope (see [`docs/event-schema.md`](../../../docs/event-schema.md)).
+
+All event names use `SCREAMING_SNAKE_CASE`.
+
+## Envelope (common to all events)
+
+```json
+{
+  "event_id": "uuid-v4",
+  "event_name": "SCREAMING_SNAKE_CASE_EVENT_NAME",
+  "user_id": "user_001",
+  "session_id": "sess_optional",
+  "timestamp": "2026-05-14T10:00:00.000Z",
+  "device": "android",
+  "platform": "web",
+  "properties": {}
+}
+```
+
+---
+
+## user Action Events
+
+### `LOGIN`
+
+user successfully logs in.
+
+| Property       | Type   | Required | Notes                                     |
+| -------------- | ------ | -------- | ----------------------------------------- |
+| `login_method` | string | yes      | `email`, `phone`, `google`, `apple`, etc. |
+| `ip`           | string | no       | PII — hashed before storage.              |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000001",
+  "event_name": "LOGIN",
+  "user_id": "user_001",
+  "session_id": "sess_abc123",
+  "timestamp": "2026-05-14T08:00:00.000Z",
+  "properties": {
+    "login_method": "phone"
+  }
+}
+```
+
+---
+
+### `REGISTRATION`
+
+New user account created.
+
+| Property              | Type   | Required | Notes                                   |
+| --------------------- | ------ | -------- | --------------------------------------- |
+| `registration_method` | string | yes      | `email`, `phone`, `google`, `apple`.    |
+| `referral_code`       | string | no       | Promo or referral code used at sign-up. |
+| `ip`                  | string | no       | PII — hashed before storage.            |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000002",
+  "event_name": "REGISTRATION",
+  "user_id": "user_001",
+  "session_id": "sess_abc123",
+  "timestamp": "2026-05-14T08:01:00.000Z",
+  "properties": {
+    "registration_method": "phone",
+    "referral_code": "PROMO50"
+  }
+}
+```
+
+---
+
+### `APP_VISIT`
+
+user opens or resumes the app.
+
+| Property      | Type | Required | Notes                                                    |
+| ------------- | ---- | -------- | -------------------------------------------------------- |
+| `visit_count` | int  | no       | Cumulative visit count for this user including this one. |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000003",
+  "event_name": "APP_VISIT",
+  "user_id": "user_001",
+  "session_id": "sess_abc123",
+  "timestamp": "2026-05-14T08:10:00.000Z",
+  "properties": {
+    "visit_count": 5
+  }
+}
+```
+
+---
+
+## Deposit Events
+
+### `DEPOSIT`
+
+user completes a deposit. Set `is_ftd: true` when this is the user's first ever deposit — the trigger system uses this flag to evaluate first-deposit bonus rules.
+
+| Property         | Type              | Required | Notes                                                      |
+| ---------------- | ----------------- | -------- | ---------------------------------------------------------- |
+| `order_id`       | string            | yes      | Idempotent per project.                                    |
+| `amount`         | decimal           | yes      | Exact settled value; 4-decimal precision.                  |
+| `currency`       | string (ISO 4217) | yes      | e.g. `INR`.                                                |
+| `payment_method` | string            | yes      | `upi`, `netbanking`, `card`, `wallet`.                     |
+| `is_ftd`         | bool              | yes      | `true` if this is the user's first deposit.                |
+| `deposit_count`  | int               | no       | Cumulative deposit count for this user including this one. |
+
+```json
+{
+  "event_id": "76b689f2-e56a-480d-8c4a-21614a896b57",
+  "event_name": "DEPOSIT",
+  "user_id": "user_001",
+  "session_id": "sess_6b31a39f",
+  "timestamp": "2026-05-14T11:58:41.459Z",
+  "properties": {
+    "order_id": "dep_48758cbbceaf",
+    "amount": "3570.0500",
+    "currency": "INR",
+    "payment_method": "upi",
+    "is_ftd": false,
+    "deposit_count": 3
+  }
+}
+```
+
+---
+
+## Gameplay & Betting Events
+
+### `BET_PLACED`
+
+Emitted when a wager is accepted by the RGS. This event resets the user's session timeout.
+
+| Property        | Type    | Required | Notes                                                  |
+| --------------- | ------- | -------- | ------------------------------------------------------ |
+| `wager_amount`  | decimal | yes      | Stake size; 4-decimal precision.                       |
+| `game_id`       | string  | yes      | Target game ID (e.g. `book_of_frosty`).                |
+| `game_category` | string  | no       | Vertical: `slots`, `roulette`, `blackjack`, `crash`.   |
+| `game_provider` | string  | no       | Studio name (e.g. `evolution`, `netent`, `pragmatic`). |
+| `balance_type`  | string  | yes      | Wallet source: `real`, `bonus`, or `freebet`.          |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000050",
+  "event_name": "BET_PLACED",
+  "user_id": "user_001",
+  "session_id": "sess_abc123",
+  "timestamp": "2026-05-14T19:00:00.000Z",
+  "properties": {
+    "wager_amount": "250.0000",
+    "game_id": "book_of_frosty",
+    "game_category": "slots",
+    "game_provider": "pragmatic",
+    "balance_type": "bonus"
+  }
+}
+```
+
+---
+
+## Game Events
+
+### `LEADERBOARD_WON`
+
+user wins or places in a leaderboard competition.
+
+| Property         | Type              | Required | Notes                                     |
+| ---------------- | ----------------- | -------- | ----------------------------------------- |
+| `leaderboard_id` | string            | yes      | ID of the leaderboard.                    |
+| `rank`           | int               | yes      | user's final rank.                        |
+| `prize_amount`   | decimal           | yes      | In `currency` units; 4-decimal precision. |
+| `currency`       | string (ISO 4217) | yes      | e.g. `INR`.                               |
+| `period`         | string            | yes      | `DAILY`, `WEEKLY`, `MONTHLY`.             |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000031",
+  "event_name": "LEADERBOARD_WON",
+  "user_id": "user_001",
+  "timestamp": "2026-05-14T23:59:00.000Z",
+  "properties": {
+    "leaderboard_id": "lb_weekly_001",
+    "rank": 2,
+    "prize_amount": "5000.0000",
+    "currency": "INR",
+    "period": "WEEKLY"
+  }
+}
+```
+
+---
+
+### `TOURNAMENT_WON`
+
+user wins or places in a tournament.
+
+| Property        | Type              | Required | Notes                                     |
+| --------------- | ----------------- | -------- | ----------------------------------------- |
+| `tournament_id` | string            | yes      | ID of the tournament.                     |
+| `rank`          | int               | yes      | user's final rank.                        |
+| `prize_amount`  | decimal           | yes      | In `currency` units; 4-decimal precision. |
+| `currency`      | string (ISO 4217) | yes      | e.g. `INR`.                               |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000032",
+  "event_name": "TOURNAMENT_WON",
+  "user_id": "user_001",
+  "timestamp": "2026-05-14T23:59:00.000Z",
+  "properties": {
+    "tournament_id": "trn_may_championship",
+    "rank": 1,
+    "prize_amount": "10000.0000",
+    "currency": "INR"
+  }
+}
+```
+
+---
+
+## Referral Events
+
+### `FRIEND_SIGNUP`
+
+A friend referred by this user completes registration.
+
+| Property         | Type   | Required | Notes                                |
+| ---------------- | ------ | -------- | ------------------------------------ |
+| `friend_user_id` | string | yes      | User ID of the friend who signed up. |
+| `referral_code`  | string | yes      | Code used by the friend at sign-up.  |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000010",
+  "event_name": "FRIEND_SIGNUP",
+  "user_id": "user_001",
+  "timestamp": "2026-05-14T12:00:00.000Z",
+  "properties": {
+    "friend_user_id": "user_002",
+    "referral_code": "REF_XYZ99"
+  }
+}
+```
+
+---
+
+## Event → Trigger Mapping
+
+| Event             | `bonus_release_trigger.trigger_type` |
+| ----------------- | ------------------------------------ |
+| `LOGIN`           | `LOGIN`                              |
+| `REGISTRATION`    | `REGISTRATION`                       |
+| `APP_VISIT`       | `APP_VISIT`                          |
+| `DEPOSIT`         | `DEPOSIT`                            |
+| `BET_PLACED`      | `BET_PLACED`                         |
+| `LEADERBOARD_WON` | `LEADERBOARD_WON`                    |
+| `TOURNAMENT_WON`  | `TOURNAMENT_WON`                     |
+| `FRIEND_SIGNUP`   | `FRIEND_SIGNUP`                      |
+
+---
+
+## PII fields
+
+The following properties are PII and **must be hashed (SHA-256 with project salt) before persistence**:
+
+- `email`, `phone`, `ip`
+
+Raw values may transit `api-service` over TLS but must never be logged or written to ClickHouse / MongoDB unhashed.
 
 ## Notes
 
