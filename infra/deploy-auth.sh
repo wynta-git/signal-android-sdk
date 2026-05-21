@@ -114,8 +114,10 @@ ok "auth-service/.env written (mode 600)"
 section "4. Seeding service accounts"
 
 info "Running seed_service_accounts.py (upsert — safe to re-run)..."
-MONGO_URL="mongodb://admin:glgpam2026@$INSTANCE1_IP:27017/?authSource=admin" \
-    as_user "$VENV/bin/python" "$REPO/scripts/seed_service_accounts.py"
+as_user env \
+    MONGO_URL="mongodb://admin:glgpam2026@$INSTANCE1_IP:27017/?authSource=admin" \
+    MONGO_DB="pam" \
+    "$VENV/bin/python" "$REPO/scripts/seed_service_accounts.py"
 ok "Service accounts seeded"
 
 # ── 5. create systemd unit ────────────────────────────────────────────────────
