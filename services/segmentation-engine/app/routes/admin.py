@@ -4,6 +4,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from app import storage
+from app.dependencies import SystemAuthDep
 from app.dsl.validator import SegmentRule
 from app.refresh.engine import evaluate_segment
 
@@ -24,6 +25,7 @@ def _redis(request: Request):
 
 @router.get("")
 async def list_segments(
+    ctx: SystemAuthDep,
     project_id: str,
     db=Depends(_db),
 ) -> list[dict[str, Any]]:
@@ -32,6 +34,7 @@ async def list_segments(
 
 @router.get("/{segment_id}")
 async def get_segment(
+    ctx: SystemAuthDep,
     project_id: str,
     segment_id: str,
     db=Depends(_db),
@@ -46,6 +49,7 @@ async def get_segment(
 
 @router.post("/{segment_id}/evaluate", status_code=status.HTTP_202_ACCEPTED)
 async def evaluate_segment_admin(
+    ctx: SystemAuthDep,
     project_id: str,
     segment_id: str,
     background_tasks: BackgroundTasks,
