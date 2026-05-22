@@ -18,6 +18,7 @@ _SERVICE_ACCOUNTS_COLLECTION = "service_accounts"
 class PortalTokenRequest(BaseModel):
     username: str
     password: str
+    project_id: str
 
 
 class PortalTokenData(BaseModel):
@@ -58,6 +59,7 @@ async def get_portal_token(body: PortalTokenRequest, request: Request) -> Portal
         "sub": doc["username"],
         "iss": PORTAL_JWT_ISSUER,
         "type": PORTAL_TOKEN_TYPE,
+        "project_id": body.project_id,
         "iat": now,
         "exp": now + settings.portal_token_ttl,
         "scope": list(doc.get("scope", [])),
@@ -65,7 +67,7 @@ async def get_portal_token(body: PortalTokenRequest, request: Request) -> Portal
 
     token = jwt.encode(payload, settings.portal_jwt_private_key, algorithm=PORTAL_JWT_ALGORITHM)
 
-    log.info("portal_token_issued", service=doc["username"])
+    log.info("portal_token_issued", service=doc["username"], project_id=body.project_id)
     return PortalTokenResponse(
         data=PortalTokenData(token=token, refresh_interval=settings.portal_refresh_interval)
     )

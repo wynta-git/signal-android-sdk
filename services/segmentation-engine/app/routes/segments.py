@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from pydantic import BaseModel, Field
 
 from app import storage
-from app.dependencies import AuthDep
+from app.dependencies import PortalAuthDep
 from app.dsl.validator import SegmentRule
 from app.refresh import scheduled
 from app.refresh.engine import evaluate_segment
@@ -43,7 +43,7 @@ class SegmentUpdateRequest(BaseModel):
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_segment(
-    ctx: AuthDep,
+    ctx: PortalAuthDep,
     body: SegmentCreateRequest,
     background_tasks: BackgroundTasks,
     db=Depends(_db),
@@ -79,13 +79,13 @@ async def create_segment(
 
 
 @router.get("")
-async def list_segments(ctx: AuthDep, db=Depends(_db)) -> list[dict[str, Any]]:
+async def list_segments(ctx: PortalAuthDep, db=Depends(_db)) -> list[dict[str, Any]]:
     return await storage.list_segments(db, ctx.project_id)
 
 
 @router.get("/{segment_id}")
 async def get_segment(
-    ctx: AuthDep, segment_id: str, db=Depends(_db)
+    ctx: PortalAuthDep, segment_id: str, db=Depends(_db)
 ) -> dict[str, Any]:
     seg = await storage.get_segment(db, ctx.project_id, segment_id)
     if not seg:
@@ -95,7 +95,7 @@ async def get_segment(
 
 @router.put("/{segment_id}")
 async def update_segment(
-    ctx: AuthDep,
+    ctx: PortalAuthDep,
     segment_id: str,
     body: SegmentUpdateRequest,
     db=Depends(_db),
@@ -130,7 +130,7 @@ async def update_segment(
 
 @router.delete("/{segment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_segment(
-    ctx: AuthDep, segment_id: str, db=Depends(_db), redis=Depends(_redis)
+    ctx: PortalAuthDep, segment_id: str, db=Depends(_db), redis=Depends(_redis)
 ) -> None:
     deleted = await storage.delete_segment(db, ctx.project_id, segment_id)
     if not deleted:
@@ -141,7 +141,7 @@ async def delete_segment(
 
 @router.get("/{segment_id}/members")
 async def list_segment_members(
-    ctx: AuthDep,
+    ctx: PortalAuthDep,
     segment_id: str,
     db=Depends(_db),
     redis=Depends(_redis),
@@ -168,7 +168,7 @@ async def list_segment_members(
 
 @router.get("/{segment_id}/members/{user_id}")
 async def check_membership(
-    ctx: AuthDep,
+    ctx: PortalAuthDep,
     segment_id: str,
     user_id: str,
     db=Depends(_db),
@@ -187,7 +187,7 @@ async def check_membership(
 
 @router.post("/{segment_id}/evaluate", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_evaluate(
-    ctx: AuthDep,
+    ctx: PortalAuthDep,
     segment_id: str,
     db=Depends(_db),
     ch=Depends(_ch),

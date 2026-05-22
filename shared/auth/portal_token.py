@@ -16,6 +16,7 @@ class InvalidPortalTokenError(Exception):
 @dataclass(frozen=True)
 class PortalTokenContext:
     service: str
+    project_id: str
     scope: list[str]
 
     def has_scope(self, required: str) -> bool:
@@ -38,11 +39,14 @@ def validate_portal_token(token: str, public_key: str) -> PortalTokenContext:
         raise InvalidPortalTokenError()
 
     sub = payload.get("sub")
+    project_id = payload.get("project_id")
     scope = payload.get("scope", [])
 
     if not isinstance(sub, str) or not sub:
         raise InvalidPortalTokenError()
+    if not isinstance(project_id, str) or not project_id:
+        raise InvalidPortalTokenError()
     if not isinstance(scope, list):
         raise InvalidPortalTokenError()
 
-    return PortalTokenContext(service=sub, scope=scope)
+    return PortalTokenContext(service=sub, project_id=project_id, scope=scope)
