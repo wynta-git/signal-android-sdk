@@ -9,6 +9,7 @@ from mcp.server.fastmcp import FastMCP
 
 BASE_URL = "http://localhost:8000/api/v1"
 BONUS_BASE_URL = "http://localhost:8100/api/v1/bonus"
+AUTH_BASE_URL = "http://localhost:8006"
 
 mcp = FastMCP("wynta")
 
@@ -1027,18 +1028,22 @@ async def bonus_get_summary(site_id: int) -> str:
 
 @mcp.tool()
 async def bonus_list_brands(user_id: int) -> str:
-    """Return brands available to the logged-in user.
+    """Return brands available to the logged-in user (served by auth-service).
 
     Args:
         user_id: The user's ID.
     """
-    return await _bonus_get("/brands", {"user_id": user_id})
+    async with httpx.AsyncClient() as client:
+        r = await client.get(f"{AUTH_BASE_URL}/v1/brands", params={"user_id": user_id}, timeout=30)
+        return r.text
 
 
 @mcp.tool()
 async def bonus_list_users() -> str:
-    """Return the list of back-office users."""
-    return await _bonus_get("/users")
+    """Return the list of back-office users (served by auth-service)."""
+    async with httpx.AsyncClient() as client:
+        r = await client.get(f"{AUTH_BASE_URL}/v1/users", timeout=30)
+        return r.text
 
 
 # ---------------------------------------------------------------------------

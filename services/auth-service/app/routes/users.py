@@ -1,8 +1,30 @@
+from typing import Literal
+
 from fastapi import APIRouter
+from pydantic import BaseModel
 
-from app.models.users import UserResponse
+router = APIRouter()
 
-router = APIRouter(prefix="/users", tags=["users"])
+UserType = Literal[
+    "ACCOUNT_MANAGER",
+    "MARKETING_MANAGER",
+    "FINANCE_MANAGER",
+    "OPS_LEAD",
+    "CAMPAIGN_MANAGER",
+    "ADMIN",
+    "ANALYST",
+    "SUPPORT",
+    "BRAND_MANAGER",
+    "PRODUCT_MANAGER",
+]
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    user_type: UserType
+
 
 _USERS: list[UserResponse] = [
     UserResponse(id=1, username="alice.morgan", email="alice.morgan@example.com", user_type="ACCOUNT_MANAGER"),
@@ -18,6 +40,7 @@ _USERS: list[UserResponse] = [
 ]
 
 
-@router.get("", response_model=list[UserResponse])
+@router.get("/v1/users", response_model=list[UserResponse])
 async def list_users() -> list[UserResponse]:
+    """Return the list of back-office users."""
     return _USERS

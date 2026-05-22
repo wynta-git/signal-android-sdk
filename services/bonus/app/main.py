@@ -10,7 +10,7 @@ from fastapi import Depends
 from app.auth import verify_s2s_request
 from app.db import close_pool, init_pool
 from app.routers.bonus_head import register_exception_handlers
-from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_release_trigger, bonus_eligibility, brands, bonus_summary, users, player_bonus
+from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_release_trigger, bonus_eligibility, bonus_summary, player_bonus
 
 structlog.configure(
     processors=[
@@ -56,9 +56,7 @@ app.include_router(bonus_subhead.router,         prefix=_V1)
 app.include_router(bonus_configure.router,       prefix=_V1)
 app.include_router(bonus_release_trigger.router, prefix=_V1)
 app.include_router(bonus_eligibility.router,     prefix=_V1)
-app.include_router(brands.router,                prefix=_V1)
 app.include_router(bonus_summary.router,         prefix=_V1)
-app.include_router(users.router,                 prefix=_V1)
 
 # Player bonus router — S2S auth required (called by game servers)
 app.include_router(player_bonus.router,          prefix=_V1, dependencies=_s2s)

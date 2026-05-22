@@ -6,8 +6,10 @@ import structlog
 from fastapi import FastAPI, Request, Response
 
 from app.config import settings
+from app.routes.brands import router as brands_router
 from app.routes.ready import router as ready_router
 from app.routes.token import router as token_router
+from app.routes.users import router as users_router
 from shared.clients.mongo import make_mongo_client
 from shared.logging_config import configure_logging
 
@@ -46,6 +48,8 @@ async def request_context_middleware(request: Request, call_next: object) -> Res
 
 app.include_router(token_router)
 app.include_router(ready_router)
+app.include_router(users_router)
+app.include_router(brands_router)
 
 
 @app.get("/v1/health", include_in_schema=False)
