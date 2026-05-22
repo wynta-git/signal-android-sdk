@@ -47,7 +47,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_V1 = "/api/v1"
+_V1 = "/api/v1/bonus"
 _s2s = [Depends(verify_s2s_request)]
 
 # Back-office routers — no S2S auth required

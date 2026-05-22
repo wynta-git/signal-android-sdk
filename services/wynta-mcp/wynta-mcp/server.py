@@ -8,6 +8,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 BASE_URL = "http://localhost:8000/api/v1"
+BONUS_BASE_URL = "http://localhost:8100/api/v1/bonus"
 
 mcp = FastMCP("wynta")
 
@@ -973,6 +974,664 @@ async def get_ai_api_settings(program_id: int) -> str:
         program_id: Affiliate programme ID (required).
     """
     return await _get("/ai_api_settings", {"program_id": program_id})
+
+
+# ---------------------------------------------------------------------------
+# Bonus service helpers (no auth required for back-office routes)
+# ---------------------------------------------------------------------------
+
+async def _bonus_get(path: str, params: dict[str, Any] | None = None) -> str:
+    params = {k: v for k, v in (params or {}).items() if v is not None}
+    async with httpx.AsyncClient() as client:
+        r = await client.get(f"{BONUS_BASE_URL}{path}", params=params, timeout=30)
+        return r.text
+
+
+async def _bonus_post(path: str, body: dict[str, Any]) -> str:
+    payload = {k: v for k, v in body.items() if v is not None}
+    async with httpx.AsyncClient() as client:
+        r = await client.post(f"{BONUS_BASE_URL}{path}", json=payload, timeout=30)
+        return r.text
+
+
+async def _bonus_patch(path: str, body: dict[str, Any]) -> str:
+    payload = {k: v for k, v in body.items() if v is not None}
+    async with httpx.AsyncClient() as client:
+        r = await client.patch(f"{BONUS_BASE_URL}{path}", json=payload, timeout=30)
+        return r.text
+
+
+async def _bonus_put(path: str, body: dict[str, Any]) -> str:
+    async with httpx.AsyncClient() as client:
+        r = await client.put(f"{BONUS_BASE_URL}{path}", json=body, timeout=30)
+        return r.text
+
+
+# ---------------------------------------------------------------------------
+# Bonus — Summary
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def bonus_get_summary(site_id: int) -> str:
+    """Return KPI counts and monthly budget summary for a site.
+
+    Args:
+        site_id: Site ID to summarise.
+    """
+    return await _bonus_get("/bonus-summary", {"site_id": site_id})
+
+
+# ---------------------------------------------------------------------------
+# Bonus — Brands & Users
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def bonus_list_brands(user_id: int) -> str:
+    """Return brands available to the logged-in user.
+
+    Args:
+        user_id: The user's ID.
+    """
+    return await _bonus_get("/brands", {"user_id": user_id})
+
+
+@mcp.tool()
+async def bonus_list_users() -> str:
+    """Return the list of back-office users."""
+    return await _bonus_get("/users")
+
+
+# ---------------------------------------------------------------------------
+# Bonus — Heads
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def bonus_list_heads(site_id: int) -> str:
+    """Return all bonus heads for a site.
+
+    Args:
+        site_id: Site ID to filter by.
+    """
+    return await _bonus_get("/bonus-heads", {"site_id": site_id})
+
+
+@mcp.tool()
+async def bonus_get_head(head_id: int) -> str:
+    """Return a bonus head with its owners, subheads, and budget detail.
+
+    Args:
+        head_id: Bonus head ID.
+    """
+    return await _bonus_get(f"/bonus-heads/{head_id}")
+
+
+@mcp.tool()
+async def bonus_create_head(
+    site_id: int,
+    name: str,
+    owner: str,
+    created_by: str,
+    description: str | None = None,
+    active: bool = True,
+) -> str:
+    """Create a new bonus head.
+
+    Args:
+        site_id: Site this bonus head belongs to (required).
+        name: Unique name within the site, alphanumeric + space/hyphen/underscore/dot (required).
+        owner: Primary accountable person — username or email (required).
+        created_by: Actor performing the creation (required).
+        description: Optional free-text description (max 500 chars).
+        active: Whether this head is active (default true).
+    """
+    return await _bonus_post(
+        "/bonus-heads",
+        {"site_id": site_id, "name": name, "owner": owner, "created_by": created_by,
+         "description": description, "active": active},
+    )
+
+
+@mcp.tool()
+async def bonus_patch_head(
+    head_id: int,
+    updated_by: str,
+    name: str | None = None,
+    description: str | None = None,
+    active: bool | None = None,
+    owner: str | None = None,
+) -> str:
+    """Partially update a bonus head. Only provided fields are written.
+
+    Args:
+        head_id: Bonus head ID (required).
+        updated_by: Actor performing the update (required).
+        name: New name.
+        description: New description (pass null to clear).
+        active: New active flag.
+        owner: New owner username/email.
+    """
+    return await _bonus_patch(
+        f"/bonus-heads/{head_id}",
+        {"updated_by": updated_by, "name": name, "description": description,
+         "active": active, "owner": owner},
+    )
+
+
+@mcp.tool()
+async def bonus_upsert_head_owners(head_id: int, owners_json: str) -> str:
+    """Add or update owner assignments for a bonus head.
+
+    Args:
+        head_id: Bonus head ID (required).
+        owners_json: JSON string with "owners" list and "updated_by", e.g.
+            '{"owners": [{"username": "alice", "role": "OPS_LEAD", "active": true}], "updated_by": "admin"}'.
+            Role must be one of: OPS_LEAD, CAMPAIGN_MANAGER, FINANCE_APPROVER, ESCALATION_CONTACT.
+    """
+    return await _bonus_put(f"/bonus-heads/{head_id}/owners", json.loads(owners_json))
+
+
+@mcp.tool()
+async def bonus_upsert_head_limits(head_id: int, limits_json: str) -> str:
+    """Set or update budget caps for a bonus head.
+
+    Args:
+        head_id: Bonus head ID (required).
+        limits_json: JSON string with "limits" list and "updated_by", e.g.
+            '{"limits": [{"period_type": "MONTHLY", "budget_limit": 50000}], "updated_by": "admin"}'.
+            period_type must be one of: DAILY, WEEKLY, MONTHLY. Pass null for budget_limit to uncap.
+    """
+    return await _bonus_put(f"/bonus-heads/{head_id}/limits", json.loads(limits_json))
+
+
+# ---------------------------------------------------------------------------
+# Bonus — Subheads
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def bonus_create_subhead(
+    head_id: int,
+    site_id: int,
+    name: str,
+    owner: str,
+    created_by: str,
+    description: str | None = None,
+    active: bool = True,
+) -> str:
+    """Create a new bonus subhead under an existing bonus head.
+
+    Args:
+        head_id: Parent bonus head ID (required).
+        site_id: Site ID (required).
+        name: Unique name within the parent head (required).
+        owner: Primary accountable person (required).
+        created_by: Actor performing the creation (required).
+        description: Optional free-text description.
+        active: Whether active (default true).
+    """
+    return await _bonus_post(
+        "/bonus-subheads",
+        {"head_id": head_id, "site_id": site_id, "name": name, "owner": owner,
+         "created_by": created_by, "description": description, "active": active},
+    )
+
+
+@mcp.tool()
+async def bonus_get_subhead(subhead_id: int) -> str:
+    """Return a bonus subhead with its owners and budget detail.
+
+    Args:
+        subhead_id: Bonus subhead ID.
+    """
+    return await _bonus_get(f"/bonus-subheads/{subhead_id}")
+
+
+@mcp.tool()
+async def bonus_patch_subhead(
+    subhead_id: int,
+    updated_by: str,
+    name: str | None = None,
+    description: str | None = None,
+    active: bool | None = None,
+    owner: str | None = None,
+) -> str:
+    """Partially update a bonus subhead. Only provided fields are written.
+
+    Args:
+        subhead_id: Bonus subhead ID (required).
+        updated_by: Actor performing the update (required).
+        name: New name.
+        description: New description (pass null to clear).
+        active: New active flag.
+        owner: New owner username/email.
+    """
+    return await _bonus_patch(
+        f"/bonus-subheads/{subhead_id}",
+        {"updated_by": updated_by, "name": name, "description": description,
+         "active": active, "owner": owner},
+    )
+
+
+@mcp.tool()
+async def bonus_upsert_subhead_owners(subhead_id: int, owners_json: str) -> str:
+    """Add or update owner assignments for a bonus subhead.
+
+    Args:
+        subhead_id: Bonus subhead ID (required).
+        owners_json: JSON string with "owners" list and "updated_by". Same format as bonus_upsert_head_owners.
+    """
+    return await _bonus_put(f"/bonus-subheads/{subhead_id}/owners", json.loads(owners_json))
+
+
+@mcp.tool()
+async def bonus_upsert_subhead_limits(subhead_id: int, limits_json: str) -> str:
+    """Set or update budget caps for a bonus subhead.
+
+    Args:
+        subhead_id: Bonus subhead ID (required).
+        limits_json: JSON string with "limits" list and "updated_by". Same format as bonus_upsert_head_limits.
+    """
+    return await _bonus_put(f"/bonus-subheads/{subhead_id}/limits", json.loads(limits_json))
+
+
+# ---------------------------------------------------------------------------
+# Bonus — Configures
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def bonus_list_configures(subhead_id: int) -> str:
+    """List all bonus configure nodes for a given subhead, ordered by priority then id.
+
+    Args:
+        subhead_id: Parent subhead ID.
+    """
+    return await _bonus_get("/bonus-configures", {"subhead_id": subhead_id})
+
+
+@mcp.tool()
+async def bonus_get_configure(configure_id: int) -> str:
+    """Return a bonus configure node with all its attached promo codes.
+
+    Args:
+        configure_id: Bonus configure ID.
+    """
+    return await _bonus_get(f"/bonus-configures/{configure_id}")
+
+
+@mcp.tool()
+async def bonus_create_configure(
+    subhead_id: int,
+    site_id: int,
+    name: str,
+    start_date: str,
+    end_date: str,
+    created_by: str,
+    description: str | None = None,
+    applicability_frequency: str = "EVERYTIME",
+    wager_multiplier: float = 0.0,
+    no_of_chunks: int = 1,
+    release_bucket: str | None = None,
+    chunk_expiry_days: int | None = None,
+    bonus_expiry_days: int | None = None,
+    wager_chip_type: str = "CASH",
+    credit_chip_type: str = "CASH",
+    bonus_amount_fixed: float | None = None,
+    bonus_amount_percent: float | None = None,
+    bonus_amount_max: float | None = None,
+    priority: int = 0,
+    active: bool = True,
+) -> str:
+    """Create a new bonus configure node under an existing subhead.
+
+    A default promo code (AUTO-{id}) is automatically created alongside it.
+
+    Args:
+        subhead_id: Parent subhead ID (required).
+        site_id: Site ID (required).
+        name: Unique name within the subhead (required).
+        start_date: Active window start as ISO datetime string, e.g. "2025-01-01T00:00:00" (required).
+        end_date: Active window end as ISO datetime string, e.g. "2025-12-31T23:59:59" (required).
+        created_by: Actor performing the creation (required).
+        description: Optional free-text description.
+        applicability_frequency: EVERYTIME (default), ONCE, MONTHLY, or WEEKLY.
+        wager_multiplier: Wager requirement multiplier; 0 = no wagering (default 0).
+        no_of_chunks: Number of equal bonus chunks (default 1).
+        release_bucket: Optional release bucket identifier.
+        chunk_expiry_days: Days until each chunk expires (optional).
+        bonus_expiry_days: Days until the whole bonus expires (optional).
+        wager_chip_type: Chip type for wagering (default CASH).
+        credit_chip_type: Chip type for crediting (default CASH).
+        bonus_amount_fixed: Fixed bonus amount (optional).
+        bonus_amount_percent: Bonus as a percentage of trigger amount (optional).
+        bonus_amount_max: Maximum bonus amount cap (optional).
+        priority: Priority for ordering (default 0, lower = higher priority).
+        active: Whether active (default true).
+    """
+    return await _bonus_post(
+        "/bonus-configures",
+        {
+            "subhead_id": subhead_id, "site_id": site_id, "name": name,
+            "start_date": start_date, "end_date": end_date, "created_by": created_by,
+            "description": description, "applicability_frequency": applicability_frequency,
+            "wager_multiplier": wager_multiplier, "no_of_chunks": no_of_chunks,
+            "release_bucket": release_bucket, "chunk_expiry_days": chunk_expiry_days,
+            "bonus_expiry_days": bonus_expiry_days, "wager_chip_type": wager_chip_type,
+            "credit_chip_type": credit_chip_type, "bonus_amount_fixed": bonus_amount_fixed,
+            "bonus_amount_percent": bonus_amount_percent, "bonus_amount_max": bonus_amount_max,
+            "priority": priority, "active": active,
+        },
+    )
+
+
+@mcp.tool()
+async def bonus_patch_configure(
+    configure_id: int,
+    updated_by: str,
+    name: str | None = None,
+    description: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    applicability_frequency: str | None = None,
+    wager_multiplier: float | None = None,
+    no_of_chunks: int | None = None,
+    release_bucket: str | None = None,
+    chunk_expiry_days: int | None = None,
+    bonus_expiry_days: int | None = None,
+    wager_chip_type: str | None = None,
+    credit_chip_type: str | None = None,
+    bonus_amount_fixed: float | None = None,
+    bonus_amount_percent: float | None = None,
+    bonus_amount_max: float | None = None,
+    priority: int | None = None,
+    active: bool | None = None,
+) -> str:
+    """Partially update a bonus configure node. Only provided fields are written.
+
+    Args:
+        configure_id: Bonus configure ID (required).
+        updated_by: Actor performing the update (required).
+        name: New name.
+        description: New description.
+        start_date: New start date ISO string.
+        end_date: New end date ISO string.
+        applicability_frequency: EVERYTIME, ONCE, MONTHLY, or WEEKLY.
+        wager_multiplier: New wager multiplier.
+        no_of_chunks: New chunk count.
+        release_bucket: New release bucket.
+        chunk_expiry_days: New chunk expiry days.
+        bonus_expiry_days: New bonus expiry days.
+        wager_chip_type: New wager chip type.
+        credit_chip_type: New credit chip type.
+        bonus_amount_fixed: New fixed amount.
+        bonus_amount_percent: New percent amount.
+        bonus_amount_max: New max amount cap.
+        priority: New priority.
+        active: New active flag.
+    """
+    return await _bonus_patch(
+        f"/bonus-configures/{configure_id}",
+        {
+            "updated_by": updated_by, "name": name, "description": description,
+            "start_date": start_date, "end_date": end_date,
+            "applicability_frequency": applicability_frequency,
+            "wager_multiplier": wager_multiplier, "no_of_chunks": no_of_chunks,
+            "release_bucket": release_bucket, "chunk_expiry_days": chunk_expiry_days,
+            "bonus_expiry_days": bonus_expiry_days, "wager_chip_type": wager_chip_type,
+            "credit_chip_type": credit_chip_type, "bonus_amount_fixed": bonus_amount_fixed,
+            "bonus_amount_percent": bonus_amount_percent, "bonus_amount_max": bonus_amount_max,
+            "priority": priority, "active": active,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bonus — Release Triggers
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def bonus_get_release_trigger(trigger_id: int) -> str:
+    """Return a single bonus release trigger by ID.
+
+    Args:
+        trigger_id: Release trigger ID.
+    """
+    return await _bonus_get(f"/bonus-release-triggers/{trigger_id}")
+
+
+@mcp.tool()
+async def bonus_create_release_trigger(
+    site_id: int,
+    code: str,
+    trigger_type: str,
+    created_by: str,
+    description: str | None = None,
+    min_trigger_amount: float | None = None,
+    max_trigger_amount: float | None = None,
+    payment_method: str | None = None,
+    product: str | None = None,
+    occurrence: int = 0,
+    trigger_config_json: str | None = None,
+    active: bool = True,
+) -> str:
+    """Create a release trigger for a bonus configure, resolved via promo code.
+
+    Args:
+        site_id: Site ID (required).
+        code: Promo code that resolves to the parent bonus_configure, e.g. "FIRST_DEPOSIT" (required).
+        trigger_type: One of LOGIN, REGISTRATION, APP_VISIT, DEPOSIT, BET_PLACED,
+            LEADERBOARD_WON, TOURNAMENT_WON, FRIEND_SIGNUP (required).
+        created_by: Actor performing the creation (required).
+        description: Optional description.
+        min_trigger_amount: Minimum qualifying amount (optional).
+        max_trigger_amount: Maximum qualifying amount (optional).
+        payment_method: Restrict to a payment method, e.g. "UPI" (optional).
+        product: Restrict to a product, e.g. "CASINO" (optional).
+        occurrence: 0 = every event, 1 = first only, N = Nth occurrence (default 0).
+        trigger_config_json: Optional JSON string of additional conditions, e.g. '{"min_deposit": 100}'.
+        active: Whether active (default true).
+    """
+    return await _bonus_post(
+        "/bonus-release-triggers",
+        {
+            "site_id": site_id, "code": code, "trigger_type": trigger_type,
+            "created_by": created_by, "description": description,
+            "min_trigger_amount": min_trigger_amount, "max_trigger_amount": max_trigger_amount,
+            "payment_method": payment_method, "product": product, "occurrence": occurrence,
+            "trigger_config": json.loads(trigger_config_json) if trigger_config_json else None,
+            "active": active,
+        },
+    )
+
+
+@mcp.tool()
+async def bonus_patch_release_trigger(
+    trigger_id: int,
+    updated_by: str,
+    trigger_type: str | None = None,
+    description: str | None = None,
+    min_trigger_amount: float | None = None,
+    max_trigger_amount: float | None = None,
+    payment_method: str | None = None,
+    product: str | None = None,
+    occurrence: int | None = None,
+    trigger_config_json: str | None = None,
+    active: bool | None = None,
+) -> str:
+    """Partially update a bonus release trigger. Only provided fields are written.
+
+    Args:
+        trigger_id: Release trigger ID (required).
+        updated_by: Actor performing the update (required).
+        trigger_type: New trigger type.
+        description: New description.
+        min_trigger_amount: New minimum qualifying amount.
+        max_trigger_amount: New maximum qualifying amount.
+        payment_method: New payment method restriction.
+        product: New product restriction.
+        occurrence: New occurrence value.
+        trigger_config_json: New trigger config as JSON string (full replacement).
+        active: New active flag.
+    """
+    return await _bonus_patch(
+        f"/bonus-release-triggers/{trigger_id}",
+        {
+            "updated_by": updated_by, "trigger_type": trigger_type,
+            "description": description, "min_trigger_amount": min_trigger_amount,
+            "max_trigger_amount": max_trigger_amount, "payment_method": payment_method,
+            "product": product, "occurrence": occurrence,
+            "trigger_config": json.loads(trigger_config_json) if trigger_config_json else None,
+            "active": active,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bonus — Eligibilities
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def bonus_get_eligibility(eligibility_id: int) -> str:
+    """Return a single bonus eligibility criterion row.
+
+    Args:
+        eligibility_id: Eligibility criterion ID.
+    """
+    return await _bonus_get(f"/bonus-eligibilities/{eligibility_id}")
+
+
+@mcp.tool()
+async def bonus_create_eligibility(
+    configure_id: int,
+    site_id: int,
+    eligibility_key: str,
+    eligibility_value: str,
+    eligibility_value_type: str,
+    created_by: str,
+    description: str | None = None,
+    active: bool = True,
+) -> str:
+    """Create one eligibility criterion for a bonus configure node.
+
+    Multiple rows on the same configure are AND-ed together (all must pass).
+
+    Args:
+        configure_id: Parent bonus_configure ID (required).
+        site_id: Site ID (required).
+        eligibility_key: Criterion name, e.g. "player_registered_period", "player_type",
+            "kyc_status", "min_lifetime_deposits" (required).
+        eligibility_value: Criterion value as a string (required).
+        eligibility_value_type: STRING, INT, DECIMAL, BOOLEAN, or JSON (required).
+        created_by: Actor performing the creation (required).
+        description: Human-readable summary of this criterion (optional).
+        active: Whether active (default true).
+    """
+    return await _bonus_post(
+        "/bonus-eligibilities",
+        {
+            "configure_id": configure_id, "site_id": site_id,
+            "eligibility_key": eligibility_key, "eligibility_value": eligibility_value,
+            "eligibility_value_type": eligibility_value_type, "created_by": created_by,
+            "description": description, "active": active,
+        },
+    )
+
+
+@mcp.tool()
+async def bonus_patch_eligibility(
+    eligibility_id: int,
+    updated_by: str,
+    eligibility_key: str | None = None,
+    eligibility_value: str | None = None,
+    eligibility_value_type: str | None = None,
+    description: str | None = None,
+    active: bool | None = None,
+) -> str:
+    """Partially update a bonus eligibility criterion. Only provided fields are written.
+
+    Args:
+        eligibility_id: Eligibility criterion ID (required).
+        updated_by: Actor performing the update (required).
+        eligibility_key: New criterion key.
+        eligibility_value: New criterion value.
+        eligibility_value_type: New value type (STRING, INT, DECIMAL, BOOLEAN, JSON).
+        description: New description.
+        active: New active flag.
+    """
+    return await _bonus_patch(
+        f"/bonus-eligibilities/{eligibility_id}",
+        {
+            "updated_by": updated_by, "eligibility_key": eligibility_key,
+            "eligibility_value": eligibility_value,
+            "eligibility_value_type": eligibility_value_type,
+            "description": description, "active": active,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bonus — Player Bonuses (S2S auth required in production)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def bonus_get_applicable_codes(user_id: str, chip_type: str) -> str:
+    """Return bonus codes applicable to a player for a given chip type.
+
+    Args:
+        user_id: Player user ID (required).
+        chip_type: "cash" or "in_app_purchase" (required).
+    """
+    return await _bonus_get("/player-bonuses/applicable-codes", {"user_id": user_id, "chip_type": chip_type})
+
+
+@mcp.tool()
+async def bonus_player_summary(user_id: str) -> str:
+    """Return a player's current bonus balance summary (per chip type).
+
+    Args:
+        user_id: Player user ID.
+    """
+    return await _bonus_get(f"/player-bonuses/{user_id}/summary")
+
+
+@mcp.tool()
+async def bonus_player_transactions(
+    user_id: str,
+    chip_type: str,
+    limit: int = 50,
+    offset: int = 0,
+) -> str:
+    """Return a paginated list of a player's bonus transactions.
+
+    Args:
+        user_id: Player user ID (required).
+        chip_type: "cash" or "in_app_purchase" (required).
+        limit: Max results to return (1–200, default 50).
+        offset: Pagination offset (default 0).
+    """
+    return await _bonus_get(
+        f"/player-bonuses/{user_id}/transactions",
+        {"chip_type": chip_type, "limit": limit, "offset": offset},
+    )
+
+
+@mcp.tool()
+async def bonus_player_transaction_detail(user_id: str, txn_id: int) -> str:
+    """Return full detail for a single player bonus transaction including chunks, forfeits, and expiry events.
+
+    Args:
+        user_id: Player user ID (required).
+        txn_id: Transaction ID (required).
+    """
+    return await _bonus_get(f"/player-bonuses/{user_id}/transactions/{txn_id}")
+
+
+@mcp.tool()
+async def bonus_player_referral_code(user_id: str) -> str:
+    """Return the referral code for a player.
+
+    Args:
+        user_id: Player user ID.
+    """
+    return await _bonus_get(f"/player-bonuses/{user_id}/referral-code")
 
 
 # ---------------------------------------------------------------------------
