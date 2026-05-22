@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-BASE_URL = "http://localhost:8000/api/v1"
+BASE_URL = "https://staging.wynta.com/api/v1"
 BONUS_BASE_URL = "http://localhost:8100/api/v1/bonus"
 AUTH_BASE_URL = "http://localhost:8006"
 
