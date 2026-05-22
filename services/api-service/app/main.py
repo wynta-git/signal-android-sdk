@@ -108,6 +108,6 @@ app.include_router(alias_router)
 app.include_router(ready_router)
 
 
-@app.get("/v1/health", include_in_schema=False)
+@app.get("/api/v1/events/health", include_in_schema=False)
 async def health() -> dict[str, str]:
     return {"status": "ok", "version": settings.version}

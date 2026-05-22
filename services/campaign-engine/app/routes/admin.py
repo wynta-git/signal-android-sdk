@@ -6,7 +6,7 @@ from app.dependencies import SystemAuthDep, get_db
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from shared.clients.mongo import get_campaign, list_campaigns, list_campaign_runs
 
-router = APIRouter(prefix="/v1/admin/projects/{project_id}/campaigns", tags=["admin"])
+router = APIRouter(prefix="/api/v1/campaign/admin/projects/{project_id}", tags=["admin"])
 
 DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 

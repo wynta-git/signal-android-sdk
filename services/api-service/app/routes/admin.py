@@ -27,7 +27,7 @@ from shared.clients.mongo import (
 )
 
 log = structlog.get_logger()
-router = APIRouter(prefix="/v1/admin", tags=["admin"])
+router = APIRouter(prefix="/api/v1/events/admin", tags=["admin"])
 
 
 def _db(request: Request):

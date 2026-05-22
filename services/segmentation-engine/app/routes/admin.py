@@ -8,7 +8,7 @@ from app.dependencies import SystemAuthDep
 from app.dsl.validator import SegmentRule
 from app.refresh.engine import evaluate_segment
 
-router = APIRouter(prefix="/v1/admin/projects/{project_id}/segments", tags=["admin"])
+router = APIRouter(prefix="/api/v1/segments/admin/projects/{project_id}", tags=["admin"])
 
 
 def _db(request: Request):

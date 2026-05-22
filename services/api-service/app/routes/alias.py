@@ -25,7 +25,7 @@ class AliasResponse(BaseModel):
 
 
 @router.post(
-    "/v1/alias",
+    "/api/v1/events/alias",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=AliasResponse,
 )

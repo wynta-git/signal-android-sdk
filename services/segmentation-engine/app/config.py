@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,8 +23,16 @@ class Settings(BaseSettings):
     # RS256 public key in PEM format — used to verify system JWTs from auth-service
     system_jwt_public_key: str = ""
 
+    # Separate RS256 public key for portal UI tokens — set PORTAL_JWT_PUBLIC_KEY env var
+    portal_jwt_public_key: str = ""
+
     debug: bool = False
     version: str = "0.1.0"
+
+    @field_validator("system_jwt_public_key", "portal_jwt_public_key", mode="before")
+    @classmethod
+    def normalize_pem(cls, v: str) -> str:
+        return v.replace("\\n", "\n") if isinstance(v, str) else v
 
 
 settings = Settings()

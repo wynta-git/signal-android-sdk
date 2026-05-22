@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 
-router = APIRouter(prefix="/v1/meta", tags=["meta"])
+router = APIRouter(prefix="/api/v1/segments/meta", tags=["meta"])
 
 
 def _ch(request: Request):
