@@ -6,6 +6,7 @@ import structlog
 from fastapi import FastAPI, Request, Response
 
 from app.config import settings
+from app.routes.portal_token import router as portal_token_router
 from app.routes.ready import router as ready_router
 from app.routes.token import router as token_router
 from shared.clients.mongo import make_mongo_client
@@ -45,6 +46,7 @@ async def request_context_middleware(request: Request, call_next: object) -> Res
 
 
 app.include_router(token_router)
+app.include_router(portal_token_router)
 app.include_router(ready_router)
 
 

@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
 
+from shared.auth.portal_token import InvalidPortalTokenError, PortalTokenContext, validate_portal_token
 from shared.auth.system_token import InvalidSystemTokenError, SystemTokenContext, validate_system_jwt
 from shared.auth.token import (
     InvalidTokenError,
@@ -110,3 +111,25 @@ def get_system_token_context(
 
 
 SystemAuthDep = Annotated[SystemTokenContext, Depends(get_system_token_context)]
+
+
+def get_portal_token_context(
+    credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
+) -> PortalTokenContext:
+    from app.config import settings
+
+    if not credentials:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_token", "message": "Missing or malformed Authorization header"},
+        )
+    try:
+        return validate_portal_token(credentials.credentials, settings.portal_jwt_public_key)
+    except InvalidPortalTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_token", "message": "Invalid or expired portal token"},
+        )
+
+
+PortalAuthDep = Annotated[PortalTokenContext, Depends(get_portal_token_context)]

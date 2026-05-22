@@ -14,6 +14,12 @@ class Settings(BaseSettings):
 
     jwt_token_ttl: int = 3600
 
+    # Separate RS256 key pair for portal UI tokens — never share with system token key
+    portal_jwt_private_key: str = ""
+
+    portal_token_ttl: int = 900
+    portal_refresh_interval: int = 720
+
     debug: bool = False
     version: str = "0.1.0"
 
