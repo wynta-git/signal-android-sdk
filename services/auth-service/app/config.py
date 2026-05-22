@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +23,11 @@ class Settings(BaseSettings):
 
     debug: bool = False
     version: str = "0.1.0"
+
+    @field_validator("jwt_private_key", "portal_jwt_private_key", mode="before")
+    @classmethod
+    def normalize_pem(cls, v: str) -> str:
+        return v.replace("\\n", "\n") if isinstance(v, str) else v
 
 
 settings = Settings()
