@@ -7,9 +7,11 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-BASE_URL = "https://staging.wynta.com/api/v1"
-BONUS_BASE_URL = "http://localhost:8100/api/v1/bonus"
-AUTH_BASE_URL = "http://localhost:8006"
+from .config import settings
+
+BASE_URL = settings.base_url
+BONUS_BASE_URL = settings.bonus_base_url
+# AUTH_BASE_URL = "http://localhost:8006"
 
 mcp = FastMCP("wynta")
 
@@ -1026,24 +1028,24 @@ async def bonus_get_summary(site_id: int) -> str:
 # Bonus — Brands & Users
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
-async def bonus_list_brands(user_id: int) -> str:
-    """Return brands available to the logged-in user (served by auth-service).
+# @mcp.tool()
+# async def bonus_list_brands(user_id: int) -> str:
+#     """Return brands available to the logged-in user (served by auth-service).
 
-    Args:
-        user_id: The user's ID.
-    """
-    async with httpx.AsyncClient() as client:
-        r = await client.get(f"{AUTH_BASE_URL}/v1/brands", params={"user_id": user_id}, timeout=30)
-        return r.text
+#     Args:
+#         user_id: The user's ID.
+#     """
+#     async with httpx.AsyncClient() as client:
+#         r = await client.get(f"{AUTH_BASE_URL}/v1/brands", params={"user_id": user_id}, timeout=30)
+#         return r.text
 
 
-@mcp.tool()
-async def bonus_list_users() -> str:
-    """Return the list of back-office users (served by auth-service)."""
-    async with httpx.AsyncClient() as client:
-        r = await client.get(f"{AUTH_BASE_URL}/v1/users", timeout=30)
-        return r.text
+# @mcp.tool()
+# async def bonus_list_users() -> str:
+#     """Return the list of back-office users (served by auth-service)."""
+#     async with httpx.AsyncClient() as client:
+#         r = await client.get(f"{AUTH_BASE_URL}/v1/users", timeout=30)
+#         return r.text
 
 
 # ---------------------------------------------------------------------------
