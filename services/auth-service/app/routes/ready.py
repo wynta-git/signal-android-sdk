@@ -8,7 +8,7 @@ router = APIRouter()
 log = structlog.get_logger()
 
 
-@router.get("/api/v1/ready", include_in_schema=False)
+@router.get("/ready", include_in_schema=False)
 async def ready(request: Request) -> JSONResponse:
     checks: dict[str, str] = {}
 

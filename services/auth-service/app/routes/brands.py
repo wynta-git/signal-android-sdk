@@ -16,7 +16,7 @@ _BRANDS: list[BrandResponse] = [
 ]
 
 
-@router.get("/v1/brands", response_model=list[BrandResponse])
+@router.get("/brands", response_model=list[BrandResponse])
 async def list_brands(user_id: int) -> list[BrandResponse]:
     """Return brands available to the logged-in user."""
     return _BRANDS

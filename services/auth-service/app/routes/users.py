@@ -40,7 +40,7 @@ _USERS: list[UserResponse] = [
 ]
 
 
-@router.get("/v1/users", response_model=list[UserResponse])
+@router.get("/users", response_model=list[UserResponse])
 async def list_users() -> list[UserResponse]:
     """Return the list of back-office users."""
     return _USERS

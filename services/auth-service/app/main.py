@@ -47,13 +47,14 @@ async def request_context_middleware(request: Request, call_next: object) -> Res
     return await call_next(request)  # type: ignore[operator]
 
 
-app.include_router(token_router)
-app.include_router(portal_token_router)
-app.include_router(ready_router)
-app.include_router(users_router)
-app.include_router(brands_router)
+_V1 = "/api/v1/system"
+app.include_router(token_router, prefix=_V1)
+app.include_router(portal_token_router, prefix=_V1)
+app.include_router(ready_router, prefix=_V1)
+app.include_router(users_router, prefix=_V1)
+app.include_router(brands_router, prefix=_V1)
 
 
-@app.get("/api/v1/health", include_in_schema=False)
+@app.get(_V1+"/health", include_in_schema=False)
 async def health() -> dict[str, str]:
     return {"status": "ok", "version": settings.version}

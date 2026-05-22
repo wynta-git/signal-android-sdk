@@ -26,7 +26,7 @@ class TokenResponse(BaseModel):
     expires_in: int = settings.jwt_token_ttl
 
 
-@router.post("/api/v1/system/token", response_model=TokenResponse)
+@router.post("/token", response_model=TokenResponse)
 async def get_system_token(body: TokenRequest, request: Request) -> TokenResponse:
     db = request.app.state.mongo[settings.mongo_db]
     doc = await db[_SERVICE_ACCOUNTS_COLLECTION].find_one(

@@ -30,7 +30,7 @@ class PortalTokenResponse(BaseModel):
     data: PortalTokenData
 
 
-@router.post("/api/v1/system/portal_token", response_model=PortalTokenResponse)
+@router.post("/portal_token", response_model=PortalTokenResponse)
 async def get_portal_token(body: PortalTokenRequest, request: Request) -> PortalTokenResponse:
     db = request.app.state.mongo[settings.mongo_db]
     doc = await db[_SERVICE_ACCOUNTS_COLLECTION].find_one(
