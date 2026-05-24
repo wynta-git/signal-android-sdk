@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import structlog
 from aiokafka import AIOKafkaProducer
@@ -10,9 +11,39 @@ from app.recovery import recovery_loop
 from shared.clients.kafka import make_kafka_producer
 from shared.clients.mongo import create_campaign_indexes, make_mongo_client
 from shared.clients.redis import make_redis_client
-from shared.logging_config import configure_logging
 
-configure_logging(debug=settings.debug)
+
+def _configure_logging(debug: bool) -> None:
+    processors = [
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+    ]
+    structlog.configure(
+        processors=processors,
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            processors=[
+                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+                structlog.dev.ConsoleRenderer() if debug else structlog.processors.JSONRenderer(),
+            ]
+        )
+    )
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(logging.DEBUG if debug else logging.INFO)
+
+
+_configure_logging(settings.debug)
 log = structlog.get_logger()
 
 
