@@ -41,6 +41,11 @@ class Campaign(BaseModel):
     delay: Delay | None = None
     created_at: datetime
     updated_at: datetime
+    # Scheduler fields — managed by scheduler-service, not campaign-engine
+    picked: bool = False
+    picked_at: datetime | None = None
+    next_run_at: datetime | None = None  # cron campaigns: next scheduled fire time
+    retry_count: int = 0
 
 
 class CampaignRun(BaseModel):
