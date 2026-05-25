@@ -8,6 +8,7 @@ bonus_configure columns:
   chunk_expiry_days, bonus_expiry_days,
   wager_chip_type, credit_chip_type,
   bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
+  cashback_bonus_amount_fixed, cashback_bonus_amount_percent, cashback_bonus_amount_max,
   priority, active, created_by, updated_by, created_at, updated_at
 """
 
@@ -37,12 +38,15 @@ class BonusConfigureCreate(BaseModel):
     bonus_expiry_days:          int | None             = Field(None, ge=1)
     wager_chip_type:            str                    = Field("CASH", max_length=50)
     credit_chip_type:           str                    = Field("CASH", max_length=50)
-    bonus_amount_fixed:         Decimal | None         = Field(None, ge=0)
-    bonus_amount_percent:       Decimal | None         = Field(None, ge=0)
-    bonus_amount_max:           Decimal | None         = Field(None, ge=0)
-    priority:                   int                    = Field(0, ge=0)
-    active:                     bool                   = True
-    created_by:                 str                    = Field(..., min_length=1, max_length=100)
+    bonus_amount_fixed:              Decimal | None         = Field(None, ge=0)
+    bonus_amount_percent:            Decimal | None         = Field(None, ge=0)
+    bonus_amount_max:                Decimal | None         = Field(None, ge=0)
+    cashback_bonus_amount_fixed:     Decimal | None         = Field(None, ge=0)
+    cashback_bonus_amount_percent:   Decimal | None         = Field(None, ge=0)
+    cashback_bonus_amount_max:       Decimal | None         = Field(None, ge=0)
+    priority:                        int                    = Field(0, ge=0)
+    active:                          bool                   = True
+    created_by:                      str                    = Field(..., min_length=1, max_length=100)
 
     @field_validator("start_date", "end_date", mode="after")
     @classmethod
@@ -79,15 +83,18 @@ class BonusConfigureResponse(BaseModel):
     bonus_expiry_days:          int | None
     wager_chip_type:            str
     credit_chip_type:           str
-    bonus_amount_fixed:         Decimal | None
-    bonus_amount_percent:       Decimal | None
-    bonus_amount_max:           Decimal | None
-    priority:                   int
-    active:                     bool
-    created_by:                 str
-    updated_by:                 str
-    created_at:                 datetime
-    updated_at:                 datetime
+    bonus_amount_fixed:              Decimal | None
+    bonus_amount_percent:            Decimal | None
+    bonus_amount_max:                Decimal | None
+    cashback_bonus_amount_fixed:     Decimal | None
+    cashback_bonus_amount_percent:   Decimal | None
+    cashback_bonus_amount_max:       Decimal | None
+    priority:                        int
+    active:                          bool
+    created_by:                      str
+    updated_by:                      str
+    created_at:                      datetime
+    updated_at:                      datetime
 
     model_config = {"from_attributes": True}
 
@@ -126,12 +133,15 @@ class BonusConfigureUpdate(BaseModel):
     bonus_expiry_days:          int | None                      = Field(None, ge=1)
     wager_chip_type:            str | None                      = Field(None, max_length=50)
     credit_chip_type:           str | None                      = Field(None, max_length=50)
-    bonus_amount_fixed:         Decimal | None                  = Field(None, ge=0)
-    bonus_amount_percent:       Decimal | None                  = Field(None, ge=0)
-    bonus_amount_max:           Decimal | None                  = Field(None, ge=0)
-    priority:                   int | None                      = Field(None, ge=0)
-    active:                     bool | None                     = None
-    updated_by:                 str                             = Field(..., min_length=1, max_length=100)
+    bonus_amount_fixed:              Decimal | None                  = Field(None, ge=0)
+    bonus_amount_percent:            Decimal | None                  = Field(None, ge=0)
+    bonus_amount_max:                Decimal | None                  = Field(None, ge=0)
+    cashback_bonus_amount_fixed:     Decimal | None                  = Field(None, ge=0)
+    cashback_bonus_amount_percent:   Decimal | None                  = Field(None, ge=0)
+    cashback_bonus_amount_max:       Decimal | None                  = Field(None, ge=0)
+    priority:                        int | None                      = Field(None, ge=0)
+    active:                          bool | None                     = None
+    updated_by:                      str                             = Field(..., min_length=1, max_length=100)
 
     @field_validator("start_date", "end_date", mode="after")
     @classmethod

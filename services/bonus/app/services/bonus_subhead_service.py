@@ -12,11 +12,8 @@ from app.exceptions import (
 from app.models.bonus_head import BudgetPeriod, LimitsUpsertRequest, OwnerEntry, OwnersUpsertRequest
 from app.models.bonus_subhead import BonusSubheadCreate, BonusSubheadDetail, BonusSubheadResponse, BonusSubheadUpdate
 from app.services.bonus_head_service import (
-    _INSERT_CL_SQL,
-    _SELECT_PREV_HASH_SQL,
     _as_dt,
     _compute_row_hash,
-    _write_change_log,
 )
 
 log = structlog.get_logger(__name__)
@@ -199,24 +196,6 @@ async def add_bonus_subhead(data: BonusSubheadCreate) -> BonusSubheadResponse:
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
 
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_subhead_change_log",
-                    entity_id=new_id,
-                    site_id=data.site_id,
-                    action="INSERT",
-                    changed_by=data.created_by,
-                    new_values={
-                        "head_id": data.head_id,
-                        "site_id": data.site_id,
-                        "name": data.name,
-                        "description": data.description,
-                        "active": int(data.active),
-                        "owner": data.owner,
-                        "created_by": data.created_by,
-                        "updated_by": data.created_by,
-                    },
-                )
                 await conn.commit()
 
                 await cur.execute(_SELECT_SQL, (new_id,))
@@ -322,17 +301,6 @@ async def update_bonus_subhead(subhead_id: int, data: BonusSubheadUpdate) -> Bon
                 head_id: int = subhead_row[1]
                 site_id: int = subhead_row[2]
 
-                old_values_cl: dict = {
-                    "head_id": head_id,
-                    "site_id": site_id,
-                    "name": subhead_row[3],
-                    "description": subhead_row[4],
-                    "active": int(subhead_row[5]),
-                    "owner": subhead_row[6],
-                    "created_by": subhead_row[7],
-                    "updated_by": subhead_row[8],
-                }
-
                 new_values_cl: dict = {
                     "head_id": head_id,
                     "site_id": site_id,
@@ -351,16 +319,6 @@ async def update_bonus_subhead(subhead_id: int, data: BonusSubheadUpdate) -> Bon
 
                 await cur.execute(
                     f"UPDATE bonus_subhead SET {set_clause} WHERE id = %s", params
-                )
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_subhead_change_log",
-                    entity_id=subhead_id,
-                    site_id=site_id,
-                    action="UPDATE",
-                    changed_by=data.updated_by,
-                    old_values=old_values_cl,
-                    new_values=new_values_cl,
                 )
                 await conn.commit()
 
@@ -401,12 +359,6 @@ async def upsert_owners(subhead_id: int, data: OwnersUpsertRequest) -> list[Owne
                     raise BonusSubheadNotFoundError(subhead_id)
                 head_id, site_id = meta[0], meta[1]
 
-                await cur.execute(_SELECT_OWNERS_SQL, (subhead_id,))
-                existing: dict[str, dict] = {
-                    r[0]: {"role": r[1], "active": bool(r[2])}
-                    for r in (await cur.fetchall())
-                }
-
                 for entry in data.owners:
                     row_hash = _compute_row_hash({
                         "entity_type": "SUBHEAD",
@@ -429,35 +381,6 @@ async def upsert_owners(subhead_id: int, data: OwnersUpsertRequest) -> list[Owne
                             data.updated_by,
                             row_hash,
                         ),
-                    )
-
-                    if entry.username in existing:
-                        old_v: dict | None = {"username": entry.username, **existing[entry.username]}
-                        new_v: dict = {"username": entry.username, "role": entry.role, "active": entry.active}
-                        cl_action = "UPDATE"
-                    else:
-                        old_v = None
-                        new_v = {
-                            "entity_type": "SUBHEAD",
-                            "entity_id": subhead_id,
-                            "site_id": site_id,
-                            "username": entry.username,
-                            "role": entry.role,
-                            "active": entry.active,
-                            "created_by": data.updated_by,
-                            "updated_by": data.updated_by,
-                        }
-                        cl_action = "INSERT"
-
-                    await _write_change_log(
-                        cur,
-                        cl_table="bonus_owners_change_log",
-                        entity_id=subhead_id,
-                        site_id=site_id,
-                        action=cl_action,
-                        changed_by=data.updated_by,
-                        old_values=old_v,
-                        new_values=new_v,
                     )
 
                 await conn.commit()
@@ -494,11 +417,6 @@ async def upsert_limits(subhead_id: int, data: LimitsUpsertRequest) -> list[Budg
                     raise BonusSubheadNotFoundError(subhead_id)
                 head_id, site_id = meta[0], meta[1]
 
-                await cur.execute(_SELECT_LIMITS_PRE_SQL, (subhead_id,))
-                existing_limits: dict[str, object] = {
-                    r[0]: r[1] for r in (await cur.fetchall())
-                }
-
                 for entry in data.limits:
                     row_hash = _compute_row_hash({
                         "entity_type": "SUBHEAD",
@@ -519,37 +437,6 @@ async def upsert_limits(subhead_id: int, data: LimitsUpsertRequest) -> list[Budg
                             data.updated_by,
                             row_hash,
                         ),
-                    )
-
-                    if entry.period_type in existing_limits:
-                        old_v2: dict | None = {
-                            "period_type": entry.period_type,
-                            "budget_limit": existing_limits[entry.period_type],
-                        }
-                        new_v2: dict = {"period_type": entry.period_type, "budget_limit": entry.budget_limit}
-                        cl_action2 = "UPDATE"
-                    else:
-                        old_v2 = None
-                        new_v2 = {
-                            "entity_type": "SUBHEAD",
-                            "entity_id": subhead_id,
-                            "site_id": site_id,
-                            "period_type": entry.period_type,
-                            "budget_limit": entry.budget_limit,
-                            "created_by": data.updated_by,
-                            "updated_by": data.updated_by,
-                        }
-                        cl_action2 = "INSERT"
-
-                    await _write_change_log(
-                        cur,
-                        cl_table="bonus_budget_limit_change_log",
-                        entity_id=subhead_id,
-                        site_id=site_id,
-                        action=cl_action2,
-                        changed_by=data.updated_by,
-                        old_values=old_v2,
-                        new_values=new_v2,
                     )
 
                 await conn.commit()

@@ -4,13 +4,12 @@ Pydantic models for bonus_release_trigger.
 bonus_release_trigger columns:
   id, configure_id, site_id, trigger_type, description,
   min_trigger_amount, max_trigger_amount, payment_method, product,
-  occurrence, trigger_config,
-  active, created_by, updated_by, created_at, updated_at
+  occurrence, active, created_by, updated_by, created_at, updated_at
 """
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -44,7 +43,6 @@ class BonusReleaseTriggerCreate(BaseModel):
     payment_method:      str | None      = Field(None, max_length=50)
     product:             str | None      = Field(None, max_length=50)
     occurrence:          int             = Field(0, ge=0)
-    trigger_config:      dict[str, Any] | None = None
     active:              bool            = True
     created_by:          str             = Field(..., min_length=1, max_length=100)
 
@@ -72,7 +70,6 @@ class BonusReleaseTriggerResponse(BaseModel):
     payment_method:      str | None
     product:             str | None
     occurrence:          int
-    trigger_config:      dict[str, Any] | None
     active:              bool
     created_by:          str
     updated_by:          str
@@ -92,7 +89,6 @@ class BonusReleaseTriggerUpdate(BaseModel):
     payment_method:      str | None          = None
     product:             str | None          = None
     occurrence:          int | None          = Field(None, ge=0)
-    trigger_config:      dict[str, Any] | None = None
     active:              bool | None         = None
     updated_by:          str                 = Field(..., min_length=1, max_length=100)
 

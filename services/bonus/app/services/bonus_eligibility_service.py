@@ -19,7 +19,6 @@ from app.models.bonus_eligibility import (
 from app.services.bonus_head_service import (
     _as_dt,
     _compute_row_hash,
-    _write_change_log,
 )
 
 log = structlog.get_logger(__name__)
@@ -140,25 +139,6 @@ async def add_bonus_eligibility(data: BonusEligibilityCreate) -> BonusEligibilit
                 )
                 eligibility_id: int = cur.lastrowid  # type: ignore[assignment]
 
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_eligibility_change_log",
-                    entity_id=eligibility_id,
-                    site_id=data.site_id,
-                    action="INSERT",
-                    changed_by=data.created_by,
-                    new_values={
-                        "configure_id":           data.configure_id,
-                        "site_id":                data.site_id,
-                        "eligibility_key":        data.eligibility_key,
-                        "eligibility_value":      data.eligibility_value,
-                        "eligibility_value_type": data.eligibility_value_type,
-                        "description":            data.description,
-                        "active":                 int(data.active),
-                        "created_by":             data.created_by,
-                    },
-                )
-
                 await conn.commit()
 
                 await cur.execute(_SELECT_SQL, (eligibility_id,))
@@ -222,14 +202,6 @@ async def update_bonus_eligibility(
                     raise BonusEligibilityNotFoundError(eligibility_id)
 
                 site_id: int = row[2]
-                old_values = {
-                    "eligibility_key":        row[3],
-                    "eligibility_value":      row[4],
-                    "eligibility_value_type": row[5],
-                    "description":            row[6],
-                    "active":                 int(row[7]),
-                    "updated_by":             row[9],
-                }
 
                 new_hash_fields = {
                     "configure_id":           row[1],
@@ -246,20 +218,6 @@ async def update_bonus_eligibility(
                 set_clause = ", ".join(f"`{col}` = %s" for col in updates)
                 params: list[object] = list(updates.values()) + [eligibility_id]
                 await cur.execute(_UPDATE_SQL.format(set_clause=set_clause), params)
-
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_eligibility_change_log",
-                    entity_id=eligibility_id,
-                    site_id=site_id,
-                    action="UPDATE",
-                    changed_by=data.updated_by,
-                    old_values=old_values,
-                    new_values={
-                        k: v for k, v in new_hash_fields.items()
-                        if k not in ("configure_id", "site_id", "created_by")
-                    },
-                )
 
                 await conn.commit()
 

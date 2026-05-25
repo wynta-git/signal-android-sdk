@@ -8,7 +8,7 @@ import DrawerFooter from '../../../components/drawers/DrawerFooter';
 import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
 import type { DrawerState } from '../../../types';
 
-const TRIGGER_TYPES = ['DEPOSIT', 'WAGER', 'LOSS', 'CODE'] as const;
+const TRIGGER_TYPES = ['DEPOSIT', 'REGISTRATION', 'APP_VISIT', 'BET_PLACED', 'LEADERBOARD_WON', 'TOURNAMENT_WON', 'FRIEND_SIGNUP', 'LOGIN'] as const;
 
 interface TriggerFormProps {
   state: DrawerState;
@@ -21,17 +21,26 @@ export default function TriggerForm({ state, submitting, onCancel, onSubmit }: T
   const dispatch = useAppDispatch();
   const cfg = state.parentId != null ? MOCK_CONFIGURES[state.parentId] : null;
   const [triggerType, setTriggerType] = useState<typeof TRIGGER_TYPES[number]>('DEPOSIT');
-  const [code, setCode] = useState('');
-  const [minAmount, setMinAmount] = useState('');
-  const [maxAmount, setMaxAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('ANY');
-  const [product, setProduct] = useState('ANY');
-  const [occurrence, setOccurrence] = useState('First deposit');
+  const [description, setDescription] = useState('');
+  const [minTriggerAmount, setMinTriggerAmount] = useState('');
+  const [maxTriggerAmount, setMaxTriggerAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [product, setProduct] = useState('');
+  const [occurrence, setOccurrence] = useState(0);
   const [active, setActive] = useState(true);
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { triggerType, code, minAmount, maxAmount, paymentMethod, product, occurrence, active };
+    const payload = {
+      trigger_type: triggerType,
+      description: description || null,
+      min_trigger_amount: minTriggerAmount || null,
+      max_trigger_amount: maxTriggerAmount || null,
+      payment_method: paymentMethod || null,
+      product: product || null,
+      occurrence,
+      active,
+    };
     if (state.parentId != null) {
       dispatch(createTrigger({ configureId: state.parentId, payload }));
     }
@@ -49,27 +58,25 @@ export default function TriggerForm({ state, submitting, onCancel, onSubmit }: T
         )}
         <div className="field-group">
           <label>Trigger Type</label>
-          <div className="seg" style={{ '--cols': 4 } as React.CSSProperties}>
+          <div className="seg" style={{ '--cols': 2 } as React.CSSProperties}>
             {TRIGGER_TYPES.map(t => (
               <button type="button" key={t} className={triggerType === t ? 'active' : ''} onClick={() => setTriggerType(t)}>{t}</button>
             ))}
           </div>
         </div>
-        {triggerType === 'CODE' && (
-          <div className="field-group">
-            <label>Promo Code</label>
-            <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="e.g. WELCOME100" style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}/>
-          </div>
-        )}
+        <div className="field-group">
+          <label>Description <span style={{ color: 'var(--g400)', fontWeight: 400 }}>(optional)</span></label>
+          <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. First deposit via UPI on mobile"/>
+        </div>
         <div className="field-group">
           <div className="row-2">
             <div>
-              <label>Min amount (₹)</label>
-              <input value={minAmount} onChange={(e) => setMinAmount(e.target.value)} placeholder="500"/>
+              <label>Min trigger amount (₹)</label>
+              <input value={minTriggerAmount} onChange={(e) => setMinTriggerAmount(e.target.value)} placeholder="500"/>
             </div>
             <div>
-              <label>Max amount (₹)</label>
-              <input value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} placeholder="10000"/>
+              <label>Max trigger amount (₹)</label>
+              <input value={maxTriggerAmount} onChange={(e) => setMaxTriggerAmount(e.target.value)} placeholder="10000"/>
             </div>
           </div>
         </div>
@@ -78,20 +85,28 @@ export default function TriggerForm({ state, submitting, onCancel, onSubmit }: T
             <div>
               <label>Payment method</label>
               <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                <option>ANY</option><option>UPI</option><option>CARD</option><option>WIRE</option><option>CRYPTO</option>
+                <option value="">Any</option>
+                <option>UPI</option><option>NETBANKING</option><option>CARD</option><option>WALLET</option>
               </select>
             </div>
             <div>
               <label>Product</label>
               <select value={product} onChange={(e) => setProduct(e.target.value)}>
-                <option>ANY</option><option>SLOTS</option><option>CASINO</option><option>SPORTS</option><option>POKER</option>
+                <option value="">Any</option>
+                <option>POKER</option><option>CASINO</option><option>RUMMY</option>
               </select>
             </div>
           </div>
         </div>
         <div className="field-group">
           <label>Occurrence</label>
-          <input value={occurrence} onChange={(e) => setOccurrence(e.target.value)} placeholder="First successful deposit"/>
+          <select value={occurrence} onChange={(e) => setOccurrence(Number(e.target.value))}>
+            <option value={0}>Every occurrence (0)</option>
+            <option value={1}>First only (1)</option>
+            <option value={2}>2nd occurrence</option>
+            <option value={3}>3rd occurrence</option>
+            <option value={5}>5th occurrence</option>
+          </select>
         </div>
         <div className="field-group">
           <Toggle on={active} onChange={setActive} label={active ? 'Active' : 'Inactive'}/>

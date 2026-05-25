@@ -23,15 +23,9 @@ _CONFIGURE_ROW = (
     30, None,
     "CASH", "CASH",
     None, None, Decimal("5000.00"),
+    None, None, None,
     0, 1, "admin", "admin", _NOW, _NOW,
 )
-
-
-def _cl_insert_calls(cur: AsyncMock) -> list:
-    return [
-        c for c in cur.execute.await_args_list
-        if "_change_log" in c.args[0] and "INSERT INTO" in c.args[0]
-    ]
 
 
 @pytest.fixture
@@ -59,17 +53,15 @@ def patch_conn(cur: AsyncMock) -> MagicMock:
 
 # ===========================================================================
 # update_bonus_configure
-# Execute sequence (5 cur.execute calls, 3 fetchones):
+# Execute sequence (3 cur.execute calls, 2 fetchones):
 #   [0] SELECT pre-read              → fetchone → _CONFIGURE_ROW
 #   [1] UPDATE bonus_configure
-#   [2] SELECT entry_hash from cl    → fetchone → None (genesis)
-#   [3] INSERT INTO bonus_configure_change_log
-#   [4] SELECT post-read             → fetchone → _CONFIGURE_ROW
+#   [2] SELECT post-read             → fetchone → _CONFIGURE_ROW
 # ===========================================================================
 
 
 async def test_update_name_and_active(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_CONFIGURE_ROW, None, _CONFIGURE_ROW]
+    cur.fetchone.side_effect = [_CONFIGURE_ROW, _CONFIGURE_ROW]
 
     result = await update_bonus_configure(
         1, BonusConfigureUpdate(name="150pct Match", active=False, updated_by="ops.team")
@@ -77,7 +69,7 @@ async def test_update_name_and_active(cur: AsyncMock, patch_conn: MagicMock) -> 
 
     assert result.id == 1
     patch_conn.commit.assert_awaited_once()
-    assert cur.execute.await_count == 5
+    assert cur.execute.await_count == 3
     update_sql: str = cur.execute.await_args_list[1].args[0]
     assert "`name`" in update_sql
     assert "`active`" in update_sql
@@ -88,7 +80,7 @@ async def test_update_name_and_active(cur: AsyncMock, patch_conn: MagicMock) -> 
 async def test_update_clear_description(cur: AsyncMock, patch_conn: MagicMock) -> None:
     updated = list(_CONFIGURE_ROW)
     updated[4] = None
-    cur.fetchone.side_effect = [_CONFIGURE_ROW, None, tuple(updated)]
+    cur.fetchone.side_effect = [_CONFIGURE_ROW, tuple(updated)]
 
     result = await update_bonus_configure(
         1, BonusConfigureUpdate(description=None, updated_by="admin")
@@ -98,7 +90,7 @@ async def test_update_clear_description(cur: AsyncMock, patch_conn: MagicMock) -
 
 
 async def test_update_bonus_amount_max(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_CONFIGURE_ROW, None, _CONFIGURE_ROW]
+    cur.fetchone.side_effect = [_CONFIGURE_ROW, _CONFIGURE_ROW]
 
     await update_bonus_configure(
         1, BonusConfigureUpdate(bonus_amount_max=Decimal("10000.00"), updated_by="admin")
@@ -109,7 +101,7 @@ async def test_update_bonus_amount_max(cur: AsyncMock, patch_conn: MagicMock) ->
 
 
 async def test_update_dates(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_CONFIGURE_ROW, None, _CONFIGURE_ROW]
+    cur.fetchone.side_effect = [_CONFIGURE_ROW, _CONFIGURE_ROW]
 
     await update_bonus_configure(
         1,
@@ -126,7 +118,7 @@ async def test_update_dates(cur: AsyncMock, patch_conn: MagicMock) -> None:
 
 
 async def test_update_only_updated_by(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_CONFIGURE_ROW, None, _CONFIGURE_ROW]
+    cur.fetchone.side_effect = [_CONFIGURE_ROW, _CONFIGURE_ROW]
 
     await update_bonus_configure(1, BonusConfigureUpdate(updated_by="new.actor"))
 
@@ -163,22 +155,8 @@ async def test_update_db_error_raises_database_error(cur: AsyncMock, patch_conn:
         await update_bonus_configure(1, BonusConfigureUpdate(updated_by="admin"))
 
 
-async def test_update_change_log_written(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_CONFIGURE_ROW, None, _CONFIGURE_ROW]
-
-    await update_bonus_configure(1, BonusConfigureUpdate(name="New Name", updated_by="ops.team"))
-
-    cl_calls = _cl_insert_calls(cur)
-    assert len(cl_calls) == 1
-    params = cl_calls[0].args[1]
-    assert params[0] == 1          # entity_id = configure_id
-    assert params[2] == "UPDATE"   # action
-    assert params[3] == "ops.team" # changed_by
-    assert len(params[8]) == 64    # entry_hash is 64-char hex
-
-
 async def test_update_row_hash_in_set_clause(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_CONFIGURE_ROW, None, _CONFIGURE_ROW]
+    cur.fetchone.side_effect = [_CONFIGURE_ROW, _CONFIGURE_ROW]
 
     await update_bonus_configure(1, BonusConfigureUpdate(priority=5, updated_by="admin"))
 

@@ -37,6 +37,9 @@ export default function ConfigureForm({ mode, state, submitting, onCancel, onSub
   const [fixed, setFixed]   = useState<string>(cfg?.bonus_amount_fixed != null ? String(cfg.bonus_amount_fixed) : '');
   const [pct, setPct]       = useState<string>(cfg?.bonus_amount_percent != null ? String(cfg.bonus_amount_percent) : '');
   const [max, setMax]       = useState<string>(cfg?.bonus_amount_max != null ? String(cfg.bonus_amount_max) : '');
+  const [cbFixed, setCbFixed] = useState<string>(cfg?.cashback_bonus_amount_fixed != null ? String(cfg.cashback_bonus_amount_fixed) : '');
+  const [cbPct, setCbPct]   = useState<string>(cfg?.cashback_bonus_amount_percent != null ? String(cfg.cashback_bonus_amount_percent) : '');
+  const [cbMax, setCbMax]   = useState<string>(cfg?.cashback_bonus_amount_max != null ? String(cfg.cashback_bonus_amount_max) : '');
   const [wagerChip, setWagerChip]   = useState(cfg?.wager_chip_type || 'BONUS');
   const [creditChip, setCreditChip] = useState(cfg?.credit_chip_type || 'BONUS');
   const [chunkExp, setChunkExp]     = useState(cfg?.chunk_expiry_days ?? 7);
@@ -44,7 +47,7 @@ export default function ConfigureForm({ mode, state, submitting, onCancel, onSub
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { name, description, freq, startDate, endDate, priority, active, wagerMult, chunks, fixed, pct, max, wagerChip, creditChip, chunkExp, bonusExp };
+    const payload = { name, description, freq, startDate, endDate, priority, active, wagerMult, chunks, fixed, pct, max, cbFixed, cbPct, cbMax, wagerChip, creditChip, chunkExp, bonusExp };
     if (mode === 'new' && state.parentId != null) {
       dispatch(createConfigure({ parentId: state.parentId, payload }));
     } else if (state.id != null) {
@@ -136,6 +139,28 @@ export default function ConfigureForm({ mode, state, submitting, onCancel, onSub
         <div className="field-group">
           <label>Maximum bonus (₹)</label>
           <input value={max} placeholder="leave empty for ∞" onChange={(e) => setMax(e.target.value)}/>
+        </div>
+
+        <div className="section-divider"/>
+        <div className="section-divider-label">Cashback Bonus</div>
+
+        <div className="field-group">
+          <div className="row-2">
+            <div>
+              <label>Cashback fixed</label>
+              <input value={cbFixed} placeholder="e.g. 500.00" onChange={(e) => setCbFixed(e.target.value)}/>
+            </div>
+            <div>
+              <label>Cashback percent</label>
+              <input value={cbPct} placeholder="e.g. 10" onChange={(e) => setCbPct(e.target.value)}/>
+            </div>
+          </div>
+          <div className="helper">Use either fixed amount or percent. Leave the other empty.</div>
+        </div>
+
+        <div className="field-group">
+          <label>Maximum cashback (₹)</label>
+          <input value={cbMax} placeholder="leave empty for ∞" onChange={(e) => setCbMax(e.target.value)}/>
         </div>
 
         <div className="field-group">

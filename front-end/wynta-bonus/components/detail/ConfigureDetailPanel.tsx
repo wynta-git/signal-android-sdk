@@ -39,12 +39,12 @@ interface ManualCode {
 interface ConfigureTrigger {
   id: number;
   trigger_type: string;
-  occurrence?: string;
-  min_amount?: string | number;
-  max_amount?: string | number;
-  payment_method?: string;
-  product?: string;
-  code?: string | null;
+  description?: string | null;
+  occurrence?: number;
+  min_trigger_amount?: string | number | null;
+  max_trigger_amount?: string | number | null;
+  payment_method?: string | null;
+  product?: string | null;
   active?: boolean;
 }
 
@@ -63,6 +63,9 @@ interface ExtendedConfigure {
   bonus_amount_fixed?: string | null;
   bonus_amount_percent?: string | null;
   bonus_amount_max?: string | number | null;
+  cashback_bonus_amount_fixed?: string | null;
+  cashback_bonus_amount_percent?: string | null;
+  cashback_bonus_amount_max?: string | number | null;
   wager_chip_type?: string;
   credit_chip_type?: string;
   chunk_expiry_days?: number;
@@ -79,13 +82,27 @@ interface ConfigureDetailPanelProps {
 
 export default function ConfigureDetailPanel({ configure, onAction }: ConfigureDetailPanelProps) {
   const cfg = configure;
+  const wagerPerChunk = (() => {
+    const fixed = cfg.bonus_amount_fixed != null ? Number(cfg.bonus_amount_fixed) : null;
+    const chunks = cfg.no_of_chunks ?? 1;
+    const mult = cfg.wager_multiplier ?? 0;
+    if (fixed != null && chunks > 0 && mult > 0) {
+      return formatINRCompact((fixed / chunks) * mult);
+    }
+    return null;
+  })();
+
   const fields = [
-    { label: 'Wager',         value: '×' + cfg.wager_multiplier },
-    { label: 'Chunks',        value: cfg.no_of_chunks + '×' },
-    { label: 'Bonus Expiry',  value: cfg.bonus_expiry_days + ' days' },
+    { label: 'Wager',           value: '×' + cfg.wager_multiplier },
+    { label: 'Chunks',          value: cfg.no_of_chunks + '×' },
+    { label: 'Bonus Expiry',    value: cfg.bonus_expiry_days + ' days' },
+    { label: 'Wager/Chunk',     value: wagerPerChunk },
     { label: 'Fixed Amount',  value: cfg.bonus_amount_fixed == null ? null : formatINRCompact(Number(cfg.bonus_amount_fixed)) },
     { label: 'Percent Match', value: cfg.bonus_amount_percent == null ? null : cfg.bonus_amount_percent + '%' },
     { label: 'Max Bonus',     value: cfg.bonus_amount_max == null ? '∞' : formatINRCompact(Number(cfg.bonus_amount_max)) },
+    { label: 'CB Fixed',      value: cfg.cashback_bonus_amount_fixed == null ? null : formatINRCompact(Number(cfg.cashback_bonus_amount_fixed)) },
+    { label: 'CB Percent',    value: cfg.cashback_bonus_amount_percent == null ? null : cfg.cashback_bonus_amount_percent + '%' },
+    { label: 'CB Max',        value: cfg.cashback_bonus_amount_max == null ? null : formatINRCompact(Number(cfg.cashback_bonus_amount_max)) },
   ];
 
   return (
@@ -180,11 +197,13 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
         <div key={t.id} className="trigger-row">
           <span className={'ttype ' + t.trigger_type}>{t.trigger_type}</span>
           <div className="tinfo">
-            <div className="occ">{t.occurrence}</div>
+            <div className="occ">
+              {t.occurrence === 0 ? 'Every occurrence' : t.occurrence === 1 ? 'First only' : t.occurrence != null ? `Occurrence #${t.occurrence}` : '—'}
+            </div>
             <div className="meta">
-              {formatINRCompact(Number(t.min_amount))} – {formatINRCompact(Number(t.max_amount))} ·
-              {' '}{t.payment_method} · {t.product}
-              {t.code && <> · code <span style={{ fontFamily: 'var(--mono)', color: 'var(--g700)', fontWeight: 600 }}>{t.code}</span></>}
+              {formatINRCompact(Number(t.min_trigger_amount ?? 0))} – {formatINRCompact(Number(t.max_trigger_amount ?? 0))} ·
+              {' '}{t.payment_method ?? 'ANY'} · {t.product ?? 'ANY'}
+              {t.description && <> · <span style={{ color: 'var(--g500)' }}>{t.description}</span></>}
             </div>
           </div>
           <Badge active={t.active}/>

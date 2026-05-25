@@ -30,6 +30,7 @@ _VALID = dict(
 #  chunk_expiry_days, bonus_expiry_days,
 #  wager_chip_type, credit_chip_type,
 #  bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
+#  cashback_bonus_amount_fixed, cashback_bonus_amount_percent, cashback_bonus_amount_max,
 #  priority, active, created_by, updated_by, created_at, updated_at)
 _DB_ROW = (
     10, 1, 1, "100pct Match", None,
@@ -37,6 +38,7 @@ _DB_ROW = (
     Decimal("2.00"), 5, None,
     None, None,
     "CASH", "CASH",
+    None, None, None,
     None, None, None,
     0, 1, "admin", "admin", _NOW, _NOW,
 )
@@ -71,21 +73,17 @@ def patch_conn(cur: AsyncMock) -> MagicMock:
 
 # ---------------------------------------------------------------------------
 # Happy path
-# Execute sequence (9 cur.execute calls, 5 fetchones):
+# Execute sequence (5 cur.execute calls, 3 fetchones):
 #   [0] SELECT site_id FROM bonus_subhead   → fetchone → _SUBHEAD_SITE_ROW
 #   [1] SELECT 1 FROM bonus_configure (dup) → fetchone → None
 #   [2] INSERT INTO bonus_configure
-#   [3] SELECT entry_hash from cl           → fetchone → None (genesis)
-#   [4] INSERT INTO bonus_configure_change_log
-#   [5] INSERT INTO bonus_configure_code
-#   [6] SELECT entry_hash from code cl      → fetchone → None (genesis)
-#   [7] INSERT INTO bonus_configure_code_change_log
-#   [8] SELECT FROM bonus_configure         → fetchone → _DB_ROW
+#   [3] INSERT INTO bonus_configure_code
+#   [4] SELECT FROM bonus_configure         → fetchone → _DB_ROW
 # ---------------------------------------------------------------------------
 
 
 async def test_success_returns_response(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_SUBHEAD_SITE_ROW, None, None, None, _DB_ROW]
+    cur.fetchone.side_effect = [_SUBHEAD_SITE_ROW, None, _DB_ROW]
 
     result = await add_bonus_configure(BonusConfigureCreate(**_VALID))
 
@@ -95,16 +93,16 @@ async def test_success_returns_response(cur: AsyncMock, patch_conn: MagicMock) -
     assert result.active is True
     assert result.created_by == "admin"
     patch_conn.commit.assert_awaited_once()
-    assert cur.execute.await_count == 9
+    assert cur.execute.await_count == 5
 
 
 async def test_default_code_inserted(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    """The default AUTO-{id} code insert must be the 6th execute call (index 5)."""
-    cur.fetchone.side_effect = [_SUBHEAD_SITE_ROW, None, None, None, _DB_ROW]
+    """The default AUTO-{id} code insert must be the 4th execute call (index 3)."""
+    cur.fetchone.side_effect = [_SUBHEAD_SITE_ROW, None, _DB_ROW]
 
     await add_bonus_configure(BonusConfigureCreate(**_VALID))
 
-    code_insert = cur.execute.await_args_list[5]
+    code_insert = cur.execute.await_args_list[3]
     sql: str = code_insert.args[0]
     params = code_insert.args[1]
     assert "bonus_configure_code" in sql
@@ -203,8 +201,8 @@ async def test_non_1062_integrity_error_raises_database_error(
 async def test_row_missing_after_insert_raises_database_error(
     cur: AsyncMock, patch_conn: MagicMock
 ) -> None:
-    # subhead ok, no dup, two prev_hash lookups return None, post-insert SELECT returns None
-    cur.fetchone.side_effect = [_SUBHEAD_SITE_ROW, None, None, None, None]
+    # subhead ok, no dup, post-insert SELECT returns None
+    cur.fetchone.side_effect = [_SUBHEAD_SITE_ROW, None, None]
 
     with pytest.raises(DatabaseError, match="row could not be retrieved"):
         await add_bonus_configure(BonusConfigureCreate(**_VALID))

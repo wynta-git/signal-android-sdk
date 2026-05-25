@@ -9,17 +9,17 @@ import structlog
 log = structlog.get_logger(__name__)
 
 _OCCURRENCE_COUNT_SQL = """
-    SELECT COUNT(*) FROM user_bonus_grant
+    SELECT COUNT(*) FROM bonus_grant
     WHERE user_id = %s AND configure_id = %s
 """
 
 _APPLICABILITY_COUNT_SQL = """
-    SELECT COUNT(*) FROM user_bonus_grant
+    SELECT COUNT(*) FROM bonus_grant
     WHERE user_id = %s AND configure_id = %s AND {where_extra}
 """
 
 _INSERT_GRANT_SQL = """
-    INSERT INTO user_bonus_grant
+    INSERT INTO bonus_grant
         (player_bonus_id, configure_id, subhead_id, head_id, site_id, user_id,
          product, wager_multiplier, no_of_chunks,
          chunk_expiry_days, bonus_expiry_days,
@@ -29,8 +29,8 @@ _INSERT_GRANT_SQL = """
 # product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
 
 _INSERT_CHUNK_SQL = """
-    INSERT INTO bonus_chunk (chunk_ref, bonus_log_id, chunk_amount, wager_multiplier)
-    VALUES (%s, %s, %s, %s)
+    INSERT INTO bonus_chunk (chunk_ref, bonus_grant_id, chunk_amount, wager_multiplier, required_wager_amount)
+    VALUES (%s, %s, %s, %s, %s)
 """
 
 _UPSERT_BUDGET_SQL = """
@@ -111,7 +111,7 @@ async def write_grant(
     grant_amount: Decimal,
 ) -> int:
     async with conn.cursor() as cur:
-        # 1. Insert user_bonus_grant
+        # 1. Insert bonus_grant
         await cur.execute(
             _INSERT_GRANT_SQL,
             (
@@ -140,9 +140,12 @@ async def write_grant(
         wager_multiplier = configure["wager_multiplier"]
         for i in range(1, no_of_chunks + 1):
             chunk_ref = f"CH{i:03d}"
+            required_wager_amount = (chunk_amount * Decimal(str(wager_multiplier))).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
             await cur.execute(
                 _INSERT_CHUNK_SQL,
-                (chunk_ref, grant_id, chunk_amount, wager_multiplier),
+                (chunk_ref, grant_id, chunk_amount, wager_multiplier, required_wager_amount),
             )
 
         # 3. Upsert bonus_budget_usage for all 9 combinations

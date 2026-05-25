@@ -3,41 +3,43 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- Drop all tables (reverse dependency order)
+-- 5. Log
+DROP TABLE IF EXISTS `bonus_audit_log`;
+-- 4. Reporting
 DROP TABLE IF EXISTS `bonus_spend_monthly`;
 DROP TABLE IF EXISTS `bonus_spend_weekly`;
 DROP TABLE IF EXISTS `bonus_spend_daily`;
-DROP TABLE IF EXISTS `bonus_code_usage_limit_change_log`;
-DROP TABLE IF EXISTS `bonus_budget_limit_change_log`;
-DROP TABLE IF EXISTS `bonus_release_trigger_change_log`;
-DROP TABLE IF EXISTS `bonus_owners_change_log`;
-DROP TABLE IF EXISTS `bonus_eligibility_change_log`;
-DROP TABLE IF EXISTS `bonus_configure_code_change_log`;
-DROP TABLE IF EXISTS `bonus_configure_change_log`;
-DROP TABLE IF EXISTS `bonus_subhead_change_log`;
-DROP TABLE IF EXISTS `bonus_head_change_log`;
-DROP TABLE IF EXISTS `bonus_audit_log`;
-DROP TABLE IF EXISTS `bonus_forfeit`;
-DROP TABLE IF EXISTS `bonus_consumed`;
+-- 3. Budget
 DROP TABLE IF EXISTS `bonus_code_usage`;
 DROP TABLE IF EXISTS `bonus_budget_usage`;
-DROP TABLE IF EXISTS `bonus_chunk_expiry`;
-DROP TABLE IF EXISTS `bonus_chunk_release`;
-DROP TABLE IF EXISTS `bonus_chunk_wager`;
-DROP TABLE IF EXISTS `bonus_chunk`;
-DROP TABLE IF EXISTS `user_bonus_grant`;
 DROP TABLE IF EXISTS `bonus_code_usage_limit`;
 DROP TABLE IF EXISTS `bonus_budget_limit`;
-DROP TABLE IF EXISTS `bonus_release_trigger`;
+-- 2. Runtime
+DROP TABLE IF EXISTS `bonus_manual_bulk_pending`;
+DROP TABLE IF EXISTS `bonus_manual_bulk_grant`;
+DROP TABLE IF EXISTS `bonus_chunk_forfeit`;
+DROP TABLE IF EXISTS `bonus_forfeit`;
+DROP TABLE IF EXISTS `bonus_consumed`;
+DROP TABLE IF EXISTS `bonus_chunk_expiry`;
+DROP TABLE IF EXISTS `bonus_chunk_release`;
+DROP TABLE IF EXISTS `bonus_chunk_consume`;
+DROP TABLE IF EXISTS `bonus_chunk`;
+DROP TABLE IF EXISTS `bonus_grant`;
+-- 1. Master Configuration
 DROP TABLE IF EXISTS `bonus_owners`;
+DROP TABLE IF EXISTS `bonus_release_trigger`;
 DROP TABLE IF EXISTS `bonus_eligibility`;
 DROP TABLE IF EXISTS `bonus_configure_code`;
 DROP TABLE IF EXISTS `bonus_configure`;
 DROP TABLE IF EXISTS `bonus_subhead`;
 DROP TABLE IF EXISTS `bonus_head`;
 
-SET FOREIGN_KEY_CHECKS = 1;
-
--- Create tables
+-- =============================================================================
+-- 1. MASTER CONFIGURATION
+--    bonus_head => bonus_subhead => bonus_configure
+--               => (bonus_eligibility, bonus_release_trigger) => bonus_configure_code
+--    bonus_owners (attached to head / subhead)
+-- =============================================================================
 
 -- bonus_head
 CREATE TABLE `bonus_head` (
@@ -45,15 +47,15 @@ CREATE TABLE `bonus_head` (
     `site_id`     INT           NOT NULL,
     `name`        VARCHAR(100)  NOT NULL,
     `description` VARCHAR(500)  DEFAULT NULL,
-    `active`             TINYINT(1)    NOT NULL DEFAULT 1,
-    `owner`      VARCHAR(100)  NOT NULL,
-    -- primary accountable person; additional contacts in bonus_responsible_person
-    `created_by` VARCHAR(100)  NOT NULL,
-    `updated_by`         VARCHAR(100)  NOT NULL,
-    `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                       ON UPDATE CURRENT_TIMESTAMP,
-    `row_hash`           CHAR(64)      DEFAULT NULL,
+    `active`      TINYINT(1)    NOT NULL DEFAULT 1,
+    `owner`       VARCHAR(100)  NOT NULL,
+    -- primary accountable person; additional contacts in bonus_owners
+    `created_by`  VARCHAR(100)  NOT NULL,
+    `updated_by`  VARCHAR(100)  NOT NULL,
+    `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`    CHAR(64)      DEFAULT NULL,
     -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bonus_head_site_name` (`site_id`, `name`),
@@ -70,15 +72,14 @@ CREATE TABLE `bonus_subhead` (
     `site_id`     INT           NOT NULL,
     `name`        VARCHAR(100)  NOT NULL,
     `description` VARCHAR(500)  DEFAULT NULL,
-    `active`             TINYINT(1)    NOT NULL DEFAULT 1,
-    `owner`      VARCHAR(100)  NOT NULL,
-    -- primary accountable person; additional contacts in bonus_responsible_person
-    `created_by` VARCHAR(100)  NOT NULL,
-    `updated_by`         VARCHAR(100)  NOT NULL,
-    `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                       ON UPDATE CURRENT_TIMESTAMP,
-    `row_hash`           CHAR(64)      DEFAULT NULL,
+    `active`      TINYINT(1)    NOT NULL DEFAULT 1,
+    `owner`       VARCHAR(100)  NOT NULL,
+    `created_by`  VARCHAR(100)  NOT NULL,
+    `updated_by`  VARCHAR(100)  NOT NULL,
+    `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`    CHAR(64)      DEFAULT NULL,
     -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bonus_subhead_head_name` (`head_id`, `name`),
@@ -90,50 +91,59 @@ CREATE TABLE `bonus_subhead` (
 
 -- bonus_configure
 CREATE TABLE `bonus_configure` (
-    `id`                     INT            NOT NULL AUTO_INCREMENT,
-    `subhead_id`             INT            NOT NULL,
+    `id`                      INT            NOT NULL AUTO_INCREMENT,
+    `subhead_id`              INT            NOT NULL,
     -- references bonus_subhead.id
-    `site_id`                INT            NOT NULL,
-    `name`                   VARCHAR(100)   NOT NULL,
-    `description`            VARCHAR(500)   DEFAULT NULL,
+    `site_id`                 INT            NOT NULL,
+    `name`                    VARCHAR(100)   NOT NULL,
+    `description`             VARCHAR(500)   DEFAULT NULL,
 
     -- ── Bonus mechanics ──────────────────────────────────────────────────────
-    `start_date`             DATETIME       NOT NULL,
-    `end_date`               DATETIME       NOT NULL,
-    `applicability_frequency` VARCHAR(20)   NOT NULL DEFAULT 'EVERYTIME',
+    `start_date`              DATETIME       NOT NULL,
+    `end_date`                DATETIME       NOT NULL,
+    `applicability_frequency` VARCHAR(20)    NOT NULL DEFAULT 'EVERYTIME',
     -- EVERYTIME | ONCE | MONTHLY | WEEKLY
+
     -- ── Bonus release config ─────────────────────────────────────────────────
-    `wager_multiplier`       DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
+    `wager_multiplier`        DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
     -- 0 = no wagering required; >0 = chunk wager multiplier
-    `no_of_chunks`           INT            NOT NULL DEFAULT 1,
+    `no_of_chunks`            INT            NOT NULL DEFAULT 1,
     -- number of equal chunks the bonus is split into
-    `release_bucket`         VARCHAR(50)    DEFAULT NULL,
+    `release_bucket`          VARCHAR(50)    DEFAULT NULL,
     -- trigger bucket that releases the bonus (e.g. DEPOSIT_INSTANT)
-    `chunk_expiry_days`      INT            DEFAULT NULL,
+    `chunk_expiry_days`       INT            DEFAULT NULL,
     -- days from grant until an unreleased chunk expires
-    `bonus_expiry_days`      INT            DEFAULT NULL,
+    `bonus_expiry_days`       INT            DEFAULT NULL,
     -- days from chunk release until the credit expires (post-release)
-    `wager_chip_type`        VARCHAR(50)    NOT NULL DEFAULT 'CASH',
-    `credit_chip_type`       VARCHAR(50)    NOT NULL DEFAULT 'CASH',
+    `wager_chip_type`         VARCHAR(50)    NOT NULL DEFAULT 'CASH',
+    `credit_chip_type`        VARCHAR(50)    NOT NULL DEFAULT 'CASH',
 
     -- ── Grant caps ───────────────────────────────────────────────────────────
-    `bonus_amount_fixed`     DECIMAL(18,2)  DEFAULT NULL,
+    `bonus_amount_fixed`      DECIMAL(18,2)  DEFAULT NULL,
     -- flat grant amount when trigger supplies no explicit value
-    `bonus_amount_percent`   DECIMAL(5,2)   DEFAULT NULL,
+    `bonus_amount_percent`    DECIMAL(5,2)   DEFAULT NULL,
     -- % of trigger value (e.g. deposit); mutually exclusive with bonus_amount_fixed
-    `bonus_amount_max`       DECIMAL(18,2)  DEFAULT NULL,
+    `bonus_amount_max`        DECIMAL(18,2)  DEFAULT NULL,
+    -- hard per-grant ceiling regardless of trigger input
+
+    -- ── cashback bonus ───────────────────────────────────────────────────────────
+    `cashback_bonus_amount_fixed`      DECIMAL(18,2)  DEFAULT NULL,
+    -- flat grant amount when trigger supplies no explicit value
+    `cashback_bonus_amount_percent`    DECIMAL(5,2)   DEFAULT NULL,
+    -- % of trigger value (e.g. deposit); mutually exclusive with bonus_amount_fixed
+    `cashback_bonus_amount_max`        DECIMAL(18,2)  DEFAULT NULL,
     -- hard per-grant ceiling regardless of trigger input
 
     -- ── Control ──────────────────────────────────────────────────────────────
-    `priority`               INT            NOT NULL DEFAULT 0,
+    `priority`                INT            NOT NULL DEFAULT 0,
     -- lower value = higher priority when multiple nodes match
-    `active`                 TINYINT(1)     NOT NULL DEFAULT 1,
-    `created_by`             VARCHAR(100)   NOT NULL,
-    `updated_by`             VARCHAR(100)   NOT NULL,
-    `created_at`             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                            ON UPDATE CURRENT_TIMESTAMP,
-    `row_hash`               CHAR(64)       DEFAULT NULL,
+    `active`                  TINYINT(1)     NOT NULL DEFAULT 1,
+    `created_by`              VARCHAR(100)   NOT NULL,
+    `updated_by`              VARCHAR(100)   NOT NULL,
+    `created_at`              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                             ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`                CHAR(64)       DEFAULT NULL,
     -- SHA-256 of mutable fields; recompute to detect tampering
 
     PRIMARY KEY (`id`),
@@ -220,9 +230,44 @@ CREATE TABLE `bonus_eligibility` (
     -- SHA-256 of mutable fields; recompute to detect tampering
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bonus_eligibility_configure_key` (`configure_id`, `eligibility_key`),
-    KEY `idx_bonus_eligibility_configure_id` (`configure_id`),
-    KEY `idx_bonus_eligibility_site_active`  (`site_id`, `active`),
-    KEY `idx_bonus_eligibility_key`          (`eligibility_key`)
+    KEY `idx_bonus_eligibility_configure_id`        (`configure_id`),
+    KEY `idx_bonus_eligibility_site_active`         (`site_id`, `active`),
+    KEY `idx_bonus_eligibility_key`                 (`eligibility_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- bonus_release_trigger
+CREATE TABLE `bonus_release_trigger` (
+    `id`                  INT            NOT NULL AUTO_INCREMENT,
+    `configure_id`        INT            NOT NULL,
+    -- references bonus_configure.id
+    `site_id`             INT            NOT NULL,
+    `trigger_type`        VARCHAR(50)    NOT NULL,
+    -- LOGIN | REGISTRATION | APP_VISIT | DEPOSIT | BET_PLACED | LEADERBOARD_WON | TOURNAMENT_WON | FRIEND_SIGNUP
+    `description`         VARCHAR(500)   DEFAULT NULL,
+    -- human-readable summary of this trigger and its conditions
+    `min_trigger_amount`  DECIMAL(18,2)  DEFAULT NULL,
+    -- minimum qualifying event amount; NULL = no minimum
+    `max_trigger_amount`  DECIMAL(18,2)  DEFAULT NULL,
+    -- maximum qualifying event amount; NULL = no cap
+    `payment_method`      VARCHAR(50)    DEFAULT NULL,
+    -- restrict to a payment method (UPI | NETBANKING | CARD | WALLET); NULL = all
+    `product`             VARCHAR(50)    DEFAULT NULL,
+    -- restrict to a product (POKER | CASINO | RUMMY); NULL = all products
+    `occurrence`          INT            NOT NULL DEFAULT 0,
+    -- 0 = every occurrence; 1 = first only; N = Nth occurrence
+    `active`              TINYINT(1)     NOT NULL DEFAULT 1,
+    `created_by`          VARCHAR(100)   NOT NULL,
+    `updated_by`          VARCHAR(100)   NOT NULL,
+    `created_at`          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                         ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`            CHAR(64)       DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_bonus_release_trigger`              (`configure_id`, `trigger_type`),
+    KEY `idx_bonus_release_trigger_configure_id`       (`configure_id`),
+    KEY `idx_bonus_release_trigger_type`               (`trigger_type`),
+    KEY `idx_bonus_release_trigger_site_active`        (`site_id`, `active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- bonus_owners
@@ -249,94 +294,77 @@ CREATE TABLE `bonus_owners` (
     KEY `idx_responsible_person_entity`        (`entity_type`, `entity_id`),
     KEY `idx_responsible_person_username`      (`username`),
     KEY `idx_responsible_person_site_active`   (`site_id`, `active`)
-);
-
--- bonus_release_trigger
-CREATE TABLE `bonus_release_trigger` (
-    `id`                   INT            NOT NULL AUTO_INCREMENT,
-    `configure_id`         INT            NOT NULL,
-    -- references bonus_configure.id
-    `site_id`              INT            NOT NULL,
-    `trigger_type`         VARCHAR(50)    NOT NULL,
-    -- DEPOSIT | REGISTRATION | MANUAL | REFERRAL | PROMO_CODE | MILESTONE
-    `description`          VARCHAR(500)   DEFAULT NULL,
-    -- human-readable summary of this trigger and its conditions
-    `min_trigger_amount`   DECIMAL(18,2)  DEFAULT NULL,
-    -- minimum qualifying event amount; NULL = no minimum
-    `max_trigger_amount`   DECIMAL(18,2)  DEFAULT NULL,
-    -- maximum qualifying event amount; NULL = no cap
-    `payment_method`       VARCHAR(50)    DEFAULT NULL,
-    -- restrict to a payment method (UPI | NETBANKING | CARD | WALLET); NULL = all
-    `product`              VARCHAR(50)    DEFAULT NULL,
-    -- restrict to a product (POKER | CASINO | RUMMY); NULL = all products
-    `occurrence`           INT            NOT NULL DEFAULT 0,
-    -- 0 = every occurrence; 1 = first only; N = Nth occurrence
-    `trigger_config`       JSON           DEFAULT NULL,
-    -- additional qualifying conditions (game IDs, time windows, player tags, etc.)
-    `active`               TINYINT(1)     NOT NULL DEFAULT 1,
-    `created_by`           VARCHAR(100)   NOT NULL,
-    `updated_by`           VARCHAR(100)   NOT NULL,
-    `created_at`           DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`           DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                          ON UPDATE CURRENT_TIMESTAMP,
-    `row_hash`             CHAR(64)       DEFAULT NULL,
-    -- SHA-256 of mutable fields; recompute to detect tampering
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_release_trigger`              (`configure_id`, `trigger_type`),
-    KEY `idx_bonus_release_trigger_configure_id`       (`configure_id`),
-    KEY `idx_bonus_release_trigger_type`               (`trigger_type`),
-    KEY `idx_bonus_release_trigger_site_active`        (`site_id`, `active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- bonus_budget_limit
-CREATE TABLE `bonus_budget_limit` (
-    `id`           INT           NOT NULL AUTO_INCREMENT,
-    `entity_type`  VARCHAR(10)   NOT NULL,
-    -- HEAD | SUBHEAD | CONFIGURE
-    `entity_id`    INT           NOT NULL,
-    `site_id`      INT           NOT NULL,
-    `period_type`  VARCHAR(10)   NOT NULL,
-    -- DAILY | WEEKLY | MONTHLY
-    `budget_limit` DECIMAL(18,2) DEFAULT NULL,
-    -- NULL = uncapped
-    `created_by`   VARCHAR(100)  NOT NULL,
-    `updated_by`   VARCHAR(100)  NOT NULL,
-    `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                 ON UPDATE CURRENT_TIMESTAMP,
-    `row_hash`     CHAR(64)      DEFAULT NULL,
-    -- SHA-256 of mutable fields; recompute to detect tampering
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_budget_limit`       (`entity_type`, `entity_id`, `period_type`),
-    KEY `idx_budget_limit_entity`      (`entity_type`, `entity_id`),
-    KEY `idx_budget_limit_site`        (`site_id`)
-);
+-- =============================================================================
+-- 2. RUNTIME TABLES
+-- =============================================================================
 
--- bonus_code_usage_limit
-CREATE TABLE `bonus_code_usage_limit` (
-    `id`           INT         NOT NULL AUTO_INCREMENT,
-    `code_id`      INT         NOT NULL,
-    -- references bonus_configure_code.id
-    `site_id`      INT         NOT NULL,
-    `period_type`  VARCHAR(10) NOT NULL,
-    -- HOURLY | DAILY | WEEKLY | MONTHLY
-    `usage_limit`  INT         DEFAULT NULL,
-    -- NULL = uncapped
-    `created_by`   VARCHAR(100) NOT NULL,
-    `updated_by`   VARCHAR(100) NOT NULL,
-    `created_at`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
-                               ON UPDATE CURRENT_TIMESTAMP,
-    `row_hash`     CHAR(64)    DEFAULT NULL,
-    -- SHA-256 of mutable fields; recompute to detect tampering
+-- bonus_manual_bulk_grant
+CREATE TABLE `bonus_manual_bulk_grant` (
+    `id`                      BIGINT        NOT NULL AUTO_INCREMENT,
+    `site_id`                 INT           NOT NULL,
+    `bonus_configure_code_id` INT           NOT NULL,
+    -- references bonus_configure_code.id — determines which bonus is granted
+    `file_path`               VARCHAR(500)  DEFAULT NULL,
+    -- storage path of the uploaded user CSV; NULL when created programmatically
+    `operator_id`             VARCHAR(100)  NOT NULL,
+    -- username of the operator who initiated the bulk grant
+    `users_count`             INT           NOT NULL DEFAULT 0,
+    -- total users in the batch (from file row count or explicit list)
+    `processed_count`         INT           NOT NULL DEFAULT 0,
+    -- running tally of records that have been attempted
+    `success_count`           INT           NOT NULL DEFAULT 0,
+    -- records that resulted in a successful bonus_grant
+    `failed_count`            INT           NOT NULL DEFAULT 0,
+    -- records that failed or were skipped
+    `status`                  VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
+    -- PENDING | PROCESSING | COMPLETED | FAILED | CANCELLED
+    `error_message`           VARCHAR(500)  DEFAULT NULL,
+    -- top-level failure reason when status = FAILED
+    `created_at`              DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`              DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                            ON UPDATE CURRENT_TIMESTAMP,
+    `completed_at`            DATETIME      DEFAULT NULL,
+    -- set when status transitions to COMPLETED, FAILED, or CANCELLED
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_code_usage_limit`      (`code_id`, `period_type`),
-    KEY `idx_code_usage_limit_code_id`    (`code_id`),
-    KEY `idx_code_usage_limit_site`       (`site_id`)
-);
+    KEY `idx_bulk_grant_site_status`     (`site_id`, `status`),
+    KEY `idx_bulk_grant_code_id`         (`bonus_configure_code_id`),
+    KEY `idx_bulk_grant_operator`        (`operator_id`),
+    KEY `idx_bulk_grant_created_at`      (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- user_bonus_grant
-CREATE TABLE `user_bonus_grant` (
+-- bonus_manual_bulk_pending
+CREATE TABLE `bonus_manual_bulk_pending` (
+    `id`                   BIGINT        NOT NULL AUTO_INCREMENT,
+    `bulk_grant_id`        BIGINT        NOT NULL,
+    -- references bonus_manual_bulk_grant.id
+    `site_id`              INT           NOT NULL,
+    `user_id`              VARCHAR(50)   NOT NULL,
+    -- player to receive the bonus
+    `bonus_grant_id`       BIGINT        DEFAULT NULL,
+    -- references bonus_grant.id; populated on successful processing
+    `status`               VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
+    -- PENDING | SUCCESS | FAILED | SKIPPED | EXPIRED
+    `message`              VARCHAR(500)  DEFAULT NULL,
+    -- processing result detail or error reason
+    `expire_at`            DATETIME      DEFAULT NULL,
+    -- deadline for processing; records past this are auto-transitioned to EXPIRED
+    `created_at`           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `processed_at`         DATETIME      DEFAULT NULL,
+    -- timestamp when this record was last attempted
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_bulk_pending_grant_user`       (`bulk_grant_id`, `user_id`),
+    KEY `idx_bulk_pending_bulk_grant_id`          (`bulk_grant_id`),
+    KEY `idx_bulk_pending_site_status`            (`site_id`, `status`),
+    KEY `idx_bulk_pending_user_id`                (`user_id`),
+    KEY `idx_bulk_pending_expire_at`              (`expire_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+
+-- bonus_grant
+CREATE TABLE `bonus_grant` (
     `id`                 BIGINT        NOT NULL AUTO_INCREMENT,
     `player_bonus_id`    BIGINT        NOT NULL,
     -- references userapp_player_bonus.id; unique — one log entry per grant
@@ -352,7 +380,6 @@ CREATE TABLE `user_bonus_grant` (
     -- ── Config snapshot (copied from bonus_configure at grant time) ───────────
     `bonus_code`         VARCHAR(50)   DEFAULT NULL,
     -- promo code the player redeemed; NULL if no code was used
-
     `product`            VARCHAR(10)   DEFAULT NULL,
     -- product sourced from bonus_release_trigger at grant time; NULL when trigger has no product constraint
     `wager_multiplier`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -371,91 +398,110 @@ CREATE TABLE `user_bonus_grant` (
     -- ── Grant ─────────────────────────────────────────────────────────────────
     `grant_amount`       DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     `release_amount`     DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- cumulative amount released to the player's wallet at time of log entry
-    `bonus_consumed`     DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- cumulative bonus amount consumed through wagering at time of log entry
+    -- cumulative amount released to the player's wallet
+    `consume_amount`     DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- cumulative bonus amount consumed through wagering
+    `expiry_amount`      DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- cumulative amount expired
+    `forfeited_amount`   DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- cumulative amount forfeited
+    `status`             VARCHAR(20)   NOT NULL DEFAULT 'INPROGRESS',
+    -- CONSUMED | INPROGRESS | RELEASED
+    `bonus_grant_type`       VARCHAR(20)   NOT NULL DEFAULT 'SYSTEM',
+    -- MANUAL | BULK_MANUAL | SYSTEM
+    `created_by`   VARCHAR(100)  NOT NULL DEFAULT 'SYSTEM',
 
     `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_user_bonus_grant_player_bonus_id`    (`player_bonus_id`),
-    KEY `idx_user_bonus_grant_configure_id`             (`configure_id`),
-    KEY `idx_user_bonus_grant_subhead_id`               (`subhead_id`),
-    KEY `idx_user_bonus_grant_head_id`                  (`head_id`),
-    KEY `idx_user_bonus_grant_user_id`                  (`user_id`),
-    KEY `idx_user_bonus_grant_site_date`                (`site_id`, `created_at`),
-    KEY `idx_user_bonus_grant_bonus_code`               (`bonus_code`)
+    UNIQUE KEY `uk_bonus_grant_player_bonus_id`  (`player_bonus_id`),
+    KEY `idx_bonus_grant_configure_id`           (`configure_id`),
+    KEY `idx_bonus_grant_subhead_id`             (`subhead_id`),
+    KEY `idx_bonus_grant_head_id`                (`head_id`),
+    KEY `idx_bonus_grant_user_id`                (`user_id`),
+    KEY `idx_bonus_grant_site_date`              (`site_id`, `created_at`),
+    KEY `idx_bonus_grant_bonus_code`             (`bonus_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- bonus_chunk
 CREATE TABLE `bonus_chunk` (
-    `id`             BIGINT        NOT NULL AUTO_INCREMENT,
-    `chunk_ref`      VARCHAR(20)   NOT NULL,
+    `id`              BIGINT        NOT NULL AUTO_INCREMENT,
+    `chunk_ref`       VARCHAR(20)   NOT NULL,
     -- human-readable chunk identifier; unique within a bonus (e.g. CH001)
-    `bonus_log_id`   BIGINT        NOT NULL,
-    -- references bonus_log.id
+    `bonus_grant_id`  BIGINT        NOT NULL,
+    -- references bonus_grant.id
 
     -- ── Amount ────────────────────────────────────────────────────────────────
-    `chunk_amount`      DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- face value of this chunk; sum across all chunks equals bonus_log.grant_amount
-    `wager_multiplier`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    -- x-wager required to release this chunk; copied from bonus_log at grant time
+    `chunk_amount`    DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- face value of this chunk; sum across all chunks equals bonus_grant.grant_amount
+    `wager_multiplier` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    -- x-wager required to release this chunk; copied from bonus_grant at grant time
 
     -- ── Progress ──────────────────────────────────────────────────────────────
-    `status`         VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
+    `status`          VARCHAR(20)   NOT NULL DEFAULT 'PENDING',
     -- PENDING | RELEASE | EXPIRED | CONSUMED
-    `wager_amount`   DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `required_wager_amount`    DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- required wager amount to release this chunk amount
+    `wager_amount`    DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     -- cumulative qualifying wager settled against this chunk
+    `release_amount`  DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- cumulative amount released to the player's wallet
+    `consume_amount`  DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- cumulative bonus amount consumed through wagering
+    `expiry_amount`   DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- amount expired from this chunk
+    `forfeited_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- amount forfeited from this chunk
 
-    `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_chunk_ref`          (`bonus_log_id`, `chunk_ref`),
-    KEY `idx_bonus_chunk_bonus_log_id`       (`bonus_log_id`),
+    UNIQUE KEY `uk_bonus_chunk_ref`          (`bonus_grant_id`, `chunk_ref`),
+    KEY `idx_bonus_chunk_bonus_grant_id`     (`bonus_grant_id`),
     KEY `idx_bonus_chunk_status`             (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- bonus_chunk_wager
-CREATE TABLE `bonus_chunk_wager` (
-    `id`              BIGINT        NOT NULL AUTO_INCREMENT,
-    `chunk_id`        BIGINT        NOT NULL,
+-- bonus_chunk_consume
+CREATE TABLE `bonus_chunk_consume` (
+    `id`             BIGINT        NOT NULL AUTO_INCREMENT,
+    `chunk_id`       BIGINT        NOT NULL,
     -- references bonus_chunk.id
-    `wager_ref`       VARCHAR(20)   NOT NULL,
+    `wager_ref`      VARCHAR(20)   NOT NULL,
     -- upstream wager transaction identifier; unique per chunk
 
     -- ── Amount ────────────────────────────────────────────────────────────────
-    `wager_amount`    DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `wager_amount`   DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     -- wager amount attributed to this chunk from this wager event
-    `release_amount`  DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- amount credited to the player's wallet when this wager triggered a chunk release; 0 if no release occurred
+    `consume_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- bonus balance consumed when this wager was settled; 0 if no consumption occurred
 
-    `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_chunk_wager_ref`     (`chunk_id`, `wager_ref`),
-    KEY `idx_bonus_chunk_wager_chunk_id`      (`chunk_id`)
+    UNIQUE KEY `uk_bonus_chunk_consume_ref`   (`chunk_id`, `wager_ref`),
+    KEY `idx_bonus_chunk_consume_chunk_id`    (`chunk_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- bonus_chunk_release
 CREATE TABLE `bonus_chunk_release` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `chunk_id`    BIGINT        NOT NULL,
+    `id`             BIGINT        NOT NULL AUTO_INCREMENT,
+    `chunk_id`       BIGINT        NOT NULL,
     -- references bonus_chunk.id
-    `wager_ref`   VARCHAR(20)   NOT NULL,
+    `wager_ref`      VARCHAR(20)   NOT NULL,
     -- upstream wager transaction identifier; unique per chunk
 
     -- ── Amount ────────────────────────────────────────────────────────────────
     `wager_amount`   DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     -- wager amount attributed to this chunk from this wager event
     `release_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- amount credited to the player's wallet when this wager triggered a chunk release; 0 if no release occurred
+    -- amount credited to the player's wallet when this wager triggered a chunk release
 
-    `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_chunk_wager_ref`     (`chunk_id`, `wager_ref`),
-    KEY `idx_bonus_chunk_wager_chunk_id`      (`chunk_id`)
+    UNIQUE KEY `uk_bonus_chunk_release_ref`   (`chunk_id`, `wager_ref`),
+    KEY `idx_bonus_chunk_release_chunk_id`    (`chunk_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- bonus_chunk_expiry
@@ -463,8 +509,8 @@ CREATE TABLE `bonus_chunk_expiry` (
     `id`             BIGINT        NOT NULL AUTO_INCREMENT,
     `chunk_id`       BIGINT        NOT NULL,
     -- references bonus_chunk.id
-    `bonus_log_id`   BIGINT        NOT NULL,
-    -- references bonus_log.id
+    `bonus_grant_id` BIGINT        NOT NULL,
+    -- references bonus_grant.id
 
     -- ── Expiry ────────────────────────────────────────────────────────────────
     `amount`         DECIMAL(18,2) NOT NULL DEFAULT 0.00,
@@ -475,18 +521,109 @@ CREATE TABLE `bonus_chunk_expiry` (
     -- identity of the operator who triggered expiry; NULL for AUTO
 
     `expired_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- when the chunk was expired
     `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    KEY `idx_bonus_chunk_expiry_chunk_id`     (`chunk_id`),
-    KEY `idx_bonus_chunk_expiry_bonus_log_id` (`bonus_log_id`),
-    KEY `idx_bonus_chunk_expiry_type`         (`type`),
-    KEY `idx_bonus_chunk_expiry_expired_at`   (`expired_at`)
+    KEY `idx_bonus_chunk_expiry_chunk_id`      (`chunk_id`),
+    KEY `idx_bonus_chunk_expiry_bonus_grant_id` (`bonus_grant_id`),
+    KEY `idx_bonus_chunk_expiry_type`          (`type`),
+    KEY `idx_bonus_chunk_expiry_expired_at`    (`expired_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- bonus_budget_usage
-CREATE TABLE `bonus_budget_usage` (
+-- bonus_consumed
+CREATE TABLE `bonus_consumed` (
+    `id`              BIGINT        NOT NULL AUTO_INCREMENT,
+    `consumed_ref`    VARCHAR(20)   NOT NULL,
+    -- upstream consumption identifier (e.g. C001); unique per chunk
+    `chunk_id`        BIGINT        NOT NULL,
+    -- references bonus_chunk.id
+    `bonus_grant_id`  BIGINT        NOT NULL,
+    -- references bonus_grant.id
+    `wager_ref`       VARCHAR(20)   NOT NULL,
+    -- originating wager transaction identifier; links to bonus_chunk_consume.wager_ref
+    `wager_id`        VARCHAR(50)   NOT NULL,
+    -- external wager / bet transaction reference from game platform
+    `game_id`         VARCHAR(50)   DEFAULT NULL,
+    -- game / table where the consumption occurred
+    `round_id`        VARCHAR(50)   DEFAULT NULL,
+    -- hand / round reference
+
+    -- ── Amount ────────────────────────────────────────────────────────────────
+    `amount`          DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- bonus balance drawn down by this consumption event
+    `wager_amount`    DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- full bet stake placed by the player
+    `consumed_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_bonus_consumed_ref`          (`chunk_id`, `consumed_ref`),
+    KEY `idx_bonus_consumed_chunk_id`           (`chunk_id`),
+    KEY `idx_bonus_consumed_bonus_grant_id`     (`bonus_grant_id`),
+    KEY `idx_bonus_consumed_wager_ref`          (`wager_ref`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- bonus_forfeit
+CREATE TABLE `bonus_forfeit` (
+    `id`               BIGINT        NOT NULL AUTO_INCREMENT,
+    `bonus_grant_id`   BIGINT        NOT NULL,
+    -- references bonus_grant.id
+
+    -- ── Forfeit ───────────────────────────────────────────────────────────────
+    `requested_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- total bonus balance requested to forfeit
+    `amount`           DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- total bonus balance actually forfeited
+    `type`             VARCHAR(10)   NOT NULL,
+    -- AUTO | MANUAL
+    `operator`         VARCHAR(100)  DEFAULT NULL,
+    -- identity of the operator who triggered forfeit; NULL for AUTO
+
+    `forfeited_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `created_at`       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_bonus_forfeit_bonus_grant_id` (`bonus_grant_id`),
+    KEY `idx_bonus_forfeit_type`           (`type`),
+    KEY `idx_bonus_forfeit_forfeited_at`   (`forfeited_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- bonus_chunk_forfeit
+CREATE TABLE `bonus_chunk_forfeit` (
+    `id`               BIGINT        NOT NULL AUTO_INCREMENT,
+    `bonus_forfeit_id` BIGINT        NOT NULL,
+    -- references bonus_forfeit.id
+    `bonus_grant_id`   BIGINT        NOT NULL,
+    -- references bonus_grant.id
+    `chunk_id`         BIGINT        NOT NULL,
+    -- references bonus_chunk.id
+
+    -- ── Forfeit ───────────────────────────────────────────────────────────────
+    `amount`           DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    -- bonus balance forfeited from this chunk
+    `type`             VARCHAR(10)   NOT NULL,
+    -- AUTO | MANUAL
+    `operator`         VARCHAR(100)  DEFAULT NULL,
+    -- identity of the operator who triggered forfeit; NULL for AUTO
+
+    `forfeited_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `created_at`       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (`id`),
+    KEY `idx_bonus_chunk_forfeit_forfeit_id`   (`bonus_forfeit_id`),
+    KEY `idx_bonus_chunk_forfeit_grant_id`     (`bonus_grant_id`),
+    KEY `idx_bonus_chunk_forfeit_chunk_id`     (`chunk_id`),
+    KEY `idx_bonus_chunk_forfeit_type`         (`type`),
+    KEY `idx_bonus_chunk_forfeit_forfeited_at` (`forfeited_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- =============================================================================
+-- 3. BUDGET TABLES
+-- =============================================================================
+
+-- bonus_budget_limit
+CREATE TABLE `bonus_budget_limit` (
     `id`           INT           NOT NULL AUTO_INCREMENT,
     `entity_type`  VARCHAR(10)   NOT NULL,
     -- HEAD | SUBHEAD | CONFIGURE
@@ -494,95 +631,156 @@ CREATE TABLE `bonus_budget_usage` (
     `site_id`      INT           NOT NULL,
     `period_type`  VARCHAR(10)   NOT NULL,
     -- DAILY | WEEKLY | MONTHLY
-    `budget_used`  DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    `reset_at`     DATETIME      DEFAULT NULL,
-    -- start of the current period window; set by the reset scheduler
+    `budget_limit` DECIMAL(18,2) DEFAULT NULL,
+    -- NULL = uncapped
+    `limit_type`   VARCHAR(10)   NOT NULL DEFAULT 'SOFT',
+    -- SOFT | HARD
+    `created_by`   VARCHAR(100)  NOT NULL,
+    `updated_by`   VARCHAR(100)  NOT NULL,
+    `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
                                  ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`     CHAR(64)      DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_budget_limit`       (`entity_type`, `entity_id`, `period_type`),
+    KEY `idx_budget_limit_entity`      (`entity_type`, `entity_id`),
+    KEY `idx_budget_limit_site`        (`site_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- bonus_code_usage_limit
+CREATE TABLE `bonus_code_usage_limit` (
+    `id`           INT          NOT NULL AUTO_INCREMENT,
+    `code_id`      INT          NOT NULL,
+    -- references bonus_configure_code.id
+    `site_id`      INT          NOT NULL,
+    `period_type`  VARCHAR(10)  NOT NULL,
+    -- HOURLY | DAILY | WEEKLY | MONTHLY
+    `usage_limit`  INT          DEFAULT NULL,
+    -- NULL = uncapped
+    `created_by`   VARCHAR(100) NOT NULL,
+    `updated_by`   VARCHAR(100) NOT NULL,
+    `created_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`     CHAR(64)     DEFAULT NULL,
+    -- SHA-256 of mutable fields; recompute to detect tampering
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_code_usage_limit`      (`code_id`, `period_type`),
+    KEY `idx_code_usage_limit_code_id`    (`code_id`),
+    KEY `idx_code_usage_limit_site`       (`site_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- bonus_budget_usage
+CREATE TABLE `bonus_budget_usage` (
+    `id`          INT           NOT NULL AUTO_INCREMENT,
+    `entity_type` VARCHAR(10)   NOT NULL,
+    -- HEAD | SUBHEAD | CONFIGURE
+    `entity_id`   INT           NOT NULL,
+    `site_id`     INT           NOT NULL,
+    `period_type` VARCHAR(10)   NOT NULL,
+    -- DAILY | WEEKLY | MONTHLY
+    `budget_used` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `reset_at`    DATETIME      DEFAULT NULL,
+    -- start of the current period window; set by the reset scheduler
+    `updated_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_budget_usage`       (`entity_type`, `entity_id`, `period_type`),
     KEY `idx_budget_usage_entity`      (`entity_type`, `entity_id`),
     KEY `idx_budget_usage_site`        (`site_id`),
     KEY `idx_budget_usage_reset`       (`period_type`, `reset_at`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- bonus_code_usage
 CREATE TABLE `bonus_code_usage` (
-    `id`          INT         NOT NULL AUTO_INCREMENT,
-    `code_id`     INT         NOT NULL,
+    `id`          INT          NOT NULL AUTO_INCREMENT,
+    `code_id`     INT          NOT NULL,
     -- references bonus_configure_code.id
-    `site_id`     INT         NOT NULL,
-    `period_type` VARCHAR(10) NOT NULL,
+    `site_id`     INT          NOT NULL,
+    `period_type` VARCHAR(10)  NOT NULL,
     -- HOURLY | DAILY | WEEKLY | MONTHLY
-    `usage_used`  INT         NOT NULL DEFAULT 0,
-    `reset_at`    DATETIME    DEFAULT NULL,
+    `usage_used`  INT          NOT NULL DEFAULT 0,
+    `reset_at`    DATETIME     DEFAULT NULL,
     -- start of the current period window; set by the reset scheduler
-    `updated_at`  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP
-                              ON UPDATE CURRENT_TIMESTAMP,
+    `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+                               ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_code_usage`         (`code_id`, `period_type`),
     KEY `idx_code_usage_code_id`       (`code_id`),
     KEY `idx_code_usage_site`          (`site_id`),
     KEY `idx_code_usage_reset`         (`period_type`, `reset_at`)
-);
-
--- bonus_consumed
-CREATE TABLE `bonus_consumed` (
-    `id`             BIGINT        NOT NULL AUTO_INCREMENT,
-    `consumed_ref`   VARCHAR(20)   NOT NULL,
-    -- upstream consumption identifier (e.g. C001); unique per chunk
-    `chunk_id`       BIGINT        NOT NULL,
-    -- references bonus_chunk.id
-    `bonus_log_id`   BIGINT        NOT NULL,
-    -- references bonus_log.id
-    `wager_ref`         VARCHAR(20)   NOT NULL,
-    -- originating wager transaction identifier; links to bonus_chunk_wager.wager_ref
-    `wager_id`          VARCHAR(50)   NOT NULL,
-    -- external wager / bet transaction reference from game platform
-    `game_id`           VARCHAR(50)   DEFAULT NULL,
-    -- game / table where the consumption occurred
-    `round_id`          VARCHAR(50)   DEFAULT NULL,
-    -- hand / round reference
-
-    -- ── Amount ────────────────────────────────────────────────────────────────
-    `amount`            DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- bonus balance drawn down by this consumption event
-    `wager_amount`      DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- full bet stake placed by the player
-    `consumed_amount`   DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-
-    `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_consumed_ref`          (`chunk_id`, `consumed_ref`),
-    KEY `idx_bonus_consumed_chunk_id`           (`chunk_id`),
-    KEY `idx_bonus_consumed_bonus_log_id`       (`bonus_log_id`),
-    KEY `idx_bonus_consumed_wager_ref`          (`wager_ref`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- bonus_forfeit
-CREATE TABLE `bonus_forfeit` (
-    `id`             BIGINT        NOT NULL AUTO_INCREMENT,
-    `bonus_log_id`   BIGINT        NOT NULL,
-    -- references bonus_log.id
+-- =============================================================================
+-- 4. REPORTING TABLES
+-- =============================================================================
 
-    -- ── Forfeit ───────────────────────────────────────────────────────────────
-    `amount`         DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- total bonus balance forfeited at the time of this event
-    `type`           VARCHAR(10)   NOT NULL,
-    -- AUTO | MANUAL
-    `operator`       VARCHAR(100)  DEFAULT NULL,
-    -- identity of the operator who triggered forfeit; NULL for AUTO
-
-    `forfeited_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    -- when the bonus was forfeited
-    `created_at`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
+-- bonus_spend_daily
+CREATE TABLE `bonus_spend_daily` (
+    `id`           BIGINT        NOT NULL AUTO_INCREMENT,
+    `entity_type`  VARCHAR(10)   NOT NULL,
+    -- HEAD | SUBHEAD | CONFIGURE | CODE
+    `entity_id`    INT           NOT NULL,
+    `site_id`      INT           NOT NULL,
+    `spend_date`   DATE          NOT NULL,
+    `grant_count`  INT           NOT NULL DEFAULT 0,
+    `total_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                 ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    KEY `idx_bonus_forfeit_bonus_log_id` (`bonus_log_id`),
-    KEY `idx_bonus_forfeit_type`         (`type`),
-    KEY `idx_bonus_forfeit_forfeited_at` (`forfeited_at`)
+    UNIQUE KEY `uk_spend_daily`         (`entity_type`, `entity_id`, `spend_date`),
+    KEY `idx_spend_daily_site_date`     (`site_id`, `spend_date`),
+    KEY `idx_spend_daily_entity`        (`entity_type`, `entity_id`, `spend_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- bonus_spend_weekly
+CREATE TABLE `bonus_spend_weekly` (
+    `id`           BIGINT        NOT NULL AUTO_INCREMENT,
+    `entity_type`  VARCHAR(10)   NOT NULL,
+    -- HEAD | SUBHEAD | CONFIGURE | CODE
+    `entity_id`    INT           NOT NULL,
+    `site_id`      INT           NOT NULL,
+    `week_start`   DATE          NOT NULL,
+    -- Monday of the ISO week
+    `week_end`     DATE          NOT NULL,
+    -- Sunday of the ISO week (week_start + 6 days)
+    `grant_count`  INT           NOT NULL DEFAULT 0,
+    `total_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                 ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_spend_weekly`        (`entity_type`, `entity_id`, `week_start`),
+    KEY `idx_spend_weekly_site_week`    (`site_id`, `week_start`),
+    KEY `idx_spend_weekly_entity`       (`entity_type`, `entity_id`, `week_start`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- bonus_spend_monthly
+CREATE TABLE `bonus_spend_monthly` (
+    `id`           BIGINT        NOT NULL AUTO_INCREMENT,
+    `entity_type`  VARCHAR(10)   NOT NULL,
+    -- HEAD | SUBHEAD | CONFIGURE | CODE
+    `entity_id`    INT           NOT NULL,
+    `site_id`      INT           NOT NULL,
+    `spend_year`   SMALLINT      NOT NULL,
+    `spend_month`  TINYINT       NOT NULL,
+    -- 1–12
+    `grant_count`  INT           NOT NULL DEFAULT 0,
+    `total_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                 ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_spend_monthly`           (`entity_type`, `entity_id`, `spend_year`, `spend_month`),
+    KEY `idx_spend_monthly_site_period`     (`site_id`, `spend_year`, `spend_month`),
+    KEY `idx_spend_monthly_entity`          (`entity_type`, `entity_id`, `spend_year`, `spend_month`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- =============================================================================
+-- 5. LOG TABLES
+-- =============================================================================
 
 -- bonus_audit_log
 CREATE TABLE `bonus_audit_log` (
@@ -603,241 +801,6 @@ CREATE TABLE `bonus_audit_log` (
     KEY `idx_audit_site`         (`site_id`),
     KEY `idx_audit_changed_by`   (`changed_by`),
     KEY `idx_audit_changed_at`   (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- bonus_head_change_log
-CREATE TABLE `bonus_head_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- bonus_head.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    -- NULL for INSERT; full row snapshot for UPDATE
-    `new_values`  JSON          DEFAULT NULL,
-    -- full new row state
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    -- entry_hash of the previous row for this entity_id; NULL = genesis
-    `entry_hash`  CHAR(64)      NOT NULL,
-    -- SHA-256 of the chain inputs (see description)
-    PRIMARY KEY (`id`),
-    KEY `idx_head_cl_entity`     (`entity_id`),
-    KEY `idx_head_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_subhead_change_log
-CREATE TABLE `bonus_subhead_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- bonus_subhead.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    `new_values`  JSON          DEFAULT NULL,
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    `entry_hash`  CHAR(64)      NOT NULL,
-    PRIMARY KEY (`id`),
-    KEY `idx_subhead_cl_entity`     (`entity_id`),
-    KEY `idx_subhead_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_configure_change_log
-CREATE TABLE `bonus_configure_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- bonus_configure.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    `new_values`  JSON          DEFAULT NULL,
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    `entry_hash`  CHAR(64)      NOT NULL,
-    PRIMARY KEY (`id`),
-    KEY `idx_configure_cl_entity`     (`entity_id`),
-    KEY `idx_configure_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_configure_code_change_log
-CREATE TABLE `bonus_configure_code_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- bonus_configure_code.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    `new_values`  JSON          DEFAULT NULL,
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    `entry_hash`  CHAR(64)      NOT NULL,
-    PRIMARY KEY (`id`),
-    KEY `idx_conf_code_cl_entity`     (`entity_id`),
-    KEY `idx_conf_code_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_eligibility_change_log
-CREATE TABLE `bonus_eligibility_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- bonus_eligibility.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    `new_values`  JSON          DEFAULT NULL,
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    `entry_hash`  CHAR(64)      NOT NULL,
-    PRIMARY KEY (`id`),
-    KEY `idx_eligibility_cl_entity`     (`entity_id`),
-    KEY `idx_eligibility_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_owners_change_log
-CREATE TABLE `bonus_owners_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- parent bonus_head.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    `new_values`  JSON          DEFAULT NULL,
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    `entry_hash`  CHAR(64)      NOT NULL,
-    PRIMARY KEY (`id`),
-    KEY `idx_owners_cl_entity`     (`entity_id`),
-    KEY `idx_owners_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_release_trigger_change_log
-CREATE TABLE `bonus_release_trigger_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- bonus_release_trigger.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    `new_values`  JSON          DEFAULT NULL,
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    `entry_hash`  CHAR(64)      NOT NULL,
-    PRIMARY KEY (`id`),
-    KEY `idx_rel_trigger_cl_entity`     (`entity_id`),
-    KEY `idx_rel_trigger_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_budget_limit_change_log
-CREATE TABLE `bonus_budget_limit_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- parent bonus_head.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    `new_values`  JSON          DEFAULT NULL,
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    `entry_hash`  CHAR(64)      NOT NULL,
-    PRIMARY KEY (`id`),
-    KEY `idx_limit_cl_entity`     (`entity_id`),
-    KEY `idx_limit_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_code_usage_limit_change_log
-CREATE TABLE `bonus_code_usage_limit_change_log` (
-    `id`          BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_id`   INT           NOT NULL,
-    -- bonus_code_usage_limit.id
-    `site_id`     INT           NOT NULL,
-    `action`      VARCHAR(10)   NOT NULL,
-    -- INSERT | UPDATE
-    `changed_by`  VARCHAR(100)  NOT NULL,
-    `changed_at`  DATETIME      NOT NULL,
-    `old_values`  JSON          DEFAULT NULL,
-    `new_values`  JSON          DEFAULT NULL,
-    `prev_hash`   CHAR(64)      DEFAULT NULL,
-    `entry_hash`  CHAR(64)      NOT NULL,
-    PRIMARY KEY (`id`),
-    KEY `idx_code_usage_lim_cl_entity`     (`entity_id`),
-    KEY `idx_code_usage_lim_cl_changed_at` (`changed_at`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- bonus_spend_daily
-CREATE TABLE `bonus_spend_daily` (
-    `id`            BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_type`   VARCHAR(10)   NOT NULL,
-    -- HEAD | SUBHEAD | CONFIGURE | CODE
-    `entity_id`     INT           NOT NULL,
-    `site_id`       INT           NOT NULL,
-    `spend_date`    DATE          NOT NULL,
-    `grant_count`   INT           NOT NULL DEFAULT 0,
-    `total_amount`  DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                  ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_spend_daily`         (`entity_type`, `entity_id`, `spend_date`),
-    KEY `idx_spend_daily_site_date`     (`site_id`, `spend_date`),
-    KEY `idx_spend_daily_entity`        (`entity_type`, `entity_id`, `spend_date`)
-);
-
--- bonus_spend_weekly
-CREATE TABLE `bonus_spend_weekly` (
-    `id`            BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_type`   VARCHAR(10)   NOT NULL,
-    -- HEAD | SUBHEAD | CONFIGURE | CODE
-    `entity_id`     INT           NOT NULL,
-    `site_id`       INT           NOT NULL,
-    `week_start`    DATE          NOT NULL,
-    -- Monday of the ISO week
-    `week_end`      DATE          NOT NULL,
-    -- Sunday of the ISO week (week_start + 6 days)
-    `grant_count`   INT           NOT NULL DEFAULT 0,
-    `total_amount`  DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                  ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_spend_weekly`        (`entity_type`, `entity_id`, `week_start`),
-    KEY `idx_spend_weekly_site_week`    (`site_id`, `week_start`),
-    KEY `idx_spend_weekly_entity`       (`entity_type`, `entity_id`, `week_start`)
-);
-
--- bonus_spend_monthly
-CREATE TABLE `bonus_spend_monthly` (
-    `id`            BIGINT        NOT NULL AUTO_INCREMENT,
-    `entity_type`   VARCHAR(10)   NOT NULL,
-    -- HEAD | SUBHEAD | CONFIGURE | CODE
-    `entity_id`     INT           NOT NULL,
-    `site_id`       INT           NOT NULL,
-    `spend_year`    SMALLINT      NOT NULL,
-    `spend_month`   TINYINT       NOT NULL,
-    -- 1–12
-    `grant_count`   INT           NOT NULL DEFAULT 0,
-    `total_amount`  DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    `created_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                  ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_spend_monthly`           (`entity_type`, `entity_id`, `spend_year`, `spend_month`),
-    KEY `idx_spend_monthly_site_period`     (`site_id`, `spend_year`, `spend_month`),
-    KEY `idx_spend_monthly_entity`          (`entity_type`, `entity_id`, `spend_year`, `spend_month`)
-);
+SET FOREIGN_KEY_CHECKS = 1;

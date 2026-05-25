@@ -49,14 +49,12 @@ def patch_conn(cur: AsyncMock) -> MagicMock:
 #   [0] SELECT site_id FROM bonus_head   → fetchone → _HEAD_SITE_ROW
 #   [1] SELECT 1 FROM bonus_subhead      → fetchone → None (no dup)
 #   [2] INSERT INTO bonus_subhead
-#   [3] SELECT entry_hash FROM cl        → fetchone → None (genesis)
-#   [4] INSERT INTO bonus_subhead_change_log
-#   [5] SELECT FROM bonus_subhead        → fetchone → _DB_ROW
+#   [3] SELECT FROM bonus_subhead        → fetchone → _DB_ROW
 # ---------------------------------------------------------------------------
 
 
 async def test_success_returns_response(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_HEAD_SITE_ROW, None, None, _DB_ROW]
+    cur.fetchone.side_effect = [_HEAD_SITE_ROW, None, _DB_ROW]
 
     result = await add_bonus_subhead(BonusSubheadCreate(**_VALID))
 
@@ -71,7 +69,7 @@ async def test_success_returns_response(cur: AsyncMock, patch_conn: MagicMock) -
     assert result.updated_by == "admin"
     assert result.created_at == _NOW
     patch_conn.commit.assert_awaited_once()
-    assert cur.execute.await_count == 6
+    assert cur.execute.await_count == 4
 
 
 # ---------------------------------------------------------------------------
@@ -154,8 +152,8 @@ async def test_integrity_error_non_1062_raises_database_error(
 async def test_row_missing_after_insert_raises_database_error(
     cur: AsyncMock, patch_conn: MagicMock
 ) -> None:
-    # head found, no dup, prev_hash=None (genesis), post-insert SELECT=None
-    cur.fetchone.side_effect = [_HEAD_SITE_ROW, None, None, None]
+    # head found, no dup, post-insert SELECT returns None
+    cur.fetchone.side_effect = [_HEAD_SITE_ROW, None, None]
 
     with pytest.raises(DatabaseError, match="row could not be retrieved"):
         await add_bonus_subhead(BonusSubheadCreate(**_VALID))

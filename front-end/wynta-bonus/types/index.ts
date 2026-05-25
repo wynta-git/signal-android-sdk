@@ -66,14 +66,12 @@ export interface Trigger {
   id: number;
   configure_id?: number;
   trigger_type: string;
-  code?: string | null;
-  min_amount?: string;
-  max_amount?: string;
-  payment_method?: string;
-  product?: string;
-  occurrence?: string;
-  event_name?: string;
-  conditions?: Record<string, unknown>;
+  description?: string | null;
+  min_trigger_amount?: string | number | null;
+  max_trigger_amount?: string | number | null;
+  payment_method?: string | null;
+  product?: string | null;
+  occurrence?: number;
   active?: boolean;
 }
 
@@ -105,6 +103,9 @@ export interface BonusConfigure {
   bonus_amount_fixed?: string | null;
   bonus_amount_percent?: string | null;
   bonus_amount_max?: string;
+  cashback_bonus_amount_fixed?: string | null;
+  cashback_bonus_amount_percent?: string | null;
+  cashback_bonus_amount_max?: string | number | null;
   wager_chip_type?: string;
   credit_chip_type?: string;
   chunk_expiry_days?: number;

@@ -1,5 +1,3 @@
-import json
-
 import aiomysql
 import structlog
 
@@ -20,7 +18,6 @@ from app.models.bonus_release_trigger import (
 from app.services.bonus_head_service import (
     _as_dt,
     _compute_row_hash,
-    _write_change_log,
 )
 
 log = structlog.get_logger(__name__)
@@ -46,16 +43,16 @@ _INSERT_SQL = """
     INSERT INTO bonus_release_trigger
         (configure_id, site_id, trigger_type, description,
          min_trigger_amount, max_trigger_amount,
-         payment_method, product, occurrence, trigger_config,
+         payment_method, product, occurrence,
          active, created_by, updated_by, row_hash)
     VALUES
-        (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_SQL = """
     SELECT id, configure_id, site_id, trigger_type, description,
            min_trigger_amount, max_trigger_amount,
-           payment_method, product, occurrence, trigger_config,
+           payment_method, product, occurrence,
            active, created_by, updated_by, created_at, updated_at
     FROM bonus_release_trigger
     WHERE id = %s
@@ -73,7 +70,6 @@ _PATCHABLE: dict[str, str] = {
     "payment_method":     "payment_method",
     "product":            "product",
     "occurrence":         "occurrence",
-    "trigger_config":     "trigger_config",
     "active":             "active",
 }
 
@@ -85,19 +81,16 @@ _PATCHABLE: dict[str, str] = {
 def _row_to_response(row: tuple) -> BonusReleaseTriggerResponse:
     # id[0] configure_id[1] site_id[2] trigger_type[3] description[4]
     # min_trigger_amount[5] max_trigger_amount[6] payment_method[7] product[8]
-    # occurrence[9] trigger_config[10] active[11]
-    # created_by[12] updated_by[13] created_at[14] updated_at[15]
-    raw_config = row[10]
-    trigger_config = json.loads(raw_config) if isinstance(raw_config, str) else raw_config
+    # occurrence[9] active[10] created_by[11] updated_by[12] created_at[13] updated_at[14]
     return BonusReleaseTriggerResponse(
         id=row[0], configure_id=row[1], site_id=row[2],
         trigger_type=row[3], description=row[4],
         min_trigger_amount=row[5], max_trigger_amount=row[6],
         payment_method=row[7], product=row[8],
-        occurrence=row[9], trigger_config=trigger_config,
-        active=bool(row[11]),
-        created_by=row[12], updated_by=row[13],
-        created_at=_as_dt(row[14]), updated_at=_as_dt(row[15]),
+        occurrence=row[9],
+        active=bool(row[10]),
+        created_by=row[11], updated_by=row[12],
+        created_at=_as_dt(row[13]), updated_at=_as_dt(row[14]),
     )
 
 
@@ -113,7 +106,6 @@ def _trigger_row_hash(data: BonusReleaseTriggerCreate | dict) -> str:
             "payment_method":     data.payment_method,
             "product":            data.product,
             "occurrence":         data.occurrence,
-            "trigger_config":     json.dumps(data.trigger_config, sort_keys=True) if data.trigger_config else None,
             "active":             int(data.active),
             "created_by":         data.created_by,
             "updated_by":         data.created_by,
@@ -161,11 +153,6 @@ async def add_bonus_release_trigger(
                 if await cur.fetchone():
                     raise BonusReleaseTriggerDuplicateError(configure_id, data.trigger_type)
 
-                trigger_config_json = (
-                    json.dumps(data.trigger_config, ensure_ascii=False)
-                    if data.trigger_config is not None else None
-                )
-
                 hash_fields = {
                     "configure_id":       configure_id,
                     "site_id":            data.site_id,
@@ -176,7 +163,6 @@ async def add_bonus_release_trigger(
                     "payment_method":     data.payment_method,
                     "product":            data.product,
                     "occurrence":         data.occurrence,
-                    "trigger_config":     trigger_config_json,
                     "active":             int(data.active),
                     "created_by":         data.created_by,
                     "updated_by":         data.created_by,
@@ -189,21 +175,11 @@ async def add_bonus_release_trigger(
                         configure_id, data.site_id, data.trigger_type, data.description,
                         data.min_trigger_amount, data.max_trigger_amount,
                         data.payment_method, data.product,
-                        data.occurrence, trigger_config_json,
+                        data.occurrence,
                         int(data.active), data.created_by, data.created_by, row_hash,
                     ),
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
-
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_release_trigger_change_log",
-                    entity_id=new_id,
-                    site_id=data.site_id,
-                    action="INSERT",
-                    changed_by=data.created_by,
-                    new_values=hash_fields,
-                )
 
                 await conn.commit()
 
@@ -273,12 +249,7 @@ async def update_bonus_release_trigger(
         if field not in data.model_fields_set:
             continue
         val = getattr(data, field)
-        if field == "active" and val is not None:
-            updates[col] = int(val)
-        elif field == "trigger_config":
-            updates[col] = json.dumps(val, ensure_ascii=False) if val is not None else None
-        else:
-            updates[col] = val
+        updates[col] = int(val) if field == "active" and val is not None else val
     updates["updated_by"] = data.updated_by
 
     log.info("update_bonus_release_trigger.start", trigger_id=trigger_id, fields=list(updates))
@@ -294,18 +265,6 @@ async def update_bonus_release_trigger(
                 site_id: int     = row[2]
                 configure_id_row = row[1]
 
-                old_values_cl: dict = {
-                    "configure_id":       row[1], "site_id": row[2],
-                    "trigger_type":       row[3], "description": row[4],
-                    "min_trigger_amount": str(row[5]) if row[5] is not None else None,
-                    "max_trigger_amount": str(row[6]) if row[6] is not None else None,
-                    "payment_method":     row[7], "product": row[8],
-                    "occurrence":         row[9],
-                    "trigger_config":     row[10] if isinstance(row[10], str) else json.dumps(row[10]) if row[10] else None,
-                    "active":             int(row[11]),
-                    "created_by":         row[12], "updated_by": row[13],
-                }
-
                 new_values_cl: dict = {
                     "configure_id":       configure_id_row, "site_id": site_id,
                     "trigger_type":       updates.get("trigger_type", row[3]),
@@ -315,9 +274,8 @@ async def update_bonus_release_trigger(
                     "payment_method":     updates.get("payment_method", row[7]),
                     "product":            updates.get("product", row[8]),
                     "occurrence":         updates.get("occurrence", row[9]),
-                    "trigger_config":     updates.get("trigger_config", row[10]),
-                    "active":             updates.get("active", int(row[11])),
-                    "created_by":         row[12],
+                    "active":             updates.get("active", int(row[10])),
+                    "created_by":         row[11],
                     "updated_by":         data.updated_by,
                 }
                 row_hash = _compute_row_hash(new_values_cl)
@@ -328,16 +286,6 @@ async def update_bonus_release_trigger(
 
                 await cur.execute(
                     f"UPDATE bonus_release_trigger SET {set_clause} WHERE id = %s", params
-                )
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_release_trigger_change_log",
-                    entity_id=trigger_id,
-                    site_id=site_id,
-                    action="UPDATE",
-                    changed_by=data.updated_by,
-                    old_values=old_values_cl,
-                    new_values=new_values_cl,
                 )
                 await conn.commit()
 

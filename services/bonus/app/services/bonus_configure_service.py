@@ -19,7 +19,6 @@ from app.models.bonus_configure import (
 from app.services.bonus_head_service import (
     _as_dt,
     _compute_row_hash,
-    _write_change_log,
 )
 
 log = structlog.get_logger(__name__)
@@ -36,10 +35,11 @@ _INSERT_SQL = """
          chunk_expiry_days, bonus_expiry_days,
          wager_chip_type, credit_chip_type,
          bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
+         cashback_bonus_amount_fixed, cashback_bonus_amount_percent, cashback_bonus_amount_max,
          priority, active, created_by, updated_by, row_hash)
     VALUES
         (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_SQL = """
@@ -49,6 +49,7 @@ _SELECT_SQL = """
            chunk_expiry_days, bonus_expiry_days,
            wager_chip_type, credit_chip_type,
            bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
+           cashback_bonus_amount_fixed, cashback_bonus_amount_percent, cashback_bonus_amount_max,
            priority, active, created_by, updated_by, created_at, updated_at
     FROM bonus_configure
     WHERE id = %s
@@ -61,6 +62,7 @@ _LIST_BY_SUBHEAD_SQL = """
            chunk_expiry_days, bonus_expiry_days,
            wager_chip_type, credit_chip_type,
            bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
+           cashback_bonus_amount_fixed, cashback_bonus_amount_percent, cashback_bonus_amount_max,
            priority, active, created_by, updated_by, created_at, updated_at
     FROM bonus_configure
     WHERE subhead_id = %s
@@ -111,10 +113,13 @@ _PATCHABLE: dict[str, str] = {
     "bonus_expiry_days":          "bonus_expiry_days",
     "wager_chip_type":            "wager_chip_type",
     "credit_chip_type":           "credit_chip_type",
-    "bonus_amount_fixed":         "bonus_amount_fixed",
-    "bonus_amount_percent":       "bonus_amount_percent",
-    "bonus_amount_max":           "bonus_amount_max",
-    "priority":                   "priority",
+    "bonus_amount_fixed":              "bonus_amount_fixed",
+    "bonus_amount_percent":            "bonus_amount_percent",
+    "bonus_amount_max":                "bonus_amount_max",
+    "cashback_bonus_amount_fixed":     "cashback_bonus_amount_fixed",
+    "cashback_bonus_amount_percent":   "cashback_bonus_amount_percent",
+    "cashback_bonus_amount_max":       "cashback_bonus_amount_max",
+    "priority":                        "priority",
     "active":                     "active",
 }
 
@@ -129,7 +134,8 @@ def _row_to_response(row: tuple) -> BonusConfigureResponse:
     #   wager_multiplier[8] no_of_chunks[9] release_bucket[10]
     #   chunk_expiry_days[11] bonus_expiry_days[12] wager_chip_type[13] credit_chip_type[14]
     #   bonus_amount_fixed[15] bonus_amount_percent[16] bonus_amount_max[17]
-    #   priority[18] active[19] created_by[20] updated_by[21] created_at[22] updated_at[23]
+    #   cashback_bonus_amount_fixed[18] cashback_bonus_amount_percent[19] cashback_bonus_amount_max[20]
+    #   priority[21] active[22] created_by[23] updated_by[24] created_at[25] updated_at[26]
     return BonusConfigureResponse(
         id=row[0], subhead_id=row[1], site_id=row[2], name=row[3], description=row[4],
         start_date=_as_dt(row[5]), end_date=_as_dt(row[6]),
@@ -138,9 +144,10 @@ def _row_to_response(row: tuple) -> BonusConfigureResponse:
         chunk_expiry_days=row[11], bonus_expiry_days=row[12],
         wager_chip_type=row[13], credit_chip_type=row[14],
         bonus_amount_fixed=row[15], bonus_amount_percent=row[16], bonus_amount_max=row[17],
-        priority=row[18], active=bool(row[19]),
-        created_by=row[20], updated_by=row[21],
-        created_at=_as_dt(row[22]), updated_at=_as_dt(row[23]),
+        cashback_bonus_amount_fixed=row[18], cashback_bonus_amount_percent=row[19], cashback_bonus_amount_max=row[20],
+        priority=row[21], active=bool(row[22]),
+        created_by=row[23], updated_by=row[24],
+        created_at=_as_dt(row[25]), updated_at=_as_dt(row[26]),
     )
 
 
@@ -164,6 +171,9 @@ def _configure_row_hash(data: BonusConfigureCreate | dict) -> str:
             "bonus_amount_fixed": str(data.bonus_amount_fixed) if data.bonus_amount_fixed is not None else None,
             "bonus_amount_percent": str(data.bonus_amount_percent) if data.bonus_amount_percent is not None else None,
             "bonus_amount_max": str(data.bonus_amount_max) if data.bonus_amount_max is not None else None,
+            "cashback_bonus_amount_fixed": str(data.cashback_bonus_amount_fixed) if data.cashback_bonus_amount_fixed is not None else None,
+            "cashback_bonus_amount_percent": str(data.cashback_bonus_amount_percent) if data.cashback_bonus_amount_percent is not None else None,
+            "cashback_bonus_amount_max": str(data.cashback_bonus_amount_max) if data.cashback_bonus_amount_max is not None else None,
             "priority": data.priority,
             "active": int(data.active),
             "created_by": data.created_by,
@@ -246,40 +256,12 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                         data.chunk_expiry_days, data.bonus_expiry_days,
                         data.wager_chip_type, data.credit_chip_type,
                         data.bonus_amount_fixed, data.bonus_amount_percent, data.bonus_amount_max,
+                        data.cashback_bonus_amount_fixed, data.cashback_bonus_amount_percent, data.cashback_bonus_amount_max,
                         data.priority, int(data.active), data.created_by, data.created_by,
                         row_hash,
                     ),
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
-
-                new_values_cfg = {
-                    "subhead_id": data.subhead_id, "site_id": data.site_id,
-                    "name": data.name, "description": data.description,
-                    "start_date": str(data.start_date), "end_date": str(data.end_date),
-                    "applicability_frequency": data.applicability_frequency,
-                    "wager_multiplier": str(data.wager_multiplier),
-                    "no_of_chunks": data.no_of_chunks,
-                    "release_bucket": data.release_bucket,
-                    "chunk_expiry_days": data.chunk_expiry_days,
-                    "bonus_expiry_days": data.bonus_expiry_days,
-                    "wager_chip_type": data.wager_chip_type,
-                    "credit_chip_type": data.credit_chip_type,
-                    "bonus_amount_fixed": str(data.bonus_amount_fixed) if data.bonus_amount_fixed is not None else None,
-                    "bonus_amount_percent": str(data.bonus_amount_percent) if data.bonus_amount_percent is not None else None,
-                    "bonus_amount_max": str(data.bonus_amount_max) if data.bonus_amount_max is not None else None,
-                    "priority": data.priority, "active": int(data.active),
-                    "created_by": data.created_by, "updated_by": data.created_by,
-                }
-
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_configure_change_log",
-                    entity_id=new_id,
-                    site_id=data.site_id,
-                    action="INSERT",
-                    changed_by=data.created_by,
-                    new_values=new_values_cfg,
-                )
 
                 # Insert default promo code entry, inheriting amount cap and validity from configure.
                 default_code = f"AUTO-{new_id}"
@@ -296,25 +278,6 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                         data.bonus_amount_max, data.start_date, data.end_date,
                         1, data.created_by, data.created_by, code_hash,
                     ),
-                )
-                new_code_id: int = cur.lastrowid  # type: ignore[assignment]
-
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_configure_code_change_log",
-                    entity_id=new_code_id,
-                    site_id=data.site_id,
-                    action="INSERT",
-                    changed_by=data.created_by,
-                    new_values={
-                        "configure_id": new_id, "site_id": data.site_id,
-                        "code": default_code,
-                        "max_amount": str(data.bonus_amount_max) if data.bonus_amount_max is not None else None,
-                        "valid_from": str(data.start_date),
-                        "valid_to": str(data.end_date),
-                        "active": 1,
-                        "created_by": data.created_by, "updated_by": data.created_by,
-                    },
                 )
 
                 await conn.commit()
@@ -428,21 +391,6 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
                 subhead_id: int = row[1]  # unchanged
                 site_id: int    = row[2]  # unchanged
 
-                old_values_cl: dict = {
-                    "subhead_id": row[1], "site_id": row[2], "name": row[3], "description": row[4],
-                    "start_date": str(row[5]), "end_date": str(row[6]),
-                    "applicability_frequency": row[7],
-                    "wager_multiplier": str(row[8]), "no_of_chunks": row[9],
-                    "release_bucket": row[10],
-                    "chunk_expiry_days": row[11], "bonus_expiry_days": row[12],
-                    "wager_chip_type": row[13], "credit_chip_type": row[14],
-                    "bonus_amount_fixed": str(row[15]) if row[15] is not None else None,
-                    "bonus_amount_percent": str(row[16]) if row[16] is not None else None,
-                    "bonus_amount_max": str(row[17]) if row[17] is not None else None,
-                    "priority": row[18], "active": int(row[19]),
-                    "created_by": row[20], "updated_by": row[21],
-                }
-
                 new_values_cl: dict = {
                     "subhead_id": subhead_id, "site_id": site_id,
                     "name": updates.get("name", row[3]),
@@ -460,9 +408,12 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
                     "bonus_amount_fixed": str(updates.get("bonus_amount_fixed", row[15])) if updates.get("bonus_amount_fixed", row[15]) is not None else None,
                     "bonus_amount_percent": str(updates.get("bonus_amount_percent", row[16])) if updates.get("bonus_amount_percent", row[16]) is not None else None,
                     "bonus_amount_max": str(updates.get("bonus_amount_max", row[17])) if updates.get("bonus_amount_max", row[17]) is not None else None,
-                    "priority": updates.get("priority", row[18]),
-                    "active": updates.get("active", int(row[19])),
-                    "created_by": row[20],
+                    "cashback_bonus_amount_fixed": str(updates.get("cashback_bonus_amount_fixed", row[18])) if updates.get("cashback_bonus_amount_fixed", row[18]) is not None else None,
+                    "cashback_bonus_amount_percent": str(updates.get("cashback_bonus_amount_percent", row[19])) if updates.get("cashback_bonus_amount_percent", row[19]) is not None else None,
+                    "cashback_bonus_amount_max": str(updates.get("cashback_bonus_amount_max", row[20])) if updates.get("cashback_bonus_amount_max", row[20]) is not None else None,
+                    "priority": updates.get("priority", row[21]),
+                    "active": updates.get("active", int(row[22])),
+                    "created_by": row[23],
                     "updated_by": data.updated_by,
                 }
                 row_hash = _configure_row_hash(new_values_cl)
@@ -473,16 +424,6 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
 
                 await cur.execute(
                     f"UPDATE bonus_configure SET {set_clause} WHERE id = %s", params
-                )
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_configure_change_log",
-                    entity_id=configure_id,
-                    site_id=site_id,
-                    action="UPDATE",
-                    changed_by=data.updated_by,
-                    old_values=old_values_cl,
-                    new_values=new_values_cl,
                 )
                 await conn.commit()
 

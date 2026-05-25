@@ -9,7 +9,7 @@ set -euo pipefail
 VENV_DIR=".venv"
 
 
-PY="/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12"
+PY="/usr/local/bin/python3.12"
 echo "Using Python: $PY ($("$PY" --version))"
 
 # ── optional reset ────────────────────────────────────────────────────────────

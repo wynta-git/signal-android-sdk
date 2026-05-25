@@ -29,14 +29,6 @@ _SUBHEAD_ROW = (1, 10, 1, "First Deposit", "100% match", 1, "priya.sharma", "adm
 _SUBHEAD_META_ROW = (10, 1)  # (head_id, site_id) from _EXISTS_SUBHEAD_ID_SQL
 
 
-def _cl_insert_calls(cur: AsyncMock) -> list:
-    """Return execute calls that inserted into a _change_log table."""
-    return [
-        c for c in cur.execute.await_args_list
-        if "_change_log" in c.args[0] and "INSERT INTO" in c.args[0]
-    ]
-
-
 @pytest.fixture
 def cur() -> AsyncMock:
     return AsyncMock()
@@ -62,19 +54,15 @@ def patch_conn(cur: AsyncMock) -> MagicMock:
 
 # ===========================================================================
 # update_bonus_subhead
-# Execute sequence:
+# Execute sequence (3 cur.execute calls, 2 fetchones):
 #   [0] SELECT pre-read             → fetchone → _SUBHEAD_ROW
 #   [1] UPDATE (includes row_hash)
-#   [2] SELECT entry_hash from cl   → fetchone → None (genesis)
-#   [3] INSERT INTO bonus_subhead_change_log
-#   [4] commit
-#   [5] SELECT post-read            → fetchone → _SUBHEAD_ROW
-# Total: 6 executes, 3 fetchones
+#   [2] SELECT post-read            → fetchone → _SUBHEAD_ROW
 # ===========================================================================
 
 
 async def test_update_name_and_active(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_SUBHEAD_ROW, None, _SUBHEAD_ROW]
+    cur.fetchone.side_effect = [_SUBHEAD_ROW, _SUBHEAD_ROW]
 
     result = await update_bonus_subhead(
         1, BonusSubheadUpdate(name="Second Deposit", active=False, updated_by="ops.team")
@@ -82,7 +70,7 @@ async def test_update_name_and_active(cur: AsyncMock, patch_conn: MagicMock) -> 
 
     assert result.id == 1
     patch_conn.commit.assert_awaited_once()
-    assert cur.execute.await_count == 5
+    assert cur.execute.await_count == 3
     update_call = cur.execute.await_args_list[1]
     sql: str = update_call.args[0]
     assert "`name`" in sql
@@ -94,7 +82,7 @@ async def test_update_name_and_active(cur: AsyncMock, patch_conn: MagicMock) -> 
 async def test_update_description_to_null(cur: AsyncMock, patch_conn: MagicMock) -> None:
     updated_row = list(_SUBHEAD_ROW)
     updated_row[4] = None
-    cur.fetchone.side_effect = [_SUBHEAD_ROW, None, tuple(updated_row)]
+    cur.fetchone.side_effect = [_SUBHEAD_ROW, tuple(updated_row)]
 
     result = await update_bonus_subhead(
         1, BonusSubheadUpdate(description=None, updated_by="admin")
@@ -105,7 +93,7 @@ async def test_update_description_to_null(cur: AsyncMock, patch_conn: MagicMock)
 
 
 async def test_update_only_updated_by(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_SUBHEAD_ROW, None, _SUBHEAD_ROW]
+    cur.fetchone.side_effect = [_SUBHEAD_ROW, _SUBHEAD_ROW]
 
     await update_bonus_subhead(1, BonusSubheadUpdate(updated_by="new.actor"))
 
@@ -152,23 +140,8 @@ async def test_update_db_error_raises_database_error(cur: AsyncMock, patch_conn:
         await update_bonus_subhead(1, BonusSubheadUpdate(updated_by="admin"))
 
 
-async def test_update_change_log_written(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_SUBHEAD_ROW, None, _SUBHEAD_ROW]
-
-    await update_bonus_subhead(1, BonusSubheadUpdate(name="New Name", updated_by="ops.team"))
-
-    cl_calls = _cl_insert_calls(cur)
-    assert len(cl_calls) == 1
-    params = cl_calls[0].args[1]
-    # params: (entity_id, site_id, action, changed_by, changed_at, old_json, new_json, prev_hash, entry_hash)
-    assert params[0] == 1          # entity_id
-    assert params[2] == "UPDATE"   # action
-    assert params[3] == "ops.team" # changed_by
-    assert len(params[8]) == 64    # entry_hash is 64-char SHA-256 hex
-
-
 async def test_update_row_hash_in_set_clause(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_SUBHEAD_ROW, None, _SUBHEAD_ROW]
+    cur.fetchone.side_effect = [_SUBHEAD_ROW, _SUBHEAD_ROW]
 
     await update_bonus_subhead(1, BonusSubheadUpdate(active=False, updated_by="admin"))
 
@@ -178,17 +151,12 @@ async def test_update_row_hash_in_set_clause(cur: AsyncMock, patch_conn: MagicMo
 
 # ===========================================================================
 # upsert_owners
-# Execute sequence (N=2):
+# Execute sequence (N=2 entries):
 #   [0] SELECT head_id,site_id FROM bonus_subhead   → fetchone → _SUBHEAD_META_ROW
-#   [1] SELECT owners pre-read                      → fetchall → ()
-#   [2] UPSERT owner[0]
-#   [3] SELECT entry_hash from cl                   → fetchone → None
-#   [4] INSERT INTO bonus_owners_change_log
-#   [5] UPSERT owner[1]
-#   [6] SELECT entry_hash from cl                   → fetchone → None
-#   [7] INSERT INTO bonus_owners_change_log
-#   [8] SELECT owners final                         → fetchall → rows_after
-# Total: 9 executes, 3 fetchones, 2 fetchalls
+#   [1] UPSERT owner[0]
+#   [2] UPSERT owner[1]
+#   [3] SELECT owners final                         → fetchall → rows_after
+# Total: 4 executes, 1 fetchone, 1 fetchall
 # ===========================================================================
 
 _OWNERS_REQUEST = OwnersUpsertRequest(
@@ -205,13 +173,13 @@ _OWNERS_AFTER = (
 
 
 async def test_upsert_owners_success(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_SUBHEAD_META_ROW, None, None]
-    cur.fetchall.side_effect = [(), _OWNERS_AFTER]
+    cur.fetchone.side_effect = [_SUBHEAD_META_ROW]
+    cur.fetchall.side_effect = [_OWNERS_AFTER]
 
     result = await upsert_owners(1, _OWNERS_REQUEST)
 
     assert len(result) == 2
-    assert cur.execute.await_count == 9
+    assert cur.execute.await_count == 4
     patch_conn.commit.assert_awaited_once()
 
 
@@ -231,47 +199,14 @@ async def test_upsert_owners_db_error(cur: AsyncMock, patch_conn: MagicMock) -> 
         await upsert_owners(1, _OWNERS_REQUEST)
 
 
-async def test_upsert_owners_insert_audit_for_new_entry(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    # No existing owners → both entries should log INSERT
-    cur.fetchone.side_effect = [_SUBHEAD_META_ROW, None, None]
-    cur.fetchall.side_effect = [(), _OWNERS_AFTER]
-
-    await upsert_owners(1, _OWNERS_REQUEST)
-
-    cl_calls = _cl_insert_calls(cur)
-    assert len(cl_calls) == 2
-    actions = [c.args[1][2] for c in cl_calls]
-    assert all(a == "INSERT" for a in actions)
-
-
-async def test_upsert_owners_update_audit_for_existing_entry(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    # priya.sharma already exists → UPDATE; arjun.mehta is new → INSERT
-    existing_rows = (("priya.sharma", "OPS_LEAD", 1),)
-    cur.fetchone.side_effect = [_SUBHEAD_META_ROW, None, None]
-    cur.fetchall.side_effect = [existing_rows, _OWNERS_AFTER]
-
-    await upsert_owners(1, _OWNERS_REQUEST)
-
-    cl_calls = _cl_insert_calls(cur)
-    assert len(cl_calls) == 2
-    actions = [c.args[1][2] for c in cl_calls]
-    assert "UPDATE" in actions
-    assert "INSERT" in actions
-
-
 # ===========================================================================
 # upsert_limits
-# Execute sequence (N=2):
+# Execute sequence (N=2 entries):
 #   [0] SELECT head_id,site_id FROM bonus_subhead  → fetchone → _SUBHEAD_META_ROW
-#   [1] SELECT limits pre-read                     → fetchall → ()
-#   [2] UPSERT limit[0]
-#   [3] SELECT entry_hash from cl                  → fetchone → None
-#   [4] INSERT INTO bonus_budget_limit_change_log
-#   [5] UPSERT limit[1]
-#   [6] SELECT entry_hash from cl                  → fetchone → None
-#   [7] INSERT INTO bonus_budget_limit_change_log
-#   [8] SELECT budget final                        → fetchall → rows_after
-# Total: 9 executes, 3 fetchones, 2 fetchalls
+#   [1] UPSERT limit[0]
+#   [2] UPSERT limit[1]
+#   [3] SELECT budget final                        → fetchall → rows_after
+# Total: 4 executes, 1 fetchone, 1 fetchall
 # ===========================================================================
 
 _LIMITS_REQUEST = LimitsUpsertRequest(
@@ -288,13 +223,13 @@ _BUDGET_AFTER = (
 
 
 async def test_upsert_limits_success(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_SUBHEAD_META_ROW, None, None]
-    cur.fetchall.side_effect = [(), _BUDGET_AFTER]
+    cur.fetchone.side_effect = [_SUBHEAD_META_ROW]
+    cur.fetchall.side_effect = [_BUDGET_AFTER]
 
     result = await upsert_limits(1, _LIMITS_REQUEST)
 
     assert len(result) == 2
-    assert cur.execute.await_count == 9
+    assert cur.execute.await_count == 4
     patch_conn.commit.assert_awaited_once()
 
 
@@ -312,33 +247,6 @@ async def test_upsert_limits_db_error(cur: AsyncMock, patch_conn: MagicMock) -> 
 
     with pytest.raises(DatabaseError):
         await upsert_limits(1, _LIMITS_REQUEST)
-
-
-async def test_upsert_limits_insert_audit_for_new_entry(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [_SUBHEAD_META_ROW, None, None]
-    cur.fetchall.side_effect = [(), _BUDGET_AFTER]
-
-    await upsert_limits(1, _LIMITS_REQUEST)
-
-    cl_calls = _cl_insert_calls(cur)
-    assert len(cl_calls) == 2
-    actions = [c.args[1][2] for c in cl_calls]
-    assert all(a == "INSERT" for a in actions)
-
-
-async def test_upsert_limits_update_audit_for_existing_entry(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    # DAILY already exists → UPDATE; MONTHLY is new → INSERT
-    existing_rows = (("DAILY", Decimal("3000.00")),)
-    cur.fetchone.side_effect = [_SUBHEAD_META_ROW, None, None]
-    cur.fetchall.side_effect = [existing_rows, _BUDGET_AFTER]
-
-    await upsert_limits(1, _LIMITS_REQUEST)
-
-    cl_calls = _cl_insert_calls(cur)
-    assert len(cl_calls) == 2
-    actions = [c.args[1][2] for c in cl_calls]
-    assert "UPDATE" in actions
-    assert "INSERT" in actions
 
 
 # ---------------------------------------------------------------------------

@@ -1,13 +1,15 @@
 -- =============================================================================
 -- SEED DATA — wynta_bonus
 -- =============================================================================
--- Captured from local DB: 2026-05-20
+-- Captured from local DB: 2026-05-25
 -- Tables: bonus_head, bonus_subhead, bonus_configure, bonus_configure_code,
---         bonus_eligibility, bonus_budget_limit, bonus_owners, bonus_budget_usage
+--         bonus_eligibility, bonus_release_trigger,
+--         bonus_budget_limit, bonus_owners, bonus_budget_usage
 --
 -- Load order respects FK dependencies:
 --   bonus_head → bonus_subhead → bonus_configure → bonus_configure_code
 --                                               → bonus_eligibility
+--                                               → bonus_release_trigger
 --   bonus_head → bonus_budget_limit
 --   bonus_head → bonus_owners
 --   bonus_head → bonus_budget_usage
@@ -100,16 +102,56 @@ INSERT INTO `bonus_configure_code` (`id`, `configure_id`, `site_id`, `code`, `ma
 INSERT INTO `bonus_eligibility` (`id`, `configure_id`, `site_id`, `eligibility_key`, `eligibility_value`, `eligibility_value_type`, `description`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (3,1,1,'player_registered_period','CURRENT_WEEK','STRING',NULL,1,'ops.lead','ops.lead','2026-05-15 22:51:22','2026-05-15 22:51:22','58343a9d236e2fe9a06df8527415cd6457338eaafadaa1e84d56efa7f6bd2158');
 
 -- -----------------------------------------------------------------------------
--- bonus_budget_limit  (8 rows)
+-- bonus_release_trigger  (17 rows — one per configure)
+-- occurrence: 0 = every, 1 = first only, N = Nth
 -- -----------------------------------------------------------------------------
-INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (1,'HEAD',1,1,'DAILY',150000.00,'admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','2f9570c5dddb92143bc1418d02ff2dac41198f2a6912777264c277a1ff33dd18');
-INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (2,'HEAD',1,1,'WEEKLY',800000.00,'admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','c3881b9a7bf62263fd49947565cfcee2f7f31ae6a48aa0c1bf31ace2f08e0116');
-INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (3,'HEAD',1,1,'MONTHLY',3000000.00,'admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','2641646338db000bad56d75cf792713984a5198f962319d29749947aa5d6d35f');
-INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (4,'HEAD',2,1,'DAILY',300000.00,'admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','c1a16ad98dce9fefb49a7d4bd1c16ad57e9890ebd5962c163a3354a7ade81453');
-INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (5,'HEAD',2,1,'WEEKLY',1500000.00,'admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','3d7c3108980d1e4c0c367f1d1fa628f81e3280ea7a61bdaa5bbb567f0a813946');
-INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (6,'HEAD',2,1,'MONTHLY',NULL,'admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','9564918bd099c81396c446c3ebaa85928dcfbdcde32b89976dc9d1ac1829b2d2');
-INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (7,'HEAD',3,1,'DAILY',200000.00,'admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','59f07cd3e8a435fc6e2c9b8071e991e44bc150a31601be970e8d17be4d1e18d4');
-INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (8,'HEAD',3,1,'MONTHLY',2500000.00,'admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','d3122b9f35006d1d2172bcd6a23992b5897e74f4034644aafe243a558115d0a4');
+-- configure 1: First Deposit 200% (ON-BOARDING)
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (1,1,1,'DEPOSIT','First deposit — min ₹500',500.00,NULL,NULL,NULL,1,1,'ops.lead','ops.lead','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 2: Welcome 100% Match (First Deposit Match)
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (2,2,1,'DEPOSIT','First deposit — min ₹100',100.00,NULL,NULL,NULL,1,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 3: Welcome Free ₹200 (ON-BOARDING) — fires on registration
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (3,3,1,'REGISTRATION','New account registration',NULL,NULL,NULL,NULL,1,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 4: FD 100% up to ₹10K
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (4,4,1,'DEPOSIT','First deposit — min ₹500',500.00,NULL,NULL,NULL,1,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 5: FD 50% up to ₹5K
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (5,5,1,'DEPOSIT','First deposit — min ₹200',200.00,NULL,NULL,NULL,1,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 6: SD 50% up to ₹5K — second deposit
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (6,6,1,'DEPOSIT','Second deposit — min ₹200',200.00,NULL,NULL,NULL,2,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 7: SD 25% up to ₹2.5K — second deposit, lower tier
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (7,7,1,'DEPOSIT','Second deposit — min ₹100',100.00,NULL,NULL,NULL,2,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 8: 20 Free Spin Credits — fires on registration
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (8,8,1,'REGISTRATION','New account registration',NULL,NULL,NULL,NULL,1,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 9: KYC Verified Reward — fires on app visit after KYC (inactive configure)
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (9,9,1,'APP_VISIT','First app visit after KYC verification',NULL,NULL,NULL,NULL,1,0,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 10: Friday 50% Reload — every deposit (weekly bonus)
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (10,10,1,'DEPOSIT','Any deposit — min ₹500',500.00,NULL,NULL,NULL,0,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 11: VIP Friday 75% Reload — every deposit (weekly bonus, VIP)
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (11,11,1,'DEPOSIT','Any deposit — min ₹1,000 (VIP)',1000.00,NULL,NULL,NULL,0,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 12: 10% Weekend Loss Cashback — every bet placed
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (12,12,1,'BET_PLACED','Any settled bet — accrues toward weekly cashback',NULL,NULL,NULL,NULL,0,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 13: VIP 15% Cashback — every bet placed (VIP only)
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (13,13,1,'BET_PLACED','Any settled bet — accrues toward VIP weekly cashback',NULL,NULL,NULL,NULL,0,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 14: Silver Tier Milestone
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (14,14,1,'LEADERBOARD_WON','Silver loyalty tier reached',NULL,NULL,NULL,NULL,1,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 15: Gold Tier Milestone
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (15,15,1,'LEADERBOARD_WON','Gold loyalty tier reached',NULL,NULL,NULL,NULL,1,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 16: VIP Tier Milestone
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (16,16,1,'LEADERBOARD_WON','VIP T1+ loyalty tier reached',NULL,NULL,NULL,NULL,1,1,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+-- configure 17: Weekly Leaderboard Top 10 (inactive configure)
+INSERT INTO `bonus_release_trigger` (`id`, `configure_id`, `site_id`, `trigger_type`, `description`, `min_trigger_amount`, `max_trigger_amount`, `payment_method`, `product`, `occurrence`, `active`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (17,17,1,'BET_PLACED','Any bet placed — contributes to weekly leaderboard',NULL,NULL,NULL,NULL,0,0,'admin','admin','2026-05-25 10:00:00','2026-05-25 10:00:00',NULL);
+
+-- -----------------------------------------------------------------------------
+-- bonus_budget_limit  (8 rows)
+-- limit_type: SOFT = advisory alert only; HARD = block new grants when exceeded
+-- -----------------------------------------------------------------------------
+INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `limit_type`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (1,'HEAD',1,1,'DAILY',150000.00,'SOFT','admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','2f9570c5dddb92143bc1418d02ff2dac41198f2a6912777264c277a1ff33dd18');
+INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `limit_type`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (2,'HEAD',1,1,'WEEKLY',800000.00,'SOFT','admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','c3881b9a7bf62263fd49947565cfcee2f7f31ae6a48aa0c1bf31ace2f08e0116');
+INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `limit_type`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (3,'HEAD',1,1,'MONTHLY',3000000.00,'HARD','admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','2641646338db000bad56d75cf792713984a5198f962319d29749947aa5d6d35f');
+INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `limit_type`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (4,'HEAD',2,1,'DAILY',300000.00,'SOFT','admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','c1a16ad98dce9fefb49a7d4bd1c16ad57e9890ebd5962c163a3354a7ade81453');
+INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `limit_type`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (5,'HEAD',2,1,'WEEKLY',1500000.00,'SOFT','admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','3d7c3108980d1e4c0c367f1d1fa628f81e3280ea7a61bdaa5bbb567f0a813946');
+INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `limit_type`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (6,'HEAD',2,1,'MONTHLY',NULL,'SOFT','admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','9564918bd099c81396c446c3ebaa85928dcfbdcde32b89976dc9d1ac1829b2d2');
+INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `limit_type`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (7,'HEAD',3,1,'DAILY',200000.00,'SOFT','admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','59f07cd3e8a435fc6e2c9b8071e991e44bc150a31601be970e8d17be4d1e18d4');
+INSERT INTO `bonus_budget_limit` (`id`, `entity_type`, `entity_id`, `site_id`, `period_type`, `budget_limit`, `limit_type`, `created_by`, `updated_by`, `created_at`, `updated_at`, `row_hash`) VALUES (8,'HEAD',3,1,'MONTHLY',2500000.00,'HARD','admin','admin','2026-05-18 19:09:50','2026-05-18 19:09:50','d3122b9f35006d1d2172bcd6a23992b5897e74f4034644aafe243a558115d0a4');
 
 -- -----------------------------------------------------------------------------
 -- bonus_owners  (12 rows)

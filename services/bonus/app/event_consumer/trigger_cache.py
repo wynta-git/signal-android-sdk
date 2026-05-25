@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from decimal import Decimal
 
@@ -21,7 +20,6 @@ _FETCH_SQL = """
         brt.payment_method,
         brt.product,
         brt.occurrence,
-        brt.trigger_config,
         bc.id,
         bc.subhead_id,
         bc.start_date,
@@ -60,10 +58,6 @@ def _serialize(value: object) -> object:
 
 
 def _row_to_dict(row: tuple) -> dict:
-    trigger_config = row[7]
-    if isinstance(trigger_config, str):
-        trigger_config = json.loads(trigger_config)
-
     return {
         "trigger_id": row[0],
         "configure_id": row[1],
@@ -72,24 +66,23 @@ def _row_to_dict(row: tuple) -> dict:
         "payment_method": row[4],
         "product": row[5],
         "occurrence": row[6],
-        "trigger_config": trigger_config,
         "configure": {
-            "id": row[8],
-            "subhead_id": row[9],
-            "start_date": _serialize(row[10]),
-            "end_date": _serialize(row[11]),
-            "applicability_frequency": row[12],
-            "wager_multiplier": _serialize(row[13]),
-            "no_of_chunks": row[14],
-            "chunk_expiry_days": row[15],
-            "bonus_expiry_days": row[16],
-            "wager_chip_type": row[17],
-            "credit_chip_type": row[18],
-            "bonus_amount_fixed": _serialize(row[19]),
-            "bonus_amount_percent": _serialize(row[20]),
-            "bonus_amount_max": _serialize(row[21]),
-            "priority": row[22],
-            "head_id": row[23],
+            "id": row[7],
+            "subhead_id": row[8],
+            "start_date": _serialize(row[9]),
+            "end_date": _serialize(row[10]),
+            "applicability_frequency": row[11],
+            "wager_multiplier": _serialize(row[12]),
+            "no_of_chunks": row[13],
+            "chunk_expiry_days": row[14],
+            "bonus_expiry_days": row[15],
+            "wager_chip_type": row[16],
+            "credit_chip_type": row[17],
+            "bonus_amount_fixed": _serialize(row[18]),
+            "bonus_amount_percent": _serialize(row[19]),
+            "bonus_amount_max": _serialize(row[20]),
+            "priority": row[21],
+            "head_id": row[22],
         },
     }
 

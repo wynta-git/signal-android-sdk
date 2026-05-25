@@ -75,9 +75,9 @@ async def list_applicable_codes(user_id: str, chip_type: str) -> list[Applicable
 # ── 2. Consume bonus ──────────────────────────────────────────────────────────
 
 _NEXT_RELEASE_CHUNK_SQL = """
-    SELECT bc.id, bc.bonus_log_id, pbg.user_id
+    SELECT bc.id, bc.bonus_grant_id, pbg.user_id
     FROM bonus_chunk bc
-    JOIN user_bonus_grant pbg ON pbg.id = bc.bonus_log_id
+    JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
     WHERE pbg.user_id = %s AND bc.status = 'RELEASE'
     ORDER BY bc.id ASC
     LIMIT 1
@@ -90,21 +90,22 @@ _CONSUME_EXISTS_SQL = """
 
 _INSERT_CONSUME_SQL = """
     INSERT INTO bonus_consumed
-        (consumed_ref, chunk_id, bonus_log_id, wager_ref, wager_id,
-         game_id, round_id, amount, wager_amount, consumed_amount, chip_type)
-    VALUES (%s, %s, %s, %s, NULL, %s, %s, %s, %s, %s, %s)
+        (consumed_ref, chunk_id, bonus_grant_id, wager_ref, wager_id,
+         game_id, round_id, amount, wager_amount, consumed_amount)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _UPDATE_GRANT_CONSUMED_SQL = """
-    UPDATE user_bonus_grant
-    SET bonus_consumed = bonus_consumed + %s
+    UPDATE bonus_grant
+    SET consume_amount = consume_amount + %s
     WHERE id = %s
 """
 
 _SELECT_CONSUMED_SQL = """
-    SELECT id, consumed_ref, amount, consumed_amount, chip_type
-    FROM bonus_consumed
-    WHERE id = %s
+    SELECT bc.id, bc.consumed_ref, bc.amount, bc.consumed_amount, bg.wager_chip_type
+    FROM bonus_consumed bc
+    JOIN bonus_grant bg ON bg.id = bc.bonus_grant_id
+    WHERE bc.id = %s
 """
 
 
@@ -121,19 +122,19 @@ async def consume_bonus(data: PlayerBonusConsumeCreate) -> PlayerBonusConsumedRe
                 chunk_row = await cur.fetchone()
                 if not chunk_row:
                     raise PlayerBonusNotFoundError(data.user_id)
-                chunk_id, bonus_log_id, _ = chunk_row
+                chunk_id, bonus_grant_id, _ = chunk_row
 
                 await cur.execute(
                     _INSERT_CONSUME_SQL,
                     (
-                        data.consume_txn_id, chunk_id, bonus_log_id,
-                        data.wager_tnx_id, data.game_id, data.round_id,
+                        data.consume_txn_id, chunk_id, bonus_grant_id,
+                        data.wager_tnx_id, data.wager_tnx_id,
+                        data.game_id, data.round_id,
                         data.bonus_amount, data.wager_amount, data.bonus_amount,
-                        data.chip_type,
                     ),
                 )
                 new_id: int = cur.lastrowid
-                await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (data.bonus_amount, bonus_log_id))
+                await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (data.bonus_amount, bonus_grant_id))
                 await conn.commit()
 
                 await cur.execute(_SELECT_CONSUMED_SQL, (new_id,))
@@ -157,18 +158,19 @@ async def consume_bonus(data: PlayerBonusConsumeCreate) -> PlayerBonusConsumedRe
 # ── 3. Revert consumption ─────────────────────────────────────────────────────
 
 _SELECT_CONSUMED_FOR_REVERT_SQL = """
-    SELECT id, consumed_ref, bonus_log_id, amount, reverted_at, chip_type
-    FROM bonus_consumed
-    WHERE consumed_ref = %s
+    SELECT bc.id, bc.consumed_ref, bc.bonus_grant_id, bc.amount, bg.wager_chip_type
+    FROM bonus_consumed bc
+    JOIN bonus_grant bg ON bg.id = bc.bonus_grant_id
+    WHERE bc.consumed_ref = %s
 """
 
-_REVERT_CONSUME_SQL = """
-    UPDATE bonus_consumed SET reverted_at = %s WHERE consumed_ref = %s
+_DELETE_CONSUME_SQL = """
+    DELETE FROM bonus_consumed WHERE consumed_ref = %s
 """
 
 _UPDATE_GRANT_CONSUMED_DEC_SQL = """
-    UPDATE user_bonus_grant
-    SET bonus_consumed = GREATEST(0, bonus_consumed - %s)
+    UPDATE bonus_grant
+    SET consume_amount = GREATEST(0, consume_amount - %s)
     WHERE id = %s
 """
 
@@ -182,13 +184,10 @@ async def revert_consumption(consume_txn_id: str) -> PlayerBonusRevertResponse:
                 row = await cur.fetchone()
                 if not row:
                     raise PlayerBonusNotFoundError(consume_txn_id)
-                _id, consumed_ref, bonus_log_id, amount, reverted_at, chip_type = row
-                if reverted_at is not None:
-                    raise PlayerBonusAlreadyRevertedError(consume_txn_id)
+                _id, consumed_ref, bonus_grant_id, amount, chip_type = row
 
-                now = datetime.now(_UTC).replace(tzinfo=None)
-                await cur.execute(_REVERT_CONSUME_SQL, (now, consume_txn_id))
-                await cur.execute(_UPDATE_GRANT_CONSUMED_DEC_SQL, (amount, bonus_log_id))
+                await cur.execute(_DELETE_CONSUME_SQL, (consume_txn_id,))
+                await cur.execute(_UPDATE_GRANT_CONSUMED_DEC_SQL, (amount, bonus_grant_id))
                 await conn.commit()
 
         return PlayerBonusRevertResponse(
@@ -204,8 +203,8 @@ async def revert_consumption(consume_txn_id: str) -> PlayerBonusRevertResponse:
 # ── 4. Player bonus summary ───────────────────────────────────────────────────
 
 _BONUS_BALANCE_BY_CHIP_SQL = """
-    SELECT wager_chip_type, COALESCE(SUM(release_amount - bonus_consumed), 0)
-    FROM user_bonus_grant
+    SELECT wager_chip_type, COALESCE(SUM(release_amount - consume_amount), 0)
+    FROM bonus_grant
     WHERE user_id = %s
     GROUP BY wager_chip_type
 """
@@ -213,16 +212,16 @@ _BONUS_BALANCE_BY_CHIP_SQL = """
 _PENDING_BONUS_BY_CHIP_SQL = """
     SELECT pbg.wager_chip_type, COALESCE(SUM(bc.chunk_amount), 0)
     FROM bonus_chunk bc
-    JOIN user_bonus_grant pbg ON pbg.id = bc.bonus_log_id
+    JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
     WHERE pbg.user_id = %s AND bc.status = 'PENDING'
     GROUP BY pbg.wager_chip_type
 """
 
 _WAGERING_REQUIRED_BY_CHIP_SQL = """
     SELECT pbg.wager_chip_type,
-           COALESCE(SUM(bc.chunk_amount * bc.wager_multiplier - bc.wager_amount), 0)
+           COALESCE(SUM(bc.required_wager_amount - bc.wager_amount), 0)
     FROM bonus_chunk bc
-    JOIN user_bonus_grant pbg ON pbg.id = bc.bonus_log_id
+    JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
     WHERE pbg.user_id = %s AND bc.status = 'PENDING'
     GROUP BY pbg.wager_chip_type
 """
@@ -269,7 +268,7 @@ _TRANSACTIONS_SQL = """
                pbg.grant_amount AS amount,
                'grant'          AS type,
                pbg.created_at
-        FROM user_bonus_grant pbg
+        FROM bonus_grant pbg
         WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
 
         UNION ALL
@@ -280,7 +279,7 @@ _TRANSACTIONS_SQL = """
                'released'       AS type,
                bc.updated_at    AS created_at
         FROM bonus_chunk bc
-        JOIN user_bonus_grant pbg ON pbg.id = bc.bonus_log_id
+        JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
         WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
           AND bc.status != 'PENDING'
 
@@ -292,7 +291,7 @@ _TRANSACTIONS_SQL = """
                'consumed'           AS type,
                bcon.created_at
         FROM bonus_consumed bcon
-        JOIN user_bonus_grant pbg ON pbg.id = bcon.bonus_log_id
+        JOIN bonus_grant pbg ON pbg.id = bcon.bonus_grant_id
         WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
 
         UNION ALL
@@ -303,7 +302,7 @@ _TRANSACTIONS_SQL = """
                'expiry'        AS type,
                bce.expired_at  AS created_at
         FROM bonus_chunk_expiry bce
-        JOIN user_bonus_grant pbg ON pbg.id = bce.bonus_log_id
+        JOIN bonus_grant pbg ON pbg.id = bce.bonus_grant_id
         WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
 
         UNION ALL
@@ -314,7 +313,7 @@ _TRANSACTIONS_SQL = """
                'forfeited'     AS type,
                bf.forfeited_at AS created_at
         FROM bonus_forfeit bf
-        JOIN user_bonus_grant pbg ON pbg.id = bf.bonus_log_id
+        JOIN bonus_grant pbg ON pbg.id = bf.bonus_grant_id
         WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
     ) AS ledger
     ORDER BY created_at DESC
@@ -371,30 +370,30 @@ async def list_player_transactions(
 _GRANT_DETAIL_SQL = """
     SELECT id, user_id, bonus_code, wager_multiplier, no_of_chunks,
            chunk_expiry_days, bonus_expiry_days, wager_chip_type, credit_chip_type,
-           grant_amount, release_amount, bonus_consumed, created_at
-    FROM user_bonus_grant
+           grant_amount, release_amount, consume_amount, created_at
+    FROM bonus_grant
     WHERE id = %s
 """
 
 _CHUNKS_SQL = """
-    SELECT id, chunk_ref, chunk_amount, wager_multiplier, status, wager_amount,
-           created_at, updated_at
+    SELECT id, chunk_ref, chunk_amount, wager_multiplier, status,
+           required_wager_amount, wager_amount, created_at, updated_at
     FROM bonus_chunk
-    WHERE bonus_log_id = %s
+    WHERE bonus_grant_id = %s
     ORDER BY chunk_ref ASC
 """
 
 _FORFEIT_SQL = """
-    SELECT id, amount, type, operator, forfeited_at
+    SELECT id, requested_amount, amount, type, operator, forfeited_at
     FROM bonus_forfeit
-    WHERE bonus_log_id = %s
+    WHERE bonus_grant_id = %s
     LIMIT 1
 """
 
 _EXPIRY_EVENTS_SQL = """
     SELECT id, chunk_id, amount, type, operator, expired_at
     FROM bonus_chunk_expiry
-    WHERE bonus_log_id = %s
+    WHERE bonus_grant_id = %s
     ORDER BY expired_at ASC
 """
 
@@ -423,7 +422,7 @@ async def get_player_transaction_detail(
         (
             _id, _user_id, bonus_code, wager_multiplier, no_of_chunks,
             chunk_expiry_days, bonus_expiry_days, wager_chip_type, credit_chip_type,
-            grant_amount, release_amount, bonus_consumed_val, created_at,
+            grant_amount, release_amount, consume_amount_val, created_at,
         ) = grant
 
         pending = sum(1 for c in chunk_rows if c[4] == "PENDING")
@@ -435,7 +434,8 @@ async def get_player_transaction_detail(
         chunks = [
             BonusChunkDetail(
                 id=c[0], chunk_ref=c[1], chunk_amount=c[2], wager_multiplier=c[3],
-                status=c[4], wager_amount=c[5], created_at=c[6], updated_at=c[7],
+                status=c[4], required_wager_amount=c[5], wager_amount=c[6],
+                created_at=c[7], updated_at=c[8],
             )
             for c in chunk_rows
         ]
@@ -443,8 +443,8 @@ async def get_player_transaction_detail(
         forfeit = None
         if forfeit_row:
             forfeit = BonusForfeitDetail(
-                id=forfeit_row[0], amount=forfeit_row[1], type=forfeit_row[2],
-                operator=forfeit_row[3], forfeited_at=forfeit_row[4],
+                id=forfeit_row[0], requested_amount=forfeit_row[1], amount=forfeit_row[2],
+                type=forfeit_row[3], operator=forfeit_row[4], forfeited_at=forfeit_row[5],
             )
 
         expiry_events = [
@@ -461,7 +461,7 @@ async def get_player_transaction_detail(
             chunk_expiry_days=chunk_expiry_days, bonus_expiry_days=bonus_expiry_days,
             wager_chip_type=wager_chip_type, credit_chip_type=credit_chip_type,
             grant_amount=grant_amount, release_amount=release_amount,
-            bonus_consumed=bonus_consumed_val, status=status, created_at=created_at,
+            consume_amount=consume_amount_val, status=status, created_at=created_at,
             chunks=chunks, forfeit=forfeit, expiry_events=expiry_events,
         )
     except PlayerBonusNotFoundError:

@@ -92,6 +92,7 @@ class BonusChunkDetail(BaseModel):
     chunk_amount: Decimal
     wager_multiplier: Decimal
     status: str
+    required_wager_amount: Decimal
     wager_amount: Decimal
     created_at: datetime
     updated_at: datetime
@@ -99,6 +100,7 @@ class BonusChunkDetail(BaseModel):
 
 class BonusForfeitDetail(BaseModel):
     id: int
+    requested_amount: Decimal
     amount: Decimal
     type: str
     operator: str | None
@@ -126,7 +128,7 @@ class PlayerBonusTransactionDetail(BaseModel):
     credit_chip_type: str
     grant_amount: Decimal
     release_amount: Decimal
-    bonus_consumed: Decimal
+    consume_amount: Decimal
     status: str
     created_at: datetime
     chunks: list[BonusChunkDetail]

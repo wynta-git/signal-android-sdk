@@ -35,7 +35,10 @@
       "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e ' *)",
       "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e \"DESCRIBE player_bonus_grant;\")",
       "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e \"DESCRIBE bonus_chunk;\")",
-      "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e \"DESCRIBE bonus_budget_limit;\")"
+      "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e \"DESCRIBE bonus_budget_limit;\")",
+      "Bash(python -m py_compile app/services/bonus_head_service.py app/services/bonus_configure_service.py app/services/bonus_subhead_service.py app/services/bonus_eligibility_service.py)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('app/services/bonus_head_service.py'\\).read\\(\\)\\); print\\('head OK'\\)\")",
+      "Bash(python3 *)"
     ],
     "additionalDirectories": [
       "/Users/khanin/Source/pam/services/bonus/web/src/app/heads/[id]/subheads"

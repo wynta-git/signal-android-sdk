@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 
 import aiomysql
 import structlog
@@ -132,22 +132,6 @@ _SELECT_LIMITS_PRE_SQL = """
 """
 
 # ---------------------------------------------------------------------------
-# SQL — change log
-# ---------------------------------------------------------------------------
-
-# cl_table is always a hardcoded constant in this module, never user input.
-_SELECT_PREV_HASH_SQL = (
-    "SELECT entry_hash FROM {cl_table} WHERE entity_id = %s ORDER BY id DESC LIMIT 1"
-)
-
-_INSERT_CL_SQL = """
-    INSERT INTO {cl_table}
-        (entity_id, site_id, action, changed_by, changed_at,
-         old_values, new_values, prev_hash, entry_hash)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-"""
-
-# ---------------------------------------------------------------------------
 # Hash helpers
 # ---------------------------------------------------------------------------
 
@@ -156,67 +140,6 @@ def _compute_row_hash(fields: dict) -> str:
     """SHA-256 of the canonical JSON of mutable row fields."""
     payload = json.dumps(fields, sort_keys=True, default=str)
     return hashlib.sha256(payload.encode()).hexdigest()
-
-
-def _compute_entry_hash(
-    prev_hash: str | None,
-    action: str,
-    changed_by: str,
-    changed_at: datetime,
-    old_values: dict | None,
-    new_values: dict | None,
-) -> str:
-    """SHA-256 of the pipe-delimited chain inputs."""
-    parts = [
-        prev_hash or "GENESIS",
-        action,
-        changed_by,
-        changed_at.isoformat(),
-        json.dumps(old_values, sort_keys=True, default=str) if old_values is not None else "null",
-        json.dumps(new_values, sort_keys=True, default=str) if new_values is not None else "null",
-    ]
-    return hashlib.sha256("|".join(parts).encode()).hexdigest()
-
-
-async def _get_prev_chain_hash(
-    cur: aiomysql.Cursor,  # type: ignore[type-arg]
-    cl_table: str,
-    entity_id: int,
-) -> str | None:
-    await cur.execute(_SELECT_PREV_HASH_SQL.format(cl_table=cl_table), (entity_id,))
-    row = await cur.fetchone()
-    return row[0] if row else None
-
-
-async def _write_change_log(
-    cur: aiomysql.Cursor,  # type: ignore[type-arg]
-    *,
-    cl_table: str,
-    entity_id: int,
-    site_id: int,
-    action: str,
-    changed_by: str,
-    old_values: dict | None = None,
-    new_values: dict | None = None,
-) -> None:
-    """Insert one tamper-evident change log entry. Must be called before conn.commit()."""
-    prev_hash = await _get_prev_chain_hash(cur, cl_table, entity_id)
-    changed_at = datetime.now(UTC)
-    entry_hash = _compute_entry_hash(prev_hash, action, changed_by, changed_at, old_values, new_values)
-    await cur.execute(
-        _INSERT_CL_SQL.format(cl_table=cl_table),
-        (
-            entity_id,
-            site_id,
-            action,
-            changed_by,
-            changed_at,
-            json.dumps(old_values, default=str) if old_values is not None else None,
-            json.dumps(new_values, default=str) if new_values is not None else None,
-            prev_hash,
-            entry_hash,
-        ),
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -290,23 +213,6 @@ async def add_bonus_head(data: BonusHeadCreate) -> BonusHeadResponse:
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
 
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_head_change_log",
-                    entity_id=new_id,
-                    site_id=data.site_id,
-                    action="INSERT",
-                    changed_by=data.created_by,
-                    new_values={
-                        "site_id": data.site_id,
-                        "name": data.name,
-                        "description": data.description,
-                        "active": int(data.active),
-                        "owner": data.owner,
-                        "created_by": data.created_by,
-                        "updated_by": data.created_by,
-                    },
-                )
                 await conn.commit()
 
                 await cur.execute(_SELECT_SQL, (new_id,))
@@ -463,23 +369,11 @@ async def update_bonus_head(head_id: int, data: BonusHeadUpdate) -> BonusHeadRes
     try:
         async with get_connection() as conn:
             async with conn.cursor() as cur:
-                # Full pre-read: existence check + old values for change log.
                 await cur.execute(_SELECT_SQL, (head_id,))
                 head_row = await cur.fetchone()
                 if head_row is None:
                     raise BonusHeadNotFoundError(head_id)
                 site_id: int = head_row[1]
-
-                # Capture old state for change log (full snapshot).
-                old_values_cl: dict = {
-                    "site_id": head_row[1],
-                    "name": head_row[2],
-                    "description": head_row[3],
-                    "active": int(head_row[4]),
-                    "owner": head_row[5],
-                    "created_by": head_row[6],
-                    "updated_by": head_row[7],
-                }
 
                 # Compute new full state and row_hash.
                 new_values_cl: dict = {
@@ -499,16 +393,6 @@ async def update_bonus_head(head_id: int, data: BonusHeadUpdate) -> BonusHeadRes
 
                 await cur.execute(
                     f"UPDATE bonus_head SET {set_clause} WHERE id = %s", params
-                )
-                await _write_change_log(
-                    cur,
-                    cl_table="bonus_head_change_log",
-                    entity_id=head_id,
-                    site_id=site_id,
-                    action="UPDATE",
-                    changed_by=data.updated_by,
-                    old_values=old_values_cl,
-                    new_values=new_values_cl,
                 )
                 await conn.commit()
 
@@ -565,13 +449,6 @@ async def upsert_owners(head_id: int, data: OwnersUpsertRequest) -> list[OwnerEn
                     raise BonusHeadNotFoundError(head_id)
                 site_id = row[0]
 
-                # Pre-read to determine INSERT vs UPDATE for change log.
-                await cur.execute(_SELECT_OWNERS_SQL, (head_id,))
-                existing: dict[str, dict] = {
-                    r[0]: {"role": r[1], "active": bool(r[2])}
-                    for r in (await cur.fetchall())
-                }
-
                 for entry in data.owners:
                     row_hash = _compute_row_hash({
                         "entity_type": "HEAD",
@@ -594,38 +471,6 @@ async def upsert_owners(head_id: int, data: OwnersUpsertRequest) -> list[OwnerEn
                             data.updated_by,
                             row_hash,
                         ),
-                    )
-
-                    if entry.username in existing:
-                        old_v: dict | None = {
-                            "username": entry.username,
-                            **existing[entry.username],
-                        }
-                        new_v: dict = {"username": entry.username, "role": entry.role, "active": entry.active}
-                        cl_action = "UPDATE"
-                    else:
-                        old_v = None
-                        new_v = {
-                            "entity_type": "HEAD",
-                            "entity_id": head_id,
-                            "site_id": site_id,
-                            "username": entry.username,
-                            "role": entry.role,
-                            "active": entry.active,
-                            "created_by": data.updated_by,
-                            "updated_by": data.updated_by,
-                        }
-                        cl_action = "INSERT"
-
-                    await _write_change_log(
-                        cur,
-                        cl_table="bonus_owners_change_log",
-                        entity_id=head_id,
-                        site_id=site_id,
-                        action=cl_action,
-                        changed_by=data.updated_by,
-                        old_values=old_v,
-                        new_values=new_v,
                     )
 
                 await conn.commit()
@@ -667,12 +512,6 @@ async def upsert_limits(head_id: int, data: LimitsUpsertRequest) -> list[BudgetP
                     raise BonusHeadNotFoundError(head_id)
                 site_id = row[0]
 
-                # Pre-read to determine INSERT vs UPDATE for change log.
-                await cur.execute(_SELECT_LIMITS_PRE_SQL, (head_id,))
-                existing_limits: dict[str, object] = {
-                    r[0]: r[1] for r in (await cur.fetchall())
-                }
-
                 for entry in data.limits:
                     row_hash = _compute_row_hash({
                         "entity_type": "HEAD",
@@ -693,37 +532,6 @@ async def upsert_limits(head_id: int, data: LimitsUpsertRequest) -> list[BudgetP
                             data.updated_by,
                             row_hash,
                         ),
-                    )
-
-                    if entry.period_type in existing_limits:
-                        old_v2: dict | None = {
-                            "period_type": entry.period_type,
-                            "budget_limit": existing_limits[entry.period_type],
-                        }
-                        new_v2: dict = {"period_type": entry.period_type, "budget_limit": entry.budget_limit}
-                        cl_action2 = "UPDATE"
-                    else:
-                        old_v2 = None
-                        new_v2 = {
-                            "entity_type": "HEAD",
-                            "entity_id": head_id,
-                            "site_id": site_id,
-                            "period_type": entry.period_type,
-                            "budget_limit": entry.budget_limit,
-                            "created_by": data.updated_by,
-                            "updated_by": data.updated_by,
-                        }
-                        cl_action2 = "INSERT"
-
-                    await _write_change_log(
-                        cur,
-                        cl_table="bonus_budget_limit_change_log",
-                        entity_id=head_id,
-                        site_id=site_id,
-                        action=cl_action2,
-                        changed_by=data.updated_by,
-                        old_values=old_v2,
-                        new_values=new_v2,
                     )
 
                 await conn.commit()
