@@ -9,7 +9,7 @@ import promoCodesReducer from './slices/promoCodesSlice';
 import budgetsReducer from './slices/budgetsSlice';
 import usageReducer from './slices/usageSlice';
 import historyReducer from './slices/historySlice';
-import segmentsReducer from './slices/segmentsSlice';
+import segmentsReducer from 'wynta-react-common/store/slices/segmentsSlice';
 import kpiReducer from './slices/kpiSlice';
 import usersReducer from 'wynta-react-common/store/slices/usersSlice';
 import type { SelectedNode } from '../types';

@@ -453,6 +453,12 @@
       <input class="cfg-input small" id="cfg-project" value="proj_abc123"
              oninput="saveConfig(); refreshAll()">
     </div>
+
+    <div class="cfg-field">
+      <span class="cfg-label">Bearer Token</span>
+      <input class="cfg-input wide" id="cfg-token" placeholder="pam_portal_…"
+             oninput="saveConfig()">
+    </div>
   </div>
 
   <div class="main">
@@ -675,26 +681,31 @@
       document.getElementById('content-campaigns').classList.toggle('active', tab === 'campaigns');
 
       if (tab === 'templates') {
-        document.getElementById('preview-head').textContent = 'JSON Preview — POST /templates';
+        document.getElementById('preview-head').textContent = 'JSON Preview — POST /api/v1/campaign/projects/{id}/templates';
         renderTmplPreview();
       } else {
-        document.getElementById('preview-head').textContent = 'JSON Preview — POST /campaigns';
+        document.getElementById('preview-head').textContent = 'JSON Preview — POST /api/v1/campaign/projects/{id}/campaigns';
         renderCampPreview();
       }
       clearResponse();
     }
 
     // ── Config persistence ────────────────────────────────────
+    function token() { return document.getElementById('cfg-token').value.trim(); }
+
     function saveConfig() {
       localStorage.setItem('pam_camp_url',     document.getElementById('cfg-url').value);
       localStorage.setItem('pam_camp_project', document.getElementById('cfg-project').value);
+      localStorage.setItem('pam_camp_token',   document.getElementById('cfg-token').value);
     }
 
     function loadConfig() {
       const url = localStorage.getItem('pam_camp_url');
       const pid = localStorage.getItem('pam_camp_project');
+      const tok = localStorage.getItem('pam_camp_token');
       if (url) document.getElementById('cfg-url').value = url;
       if (pid) document.getElementById('cfg-project').value = pid;
+      if (tok) document.getElementById('cfg-token').value = tok;
     }
 
     // ── Trigger type change ───────────────────────────────────
@@ -716,7 +727,8 @@
     async function fetchTemplates() {
       document.getElementById('template-list').innerHTML = '<div class="list-empty">Loading…</div>';
       try {
-        const res = await fetch(`${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/templates`);
+        const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/templates`,
+          { headers: { 'Authorization': `Bearer ${token()}` } });
         if (res.ok) {
           templates = await res.json();
           renderTemplateList();
@@ -761,7 +773,8 @@
     async function fetchCampaigns() {
       document.getElementById('campaign-list').innerHTML = '<div class="list-empty">Loading…</div>';
       try {
-        const res = await fetch(`${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns`);
+        const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/campaigns`,
+          { headers: { 'Authorization': `Bearer ${token()}` } });
         if (res.ok) {
           campaigns = await res.json();
           renderCampaignList();
@@ -820,8 +833,8 @@
     async function lifecycleAction(campaignId, action) {
       try {
         const res = await fetch(
-          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns/${campaignId}/${action}`,
-          { method: 'POST' }
+          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/campaigns/${campaignId}/${action}`,
+          { method: 'POST', headers: { 'Authorization': `Bearer ${token()}` } }
         );
         const data = await res.json().catch(() => null);
         const cls = res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx';
@@ -913,8 +926,8 @@
       const t0 = performance.now();
       try {
         const res = await fetch(
-          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/templates`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/templates`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token()}` }, body: JSON.stringify(payload) }
         );
         const ms = Math.round(performance.now() - t0);
         const data = await res.json().catch(() => null);
@@ -949,8 +962,8 @@
       const t0 = performance.now();
       try {
         const res = await fetch(
-          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }
+          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/campaigns`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token()}` }, body: JSON.stringify(payload) }
         );
         const ms = Math.round(performance.now() - t0);
         const data = await res.json().catch(() => null);
