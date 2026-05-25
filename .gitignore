@@ -72,5 +72,11 @@ infra/data/
 # Personal deployment notes
 my-pam-deployment.md
 
+# Sensitive local scripts and keys
+gen_portal_token.py
+portal_private.pem
+portal_public.pem
+*.pem
+
 # Service-level personal TODOs
 services/**/TODO.md
