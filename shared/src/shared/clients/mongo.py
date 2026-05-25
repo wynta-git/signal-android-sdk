@@ -99,9 +99,16 @@ async def create_campaign_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["campaigns"].create_index(
         [("project_id", 1), ("trigger.type", 1), ("trigger.event_name", 1), ("status", 1)]
     )
+    # One-off polling: status + type + send_at + picked
     await db["campaigns"].create_index(
-        [("status", 1), ("trigger.type", 1), ("trigger.send_at", 1)]
+        [("status", 1), ("trigger.type", 1), ("trigger.send_at", 1), ("picked", 1)]
     )
+    # Cron polling: status + type + next_run_at + picked
+    await db["campaigns"].create_index(
+        [("status", 1), ("trigger.type", 1), ("next_run_at", 1), ("picked", 1)]
+    )
+    # Stale-lock recovery: picked + picked_at
+    await db["campaigns"].create_index([("picked", 1), ("picked_at", 1)])
     await db["campaign_runs"].create_index(
         [("project_id", 1), ("campaign_id", 1), ("status", 1)]
     )
@@ -196,6 +203,160 @@ async def get_due_oneoff_campaigns(
         {"_id": 0},
     )
     return await cursor.to_list(length=None)
+
+
+# ---------------------------------------------------------------------------
+# Scheduler-service helpers — atomic locking, recovery, completion
+# ---------------------------------------------------------------------------
+
+
+async def lock_due_oneoff_campaign(
+    db: AsyncIOMotorDatabase, now: datetime
+) -> dict[str, Any] | None:
+    """Atomically claim the next due one-off campaign. Returns the locked doc or None."""
+    return await db["campaigns"].find_one_and_update(
+        {
+            "status": "scheduled",
+            "trigger.type": "one_off",
+            "trigger.send_at": {"$lte": now},
+            "picked": False,
+        },
+        {"$set": {"picked": True, "picked_at": now}},
+        projection={"_id": 0},
+        return_document=True,
+    )
+
+
+async def lock_due_cron_campaign(
+    db: AsyncIOMotorDatabase, now: datetime
+) -> dict[str, Any] | None:
+    """Atomically claim the next due cron campaign. Returns the locked doc or None."""
+    return await db["campaigns"].find_one_and_update(
+        {
+            "status": "running",
+            "trigger.type": "scheduled",
+            "next_run_at": {"$lte": now},
+            "picked": False,
+        },
+        {"$set": {"picked": True, "picked_at": now}},
+        projection={"_id": 0},
+        return_document=True,
+    )
+
+
+async def complete_oneoff_campaign(
+    db: AsyncIOMotorDatabase, project_id: str, campaign_id: str
+) -> None:
+    await db["campaigns"].update_one(
+        {"project_id": project_id, "campaign_id": campaign_id},
+        {"$set": {"status": "completed", "updated_at": datetime.now(timezone.utc)}},
+    )
+
+
+async def reset_cron_campaign(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    campaign_id: str,
+    next_run_at: datetime,
+) -> None:
+    await db["campaigns"].update_one(
+        {"project_id": project_id, "campaign_id": campaign_id},
+        {
+            "$set": {
+                "picked": False,
+                "picked_at": None,
+                "next_run_at": next_run_at,
+                "retry_count": 0,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+    )
+
+
+async def get_upcoming_campaigns_with_segments(
+    db: AsyncIOMotorDatabase,
+    now: datetime,
+    horizon: datetime,
+) -> list[dict[str, Any]]:
+    """Return unpicked campaigns due between now and horizon that have a segment_id."""
+    cursor = db["campaigns"].find(
+        {
+            "$or": [
+                {
+                    "status": "scheduled",
+                    "trigger.type": "one_off",
+                    "trigger.send_at": {"$gt": now, "$lte": horizon},
+                    "picked": False,
+                    "audience.segment_id": {"$exists": True, "$ne": ""},
+                },
+                {
+                    "status": "running",
+                    "trigger.type": "scheduled",
+                    "next_run_at": {"$gt": now, "$lte": horizon},
+                    "picked": False,
+                    "audience.segment_id": {"$exists": True, "$ne": ""},
+                },
+            ]
+        },
+        {"_id": 0, "project_id": 1, "campaign_id": 1, "audience": 1},
+    )
+    return await cursor.to_list(length=None)
+
+
+async def get_stale_locked_campaigns(
+    db: AsyncIOMotorDatabase, stale_before: datetime
+) -> list[dict[str, Any]]:
+    """Return campaigns that have been picked but not completed within the timeout window."""
+    cursor = db["campaigns"].find(
+        {"picked": True, "picked_at": {"$lt": stale_before}},
+        {"_id": 0, "campaign_id": 1, "project_id": 1, "picked_at": 1, "trigger": 1},
+    )
+    return await cursor.to_list(length=None)
+
+
+async def reset_stale_lock(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    campaign_id: str,
+    stale_before: datetime,
+) -> bool:
+    """Reset picked=false only if picked_at is still before stale_before (safe for concurrent recovery pods)."""
+    result = await db["campaigns"].update_one(
+        {
+            "project_id": project_id,
+            "campaign_id": campaign_id,
+            "picked": True,
+            "picked_at": {"$lt": stale_before},
+        },
+        {
+            "$set": {
+                "picked": False,
+                "picked_at": None,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+    )
+    return result.modified_count > 0
+
+
+async def increment_retry_count(
+    db: AsyncIOMotorDatabase, project_id: str, campaign_id: str
+) -> int:
+    """Atomically increment retry_count and return the new value."""
+    doc = await db["campaigns"].find_one_and_update(
+        {"project_id": project_id, "campaign_id": campaign_id},
+        {"$inc": {"retry_count": 1}},
+        projection={"retry_count": 1, "_id": 0},
+        return_document=True,
+    )
+    return doc["retry_count"] if doc else 0
+
+
+async def get_campaign_run_by_run_id(
+    db: AsyncIOMotorDatabase, run_id: str
+) -> dict[str, Any] | None:
+    """Look up a CampaignRun by run_id for idempotency checks."""
+    return await db["campaign_runs"].find_one({"run_id": run_id}, {"_id": 0})
 
 
 async def insert_campaign_run(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> str:

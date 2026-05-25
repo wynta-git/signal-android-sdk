@@ -3,14 +3,13 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 import structlog
+from croniter import croniter
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.config import settings
-from app.dependencies import PortalAuthDep, get_db, get_producer
-from app.models import Campaign, CreateCampaignRequest, UpdateCampaignRequest
-from app.triggers import scheduled as scheduler
+from app.dependencies import PortalAuthDep, get_db
+from app.models import CreateCampaignRequest, UpdateCampaignRequest
+from app.prefetch import trigger_segment_refresh
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from aiokafka import AIOKafkaProducer
 from shared.clients.mongo import (
     delete_campaign,
     get_campaign,
@@ -23,7 +22,10 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/campaign/projects/{project_id}", tags=["campaigns"])
 
 DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
-ProducerDep = Annotated[AIOKafkaProducer, Depends(get_producer)]
+
+
+def _next_cron_run(cron: str, base: datetime) -> datetime:
+    return croniter(cron, base).get_next(datetime)
 
 
 @router.post("", status_code=201)
@@ -48,6 +50,11 @@ async def create_campaign(
         "delay": body.delay.model_dump(mode="json") if body.delay else None,
         "created_at": now,
         "updated_at": now,
+        # Scheduler fields — managed by scheduler-service
+        "picked": False,
+        "picked_at": None,
+        "next_run_at": None,
+        "retry_count": 0,
     }
     await insert_campaign(db, doc)
     log.info("campaign.created", project_id=project_id, campaign_id=campaign_id)
@@ -132,27 +139,40 @@ async def activate_campaign(
         raise HTTPException(status_code=409, detail="Only draft campaigns can be activated")
 
     trigger_type = doc["trigger"]["type"]
+    now = datetime.now(timezone.utc)
+    updates: dict = {}
 
     if trigger_type == "one_off":
         send_at = doc["trigger"].get("send_at")
         if not send_at:
             raise HTTPException(status_code=422, detail="one_off campaign requires trigger.send_at")
-        new_status = "scheduled"
+        updates["status"] = "scheduled"
+
+    elif trigger_type == "scheduled":
+        cron = doc["trigger"].get("cron")
+        if not cron:
+            raise HTTPException(status_code=422, detail="scheduled campaign requires trigger.cron")
+        if not croniter.is_valid(cron):
+            raise HTTPException(status_code=422, detail=f"Invalid cron expression: {cron}")
+        updates["status"] = "running"
+        updates["next_run_at"] = _next_cron_run(cron, now)
+
     else:
-        new_status = "running"
+        updates["status"] = "running"
 
-    await update_campaign(db, project_id, campaign_id, {"status": new_status})
+    await update_campaign(db, project_id, campaign_id, updates)
+    log.info(
+        "campaign.activated",
+        project_id=project_id,
+        campaign_id=campaign_id,
+        status=updates["status"],
+    )
 
-    if trigger_type == "scheduled":
-        campaign = Campaign.model_validate({**doc, "status": new_status})
-        scheduler.register_campaign(campaign, db)
+    segment_id = (doc.get("audience") or {}).get("segment_id", "")
+    if segment_id:
+        await trigger_segment_refresh(project_id, segment_id)
 
-    if trigger_type == "one_off":
-        campaign = Campaign.model_validate({**doc, "status": new_status})
-        scheduler.register_oneoff_prefetch(campaign)
-
-    log.info("campaign.activated", project_id=project_id, campaign_id=campaign_id, status=new_status)
-    return {"status": new_status}
+    return {"status": updates["status"]}
 
 
 @router.post("/{campaign_id}/pause", status_code=200)
@@ -169,10 +189,6 @@ async def pause_campaign(
         raise HTTPException(status_code=409, detail="Only running campaigns can be paused")
 
     await update_campaign(db, project_id, campaign_id, {"status": "paused"})
-
-    if doc["trigger"]["type"] == "scheduled":
-        scheduler.unregister_campaign(project_id, campaign_id)
-
     log.info("campaign.paused", project_id=project_id, campaign_id=campaign_id)
     return {"status": "paused"}
 
@@ -190,12 +206,16 @@ async def resume_campaign(
     if doc["status"] != "paused":
         raise HTTPException(status_code=409, detail="Only paused campaigns can be resumed")
 
-    await update_campaign(db, project_id, campaign_id, {"status": "running"})
+    updates: dict = {"status": "running"}
 
     if doc["trigger"]["type"] == "scheduled":
-        campaign = Campaign.model_validate({**doc, "status": "running"})
-        scheduler.register_campaign(campaign, db)
+        cron = doc["trigger"].get("cron", "")
+        now = datetime.now(timezone.utc)
+        updates["next_run_at"] = _next_cron_run(cron, now)
+        updates["picked"] = False
+        updates["picked_at"] = None
 
+    await update_campaign(db, project_id, campaign_id, updates)
     log.info("campaign.resumed", project_id=project_id, campaign_id=campaign_id)
     return {"status": "running"}
 
@@ -214,12 +234,5 @@ async def cancel_campaign(
         raise HTTPException(status_code=409, detail="Campaign is already finished")
 
     await update_campaign(db, project_id, campaign_id, {"status": "cancelled"})
-
-    if doc["trigger"]["type"] == "scheduled":
-        scheduler.unregister_campaign(project_id, campaign_id)
-
-    if doc["trigger"]["type"] == "one_off":
-        scheduler.unregister_oneoff_prefetch(project_id, campaign_id)
-
     log.info("campaign.cancelled", project_id=project_id, campaign_id=campaign_id)
     return {"status": "cancelled"}
