@@ -4,6 +4,7 @@ from typing import AsyncIterator
 
 import structlog
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routes.portal_token import router as portal_token_router
@@ -38,6 +39,23 @@ app = FastAPI(
     docs_url="/docs" if settings.debug else None,
     redoc_url=None,
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        
+                    "http://localhost:3000", 
+                   "http://127.0.0.1:3001",
+                   "http://127.0.0.1:8081",
+                   "http://127.0.0.1:8080",
+                   "http://127.0.0.1:80"
+                   
+                   ],
+
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 
 @app.middleware("http")

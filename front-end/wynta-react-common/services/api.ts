@@ -1,8 +1,8 @@
 import type { Brand, SystemUser } from "../types";
 
 const BONUS_API =
-  (process.env.NEXT_PUBLIC_BONUS_API_URL || "http://localhost:8010") +
-  "/api/v1/bonus";
+  (process.env.NEXT_PUBLIC_BONUS_API_URL || "http://localhost:8006") +
+  "/api/v1/system";
 
 export const api = {
   async fetchUsers(): Promise<SystemUser[]> {

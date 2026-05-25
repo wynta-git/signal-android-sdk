@@ -22,6 +22,9 @@ dev = [
     "mypy>=1.10.0",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
 [tool.uv.sources]
 pam-shared = { path = "../../shared", editable = true }
 
