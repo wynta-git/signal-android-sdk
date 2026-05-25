@@ -273,6 +273,36 @@ async def reset_cron_campaign(
     )
 
 
+async def get_upcoming_campaigns_with_segments(
+    db: AsyncIOMotorDatabase,
+    now: datetime,
+    horizon: datetime,
+) -> list[dict[str, Any]]:
+    """Return unpicked campaigns due between now and horizon that have a segment_id."""
+    cursor = db["campaigns"].find(
+        {
+            "$or": [
+                {
+                    "status": "scheduled",
+                    "trigger.type": "one_off",
+                    "trigger.send_at": {"$gt": now, "$lte": horizon},
+                    "picked": False,
+                    "audience.segment_id": {"$exists": True, "$ne": ""},
+                },
+                {
+                    "status": "running",
+                    "trigger.type": "scheduled",
+                    "next_run_at": {"$gt": now, "$lte": horizon},
+                    "picked": False,
+                    "audience.segment_id": {"$exists": True, "$ne": ""},
+                },
+            ]
+        },
+        {"_id": 0, "project_id": 1, "campaign_id": 1, "audience": 1},
+    )
+    return await cursor.to_list(length=None)
+
+
 async def get_stale_locked_campaigns(
     db: AsyncIOMotorDatabase, stale_before: datetime
 ) -> list[dict[str, Any]]:
