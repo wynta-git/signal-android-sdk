@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import PortalAuthDep, get_db
 from app.models import CreateCampaignRequest, UpdateCampaignRequest
+from app.prefetch import trigger_segment_refresh
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from shared.clients.mongo import (
     delete_campaign,
@@ -166,6 +167,11 @@ async def activate_campaign(
         campaign_id=campaign_id,
         status=updates["status"],
     )
+
+    segment_id = (doc.get("audience") or {}).get("segment_id", "")
+    if segment_id:
+        await trigger_segment_refresh(project_id, segment_id)
+
     return {"status": updates["status"]}
 
 

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     stale_lock_timeout_seconds: int = 300
     max_retry_count: int = 3
 
+    segmentation_engine_url: str = "http://localhost:8003"
+    segment_prefetch_lead_minutes: int = 15
+    segment_prefetch_interval_seconds: int = 30
+
     debug: bool = False
     version: str = "0.1.0"
 

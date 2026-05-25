@@ -6,6 +6,7 @@ from aiokafka import AIOKafkaProducer
 
 from app.config import settings
 from app.executor import executor_loop
+from app.prefetch import prefetch_loop
 from app.poller import poll_loop
 from app.recovery import recovery_loop
 from shared.clients.kafka import make_kafka_producer
@@ -89,6 +90,7 @@ async def main() -> None:
         asyncio.create_task(poll_loop(db, scheduler_producer, stop_event)),
         asyncio.create_task(recovery_loop(db, stop_event)),
         asyncio.create_task(executor_loop(db, redis, send_producer, dlq_producer, stop_event)),
+        asyncio.create_task(prefetch_loop(db, stop_event)),
         asyncio.create_task(_health_server(stop_event)),
     ]
 
