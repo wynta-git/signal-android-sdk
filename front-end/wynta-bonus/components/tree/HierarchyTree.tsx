@@ -3,7 +3,7 @@ import HeadNode from './HeadNode';
 import PlayerSegmentsPanel from 'wynta-react-common/components/segments/PlayerSegmentsPanel';
 import Icon from 'wynta-react-common/components/Icon';
 import { useAppDispatch } from '../../store/hooks';
-import { createSegment } from '../../store/slices/segmentsSlice';
+import { createSegment } from 'wynta-react-common/store/slices/segmentsSlice';
 import type { BonusHead, SelectedNode, NodeType } from '../../types';
 
 interface MenuEvent {

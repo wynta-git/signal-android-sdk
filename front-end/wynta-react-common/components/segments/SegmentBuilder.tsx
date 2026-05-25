@@ -1,8 +1,30 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import Icon from '../Icon';
 import RuleEditor from './RuleEditor';
-import type { SegmentRule } from '../../types';
+import { useCommonSelector } from '../../store/hooks';
+import { fetchMetaTraits, fetchMetaEvents, fetchMetaOperators, selectMetaTraits, selectMetaEvents, selectMetaOperators } from '../../store/slices/segmentsSlice';
+import type { MetaOperators } from '../../services/segmentApi';
+import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
+import type { SegmentRule, SegmentField } from '../../types';
+
+const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
+
+// Map a trait/event name to a SegmentField.
+// Uses SEGMENT_FIELDS for known fields (preserves type/options), otherwise defaults to 'text'.
+function buildFields(traits: string[], events: string[]): SegmentField[] {
+  const knownMap = Object.fromEntries(SEGMENT_FIELDS.map(f => [f.id, f]));
+  const traitFields: SegmentField[] = traits.map(t =>
+    knownMap[t] ?? { id: t, label: t.replace(/_/g, ' '), type: 'text' as const }
+  );
+  const eventFields: SegmentField[] = events.map(e => ({
+    id: `event:${e}`,
+    label: e.replace(/_/g, ' '),
+    type: 'event' as const,
+  }));
+  return [...traitFields, ...eventFields];
+}
 
 interface RuleWithMeta extends SegmentRule {
   id: number;
@@ -19,17 +41,34 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [combinator, setCombinator] = useState<'AND' | 'OR'>('AND');
-  const [rules, setRules] = useState<RuleWithMeta[]>([
-    { id: 1, field: 'kyc_status', op: 'IS', value: 'VERIFIED' },
-    { id: 2, field: 'last_login', op: 'WITHIN', value: '7', unit: 'days' },
-  ]);
-  const [nextId, setNextId] = useState(3);
+  const [rules, setRules] = useState<RuleWithMeta[]>([]);
+  const [nextId, setNextId] = useState(1);
+
+  const dispatch = useDispatch();
+  const metaTraits    = useCommonSelector(selectMetaTraits);
+  const metaEvents    = useCommonSelector(selectMetaEvents);
+  const metaOperators = useCommonSelector(selectMetaOperators);
+
+  useEffect(() => {
+    dispatch(fetchMetaTraits(PROJECT_ID) as any);
+    dispatch(fetchMetaEvents(PROJECT_ID) as any);
+    dispatch(fetchMetaOperators() as any);
+  }, [dispatch]);
+
+  const fields = useMemo(
+    () => metaTraits.length > 0 || metaEvents.length > 0
+      ? buildFields(metaTraits, metaEvents)
+      : SEGMENT_FIELDS as SegmentField[],
+    [metaTraits, metaEvents]
+  );
 
   const updateRule = (id: number, patch: Partial<RuleWithMeta>) =>
     setRules(rs => rs.map(r => r.id === id ? { ...r, ...patch } : r));
   const removeRule = (id: number) => setRules(rs => rs.filter(r => r.id !== id));
   const addRule = () => {
-    setRules(rs => [...rs, { id: nextId, field: 'tier', op: 'IS', value: 'Gold' }]);
+    const first = fields[0];
+    const firstOp = (OPS[first?.type ?? 'text'] ?? OPS['enum'])[0]?.id ?? 'IS';
+    setRules(rs => [...rs, { id: nextId, field: first?.id ?? '', op: firstOp, value: '' }]);
     setNextId(n => n + 1);
   };
 
@@ -84,7 +123,7 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
             {rules.map((r, i) => (
               <div key={r.id}>
                 {i > 0 && <div className="builder-join">{combinator}</div>}
-                <RuleEditor rule={r} onChange={(patch) => updateRule(r.id, patch)} onRemove={() => removeRule(r.id)}/>
+                <RuleEditor rule={r} fields={fields} metaOperators={metaOperators} onChange={(patch) => updateRule(r.id, patch)} onRemove={() => removeRule(r.id)}/>
               </div>
             ))}
           </div>

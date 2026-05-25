@@ -540,7 +540,7 @@
     <!-- Preview pane -->
     <div class="preview">
       <div class="preview-head">
-        <span>DSL Preview — POST /segments</span>
+        <span>DSL Preview — POST /api/v1/segments</span>
         <span class="text-dim" id="filter-count">0 filters</span>
       </div>
       <div class="preview-scroll">
@@ -583,7 +583,7 @@
       meta.loadingEvents = true;
       renderFilters();
       try {
-        const res = await fetch(`${baseUrl()}/v1/meta/events?project_id=${encodeURIComponent(projectId())}`);
+        const res = await fetch(`${baseUrl()}/api/v1/segments/meta/events?project_id=${encodeURIComponent(projectId())}`);
         if (res.ok) meta.events = await res.json();
       } catch (_) {
         meta.events = [];
@@ -601,7 +601,7 @@
       renderFilters();
       try {
         const res = await fetch(
-          `${baseUrl()}/v1/meta/events/${encodeURIComponent(eventName)}/properties?project_id=${encodeURIComponent(projectId())}`
+          `${baseUrl()}/api/v1/segments/meta/events/${encodeURIComponent(eventName)}/properties?project_id=${encodeURIComponent(projectId())}`
         );
         if (res.ok) meta.props[eventName] = await res.json();
       } catch (_) {
@@ -616,7 +616,7 @@
     async function fetchTraits() {
       meta.loadingTraits = true;
       try {
-        const res = await fetch(`${baseUrl()}/v1/meta/traits?project_id=${encodeURIComponent(projectId())}`);
+        const res = await fetch(`${baseUrl()}/api/v1/segments/meta/traits?project_id=${encodeURIComponent(projectId())}`);
         if (res.ok) meta.traits = await res.json();
       } catch (_) {
         meta.traits = [];
@@ -1056,7 +1056,7 @@
       const t0 = performance.now();
       try {
         const token = document.getElementById('cfg-token').value.trim();
-        const res = await fetch(`${base}/v1/segments`, {
+        const res = await fetch(`${base}/api/v1/segments`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

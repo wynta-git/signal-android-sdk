@@ -62,7 +62,7 @@ export interface PlayerPage {
 export interface SegmentField {
   id: string;
   label: string;
-  type: 'enum' | 'amount' | 'number' | 'recency';
+  type: 'enum' | 'amount' | 'number' | 'recency' | 'text' | 'event';
   options?: string[];
 }
 

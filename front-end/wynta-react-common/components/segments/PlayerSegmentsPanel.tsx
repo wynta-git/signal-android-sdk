@@ -1,9 +1,11 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import { createPortal } from 'react-dom';
 import Icon from '../Icon';
 import { formatRelative } from '../../utils';
-import { MANUAL_SEGMENTS } from '../../services/mocks/segments';
+import { useCommonSelector } from '../../store/hooks';
+import { fetchSegments, selectAllSegments, selectSegmentsStatus } from '../../store/slices/segmentsSlice';
 import SegmentsModal from './SegmentsModal';
 import SegmentPlayersModal from './SegmentPlayersModal';
 import type { Segment, SegmentRule } from '../../types';
@@ -19,7 +21,14 @@ export default function PlayerSegmentsPanel({ onCreateSegment }: PlayerSegmentsP
   const [hovered, setHovered]       = useState<string | number | null>(null);
   const [modal, setModal]           = useState<ModalMode | null>(null);
   const [viewSegment, setViewSegment] = useState<Segment | null>(null);
-  const segs = MANUAL_SEGMENTS as Segment[];
+
+  const dispatch = useDispatch();
+  const segs   = useCommonSelector(selectAllSegments);
+  const status = useCommonSelector(selectSegmentsStatus);
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchSegments() as any);
+  }, [dispatch, status]);
 
   const recent = useMemo(() => {
     return [...segs]
