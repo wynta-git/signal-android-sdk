@@ -67,7 +67,7 @@ async def handle_send_job(
     redis: Redis,
     producer: AIOKafkaProducer,
 ) -> None:
-    log_ctx = structlog.contextvars.bind_contextvars(
+    structlog.contextvars.bind_contextvars(
         send_id=job.send_id,
         user_id=job.user_id,
         campaign_id=job.campaign_id,
@@ -77,7 +77,7 @@ async def handle_send_job(
 
     # 1. Suppression check
     if await is_suppressed(redis, job.project_id, job.user_id):
-        log.info("consumer.suppressed", **log_ctx)
+        log.info("consumer.suppressed")
         delivery_doc = {
             "send_id": job.send_id,
             "token_hash": "",
@@ -115,13 +115,13 @@ async def handle_send_job(
     )
 
     if not template_doc:
-        log.error("consumer.template_not_found", template_id=job.template_id, **log_ctx)
+        log.error("consumer.template_not_found", template_id=job.template_id)
         return
 
     # 3. Device tokens
     tokens = await get_user_device_tokens(db, job.project_id, job.user_id)
     if not tokens:
-        log.warning("consumer.no_device_tokens", **log_ctx)
+        log.warning("consumer.no_device_tokens")
         delivery_doc = {
             "send_id": job.send_id,
             "token_hash": "",
@@ -143,7 +143,7 @@ async def handle_send_job(
     try:
         rendered = render_push(template_doc, user_doc, job.context, None)
     except TemplateRenderError as exc:
-        log.error("consumer.render_failed", error=str(exc), **log_ctx)
+        log.error("consumer.render_failed", error=str(exc))
         delivery_doc = {
             "send_id": job.send_id,
             "token_hash": "",
@@ -179,7 +179,7 @@ async def handle_send_job(
         breaker = get_breaker(provider_name)
 
         if not breaker.allow():
-            log.warning("consumer.circuit_open", provider=provider_name, **log_ctx)
+            log.warning("consumer.circuit_open", provider=provider_name)
             return
 
         recipient = Recipient(user_id=job.user_id, token=token, platform=platform)
@@ -190,7 +190,7 @@ async def handle_send_job(
             error = result.error
         except Exception as exc:
             breaker.record_failure()
-            log.exception("consumer.provider_error", provider=provider_name, **log_ctx)
+            log.exception("consumer.provider_error", provider=provider_name)
             status = "failed"
             result_error: dict[str, str] = {"code": "provider_error", "message": str(exc)}
             delivery_doc = {
