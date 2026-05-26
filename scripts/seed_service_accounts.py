@@ -22,6 +22,12 @@ MONGO_DB = os.getenv("MONGO_DB", "pam")
 # In production, replace plaintext passwords with values from your secrets manager.
 ACCOUNTS = [
     {
+        "username": "portal-ui",
+        "password": "glgportal2026",
+        "scope": ["segments:read", "segments:write", "campaigns:read", "campaigns:write"],
+    },
+
+    {
         "username": "bonus-api",
         "password": "change-me-bonus-api",
         "scope": ["segments:read", "campaigns:read"],
