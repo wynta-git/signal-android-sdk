@@ -448,6 +448,12 @@
     <h1>PAM <span>/ Segment Builder</span></h1>
 
     <div class="cfg-field">
+      <span class="cfg-label">Auth Service URL</span>
+      <input class="cfg-input med" id="cfg-auth-url" value="http://localhost:8002"
+             oninput="saveConfig()">
+    </div>
+
+    <div class="cfg-field">
       <span class="cfg-label">Segmentation Engine URL</span>
       <input class="cfg-input med" id="cfg-url" value="http://localhost:8003"
              oninput="saveConfig(); meta.events=[]; meta.props={}; meta.traits=[]; fetchEventNames(); fetchTraits()">
@@ -455,14 +461,17 @@
 
     <div class="cfg-field">
       <span class="cfg-label">Project ID</span>
-      <input class="cfg-input small" id="cfg-project" value="proj_abc123"
+      <input class="cfg-input small" id="cfg-project" value="proj_demo"
              oninput="saveConfig(); meta.events=[]; meta.props={}; meta.traits=[]; fetchEventNames(); fetchTraits()">
     </div>
 
-    <div class="cfg-field">
-      <span class="cfg-label">Bearer Token</span>
-      <input class="cfg-input wide" id="cfg-token" placeholder="pam_test_…"
-             oninput="saveConfig()">
+    <div class="cfg-field" style="justify-content:flex-end">
+      <span class="cfg-label">Auth</span>
+      <div style="display:flex; align-items:center; gap:6px; padding-bottom:4px">
+        <span id="auth-dot" style="width:8px; height:8px; border-radius:50%; background:var(--orange); display:inline-block; flex-shrink:0" title="Authenticating…"></span>
+        <span id="auth-label" style="font-size:11px; color:var(--text-dim); font-family:var(--mono)">authenticating…</span>
+        <button onclick="reauth()" style="font-size:11px; padding:1px 7px; border:1px solid var(--border); border-radius:4px; background:none; cursor:pointer; color:var(--text-dim)">↻</button>
+      </div>
     </div>
   </div>
 
@@ -578,12 +587,64 @@
 
     function baseUrl()    { return document.getElementById('cfg-url').value.replace(/\/$/, ''); }
     function projectId()  { return document.getElementById('cfg-project').value.trim(); }
+    function authUrl()    { return document.getElementById('cfg-auth-url').value.replace(/\/$/, ''); }
+
+    // ── Auth ─────────────────────────────────────────────────
+    let authToken = null;
+
+    function authHeaders() {
+      return authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+    }
+
+    function setAuthStatus(state, msg) {
+      const dot = document.getElementById('auth-dot');
+      const lbl = document.getElementById('auth-label');
+      if (!dot) return;
+      if (state === 'ok') {
+        dot.style.background = 'var(--green)'; dot.title = 'Authenticated';
+        lbl.textContent = 'authenticated'; lbl.style.color = 'var(--green)';
+      } else if (state === 'error') {
+        dot.style.background = 'var(--red)'; dot.title = msg || 'Auth failed';
+        lbl.textContent = 'auth failed'; lbl.style.color = 'var(--red)';
+      } else {
+        dot.style.background = 'var(--orange)'; dot.title = 'Authenticating…';
+        lbl.textContent = 'authenticating…'; lbl.style.color = 'var(--text-dim)';
+      }
+    }
+
+    async function getPortalToken() {
+      setAuthStatus('loading');
+      try {
+        const res = await fetch(`${authUrl()}/api/v1/system/portal_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'portal-ui', password: 'glgportal2026', project_id: 'proj_demo' }),
+        });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const data = await res.json();
+        authToken = data.access_token || data.token;
+        if (!authToken) throw new Error('No token in response');
+        setAuthStatus('ok');
+      } catch (err) {
+        authToken = null;
+        setAuthStatus('error', String(err));
+      }
+    }
+
+    function reauth() {
+      getPortalToken().then(() => {
+        meta.events = []; meta.props = {}; meta.traits = [];
+        fetchEventNames();
+        fetchTraits();
+      });
+    }
 
     async function fetchEventNames() {
       meta.loadingEvents = true;
       renderFilters();
       try {
-        const res = await fetch(`${baseUrl()}/v1/meta/events?project_id=${encodeURIComponent(projectId())}`);
+        const res = await fetch(`${baseUrl()}/api/v1/segments/meta/events?project_id=${encodeURIComponent(projectId())}`,
+          { headers: authHeaders() });
         if (res.ok) meta.events = await res.json();
       } catch (_) {
         meta.events = [];
@@ -601,7 +662,8 @@
       renderFilters();
       try {
         const res = await fetch(
-          `${baseUrl()}/v1/meta/events/${encodeURIComponent(eventName)}/properties?project_id=${encodeURIComponent(projectId())}`
+          `${baseUrl()}/api/v1/segments/meta/events/${encodeURIComponent(eventName)}/properties?project_id=${encodeURIComponent(projectId())}`,
+          { headers: authHeaders() }
         );
         if (res.ok) meta.props[eventName] = await res.json();
       } catch (_) {
@@ -616,7 +678,8 @@
     async function fetchTraits() {
       meta.loadingTraits = true;
       try {
-        const res = await fetch(`${baseUrl()}/v1/meta/traits?project_id=${encodeURIComponent(projectId())}`);
+        const res = await fetch(`${baseUrl()}/api/v1/segments/meta/traits?project_id=${encodeURIComponent(projectId())}`,
+          { headers: authHeaders() });
         if (res.ok) meta.traits = await res.json();
       } catch (_) {
         meta.traits = [];
@@ -628,18 +691,18 @@
 
     // ── Config persistence ────────────────────────────────────
     function saveConfig() {
-      localStorage.setItem('pam_seg_url',     document.getElementById('cfg-url').value);
-      localStorage.setItem('pam_seg_project', document.getElementById('cfg-project').value);
-      localStorage.setItem('pam_seg_token',   document.getElementById('cfg-token').value);
+      localStorage.setItem('pam_seg_url',      document.getElementById('cfg-url').value);
+      localStorage.setItem('pam_seg_project',  document.getElementById('cfg-project').value);
+      localStorage.setItem('pam_seg_auth_url', document.getElementById('cfg-auth-url').value);
     }
 
     function loadConfig() {
-      const url = localStorage.getItem('pam_seg_url');
-      const pid = localStorage.getItem('pam_seg_project');
-      const tok = localStorage.getItem('pam_seg_token');
-      if (url) document.getElementById('cfg-url').value = url;
-      if (pid) document.getElementById('cfg-project').value = pid;
-      if (tok) document.getElementById('cfg-token').value = tok;
+      const url  = localStorage.getItem('pam_seg_url');
+      const pid  = localStorage.getItem('pam_seg_project');
+      const auth = localStorage.getItem('pam_seg_auth_url');
+      if (url)  document.getElementById('cfg-url').value = url;
+      if (pid)  document.getElementById('cfg-project').value = pid;
+      if (auth) document.getElementById('cfg-auth-url').value = auth;
     }
 
     // ── Match mode ───────────────────────────────────────────
@@ -1046,8 +1109,7 @@
         return;
       }
 
-      const base    = document.getElementById('cfg-url').value.replace(/\/$/, '');
-      const project = document.getElementById('cfg-project').value.trim();
+      const base = document.getElementById('cfg-url').value.replace(/\/$/, '');
 
       const btn = document.getElementById('send-btn');
       btn.disabled = true;
@@ -1055,13 +1117,9 @@
 
       const t0 = performance.now();
       try {
-        const token = document.getElementById('cfg-token').value.trim();
-        const res = await fetch(`${base}/v1/segments`, {
+        const res = await fetch(`${base}/api/v1/segments`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify(dsl),
         });
 
@@ -1114,8 +1172,10 @@
     loadConfig();
     renderFilters();
     renderPreview();
-    fetchEventNames();
-    fetchTraits();
+    getPortalToken().then(() => {
+      fetchEventNames();
+      fetchTraits();
+    });
   </script>
 
 </body>
