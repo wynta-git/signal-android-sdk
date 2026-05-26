@@ -72,6 +72,8 @@ info "Installing notifications-engine deps into shared venv..."
 as_user "$UV" pip install --python "$VENV/bin/python" \
     "jinja2>=3.1.0" \
     "httpx>=0.27.0" \
+    "google-auth>=2.29.0" \
+    "requests>=2.31.0" \
     --quiet
 ok "notifications-engine deps installed"
 

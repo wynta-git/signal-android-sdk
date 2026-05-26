@@ -51,6 +51,8 @@ async def _health_server(stop_event: asyncio.Event) -> None:
         response = (
             b"HTTP/1.1 200 OK\r\n"
             b"Content-Type: application/json\r\n"
+            b"Access-Control-Allow-Origin: *\r\n"
+            b"Access-Control-Allow-Methods: GET, OPTIONS\r\n"
             b"Content-Length: " + str(len(body)).encode() + b"\r\n"
             b"\r\n" + body
         )

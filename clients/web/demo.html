@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAM — End-to-End Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f6fa;
+      --surface: #ffffff;
+      --surface2: #f0f1f5;
+      --border: #dde1ea;
+      --accent: #4f46e5;
+      --accent2: #7c3aed;
+      --text: #1a1d2e;
+      --text-dim: #7c84a0;
+      --green: #16a34a;
+      --green-bg: #f0fdf4;
+      --red: #dc2626;
+      --red-bg: #fef2f2;
+      --blue: #2563eb;
+      --blue-bg: #eff6ff;
+      --orange: #ea580c;
+      --mono: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-right: 8px;
+    }
+
+    .header-brand .logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 900; font-size: 14px; letter-spacing: -1px;
+    }
+
+    .header-brand h1 {
+      font-size: 16px; font-weight: 800;
+      color: var(--accent); letter-spacing: .5px;
+    }
+
+    .header-brand .subtitle {
+      font-size: 11px; color: var(--text-dim); font-weight: 500;
+    }
+
+    .cfg { display: flex; flex-direction: column; gap: 2px; }
+    .cfg label { font-size: 10px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+    .cfg input {
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 8px; font-size: 12px; font-family: var(--mono);
+      color: var(--text); background: var(--surface2);
+      width: 200px; outline: none;
+    }
+    .cfg input:focus { border-color: var(--accent); }
+
+    .header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+    .btn {
+      padding: 8px 16px; border-radius: 7px; font-size: 13px;
+      font-weight: 600; cursor: pointer; border: none;
+      transition: all .15s; white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #4338ca; }
+    .btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+    .btn-ghost { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: #b0b8cc; }
+
+    /* ── Pipeline diagram ── */
+    .pipeline-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      overflow-x: auto;
+    }
+
+    .pipe-node {
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 6px 12px; border-radius: 8px;
+      font-size: 11px; font-weight: 600; color: var(--text-dim);
+      background: var(--surface2); border: 1px solid var(--border);
+      white-space: nowrap; min-width: 80px; text-align: center;
+      transition: all .2s;
+    }
+    .pipe-node .node-icon { font-size: 16px; }
+    .pipe-node.active { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
+    .pipe-node.done { background: var(--green-bg); border-color: var(--green); color: var(--green); }
+    .pipe-node.error { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+
+    .pipe-arrow {
+      color: var(--border); font-size: 18px; padding: 0 4px;
+      flex-shrink: 0; font-weight: 300;
+    }
+
+    /* ── Main layout ── */
+    .main {
+      display: flex;
+      flex: 1;
+      gap: 0;
+    }
+
+    /* ── Steps sidebar ── */
+    .steps-nav {
+      width: 200px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 16px 0;
+      position: sticky;
+      top: 113px;
+      height: calc(100vh - 113px);
+      overflow-y: auto;
+    }
+
+    .steps-nav-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--text-dim);
+      padding: 0 16px 8px;
+    }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; cursor: pointer;
+      font-size: 12px; color: var(--text-dim);
+      transition: background .1s;
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: var(--blue-bg); color: var(--blue); font-weight: 600; }
+    .nav-item.done { color: var(--green); }
+    .nav-item.error { color: var(--red); }
+
+    .nav-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: var(--border);
+    }
+    .nav-item.active .nav-dot { background: var(--blue); }
+    .nav-item.done .nav-dot { background: var(--green); }
+    .nav-item.error .nav-dot { background: var(--red); }
+    .nav-item.running .nav-dot { background: var(--blue); animation: pulse 1s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(1.3); }
+    }
+
+    /* ── Steps content ── */
+    .steps-content {
+      flex: 1;
+      padding: 20px 24px;
+      overflow-y: auto;
+      max-width: 860px;
+    }
+
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 12px;
+      overflow: hidden;
+      transition: box-shadow .2s;
+    }
+    .step-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+    .step-card.active { border-color: var(--blue); }
+    .step-card.done { border-color: var(--green); }
+    .step-card.error { border-color: var(--red); }
+
+    .step-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px; cursor: pointer;
+    }
+
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; flex-shrink: 0;
+      background: var(--surface2); color: var(--text-dim);
+    }
+    .step-card.active .step-num { background: var(--blue-bg); color: var(--blue); }
+    .step-card.done .step-num { background: var(--green-bg); color: var(--green); }
+    .step-card.error .step-num { background: var(--red-bg); color: var(--red); }
+    .step-card.running .step-num { background: var(--blue-bg); color: var(--blue); animation: pulse 1s infinite; }
+
+    .step-meta { flex: 1; }
+    .step-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+    .step-desc { font-size: 12px; color: var(--text-dim); }
+
+    .step-status {
+      font-size: 11px; font-weight: 600; padding: 3px 10px;
+      border-radius: 20px; flex-shrink: 0;
+    }
+    .step-card.active .step-status, .step-card.running .step-status {
+      background: var(--blue-bg); color: var(--blue);
+    }
+    .step-card.done .step-status { background: var(--green-bg); color: var(--green); }
+    .step-card.error .step-status { background: var(--red-bg); color: var(--red); }
+    .step-card:not(.active):not(.done):not(.error):not(.running) .step-status {
+      background: var(--surface2); color: var(--text-dim);
+    }
+
+    .step-body {
+      display: none;
+      padding: 0 16px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .step-body.open { display: block; }
+
+    .endpoint-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 10px;
+      font-size: 11px; font-family: var(--mono);
+      color: var(--text-dim); margin: 12px 0 8px;
+    }
+    .method { font-weight: 700; }
+    .method.POST { color: var(--blue); }
+    .method.GET { color: var(--green); }
+
+    .section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--text-dim); margin-bottom: 4px; margin-top: 10px;
+    }
+
+    .code-block {
+      background: #1e1e2e; color: #cdd6f4;
+      border-radius: 7px; padding: 12px;
+      font-size: 12px; font-family: var(--mono);
+      overflow-x: auto; white-space: pre;
+      max-height: 280px; overflow-y: auto;
+      line-height: 1.6;
+    }
+    .code-block.response-ok { border-left: 3px solid var(--green); }
+    .code-block.response-err { border-left: 3px solid var(--red); }
+
+    .multi-endpoint { display: flex; flex-direction: column; gap: 8px; }
+    .endpoint-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; font-family: var(--mono);
+    }
+    .svc-status { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+    .svc-status.ok { background: var(--green); }
+    .svc-status.err { background: var(--red); }
+    .svc-status.checking { background: var(--blue); animation: pulse 1s infinite; }
+
+    .verify-box {
+      background: #1e1e2e; color: #cdd6f4;
+      border-radius: 7px; padding: 12px;
+      font-size: 12px; font-family: var(--mono);
+      border-left: 3px solid var(--orange);
+    }
+
+    .tag { display: inline-block; font-size: 10px; font-weight: 600;
+      padding: 2px 7px; border-radius: 4px; }
+    .tag-push { background: #ede9fe; color: #6d28d9; }
+    .tag-event { background: #dbeafe; color: #1d4ed8; }
+
+    .summary-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      margin-top: 10px;
+    }
+    .summary-cell {
+      background: var(--surface2); border-radius: 7px; padding: 10px;
+      text-align: center;
+    }
+    .summary-cell .val { font-size: 22px; font-weight: 800; color: var(--accent); }
+    .summary-cell .lbl { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+    /* ── Progress bar ── */
+    .progress-wrap {
+      background: var(--border); border-radius: 3px; height: 4px;
+      margin-top: 4px; overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 3px; transition: width .4s ease;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-brand">
+    <div class="logo">P</div>
+    <div>
+      <h1>PAM Platform</h1>
+      <div class="subtitle">End-to-End Demo</div>
+    </div>
+  </div>
+
+  <div class="cfg">
+    <label>Host</label>
+    <input id="cfgHost" value="http://3.7.48.14" placeholder="http://3.7.48.14">
+  </div>
+  <div class="cfg">
+    <label>API Token</label>
+    <input id="cfgToken" value="pam_live_-sYoMnPHlETbPgxX86jDtoZdcL8UulJa" placeholder="pam_live_...">
+  </div>
+  <div class="cfg">
+    <label>Service Account</label>
+    <input id="cfgSvcUser" value="portal-ui" style="width:140px">
+  </div>
+  <div class="cfg">
+    <label>Password</label>
+    <input id="cfgSvcPass" value="glgportal2026" type="password" style="width:140px">
+  </div>
+  <div class="cfg">
+    <label>Project ID</label>
+    <input id="cfgProject" value="proj_demo" style="width:100px">
+  </div>
+
+  <div class="header-actions">
+    <div style="text-align:right">
+      <div style="font-size:11px;color:var(--text-dim)" id="progressLabel">Ready</div>
+      <div class="progress-wrap" style="width:120px">
+        <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      </div>
+    </div>
+    <button class="btn btn-ghost" onclick="resetDemo()">Reset</button>
+    <button class="btn btn-primary" id="runBtn" onclick="runAll()">▶ Run Full Demo</button>
+  </div>
+</div>
+
+<!-- ── Pipeline diagram ── -->
+<div class="pipeline-bar">
+  <div class="pipe-node" id="pipe-api"><span class="node-icon">📡</span>API Service</div>
+  <div class="pipe-arrow">→</div>
+  <div class="pipe-node" id="pipe-kafka"><span class="node-icon">⚡</span>Kafka</div>
+  <div class="pipe-arrow">→</div>
+  <div class="pipe-node" id="pipe-ch"><span class="node-icon">🗄</span>ClickHouse</div>
+  <div class="pipe-arrow" style="color:transparent">→</div>
+  <div class="pipe-node" id="pipe-mongo"><span class="node-icon">🍃</span>MongoDB</div>
+  <div class="pipe-arrow">←</div>
+  <div class="pipe-node" id="pipe-seg"><span class="node-icon">🎯</span>Segmentation</div>
+  <div class="pipe-arrow">←</div>
+  <div class="pipe-node" id="pipe-camp"><span class="node-icon">📣</span>Campaign</div>
+  <div class="pipe-arrow">←</div>
+  <div class="pipe-node" id="pipe-notif"><span class="node-icon">🔔</span>Notifications</div>
+</div>
+
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- Sidebar nav -->
+  <div class="steps-nav">
+    <div class="steps-nav-title">Steps</div>
+    <div id="stepsNav"></div>
+  </div>
+
+  <!-- Steps content -->
+  <div class="steps-content" id="stepsContent"></div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  portalJwt: null,
+  segmentId: null,
+  campaignId: null,
+  templateId: null,
+  runId: Date.now().toString(36),
+};
+
+function cfg(id) { return document.getElementById(id).value.trim(); }
+const host    = () => cfg('cfgHost').replace(/\/$/, '');
+const token   = () => cfg('cfgToken');
+const svcUser = () => cfg('cfgSvcUser');
+const svcPass = () => cfg('cfgSvcPass');
+const projId  = () => cfg('cfgProject');
+const demoUser1 = () => `demo_${state.runId}_001`;
+const demoUser2 = () => `demo_${state.runId}_002`;
+
+// ── Step definitions ────────────────────────────────────────────────────────
+const STEPS = [
+  {
+    id: 'health',
+    title: 'Health Check',
+    desc: 'Verify all services are reachable and healthy',
+    pipeNodes: ['pipe-api'],
+    run: stepHealth,
+  },
+  {
+    id: 'jwt',
+    title: 'Get Portal JWT',
+    desc: 'Authenticate with auth-service to get a signed JWT for internal APIs',
+    pipeNodes: [],
+    run: stepGetJwt,
+  },
+  {
+    id: 'track',
+    title: 'Track Events',
+    desc: 'Send app_opened, screen_viewed, and purchase_completed events for two demo users',
+    pipeNodes: ['pipe-api', 'pipe-kafka'],
+    run: stepTrackEvents,
+  },
+  {
+    id: 'identify',
+    title: 'Identify Users',
+    desc: 'Upsert user profiles with plan, country, and level traits into MongoDB',
+    pipeNodes: ['pipe-api', 'pipe-mongo'],
+    run: stepIdentify,
+  },
+  {
+    id: 'segment',
+    title: 'Create Segment',
+    desc: 'Define a "Demo Buyers" segment matching users who completed a purchase in the last 30 days',
+    pipeNodes: ['pipe-seg'],
+    run: stepCreateSegment,
+  },
+  {
+    id: 'evaluate',
+    title: 'Evaluate Segment',
+    desc: 'Run evaluation — queries ClickHouse events and MongoDB traits to compute membership',
+    pipeNodes: ['pipe-seg', 'pipe-ch', 'pipe-mongo'],
+    run: stepEvaluate,
+  },
+  {
+    id: 'membership',
+    title: 'Check Membership',
+    desc: 'Verify which demo users are inside (and outside) the segment',
+    pipeNodes: ['pipe-seg'],
+    run: stepMembership,
+  },
+  {
+    id: 'template',
+    title: 'Create Notification Template',
+    desc: 'Create a push notification template with personalised title and body',
+    pipeNodes: ['pipe-camp'],
+    run: stepCreateTemplate,
+  },
+  {
+    id: 'campaign',
+    title: 'Create & Activate Campaign',
+    desc: 'Create an event-triggered campaign targeting the Demo Buyers segment and activate it',
+    pipeNodes: ['pipe-camp'],
+    run: stepCreateCampaign,
+  },
+  {
+    id: 'trigger',
+    title: 'Fire Trigger Event',
+    desc: 'Send a purchase_completed event — the running campaign will intercept it and emit a send job',
+    pipeNodes: ['pipe-api', 'pipe-kafka', 'pipe-camp'],
+    run: stepFireTrigger,
+  },
+  {
+    id: 'delivery',
+    title: 'Notification Delivery',
+    desc: 'Campaign engine produces to pam.campaigns.send.v1 → notifications-engine delivers (or logs no_device_tokens for test users)',
+    pipeNodes: ['pipe-notif'],
+    run: stepDelivery,
+  },
+];
+
+// ── HTTP helpers ─────────────────────────────────────────────────────────────
+async function api(method, url, body, headers = {}) {
+  const opts = { method, headers: { 'Content-Type': 'application/json', ...headers } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(url, opts);
+  let data;
+  try { data = await r.json(); } catch { data = null; }
+  return { status: r.status, ok: r.ok, data };
+}
+
+// ── Step runners ─────────────────────────────────────────────────────────────
+
+async function stepHealth(card) {
+  const services = [
+    { name: 'api-service',        url: `${host()}:8001/api/v1/events/health` },
+    { name: 'auth-service',       url: `${host()}:8002/api/v1/system/health` },
+    { name: 'segmentation',       url: `${host()}:8003/health` },
+    { name: 'campaign-engine',    url: `${host()}:8004/health` },
+    { name: 'notifications',      url: `${host()}:8005/health` },
+  ];
+
+  const rows = card.querySelector('.multi-endpoint');
+  rows.innerHTML = services.map(s => `
+    <div class="endpoint-row" id="hrow-${s.name}">
+      <div class="svc-status checking" id="hst-${s.name}"></div>
+      <span style="color:var(--text-dim);width:160px">${s.name}</span>
+      <span style="font-size:11px;color:var(--text-dim)">${s.url}</span>
+    </div>`).join('');
+
+  let allOk = true;
+  for (const svc of services) {
+    const dot = document.getElementById(`hst-${svc.name}`);
+    try {
+      const r = await fetch(svc.url, { signal: AbortSignal.timeout(4000) });
+      if (r.ok) { dot.className = 'svc-status ok'; }
+      else { dot.className = 'svc-status err'; allOk = false; }
+    } catch {
+      dot.className = 'svc-status err'; allOk = false;
+    }
+  }
+  if (!allOk) throw new Error('One or more services are unreachable');
+  return 'All 5 services healthy';
+}
+
+async function stepGetJwt(card) {
+  showRequest(card, 'POST', `${host()}:8002/api/v1/system/portal_token`,
+    { username: svcUser(), password: '***', project_id: projId() });
+
+  const r = await api('POST', `${host()}:8002/api/v1/system/portal_token`, {
+    username: svcUser(), password: svcPass(), project_id: projId(),
+  });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(r.data?.detail || 'Auth failed');
+  state.portalJwt = r.data?.data?.token;
+  if (!state.portalJwt) throw new Error('No token in response');
+  return 'Portal JWT obtained';
+}
+
+async function stepTrackEvents(card) {
+  const events = [
+    { event_id: newUUID(), event_name: 'app_opened', user_id: demoUser1(),
+      timestamp: ts(0), sdk: { name: 'pam-android', version: '2.1.0' },
+      device: { platform: 'android', os: 'android-14' },
+      properties: { from_background: false }, schema_version: 1 },
+    { event_id: newUUID(), event_name: 'screen_viewed', user_id: demoUser1(),
+      timestamp: ts(5), sdk: { name: 'pam-android', version: '2.1.0' },
+      device: { platform: 'android', os: 'android-14' },
+      properties: { screen_name: 'home', referrer: 'push_notification' }, schema_version: 1 },
+    { event_id: newUUID(), event_name: 'purchase_completed', user_id: demoUser1(),
+      timestamp: ts(60), sdk: { name: 'pam-android', version: '2.1.0' },
+      device: { platform: 'android', os: 'android-14' },
+      properties: { order_id: `ORD-${state.runId}-1`, amount: 999, currency: 'INR',
+        items: [{ sku: 'COIN-500', qty: 1, price: 999 }] }, schema_version: 1 },
+    { event_id: newUUID(), event_name: 'app_opened', user_id: demoUser2(),
+      timestamp: ts(0), sdk: { name: 'pam-ios', version: '2.0.3' },
+      device: { platform: 'ios', os: 'ios-17' },
+      properties: { from_background: true }, schema_version: 1 },
+    { event_id: newUUID(), event_name: 'screen_viewed', user_id: demoUser2(),
+      timestamp: ts(10), sdk: { name: 'pam-ios', version: '2.0.3' },
+      device: { platform: 'ios', os: 'ios-17' },
+      properties: { screen_name: 'home', referrer: 'direct' }, schema_version: 1 },
+  ];
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [{ '...': `${events.length} events` }] });
+
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`,
+    { events },
+    { Authorization: `Bearer ${token()}` }
+  );
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Track failed');
+  const { accepted, rejected } = r.data;
+  return `${accepted} accepted, ${rejected} rejected → Kafka`;
+}
+
+async function stepIdentify(card) {
+  const users = [
+    { user_id: demoUser1(), traits: { name: 'Demo User One', plan: 'pro', country: 'IN', level: 42 }, timestamp: new Date().toISOString() },
+    { user_id: demoUser2(), traits: { name: 'Demo User Two', plan: 'free', country: 'IN', level: 8 }, timestamp: new Date().toISOString() },
+  ];
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/identify`, users[0]);
+
+  const results = [];
+  for (const u of users) {
+    const r = await api('POST', `${host()}:8001/api/v1/events/identify`, u,
+      { Authorization: `Bearer ${token()}` });
+    results.push(r);
+  }
+  showResponse(card, results[results.length - 1]);
+  if (results.some(r => !r.ok)) throw new Error('Identify failed for one or more users');
+  return `${users.length} user profiles upserted → MongoDB`;
+}
+
+async function stepCreateSegment(card) {
+  state.segmentId = `demo-buyers-${state.runId}`;
+  const body = {
+    segment_id: state.segmentId,
+    name: `Demo Buyers (${state.runId})`,
+    rule: {
+      version: 1,
+      match: 'all',
+      filters: [{
+        type: 'event',
+        event_name: 'purchase_completed',
+        frequency: { op: 'gte', count: 1 },
+        time_window: { last_days: 30 },
+      }],
+    },
+    refresh_strategy: 'one_time',
+    created_by: 'pam-demo',
+  };
+
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segments`, body);
+  const r = await api('POST', `${host()}:8003/api/v1/segments`, body,
+    { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (r.status === 409) return 'Segment already exists (reused)';
+  if (!r.ok) throw new Error(JSON.stringify(r.data));
+  return `Segment "${state.segmentId}" created`;
+}
+
+async function stepEvaluate(card) {
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segments/${state.segmentId}/evaluate`, null);
+  const r = await api('POST', `${host()}:8003/api/v1/segments/${state.segmentId}/evaluate`,
+    null, { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(JSON.stringify(r.data));
+  const { size } = r.data;
+  return `Evaluation complete — ${size} member${size !== 1 ? 's' : ''} matched`;
+}
+
+async function stepMembership(card) {
+  const checks = [
+    { user_id: demoUser1(), expect: true },
+    { user_id: demoUser2(), expect: false },
+  ];
+
+  const results = [];
+  for (const c of checks) {
+    const r = await api('GET',
+      `${host()}:8003/api/v1/segments/${state.segmentId}/members/${c.user_id}`,
+      null, { Authorization: `Bearer ${state.portalJwt}` });
+    results.push({ user: c.user_id, is_member: r.data?.is_member, ok: r.ok });
+  }
+
+  const grid = `<div class="summary-grid">
+    ${results.map(r => `
+      <div class="summary-cell">
+        <div class="val" style="font-size:14px;color:${r.is_member ? 'var(--green)' : 'var(--text-dim)'}">${r.is_member ? '✓ In' : '✗ Out'}</div>
+        <div class="lbl">${r.user.slice(-3)}</div>
+      </div>`).join('')}
+  </div>`;
+  card.querySelector('.step-body .extra')?.remove();
+  const extra = document.createElement('div');
+  extra.className = 'extra'; extra.innerHTML = grid;
+  card.querySelector('.step-body').appendChild(extra);
+
+  const inCount = results.filter(r => r.is_member).length;
+  return `${inCount} of ${results.length} demo users in segment`;
+}
+
+async function stepCreateTemplate(card) {
+  const body = {
+    name: `Demo Push Template (${state.runId})`,
+    channel: 'push',
+    body: {
+      title: 'Thanks for your purchase! 🎉',
+      message: 'Here is a reward for being a valued player.',
+      deep_link: 'app://rewards',
+    },
+  };
+
+  showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}/templates`, body);
+  const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}/templates`,
+    body, { Authorization: `Bearer ${token()}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(JSON.stringify(r.data));
+  state.templateId = r.data.template_id;
+  return `Template "${state.templateId}" created`;
+}
+
+async function stepCreateCampaign(card) {
+  const body = {
+    name: `Demo Campaign (${state.runId})`,
+    trigger: { type: 'event', event_name: 'purchase_completed' },
+    audience: { segment_id: state.segmentId },
+    channel: 'push',
+    template_id: state.templateId,
+  };
+
+  showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`, body);
+  const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`,
+    body, { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(JSON.stringify(r.data));
+  state.campaignId = r.data.campaign_id;
+
+  // Activate
+  const ra = await api('POST',
+    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.campaignId}/activate`,
+    null, { Authorization: `Bearer ${state.portalJwt}` });
+
+  const el = document.createElement('div');
+  el.innerHTML = `<div class="section-label" style="margin-top:10px">Activate response</div>
+    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(ra.data, null, 2)}</div>`;
+  card.querySelector('.step-body').appendChild(el);
+
+  if (!ra.ok) throw new Error('Activate failed');
+  return `"${state.campaignId}" → ${ra.data.status}`;
+}
+
+async function stepFireTrigger(card) {
+  const body = {
+    events: [{
+      event_id: newUUID(),
+      event_name: 'purchase_completed',
+      schema_version: 1,
+      user_id: demoUser1(),
+      timestamp: new Date().toISOString(),
+      sdk: { name: 'pam-android', version: '2.1.0' },
+      device: { platform: 'android', os: 'android-14' },
+      properties: {
+        order_id: `ORD-TRIGGER-${state.runId}`,
+        amount: 499,
+        currency: 'INR',
+        items: [{ sku: 'COIN-250', qty: 1, price: 499 }],
+      },
+    }],
+  };
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`, body);
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, body,
+    { Authorization: `Bearer ${token()}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Track failed');
+  return 'Event accepted → campaign-engine will intercept from Kafka';
+}
+
+async function stepDelivery(card) {
+  // Wait a moment for the pipeline to process
+  await sleep(3000);
+
+  const body = card.querySelector('.step-body');
+  const note = document.createElement('div');
+  note.innerHTML = `
+    <div class="section-label">What happened</div>
+    <div style="font-size:13px;line-height:1.7;color:var(--text);background:var(--surface2);
+      border-radius:8px;padding:12px;margin-bottom:10px">
+      The <strong>campaign-engine</strong> consumed the <code style="font-family:var(--mono);font-size:11px">purchase_completed</code>
+      event from Kafka, checked that <em>${demoUser1()}</em> is a member of the
+      <em>Demo Buyers</em> segment, and produced a send job to
+      <code style="font-family:var(--mono);font-size:11px">pam.campaigns.send.v1</code>.
+      The <strong>notifications-engine</strong> consumed it and wrote a delivery record to MongoDB.
+    </div>
+    <div class="section-label">Verify in MongoDB</div>
+    <div class="verify-box">
+/home/ubuntu/pam/.venv/bin/python - &lt;&lt;'EOF'
+import pymongo, json
+client = pymongo.MongoClient("mongodb://admin:glgpam2026@172.31.6.243:27017/pam?authSource=admin")
+docs = list(client.pam.notification_deliveries.find(
+    {"project_id": "${projId()}", "user_id": "${demoUser1()}"},
+    {"_id": 0}
+).sort("attempted_at", -1).limit(3))
+for d in docs:
+    print(json.dumps(d, default=str, indent=2))
+EOF</div>
+    <div style="margin-top:10px;font-size:12px;color:var(--text-dim)">
+      Expected: <code style="font-family:var(--mono);font-size:11px">status: "failed", error.code: "no_device_tokens"</code>
+      — correct for test users with no registered FCM/APNs token. With a real device token the status would be <code style="font-family:var(--mono);font-size:11px">"sent"</code>.
+    </div>`;
+  body.appendChild(note);
+
+  return 'Pipeline complete — verify delivery in MongoDB';
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function showRequest(card, method, url, body) {
+  const body_el = card.querySelector('.step-body');
+  const existing = body_el.querySelector('.req-block');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.className = 'req-block';
+  el.innerHTML = `
+    <div class="endpoint-badge">
+      <span class="method ${method}">${method}</span>
+      <span>${url}</span>
+    </div>
+    ${body ? `<div class="section-label">Request</div>
+    <div class="code-block">${JSON.stringify(body, null, 2)}</div>` : ''}`;
+  body_el.appendChild(el);
+}
+
+function showResponse(card, r) {
+  const body_el = card.querySelector('.step-body');
+  const existing = body_el.querySelector('.resp-block');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.className = 'resp-block';
+  el.innerHTML = `
+    <div class="section-label">Response <span style="color:${r.ok ? 'var(--green)' : 'var(--red)'}">HTTP ${r.status}</span></div>
+    <div class="code-block ${r.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(r.data, null, 2)}</div>`;
+  body_el.appendChild(el);
+}
+
+function newUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+function ts(offsetSecs) {
+  return new Date(Date.now() - offsetSecs * 1000).toISOString();
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Step state management ────────────────────────────────────────────────────
+const stepStates = {};
+
+function setStepState(id, st, msg = '') {
+  stepStates[id] = st;
+  const card = document.getElementById(`card-${id}`);
+  const nav  = document.getElementById(`nav-${id}`);
+  card.className = `step-card ${st}`;
+  nav.className  = `nav-item ${st}`;
+  const statusEl = card.querySelector('.step-status');
+  const icons = { idle: 'Idle', running: '⏳ Running…', done: '✓ Done', error: '✗ Failed', active: 'Next' };
+  statusEl.textContent = msg ? (st === 'done' ? msg : icons[st]) : icons[st];
+  if (st === 'done' && msg) statusEl.textContent = msg;
+  updateProgress();
+  updatePipeline();
+}
+
+function expandCard(id) {
+  STEPS.forEach(s => {
+    const b = document.getElementById(`body-${s.id}`);
+    if (b) b.classList.remove('open');
+  });
+  const b = document.getElementById(`body-${id}`);
+  if (b) b.classList.add('open');
+  document.getElementById(`card-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function updateProgress() {
+  const done = Object.values(stepStates).filter(s => s === 'done').length;
+  const pct = Math.round((done / STEPS.length) * 100);
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent =
+    pct === 100 ? '✓ Demo complete' : `${done} / ${STEPS.length} steps`;
+}
+
+function updatePipeline() {
+  const nodeMap = {};
+  STEPS.forEach(s => {
+    const st = stepStates[s.id] || 'idle';
+    s.pipeNodes?.forEach(n => {
+      if (!nodeMap[n] || st === 'running') nodeMap[n] = st;
+      else if (st === 'done' && nodeMap[n] !== 'running') nodeMap[n] = 'done';
+      else if (st === 'error' && nodeMap[n] !== 'running' && nodeMap[n] !== 'done') nodeMap[n] = 'error';
+    });
+  });
+  Object.entries(nodeMap).forEach(([id, st]) => {
+    const el = document.getElementById(id);
+    if (el) el.className = `pipe-node ${st === 'idle' ? '' : st === 'running' ? 'active' : st}`;
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function renderUI() {
+  const nav = document.getElementById('stepsNav');
+  const content = document.getElementById('stepsContent');
+  nav.innerHTML = '';
+  content.innerHTML = '';
+
+  STEPS.forEach((step, i) => {
+    stepStates[step.id] = 'idle';
+
+    // Nav item
+    const ni = document.createElement('div');
+    ni.className = 'nav-item';
+    ni.id = `nav-${step.id}`;
+    ni.innerHTML = `<div class="nav-dot"></div><span>${i + 1}. ${step.title}</span>`;
+    ni.onclick = () => expandCard(step.id);
+    nav.appendChild(ni);
+
+    // Card
+    const extra = step.id === 'health' ? '<div class="multi-endpoint"></div>' : '';
+    const card = document.createElement('div');
+    card.className = 'step-card';
+    card.id = `card-${step.id}`;
+    card.innerHTML = `
+      <div class="step-header" onclick="toggleCard('${step.id}')">
+        <div class="step-num">${i + 1}</div>
+        <div class="step-meta">
+          <div class="step-title">${step.title}</div>
+          <div class="step-desc">${step.desc}</div>
+        </div>
+        <div class="step-status">Idle</div>
+      </div>
+      <div class="step-body" id="body-${step.id}">
+        ${extra}
+      </div>`;
+    content.appendChild(card);
+  });
+}
+
+function toggleCard(id) {
+  const b = document.getElementById(`body-${id}`);
+  b.classList.toggle('open');
+}
+
+// ── Run ───────────────────────────────────────────────────────────────────────
+let running = false;
+
+async function runAll() {
+  if (running) return;
+  running = true;
+  document.getElementById('runBtn').disabled = true;
+
+  for (const step of STEPS) {
+    setStepState(step.id, 'running');
+    expandCard(step.id);
+    const card = document.getElementById(`card-${step.id}`);
+
+    try {
+      const msg = await step.run(card);
+      setStepState(step.id, 'done', msg || 'Done');
+    } catch (err) {
+      setStepState(step.id, 'error', err.message || 'Error');
+      card.querySelector('.step-body').classList.add('open');
+      const errEl = document.createElement('div');
+      errEl.innerHTML = `<div class="code-block response-err">${err.message}</div>`;
+      card.querySelector('.step-body').appendChild(errEl);
+      break;
+    }
+
+    await sleep(300);
+  }
+
+  running = false;
+  document.getElementById('runBtn').disabled = false;
+}
+
+function resetDemo() {
+  if (running) return;
+  state.portalJwt = null;
+  state.segmentId = null;
+  state.campaignId = null;
+  state.templateId = null;
+  state.runId = Date.now().toString(36);
+  renderUI();
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('progressLabel').textContent = 'Ready';
+  document.querySelectorAll('.pipe-node').forEach(n => n.className = 'pipe-node');
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+renderUI();
+</script>
+</body>
+</html>
