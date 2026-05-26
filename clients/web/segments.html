@@ -622,7 +622,7 @@
         });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
-        authToken = data.access_token || data.token;
+        authToken = data?.data?.token;
         if (!authToken) throw new Error('No token in response');
         setAuthStatus('ok');
       } catch (err) {
