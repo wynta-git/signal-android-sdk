@@ -113,7 +113,7 @@ StartLimitBurst=5
 Type=simple
 User=$APP_USER
 WorkingDirectory=$SERVICE_DIR
-Environment="PYTHONPATH=$SERVICE_DIR:$REPO/shared/src:$REPO"
+Environment="PYTHONPATH=$SERVICE_DIR:$REPO"
 ExecStart=$VENV/bin/python -m app.main
 Restart=on-failure
 RestartSec=5
