@@ -107,19 +107,45 @@
       min-height: 0;
     }
 
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      padding: 10px 18px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: none;
+      background: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      font-family: inherit;
+      transition: all 0.12s;
+    }
+
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    /* ── Tab content ── */
+    .tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; min-height: 0; }
+    .tab-content.active { display: flex; }
+
     .builder-scroll {
       flex: 1;
       overflow-y: auto;
       min-height: 0;
       padding: 16px;
-    }
-
-    .builder-scroll .card {
-      margin-bottom: 14px;
-    }
-
-    .builder-scroll .card:last-child {
-      margin-bottom: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
     }
 
     /* ── Section cards ── */
@@ -128,6 +154,7 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
+      flex-shrink: 0;
     }
 
     .card-head {
@@ -141,6 +168,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px;
     }
 
     .card-body { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -239,7 +267,7 @@
 
     .filter-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 
-    /* ── Where conditions (property filters inside an event filter) ── */
+    /* ── Where conditions ── */
     .where-section {
       border: 1px solid var(--border);
       border-radius: 5px;
@@ -305,7 +333,30 @@
 
     .btn-add:hover { border-color: var(--blue); }
 
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover { opacity: 0.85; }
+
+    .btn-del {
+      background: none;
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .btn-del:hover { background: #fee2e2; }
+
     .add-filter-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Action row ── */
+    .action-row {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
@@ -338,6 +389,75 @@
     .send-btn:hover:not(:disabled) { opacity: 0.85; }
     .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+    /* ── Segment list ── */
+    .segment-row {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .segment-row:last-child { border-bottom: none; }
+    .segment-row:hover { background: var(--bg); }
+
+    .segment-name { font-size: 13px; font-weight: 600; }
+    .segment-id-label { font-size: 10px; color: var(--text-dim); font-family: var(--mono); margin-top: 2px; }
+
+    .list-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .refresh-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: all 0.12s;
+      font-family: inherit;
+    }
+
+    .refresh-btn:hover { background: var(--surface2); color: var(--text); }
+
+    /* ── Method badges ── */
+    .method-badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: var(--mono);
+      letter-spacing: 0.3px;
+      flex-shrink: 0;
+    }
+
+    .m-get    { background: #dcfce7; color: var(--green); }
+    .m-post   { background: #dbeafe; color: var(--blue); }
+    .m-put    { background: #ede9fe; color: var(--purple); }
+    .m-delete { background: #fee2e2; color: var(--red); }
+
+    /* ── Chips ── */
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-family: var(--mono);
+      white-space: nowrap;
+    }
+
+    .chip-on_event  { background: #dcfce7; color: var(--green); }
+    .chip-scheduled { background: #dbeafe; color: var(--blue); }
+    .chip-one_time  { background: #f1f5f9; color: #64748b; }
+
+    /* ── Status badges ── */
     .status-badge {
       display: inline-flex;
       align-items: center;
@@ -409,6 +529,9 @@
       color: var(--text-dim);
       background: var(--surface);
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
     .response-section {
@@ -438,6 +561,16 @@
       padding: 6px 10px;
       background: #fee2e2;
       border-radius: 4px;
+    }
+
+    .path-hint {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-weight: 400;
+      letter-spacing: 0;
+      text-transform: none;
+      margin-left: 4px;
     }
   </style>
 </head>
@@ -479,87 +612,260 @@
 
     <!-- Builder pane -->
     <div class="builder">
-      <div class="builder-scroll">
 
-        <!-- Segment metadata -->
-        <div class="card">
-          <div class="card-head">Segment Metadata</div>
-          <div class="card-body">
-            <div class="form-row">
-              <label>Segment ID</label>
-              <input class="field grow" id="seg-id" placeholder="seg_active_buyers"
-                     oninput="renderPreview()">
-            </div>
-            <div class="form-row">
-              <label>Name</label>
-              <input class="field grow" id="seg-name" placeholder="Active buyers (30d)"
-                     oninput="renderPreview()">
-            </div>
-            <div class="form-row">
-              <label>Refresh</label>
-              <select class="field med" id="seg-refresh" onchange="onRefreshChange()">
-                <option value="on_event">on_event (real-time)</option>
-                <option value="scheduled">scheduled (cron)</option>
-              </select>
-              <input class="field grow" id="seg-cron" placeholder="0 */6 * * *"
-                     style="display:none" oninput="renderPreview()">
-            </div>
-          </div>
-        </div>
-
-        <!-- Match mode + filters -->
-        <div class="card">
-          <div class="card-head">
-            <span>Filters</span>
-            <div class="match-toggle">
-              <span class="text-dim" style="padding-right:4px; line-height:26px">Match:</span>
-              <button class="match-btn active" id="match-all" onclick="setMatch('all')">ALL</button>
-              <button class="match-btn" id="match-any" onclick="setMatch('any')">ANY</button>
-            </div>
-          </div>
-          <div class="card-body">
-
-            <div id="filters-container">
-              <!-- filter cards injected here -->
-            </div>
-
-            <div id="validation-err" class="validation-err" style="display:none"></div>
-
-            <!-- Add filter buttons -->
-            <div class="add-filter-row">
-              <button class="btn btn-add" onclick="addFilter('event')">+ Event filter</button>
-              <button class="btn btn-add" onclick="addFilter('trait')">+ Trait filter</button>
-              <button class="btn btn-add" onclick="addFilter('did_not_do')">+ Did NOT do</button>
-              <button class="btn btn-add" onclick="addFilter('in_segment')">+ In segment</button>
-            </div>
-
-          </div>
-        </div>
-
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" id="tab-builder" onclick="switchTab('builder')">Builder</button>
+        <button class="tab-btn" id="tab-segments" onclick="switchTab('segments')">Segments</button>
+        <button class="tab-btn" id="tab-meta" onclick="switchTab('meta')">Meta</button>
       </div>
 
-      <!-- Send bar -->
-      <div class="send-bar">
-        <button class="send-btn" id="send-btn" onclick="createSegment()">Create Segment</button>
-        <span id="res-meta"></span>
-        <span class="elapsed" id="res-elapsed"></span>
+      <!-- ── Builder tab ── -->
+      <div class="tab-content active" id="content-builder">
+        <div class="builder-scroll">
+
+          <!-- Segment metadata -->
+          <div class="card">
+            <div class="card-head">Segment Metadata</div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Segment ID</label>
+                <input class="field grow" id="seg-id" placeholder="seg_active_buyers"
+                       oninput="renderPreview()">
+              </div>
+              <div class="form-row">
+                <label>Name</label>
+                <input class="field grow" id="seg-name" placeholder="Active buyers (30d)"
+                       oninput="renderPreview()">
+              </div>
+              <div class="form-row">
+                <label>Refresh</label>
+                <select class="field med" id="seg-refresh" onchange="onRefreshChange()">
+                  <option value="on_event">on_event (real-time)</option>
+                  <option value="scheduled">scheduled (cron)</option>
+                </select>
+                <input class="field grow" id="seg-cron" placeholder="0 */6 * * *"
+                       style="display:none" oninput="renderPreview()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Match mode + filters -->
+          <div class="card">
+            <div class="card-head">
+              <span>Filters</span>
+              <div class="match-toggle">
+                <span class="text-dim" style="padding-right:4px; line-height:26px">Match:</span>
+                <button class="match-btn active" id="match-all" onclick="setMatch('all')">ALL</button>
+                <button class="match-btn" id="match-any" onclick="setMatch('any')">ANY</button>
+              </div>
+            </div>
+            <div class="card-body">
+
+              <div id="filters-container">
+                <!-- filter cards injected here -->
+              </div>
+
+              <div id="validation-err" class="validation-err" style="display:none"></div>
+
+              <div class="add-filter-row">
+                <button class="btn btn-add" onclick="addFilter('event')">+ Event filter</button>
+                <button class="btn btn-add" onclick="addFilter('trait')">+ Trait filter</button>
+                <button class="btn btn-add" onclick="addFilter('did_not_do')">+ Did NOT do</button>
+                <button class="btn btn-add" onclick="addFilter('in_segment')">+ In segment</button>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+
+        <div class="send-bar">
+          <button class="send-btn" id="send-btn" onclick="createSegment()">Create Segment</button>
+        </div>
       </div>
+
+      <!-- ── Segments tab ── -->
+      <div class="tab-content" id="content-segments">
+        <div class="builder-scroll">
+
+          <!-- Segment ID + quick actions -->
+          <div class="card">
+            <div class="card-head">
+              <span>Segment ID</span>
+              <span class="path-hint">used by all operations below</span>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <input class="field grow" id="op-seg-id" placeholder="seg_active_buyers"
+                       style="font-family:var(--mono)">
+              </div>
+              <div class="action-row">
+                <button class="btn btn-primary" onclick="apiGetSegment()">
+                  <span class="method-badge m-get" style="margin-right:5px">GET</span>Get
+                </button>
+                <button class="btn btn-primary" onclick="apiEvaluate()">
+                  <span class="method-badge m-post" style="margin-right:5px">POST</span>Evaluate
+                </button>
+                <button class="btn btn-del" onclick="apiDeleteSegment()">
+                  <span class="method-badge m-delete" style="margin-right:5px">DEL</span>Delete
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- List all segments -->
+          <div class="card">
+            <div class="card-head">
+              <span><span class="method-badge m-get" style="margin-right:6px">GET</span>All Segments</span>
+              <button class="refresh-btn" onclick="apiListSegments()" title="Fetch">↻ List</button>
+            </div>
+            <div id="segment-list">
+              <div class="list-empty">Click ↻ List to load.</div>
+            </div>
+          </div>
+
+          <!-- Members -->
+          <div class="card">
+            <div class="card-head">
+              <span><span class="method-badge m-get" style="margin-right:6px">GET</span>Members</span>
+              <span class="path-hint">/{segment_id}/members</span>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Limit</label>
+                <input class="field small" type="number" id="members-limit" value="100" min="1" max="1000">
+                <label style="min-width:auto">Cursor</label>
+                <input class="field grow" id="members-cursor" placeholder="optional — pagination token">
+              </div>
+              <button class="btn btn-primary" onclick="apiListMembers()">List Members</button>
+            </div>
+          </div>
+
+          <!-- Check membership -->
+          <div class="card">
+            <div class="card-head">
+              <span><span class="method-badge m-get" style="margin-right:6px">GET</span>Check Membership</span>
+              <span class="path-hint">/{segment_id}/members/{user_id}</span>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>User ID</label>
+                <input class="field grow" id="membership-user-id" placeholder="user_abc123"
+                       style="font-family:var(--mono)">
+              </div>
+              <button class="btn btn-primary" onclick="apiCheckMembership()">Check</button>
+            </div>
+          </div>
+
+          <!-- Update segment -->
+          <div class="card">
+            <div class="card-head">
+              <span><span class="method-badge m-put" style="margin-right:6px">PUT</span>Update Segment</span>
+              <span class="path-hint">/{segment_id}</span>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>New name</label>
+                <input class="field grow" id="update-name" placeholder="optional">
+              </div>
+              <div class="form-row">
+                <label>Refresh</label>
+                <select class="field med" id="update-refresh">
+                  <option value="">— unchanged —</option>
+                  <option value="on_event">on_event</option>
+                  <option value="scheduled">scheduled</option>
+                  <option value="one_time">one_time</option>
+                </select>
+                <input class="field grow" id="update-cron" placeholder="cron (if scheduled)"
+                       style="display:none">
+              </div>
+              <button class="btn btn-primary" onclick="apiUpdateSegment()">Update</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Meta tab ── -->
+      <div class="tab-content" id="content-meta">
+        <div class="builder-scroll">
+
+          <div class="card">
+            <div class="card-head">
+              <span><span class="method-badge m-get" style="margin-right:6px">GET</span>Events</span>
+              <span class="path-hint">/meta/events</span>
+            </div>
+            <div class="card-body">
+              <div class="text-dim">Returns all event names tracked for the project.</div>
+              <button class="btn btn-primary" onclick="apiMetaEvents()">List Events</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span><span class="method-badge m-get" style="margin-right:6px">GET</span>Event Properties</span>
+              <span class="path-hint">/meta/events/{name}/properties</span>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Event name</label>
+                <input class="field grow" id="meta-event-name" placeholder="page_viewed"
+                       style="font-family:var(--mono)">
+              </div>
+              <button class="btn btn-primary" onclick="apiMetaProperties()">Get Properties</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span><span class="method-badge m-get" style="margin-right:6px">GET</span>Traits</span>
+              <span class="path-hint">/meta/traits</span>
+            </div>
+            <div class="card-body">
+              <div class="text-dim">Returns all user trait keys for the project.</div>
+              <button class="btn btn-primary" onclick="apiMetaTraits()">List Traits</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <span><span class="method-badge m-get" style="margin-right:6px">GET</span>Operators</span>
+              <span class="path-hint">/meta/operators</span>
+            </div>
+            <div class="card-body">
+              <div class="text-dim">Returns all supported filter operators.</div>
+              <button class="btn btn-primary" onclick="apiMetaOperators()">List Operators</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
 
     <!-- Preview pane -->
     <div class="preview">
       <div class="preview-head">
-        <span>DSL Preview — POST /segments</span>
+        <span id="preview-title">DSL Preview — POST /api/v1/segments</span>
         <span class="text-dim" id="filter-count">0 filters</span>
       </div>
       <div class="preview-scroll">
-        <div class="preview-section" id="dsl-preview">
-          <span style="color:var(--text-dim)">Add filters to see the DSL.</span>
+        <div id="dsl-section">
+          <div class="preview-section" id="dsl-preview">
+            <span style="color:var(--text-dim)">Add filters to see the DSL.</span>
+          </div>
+          <hr class="divider">
         </div>
-        <hr class="divider">
-        <div class="preview-label">Response</div>
+        <div class="preview-label">
+          <span>Response</span>
+          <div style="display:flex; align-items:center; gap:8px">
+            <span id="res-meta"></span>
+            <span class="elapsed" id="res-elapsed"></span>
+          </div>
+        </div>
         <div class="response-section" id="res-body">
-          <span style="color:var(--text-dim)">Hit Create Segment to see the response.</span>
+          <span style="color:var(--text-dim)">Response appears here.</span>
         </div>
       </div>
     </div>
@@ -568,14 +874,15 @@
 
   <script>
     // ── State ────────────────────────────────────────────────
-    let matchMode = 'all';
-    let filters   = [];   // array of filter objects {id, type, ...}
-    let nextId    = 1;
+    let activeTab  = 'builder';
+    let matchMode  = 'all';
+    let filters    = [];
+    let nextId     = 1;
 
     const OPERATORS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'not_in', 'contains', 'starts_with', 'exists'];
     const TRAIT_OPS = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'starts_with', 'exists'];
 
-    // ── Meta cache (event names + per-event properties from API) ─
+    // ── Meta cache ───────────────────────────────────────────
     const meta = {
       events:        [],
       props:         {},
@@ -588,6 +895,7 @@
     function baseUrl()    { return document.getElementById('cfg-url').value.replace(/\/$/, ''); }
     function projectId()  { return document.getElementById('cfg-project').value.trim(); }
     function authUrl()    { return document.getElementById('cfg-auth-url').value.replace(/\/$/, ''); }
+    function segId()      { return document.getElementById('op-seg-id').value.trim(); }
 
     // ── Auth ─────────────────────────────────────────────────
     let authToken = null;
@@ -639,6 +947,69 @@
       });
     }
 
+    // ── Tab switching ─────────────────────────────────────────
+    function switchTab(tab) {
+      activeTab = tab;
+      ['builder', 'segments', 'meta'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`content-${t}`).classList.toggle('active', t === tab);
+      });
+
+      const dslSection = document.getElementById('dsl-section');
+      if (tab === 'builder') {
+        dslSection.style.display = '';
+        document.getElementById('preview-title').textContent = 'DSL Preview — POST /api/v1/segments';
+        renderPreview();
+      } else {
+        dslSection.style.display = 'none';
+        document.getElementById('preview-title').textContent = 'Response';
+        document.getElementById('filter-count').textContent = '';
+      }
+    }
+
+    // ── Shared API call helper ────────────────────────────────
+    async function apiCall(method, url, body) {
+      const shortPath = url.replace(baseUrl(), '');
+      document.getElementById('preview-title').textContent = `${method} ${shortPath}`;
+      document.getElementById('filter-count').textContent = '';
+      document.getElementById('res-body').innerHTML = '<span style="color:var(--text-dim)">Loading…</span>';
+      document.getElementById('res-meta').innerHTML = '';
+      document.getElementById('res-elapsed').textContent = '';
+
+      const t0 = performance.now();
+      try {
+        const opts = {
+          method,
+          headers: {
+            ...authHeaders(),
+            ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          },
+          ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        };
+        const res = await fetch(url, opts);
+        const ms = Math.round(performance.now() - t0);
+
+        let data = null;
+        try { data = await res.json(); } catch (_) {}
+
+        const cls = res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx';
+        document.getElementById('res-meta').innerHTML =
+          `<span class="status-badge ${cls}">${res.status} ${res.statusText}</span>`;
+        document.getElementById('res-elapsed').textContent = `${ms}ms`;
+        document.getElementById('res-body').innerHTML = data !== null
+          ? highlight(JSON.stringify(data, null, 2))
+          : `<span style="color:var(--text-dim)">(empty${res.status === 204 ? ' — 204 No Content' : ''})</span>`;
+
+        return { ok: res.ok, status: res.status, data };
+      } catch (err) {
+        document.getElementById('res-meta').innerHTML =
+          `<span class="status-badge s4xx">Network Error</span>`;
+        document.getElementById('res-body').textContent = String(err);
+        return { ok: false, error: err };
+      }
+    }
+
+    // ── Background meta fetchers (used by filter builder) ────
     async function fetchEventNames() {
       meta.loadingEvents = true;
       renderFilters();
@@ -657,7 +1028,7 @@
 
     async function fetchProperties(eventName) {
       if (!eventName || meta.props[eventName] !== undefined) return;
-      meta.props[eventName] = [];   // prevent duplicate fetches
+      meta.props[eventName] = [];
       meta.loadingProps.add(eventName);
       renderFilters();
       try {
@@ -720,7 +1091,7 @@
       renderPreview();
     }
 
-    // ── Add filter ───────────────────────────────────────────
+    // ── Add / remove filters ─────────────────────────────────
     function addFilter(type) {
       const id = nextId++;
       const f = { id, type };
@@ -729,9 +1100,9 @@
         f.time_window = 30;
       }
       if (type === 'event') {
-        f.freq_op   = 'gte';
+        f.freq_op    = 'gte';
         f.freq_count = 1;
-        f.where_conditions = [];  // [{field, op, value}]
+        f.where_conditions = [];
       }
       if (type === 'trait') {
         f.trait = '';
@@ -752,7 +1123,7 @@
       renderPreview();
     }
 
-    // ── Where conditions (inside event filter) ───────────────
+    // ── Where conditions ─────────────────────────────────────
     function addWhere(filterId) {
       const f = filters.find(f => f.id === filterId);
       if (!f) return;
@@ -773,13 +1144,13 @@
       syncFiltersFromDom();
       const f = filters.find(f => f.id === filterId);
       if (!f) return;
-      f.where_conditions = [];   // reset property conditions when event changes
+      f.where_conditions = [];
       fetchProperties(f.event_name);
       renderFilters();
       renderPreview();
     }
 
-    // ── Read DOM → update filter state ───────────────────────
+    // ── Sync DOM → filter state ───────────────────────────────
     function syncFiltersFromDom() {
       filters.forEach(f => {
         if (f.type === 'event') {
@@ -813,7 +1184,7 @@
       return el ? el.value : '';
     }
 
-    // ── Render filter cards ──────────────────────────────────
+    // ── Render filter cards ───────────────────────────────────
     function renderFilters() {
       const container = document.getElementById('filters-container');
       if (filters.length === 0) {
@@ -824,7 +1195,7 @@
     }
 
     function renderFilterCard(f, idx) {
-      const typeLabels = { event: 'EVENT', trait: 'TRAIT', did_not_do: 'DID NOT DO', in_segment: 'IN SEGMENT' };
+      const typeLabels  = { event: 'EVENT', trait: 'TRAIT', did_not_do: 'DID NOT DO', in_segment: 'IN SEGMENT' };
       const typeClasses = { event: 'type-event', trait: 'type-trait', did_not_do: 'type-did-not', in_segment: 'type-segment' };
 
       let body = '';
@@ -997,7 +1368,7 @@
       `;
     }
 
-    // ── Build DSL from state ──────────────────────────────────
+    // ── Build DSL ─────────────────────────────────────────────
     function buildDSL() {
       const filters_dsl = filters.map(f => {
         if (f.type === 'event') {
@@ -1059,7 +1430,7 @@
       return v;
     }
 
-    // ── Validate DSL ─────────────────────────────────────────
+    // ── Validate DSL ──────────────────────────────────────────
     function validate(dsl) {
       const errs = [];
       if (!dsl.segment_id.match(/^seg_[a-z0-9_]+$/)) errs.push('segment_id must match seg_[a-z0-9_]+');
@@ -1076,8 +1447,9 @@
       return errs;
     }
 
-    // ── Render DSL preview ───────────────────────────────────
+    // ── Render DSL preview ────────────────────────────────────
     function renderPreview() {
+      if (activeTab !== 'builder') return;
       syncFiltersFromDom();
       const dsl = buildDSL();
       const json = JSON.stringify(dsl, null, 2);
@@ -1097,7 +1469,7 @@
 
     function onFieldChange() { renderPreview(); }
 
-    // ── Create segment ───────────────────────────────────────
+    // ── Builder tab: Create Segment ───────────────────────────
     async function createSegment() {
       syncFiltersFromDom();
       const dsl  = buildDSL();
@@ -1109,45 +1481,115 @@
         return;
       }
 
-      const base = document.getElementById('cfg-url').value.replace(/\/$/, '');
-
       const btn = document.getElementById('send-btn');
       btn.disabled = true;
       btn.textContent = 'Creating…';
 
-      const t0 = performance.now();
       try {
-        const res = await fetch(`${base}/api/v1/segments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify(dsl),
-        });
-
-        const ms = Math.round(performance.now() - t0);
-        let data = null;
-        try { data = await res.json(); } catch (_) {}
-
-        const cls = res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx';
-        document.getElementById('res-meta').innerHTML =
-          `<span class="status-badge ${cls}">${res.status} ${res.statusText}</span>`;
-        document.getElementById('res-elapsed').textContent = `${ms}ms`;
-        document.getElementById('res-body').innerHTML = data !== null
-          ? highlight(JSON.stringify(data, null, 2))
-          : '<span style="color:var(--text-dim)">(empty body)</span>';
-
-      } catch (err) {
-        document.getElementById('res-meta').innerHTML =
-          `<span class="status-badge s4xx">Network Error</span>`;
-        document.getElementById('res-elapsed').textContent = '';
-        document.getElementById('res-body').textContent =
-          String(err) + '\n\nIs segmentation-engine running on port 8003?';
+        const result = await apiCall('POST', `${baseUrl()}/api/v1/segments`, dsl);
+        if (result.ok && result.data?.segment_id) {
+          document.getElementById('op-seg-id').value = result.data.segment_id;
+        }
       } finally {
         btn.disabled = false;
         btn.textContent = 'Create Segment';
       }
     }
 
-    // ── JSON highlight ───────────────────────────────────────
+    // ── Segments tab: API calls ───────────────────────────────
+    async function apiListSegments() {
+      const result = await apiCall('GET', `${baseUrl()}/api/v1/segments`);
+      if (result.ok && Array.isArray(result.data)) renderSegmentList(result.data);
+    }
+
+    async function apiGetSegment() {
+      if (!segId()) { alert('Enter a Segment ID first.'); return; }
+      await apiCall('GET', `${baseUrl()}/api/v1/segments/${encodeURIComponent(segId())}`);
+    }
+
+    async function apiDeleteSegment() {
+      if (!segId()) { alert('Enter a Segment ID first.'); return; }
+      if (!confirm(`Delete segment "${segId()}"? This cannot be undone.`)) return;
+      await apiCall('DELETE', `${baseUrl()}/api/v1/segments/${encodeURIComponent(segId())}`);
+    }
+
+    async function apiEvaluate() {
+      if (!segId()) { alert('Enter a Segment ID first.'); return; }
+      await apiCall('POST', `${baseUrl()}/api/v1/segments/${encodeURIComponent(segId())}/evaluate`);
+    }
+
+    async function apiListMembers() {
+      if (!segId()) { alert('Enter a Segment ID first.'); return; }
+      const limit  = document.getElementById('members-limit').value || 100;
+      const cursor = document.getElementById('members-cursor').value.trim();
+      let url = `${baseUrl()}/api/v1/segments/${encodeURIComponent(segId())}/members?limit=${limit}`;
+      if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+      await apiCall('GET', url);
+    }
+
+    async function apiCheckMembership() {
+      if (!segId()) { alert('Enter a Segment ID first.'); return; }
+      const userId = document.getElementById('membership-user-id').value.trim();
+      if (!userId) { alert('Enter a User ID.'); return; }
+      await apiCall('GET',
+        `${baseUrl()}/api/v1/segments/${encodeURIComponent(segId())}/members/${encodeURIComponent(userId)}`);
+    }
+
+    async function apiUpdateSegment() {
+      if (!segId()) { alert('Enter a Segment ID first.'); return; }
+      const body = {};
+      const name    = document.getElementById('update-name').value.trim();
+      const refresh = document.getElementById('update-refresh').value;
+      if (name)    body.name = name;
+      if (refresh) body.refresh_strategy = refresh;
+      if (!Object.keys(body).length) { alert('Nothing to update — fill in at least one field.'); return; }
+      await apiCall('PUT', `${baseUrl()}/api/v1/segments/${encodeURIComponent(segId())}`, body);
+    }
+
+    function renderSegmentList(segments) {
+      const el = document.getElementById('segment-list');
+      if (!segments.length) {
+        el.innerHTML = '<div class="list-empty">No segments found.</div>';
+        return;
+      }
+      el.innerHTML = segments.map(s => `
+        <div class="segment-row" onclick="selectSegment('${esc(s.segment_id)}')">
+          <div style="flex:1; min-width:0">
+            <div class="segment-name">${esc(s.name || s.segment_id)}</div>
+            <div class="segment-id-label">${esc(s.segment_id)}</div>
+          </div>
+          <span class="chip chip-${esc(s.refresh_strategy || 'on_event')}">${esc(s.refresh_strategy || '')}</span>
+        </div>
+      `).join('');
+    }
+
+    function selectSegment(id) {
+      document.getElementById('op-seg-id').value = id;
+    }
+
+    // ── Meta tab: API calls ───────────────────────────────────
+    async function apiMetaEvents() {
+      await apiCall('GET',
+        `${baseUrl()}/api/v1/segments/meta/events?project_id=${encodeURIComponent(projectId())}`);
+    }
+
+    async function apiMetaProperties() {
+      const name = document.getElementById('meta-event-name').value.trim();
+      if (!name) { alert('Enter an event name.'); return; }
+      await apiCall('GET',
+        `${baseUrl()}/api/v1/segments/meta/events/${encodeURIComponent(name)}/properties?project_id=${encodeURIComponent(projectId())}`);
+    }
+
+    async function apiMetaTraits() {
+      await apiCall('GET',
+        `${baseUrl()}/api/v1/segments/meta/traits?project_id=${encodeURIComponent(projectId())}`);
+    }
+
+    async function apiMetaOperators() {
+      await apiCall('GET', `${baseUrl()}/api/v1/segments/meta/operators`);
+    }
+
+    // ── JSON highlight ────────────────────────────────────────
     function highlight(json) {
       return escHtml(json).replace(
         /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
@@ -1163,7 +1605,7 @@
       );
     }
 
-    function esc(s) { return String(s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+    function esc(s) { return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
     function escHtml(s) {
       return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
