@@ -16,6 +16,7 @@ Database: `pam`
 | `campaign_runs` | campaign-engine | notifications-engine | Each execution of a campaign. |
 | `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook templates. |
 | `notification_deliveries` | notifications-engine | analytics | Per-user, per-campaign delivery status. |
+| `device_tokens` | api-service | notifications-engine | Push device tokens (FCM/APNs) per user. |
 
 ## Schemas
 
@@ -133,22 +134,38 @@ Database: `pam`
 ```js
 {
   _id: ObjectId,
+  send_id: "...",               // from pam.campaigns.send.v1; combined with token_hash for dedup
+  token_hash: "...",            // sha256 of device token (push) or "" for other channels
   project_id: "proj_abc123",
   campaign_id: "camp_xyz",
-  campaign_run_id: ObjectId,
+  campaign_run_id: "...",
   user_id: "user_42",
   channel: "push",
-  status: "queued" | "sent" | "failed" | "opened" | "clicked",
-  provider: "fcm",
+  status: "sent" | "failed" | "suppressed",
+  provider: "fcm_stub" | "apns_stub",
   provider_msg_id: "...",
   attempted_at: ISODate,
-  finalized_at: ISODate,
-  error: null | { code, message }
+  error: null | { code: str, message: str }
 }
 // Indexes:
 //   { project_id: 1, campaign_id: 1, user_id: 1 }
 //   { project_id: 1, status: 1, attempted_at: -1 }
+//   { send_id: 1, token_hash: 1 } unique  ← idempotency key
 //   TTL on attempted_at after 90 days
+```
+
+### `device_tokens`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  user_id: "user_42",
+  token: "<FCM registration token or APNs device token>",
+  platform: "android" | "ios" | "web",
+  created_at: ISODate
+}
+// Indexes: { project_id: 1, user_id: 1 }  (non-unique — one user, many tokens)
+// Owner: api-service (SDK registers tokens). Read by: notifications-engine.
 ```
 
 ### `col_maps`
