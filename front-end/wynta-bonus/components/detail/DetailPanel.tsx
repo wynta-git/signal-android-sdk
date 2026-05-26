@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { fetchHead, selectHeadsStatus } from '../../store/slices/headsSlice';
 import { openDrawer, openHistoryDrawer } from '../../store/slices/uiSlice';
@@ -26,7 +26,10 @@ interface DetailPanelProps {
 
 export default function DetailPanel({ onAction }: DetailPanelProps) {
   const dispatch = useAppDispatch();
+  const [mounted, setMounted] = useState(false);
   const selectedNode = useAppSelector(s => s.tree.selectedNode);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Fetch full head detail (owners + subheads + budget) whenever selection changes
   useEffect(() => {
@@ -49,6 +52,7 @@ export default function DetailPanel({ onAction }: DetailPanelProps) {
     }
   });
 
+  if (!mounted) return <EmptyState/>;
   if (!selectedNode) return <EmptyState/>;
 
   if (selectedNode.type === 'head') {

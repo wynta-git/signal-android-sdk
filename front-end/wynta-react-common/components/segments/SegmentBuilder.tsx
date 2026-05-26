@@ -1,18 +1,18 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import Icon from '../Icon';
 import RuleEditor from './RuleEditor';
 import { useCommonSelector } from '../../store/hooks';
-import { fetchMetaTraits, fetchMetaEvents, fetchMetaOperators, selectMetaTraits, selectMetaEvents, selectMetaOperators } from '../../store/slices/segmentsSlice';
-import type { MetaOperators } from '../../services/segmentApi';
+import {
+  fetchMetaTraits, fetchMetaEvents, fetchMetaOperators,
+  selectMetaTraits, selectMetaEvents, selectMetaOperators,
+} from '../../store/slices/segmentsSlice';
 import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
 import type { SegmentRule, SegmentField } from '../../types';
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
-// Map a trait/event name to a SegmentField.
-// Uses SEGMENT_FIELDS for known fields (preserves type/options), otherwise defaults to 'text'.
 function buildFields(traits: string[], events: string[]): SegmentField[] {
   const knownMap = Object.fromEntries(SEGMENT_FIELDS.map(f => [f.id, f]));
   const traitFields: SegmentField[] = traits.map(t =>
@@ -32,19 +32,24 @@ interface RuleWithMeta extends SegmentRule {
   value2?: string;
 }
 
+type PickerMode = 'trait' | 'event' | null;
+
 interface SegmentBuilderProps {
   onCancel: () => void;
   onSave: (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) => void;
 }
 
 export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps) {
-  const [name, setName] = useState('');
+  const [name, setName]               = useState('');
   const [description, setDescription] = useState('');
-  const [combinator, setCombinator] = useState<'AND' | 'OR'>('AND');
-  const [rules, setRules] = useState<RuleWithMeta[]>([]);
-  const [nextId, setNextId] = useState(1);
+  const [combinator, setCombinator]   = useState<'AND' | 'OR'>('AND');
+  const [rules, setRules]             = useState<RuleWithMeta[]>([]);
+  const [nextId, setNextId]           = useState(1);
+  const [pickerMode, setPickerMode]   = useState<PickerMode>(null);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const pickerRef = useRef<HTMLDivElement>(null);
 
-  const dispatch = useDispatch();
+  const dispatch      = useDispatch();
   const metaTraits    = useCommonSelector(selectMetaTraits);
   const metaEvents    = useCommonSelector(selectMetaEvents);
   const metaOperators = useCommonSelector(selectMetaOperators);
@@ -55,6 +60,19 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
     dispatch(fetchMetaOperators() as any);
   }, [dispatch]);
 
+  // Close picker on outside click
+  useEffect(() => {
+    if (!pickerMode) return;
+    const onDown = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerMode(null);
+        setPickerSearch('');
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [pickerMode]);
+
   const fields = useMemo(
     () => metaTraits.length > 0 || metaEvents.length > 0
       ? buildFields(metaTraits, metaEvents)
@@ -62,15 +80,41 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
     [metaTraits, metaEvents]
   );
 
+  const pickerItems = useMemo(() => {
+    const items = pickerMode === 'event' ? metaEvents : metaTraits;
+    const q = pickerSearch.trim().toLowerCase();
+    return q ? items.filter(i => i.toLowerCase().includes(q)) : items;
+  }, [pickerMode, pickerSearch, metaTraits, metaEvents]);
+
+  const togglePicker = (mode: 'trait' | 'event') => {
+    setPickerMode(prev => (prev === mode ? null : mode));
+    setPickerSearch('');
+  };
+
+  const handlePickerSelect = (item: string) => {
+    const opsMap = OPS as Record<string, { id: string; label: string }[]>;
+    let fieldId: string;
+    let firstOp: string;
+
+    if (pickerMode === 'event') {
+      fieldId = `event:${item}`;
+      firstOp = (opsMap['event'] ?? [{ id: 'gte', label: '≥' }])[0]?.id ?? 'gte';
+    } else {
+      fieldId = item;
+      const knownField = (SEGMENT_FIELDS as SegmentField[]).find(f => f.id === item);
+      const fieldType  = knownField?.type ?? 'text';
+      firstOp = (opsMap[fieldType] ?? opsMap['text'] ?? [{ id: 'eq', label: 'is' }])[0]?.id ?? 'eq';
+    }
+
+    setRules(rs => [...rs, { id: nextId, field: fieldId, op: firstOp, value: '' }]);
+    setNextId(n => n + 1);
+    setPickerMode(null);
+    setPickerSearch('');
+  };
+
   const updateRule = (id: number, patch: Partial<RuleWithMeta>) =>
     setRules(rs => rs.map(r => r.id === id ? { ...r, ...patch } : r));
   const removeRule = (id: number) => setRules(rs => rs.filter(r => r.id !== id));
-  const addRule = () => {
-    const first = fields[0];
-    const firstOp = (OPS[first?.type ?? 'text'] ?? OPS['enum'])[0]?.id ?? 'IS';
-    setRules(rs => [...rs, { id: nextId, field: first?.id ?? '', op: firstOp, value: '' }]);
-    setNextId(n => n + 1);
-  };
 
   const estimate = useMemo(() => {
     if (rules.length === 0) return 0;
@@ -118,7 +162,7 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
 
           <div className="builder-rules">
             {rules.length === 0 && (
-              <div className="builder-empty">No filters yet — add one to narrow the audience.</div>
+              <div className="builder-empty">No filters yet — click <strong>Add Trait</strong> or <strong>Add Event</strong> below.</div>
             )}
             {rules.map((r, i) => (
               <div key={r.id}>
@@ -128,9 +172,65 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
             ))}
           </div>
 
-          <button className="builder-add" type="button" onClick={addRule}>
-            <Icon name="plus" size={12}/> Add filter
-          </button>
+          {/* Add Trait / Add Event buttons with picker */}
+          <div className="builder-add-row" ref={pickerRef}>
+            <button
+              className={'builder-add' + (pickerMode === 'trait' ? ' active' : '')}
+              type="button"
+              onClick={() => togglePicker('trait')}
+            >
+              <Icon name="tag" size={12}/>
+              Add Trait
+              {metaTraits.length > 0 && <span className="builder-add-count">{metaTraits.length}</span>}
+            </button>
+
+            <button
+              className={'builder-add' + (pickerMode === 'event' ? ' active' : '')}
+              type="button"
+              onClick={() => togglePicker('event')}
+            >
+              <Icon name="zap" size={12}/>
+              Add Event
+              {metaEvents.length > 0 && <span className="builder-add-count">{metaEvents.length}</span>}
+            </button>
+
+            {pickerMode && (
+              <div className="builder-picker">
+                <div className="builder-picker-header">
+                  <Icon name={pickerMode === 'event' ? 'zap' : 'tag'} size={12} color="var(--blue)"/>
+                  <span>{pickerMode === 'event' ? 'Events' : 'Traits'}</span>
+                </div>
+                <div className="builder-picker-search">
+                  <Icon name="search" size={12} color="var(--g400)"/>
+                  <input
+                    autoFocus
+                    placeholder={`Search ${pickerMode}s…`}
+                    value={pickerSearch}
+                    onChange={e => setPickerSearch(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Escape') { setPickerMode(null); setPickerSearch(''); } }}
+                  />
+                </div>
+                <div className="builder-picker-list">
+                  {pickerItems.length === 0 ? (
+                    <div className="builder-picker-empty">
+                      {pickerSearch ? `No ${pickerMode}s match "${pickerSearch}"` : `No ${pickerMode}s available`}
+                    </div>
+                  ) : pickerItems.map(item => (
+                    <button
+                      key={item}
+                      className="builder-picker-item"
+                      type="button"
+                      onClick={() => handlePickerSelect(item)}
+                    >
+                      <Icon name={pickerMode === 'event' ? 'zap' : 'tag'} size={11} color="var(--g400)"/>
+                      <span>{item.replace(/_/g, ' ')}</span>
+                      <span className="builder-picker-item-raw">{item}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="builder-preview">

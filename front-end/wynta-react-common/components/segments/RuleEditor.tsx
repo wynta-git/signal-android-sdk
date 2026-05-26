@@ -81,7 +81,7 @@ export default function RuleEditor({ rule, fields, metaOperators, onChange, onRe
   return (
     <div className="builder-rule" style={{ flexWrap: 'wrap', gap: 6 }}>
       {/* Row 1: field + op + value */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1 }}>
+      <div className="builder-rule-row">
         <select className="rule-field" value={rule.field} onChange={(e) => onFieldChange(e.target.value)}>
           {allFields.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
         </select>

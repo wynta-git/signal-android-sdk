@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MOCK_HEADS } from '../../services/mocks/heads';
 import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
 import { MOCK_CONFIGURES } from '../../services/mocks/configures';
@@ -26,6 +26,8 @@ export default function HistoryDrawer() {
   const dispatch = useAppDispatch();
   const historyDrawer = useAppSelector(s => s.ui.historyDrawer);
   const open = !!historyDrawer;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const onClose = () => dispatch(closeHistoryDrawer());
 
@@ -43,6 +45,8 @@ export default function HistoryDrawer() {
   }, [historyDrawer?.type, historyDrawer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const meta = historyDrawer ? nodeNameFor(historyDrawer) : null;
+
+  if (!mounted) return null;
 
   return (
     <>

@@ -34,6 +34,8 @@ export default function SlideDrawer() {
   const selectedBrand = useAppSelector(s => s.ui.selectedBrand);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const open = !!drawerState;
   const cfg = drawerState && DRAWER_TITLES[drawerState.type];
@@ -107,6 +109,6 @@ export default function SlideDrawer() {
     </>
   );
 
-  if (typeof document === 'undefined') return null;
+  if (!mounted) return null;
   return createPortal(content, document.body);
 }

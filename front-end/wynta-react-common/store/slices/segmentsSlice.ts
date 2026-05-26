@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as segmentApi from '../../services/segmentApi';
 import type { Segment, SegmentRule, AsyncStatus } from '../../types';
-import type { MemberPage, MetaOperators } from '../../services/segmentApi';
+import type { MemberPage, MetaOperators, EvaluateResult } from '../../services/segmentApi';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,8 @@ interface SegmentsState {
   entities: Record<string, Segment>;
   members: Record<string, MemberPage>;
   status: AsyncStatus;
+  evaluating: Record<string, boolean>;
+  evaluateResults: Record<string, EvaluateResult>;
   metaTraits: string[];
   metaEvents: string[];
   metaOperators: MetaOperators | null;
@@ -21,6 +23,8 @@ const initialState: SegmentsState = {
   entities: {},
   members: {},
   status: 'idle',
+  evaluating: {},
+  evaluateResults: {},
   metaTraits: [],
   metaEvents: [],
   metaOperators: null,
@@ -38,6 +42,33 @@ export const createSegment = createAsyncThunk(
   'segments/create',
   (payload: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) =>
     segmentApi.createSegment(payload)
+);
+
+export const getSegment = createAsyncThunk(
+  'segments/get',
+  (segmentId: string) => segmentApi.getSegment(segmentId)
+);
+
+export const updateSegment = createAsyncThunk(
+  'segments/update',
+  ({ segmentId, ...payload }: {
+    segmentId: string;
+    name?: string;
+    combinator?: 'AND' | 'OR';
+    rules?: SegmentRule[];
+    refresh_strategy?: 'scheduled' | 'on_event' | 'one_time';
+    scheduled_cron?: string;
+  }) => segmentApi.updateSegment(segmentId, payload).then(seg => ({ segmentId, seg }))
+);
+
+export const deleteSegment = createAsyncThunk(
+  'segments/delete',
+  (segmentId: string) => segmentApi.deleteSegment(segmentId).then(() => segmentId)
+);
+
+export const evaluateSegment = createAsyncThunk(
+  'segments/evaluate',
+  (segmentId: string) => segmentApi.evaluateSegment(segmentId)
 );
 
 export const fetchSegmentMembers = createAsyncThunk(
@@ -91,6 +122,41 @@ const segmentsSlice = createSlice({
         state.entities[id] = s;
       })
 
+      .addCase(getSegment.fulfilled, (state, action) => {
+        const s = action.payload;
+        const id = String(s.id);
+        if (!state.ids.includes(id)) state.ids.push(id);
+        state.entities[id] = s;
+      })
+
+      .addCase(updateSegment.fulfilled, (state, action) => {
+        const { segmentId, seg } = action.payload;
+        const id = String(segmentId);
+        if (state.entities[id]) state.entities[id] = seg;
+      })
+
+      .addCase(deleteSegment.fulfilled, (state, action) => {
+        const id = String(action.payload);
+        state.ids = state.ids.filter(i => i !== id);
+        delete state.entities[id];
+        delete state.members[id];
+      })
+
+      .addCase(evaluateSegment.pending, (state, action) => {
+        state.evaluating[action.meta.arg] = true;
+      })
+      .addCase(evaluateSegment.fulfilled, (state, action) => {
+        const id = action.payload.segment_id;
+        state.evaluating[id] = false;
+        state.evaluateResults[id] = action.payload;
+        if (state.entities[id]) {
+          state.entities[id].count = action.payload.size;
+        }
+      })
+      .addCase(evaluateSegment.rejected, (state, action) => {
+        state.evaluating[action.meta.arg] = false;
+      })
+
       .addCase(fetchSegmentMembers.fulfilled, (state, action) => {
         const { segmentId, ...page } = action.payload;
         state.members[segmentId] = page;
@@ -126,6 +192,14 @@ export const selectSegmentsStatus = (state: { segments: SegmentsState }) =>
 export const selectSegmentMembers = (segmentId: string) =>
   (state: { segments: SegmentsState }) =>
     state.segments.members[segmentId];
+
+export const selectSegmentEvaluating = (segmentId: string) =>
+  (state: { segments: SegmentsState }) =>
+    state.segments.evaluating[segmentId] ?? false;
+
+export const selectEvaluateResult = (segmentId: string) =>
+  (state: { segments: SegmentsState }) =>
+    state.segments.evaluateResults[segmentId];
 
 export const selectMetaTraits = (state: { segments: SegmentsState }) =>
   state.segments.metaTraits;

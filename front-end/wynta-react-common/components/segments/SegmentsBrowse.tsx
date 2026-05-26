@@ -2,7 +2,6 @@
 import React from 'react';
 import Icon from '../Icon';
 import { formatRelative, formatDateShort, avatarGradient, initial } from '../../utils';
-import { MANUAL_SEGMENTS } from '../../services/mocks/segments';
 import type { Segment } from '../../types';
 
 function highlight(text: string, q: string): React.ReactNode {
@@ -14,15 +13,22 @@ function highlight(text: string, q: string): React.ReactNode {
 
 interface SegmentsBrowseProps {
   list: Segment[];
+  totalCount: number;
+  loading?: boolean;
   search: string;
   setSearch: (s: string) => void;
   sortBy: string;
   setSortBy: (s: string) => void;
   onCreate: () => void;
   onPick?: (s: Segment) => void;
+  onDelete?: (segmentId: string) => void;
+  onEvaluate?: (segmentId: string) => void;
 }
 
-export default function SegmentsBrowse({ list, search, setSearch, sortBy, setSortBy, onCreate, onPick }: SegmentsBrowseProps) {
+export default function SegmentsBrowse({
+  list, totalCount, loading, search, setSearch, sortBy, setSortBy,
+  onCreate, onPick, onDelete, onEvaluate,
+}: SegmentsBrowseProps) {
   return (
     <>
       <div className="modal-toolbar">
@@ -31,7 +37,7 @@ export default function SegmentsBrowse({ list, search, setSearch, sortBy, setSor
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, owner or description…"
+            placeholder="Search by name or description…"
             autoFocus
           />
           {search && (
@@ -54,19 +60,27 @@ export default function SegmentsBrowse({ list, search, setSearch, sortBy, setSor
       </div>
 
       <div className="modal-body seg-modal-body">
-        {list.length === 0 ? (
+        {loading ? (
+          <div className="seg-empty">
+            <Icon name="loader" size={24} color="var(--g300)"/>
+            <div className="seg-empty-title">Loading segments…</div>
+          </div>
+        ) : list.length === 0 ? (
           <div className="seg-empty">
             <Icon name="search-x" size={24} color="var(--g300)"/>
-            <div className="seg-empty-title">No segments match &ldquo;{search}&rdquo;</div>
-            <div className="seg-empty-hint">Try a different keyword, or create a new segment.</div>
+            <div className="seg-empty-title">
+              {search ? `No segments match "${search}"` : 'No segments yet'}
+            </div>
+            <div className="seg-empty-hint">
+              {search ? 'Try a different keyword, or create a new segment.' : 'Create your first segment to get started.'}
+            </div>
           </div>
         ) : (
           <div className="seg-table">
             <div className="seg-table-head">
               <span className="th-name">Segment</span>
               <span className="th-size">Size</span>
-              <span className="th-used">Last used</span>
-              <span className="th-runs">Uses</span>
+              <span className="th-used">Last evaluated</span>
               <span className="th-owner">Owner</span>
               <span className="th-act"></span>
             </div>
@@ -85,19 +99,42 @@ export default function SegmentsBrowse({ list, search, setSearch, sortBy, setSor
                   <span className="seg-panel-icon"><Icon name="users" size={11}/></span>
                   <div className="seg-table-name-text">
                     <span className="lbl">{highlight(s.label ?? '', search)}</span>
-                    <span className="hint">{highlight(s.hint ?? '', search)}</span>
+                    <span className="hint">{highlight(s.hint ?? s.description ?? '', search)}</span>
                   </div>
                 </div>
                 <span className="seg-table-size">{s.count.toLocaleString('en-IN')}</span>
-                <span className="seg-table-when" title={formatDateShort(s.last_used_at ?? '')}>{formatRelative(s.last_used_at ?? '')}</span>
-                <span className="seg-table-runs">{s.use_count}×</span>
+                <span className="seg-table-when" title={formatDateShort(s.last_used_at ?? '')}>
+                  {s.last_used_at ? formatRelative(s.last_used_at) : '—'}
+                </span>
                 <span className="seg-table-owner">
-                  <span className="seg-av" style={{ background: avatarGradient(s.owner ?? '') }}>{initial(s.owner ?? '')}</span>
-                  <span className="seg-owner-text">{(s.owner ?? '').split('@')[0]}</span>
+                  {s.owner ? (
+                    <>
+                      <span className="seg-av" style={{ background: avatarGradient(s.owner) }}>{initial(s.owner)}</span>
+                      <span className="seg-owner-text">{s.owner.split('@')[0]}</span>
+                    </>
+                  ) : <span className="seg-owner-text" style={{ color: 'var(--g400)' }}>—</span>}
                 </span>
                 <span className="seg-table-act" onClick={(e) => e.stopPropagation()}>
-                  <button className="btn btn-ghost btn-sm btn-icon-only" title="Edit segment"><Icon name="pencil" size={12}/></button>
-                  <button className="btn btn-ghost btn-sm btn-icon-only" title="Duplicate"><Icon name="copy" size={12}/></button>
+                  {onEvaluate && (
+                    <button
+                      className="btn btn-ghost btn-sm btn-icon-only"
+                      title="Re-evaluate segment"
+                      onClick={() => onEvaluate(String(s.id))}
+                    >
+                      <Icon name="refresh-cw" size={12}/>
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      className="btn btn-ghost btn-sm btn-icon-only"
+                      title="Delete segment"
+                      onClick={() => {
+                        if (confirm(`Delete segment "${s.label}"?`)) onDelete(String(s.id));
+                      }}
+                    >
+                      <Icon name="trash-2" size={12}/>
+                    </button>
+                  )}
                 </span>
               </div>
             ))}
@@ -106,7 +143,9 @@ export default function SegmentsBrowse({ list, search, setSearch, sortBy, setSor
       </div>
 
       <div className="modal-footer-row">
-        <span className="modal-footer-meta">{list.length} of {(MANUAL_SEGMENTS as Segment[]).length} segments</span>
+        <span className="modal-footer-meta">
+          {search ? `${list.length} of ${totalCount}` : totalCount} segment{totalCount === 1 ? '' : 's'}
+        </span>
       </div>
     </>
   );

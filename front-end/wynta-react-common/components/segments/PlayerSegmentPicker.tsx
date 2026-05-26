@@ -1,7 +1,9 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { useDispatch } from 'react-redux';
 import Icon from '../Icon';
-import { MANUAL_SEGMENTS } from '../../services/mocks/segments';
+import { useCommonSelector } from '../../store/hooks';
+import { fetchSegments, selectAllSegments, selectSegmentsStatus } from '../../store/slices/segmentsSlice';
 import type { Segment } from '../../types';
 
 interface PlayerSegmentPickerProps {
@@ -9,7 +11,14 @@ interface PlayerSegmentPickerProps {
 }
 
 export default function PlayerSegmentPicker({ configureId }: PlayerSegmentPickerProps) {
-  const segs = MANUAL_SEGMENTS as Segment[];
+  const dispatch = useDispatch();
+  const segs   = useCommonSelector(selectAllSegments);
+  const status = useCommonSelector(selectSegmentsStatus);
+
+  useEffect(() => {
+    if (status === 'idle') dispatch(fetchSegments() as any);
+  }, [dispatch, status]);
+
   const defaultId = segs.length ? segs[configureId % segs.length].id : null;
   const [segmentId, setSegmentId] = useState<string | number | null>(defaultId);
   const [open, setOpen] = useState(false);

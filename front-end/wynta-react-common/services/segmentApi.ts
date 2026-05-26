@@ -1,8 +1,7 @@
 import type { Segment, SegmentRule } from "../types";
 
-const SEG_API =
-  (process.env.NEXT_PUBLIC_SEG_API_URL || "http://localhost:8003") +
-  "/api/v1/segments";
+const BASE = process.env.NEXT_PUBLIC_SEG_API_URL || "http://localhost:8003";
+const SEG_API = `${BASE}/api/v1/segments`;
 
 const authHeader = () => ({
   "Content-Type": "application/json",
@@ -24,13 +23,48 @@ export interface MemberPage {
   total_members: number | null;
 }
 
+export interface MembershipCheck {
+  segment_id: string;
+  user_id: string;
+  is_member: boolean;
+  joined_at: string | null;
+}
+
+export interface EvaluateResult {
+  segment_id: string;
+  size: number;
+  computed_at: string;
+}
+
 export interface MetaOperators {
   frequency: string[];
   property: string[];
   trait: string[];
 }
 
-// ── Rule mapper ───────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function toSegment(s: {
+  segment_id: string;
+  name: string;
+  members_count: number | null;
+  last_refresh_time: string | null;
+}): Segment {
+  return {
+    id: s.segment_id,
+    label: s.name,
+    count: s.members_count ?? 0,
+    last_used_at: s.last_refresh_time ?? undefined,
+  };
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 const OP_MAP: Record<string, string> = {
   IS: "eq",
@@ -51,22 +85,18 @@ function daysAgoISO(n: number): string {
 
 function mapRule(rule: SegmentRule): object[] {
   const { field, op, value, value2 } = rule;
-
   if (op === "WITHIN" || op === "NOT_WITHIN" || op === "BEFORE") {
-    const days =
-      typeof value === "string" ? parseInt(value, 10) : Number(value);
+    const days = typeof value === "string" ? parseInt(value, 10) : Number(value);
     const iso = daysAgoISO(days);
     const backendOp = op === "BEFORE" ? "lte" : op === "NOT_WITHIN" ? "lt" : "gte";
     return [{ type: "trait", trait: field, op: backendOp, value: iso }];
   }
-
   if (op === "BETWEEN" && value2 !== undefined) {
     return [
       { type: "trait", trait: field, op: "gte", value },
       { type: "trait", trait: field, op: "lte", value: value2 },
     ];
   }
-
   return [{ type: "trait", trait: field, op: OP_MAP[op] ?? op, value }];
 }
 
@@ -81,31 +111,13 @@ function buildDSL(payload: {
   };
 }
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-// ── API functions ─────────────────────────────────────────────────────────────
+// ── Segment CRUD ──────────────────────────────────────────────────────────────
 
 export async function fetchSegments(): Promise<Segment[]> {
   const res = await fetch(SEG_API, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchSegments failed: ${res.status}`);
-  const data: Array<{
-    segment_id: string;
-    name: string;
-    members_count: number | null;
-    last_refresh_time: string | null;
-  }> = await res.json();
-  return data.map((s) => ({
-    id: s.segment_id,
-    label: s.name,
-    count: s.members_count ?? 0,
-    last_used_at: s.last_refresh_time ?? undefined,
-  }));
+  const data = await res.json();
+  return data.map(toSegment);
 }
 
 export async function createSegment(payload: {
@@ -127,15 +139,88 @@ export async function createSegment(payload: {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`createSegment failed: ${res.status}`);
-  const s = await res.json();
-  return {
-    id: s.segment_id,
-    label: s.name,
-    count: s.members_count ?? 0,
-  };
+  return toSegment(await res.json());
 }
 
-// ── Meta API functions ────────────────────────────────────────────────────────
+export async function getSegment(segmentId: string): Promise<Segment> {
+  const res = await fetch(`${SEG_API}/${segmentId}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`getSegment failed: ${res.status}`);
+  return toSegment(await res.json());
+}
+
+export async function updateSegment(
+  segmentId: string,
+  payload: {
+    name?: string;
+    combinator?: "AND" | "OR";
+    rules?: SegmentRule[];
+    refresh_strategy?: "scheduled" | "on_event" | "one_time";
+    scheduled_cron?: string;
+  }
+): Promise<Segment> {
+  const body: Record<string, unknown> = {};
+  if (payload.name !== undefined) body.name = payload.name;
+  if (payload.refresh_strategy !== undefined) body.refresh_strategy = payload.refresh_strategy;
+  if (payload.scheduled_cron !== undefined) body.scheduled_cron = payload.scheduled_cron;
+  if (payload.rules !== undefined && payload.combinator !== undefined) {
+    body.rule = buildDSL({ combinator: payload.combinator, rules: payload.rules });
+  }
+  const res = await fetch(`${SEG_API}/${segmentId}`, {
+    method: "PUT",
+    headers: authHeader(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`updateSegment failed: ${res.status}`);
+  return toSegment(await res.json());
+}
+
+export async function deleteSegment(segmentId: string): Promise<void> {
+  const res = await fetch(`${SEG_API}/${segmentId}`, {
+    method: "DELETE",
+    headers: authHeader(),
+  });
+  if (!res.ok) throw new Error(`deleteSegment failed: ${res.status}`);
+}
+
+// ── Members ───────────────────────────────────────────────────────────────────
+
+export async function fetchSegmentMembers(
+  segmentId: string,
+  cursor?: string,
+  limit = 50
+): Promise<MemberPage> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  const res = await fetch(`${SEG_API}/${segmentId}/members?${params}`, {
+    headers: authHeader(),
+  });
+  if (!res.ok) throw new Error(`fetchSegmentMembers failed: ${res.status}`);
+  return res.json();
+}
+
+export async function checkMembership(
+  segmentId: string,
+  userId: string
+): Promise<MembershipCheck> {
+  const res = await fetch(`${SEG_API}/${segmentId}/members/${encodeURIComponent(userId)}`, {
+    headers: authHeader(),
+  });
+  if (!res.ok) throw new Error(`checkMembership failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Evaluate ──────────────────────────────────────────────────────────────────
+
+export async function evaluateSegment(segmentId: string): Promise<EvaluateResult> {
+  const res = await fetch(`${SEG_API}/${segmentId}/evaluate`, {
+    method: "POST",
+    headers: authHeader(),
+  });
+  if (!res.ok) throw new Error(`evaluateSegment failed: ${res.status}`);
+  return res.json();
+}
+
+// ── Meta ──────────────────────────────────────────────────────────────────────
 
 export async function fetchMetaEvents(projectId: string): Promise<string[]> {
   const res = await fetch(`${SEG_API}/meta/events?project_id=${projectId}`, {
@@ -166,22 +251,7 @@ export async function fetchMetaTraits(projectId: string): Promise<string[]> {
 }
 
 export async function fetchMetaOperators(): Promise<MetaOperators> {
-  const res = await fetch(`${SEG_API}/meta/operators`, {
-    headers: authHeader(),
-  });
+  const res = await fetch(`${SEG_API}/meta/operators`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchMetaOperators failed: ${res.status}`);
-  return res.json();
-}
-
-export async function fetchSegmentMembers(
-  segmentId: string,
-  cursor?: string
-): Promise<MemberPage> {
-  const params = new URLSearchParams({ limit: "50" });
-  if (cursor) params.set("cursor", cursor);
-  const res = await fetch(`${SEG_API}/${segmentId}/members?${params}`, {
-    headers: authHeader(),
-  });
-  if (!res.ok) throw new Error(`fetchSegmentMembers failed: ${res.status}`);
   return res.json();
 }

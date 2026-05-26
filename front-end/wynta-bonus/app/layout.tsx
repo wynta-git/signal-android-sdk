@@ -13,7 +13,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
-      <body style={{ backgroundColor: 'rgb(192, 200, 215)' }}>
+      <body>
         <DjHeaderSlot />
         <Providers>{children}</Providers>
       </body>
