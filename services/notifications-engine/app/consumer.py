@@ -174,7 +174,7 @@ async def handle_send_job(
         platform = token_doc.get("platform", "android")
         token_hash = hashlib.sha256(token.encode()).hexdigest()[:16]
 
-        provider = get_push_provider(platform)
+        provider = await get_push_provider(platform, job.project_id, db)
         provider_name = getattr(provider, "name", "push_stub")
         breaker = get_breaker(provider_name)
 
@@ -182,7 +182,7 @@ async def handle_send_job(
             log.warning("consumer.circuit_open", provider=provider_name)
             return
 
-        recipient = Recipient(user_id=job.user_id, token=token, platform=platform)
+        recipient = Recipient(user_id=job.user_id, token=token, platform=platform, project_id=job.project_id)
         try:
             result = await provider.send(recipient, payload)
             breaker.record_success()

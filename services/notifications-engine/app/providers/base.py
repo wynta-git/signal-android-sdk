@@ -7,6 +7,7 @@ class Recipient:
     user_id: str
     token: str
     platform: str  # android | ios | web
+    project_id: str
 
 
 @dataclass

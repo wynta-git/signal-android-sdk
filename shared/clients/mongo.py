@@ -582,6 +582,19 @@ async def get_user_device_tokens(
     return await cursor.to_list(length=None)
 
 
+async def get_project_fcm_credential(
+    db: AsyncIOMotorDatabase, project_id: str
+) -> str | None:
+    """Return the FCM service-account JSON string for a project, or None if not configured."""
+    doc = await db["projects"].find_one(
+        {"project_id": project_id},
+        {"settings.fcm_service_account_json": 1, "_id": 0},
+    )
+    if not doc:
+        return None
+    return (doc.get("settings") or {}).get("fcm_service_account_json")
+
+
 async def create_notification_delivery_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["notification_deliveries"].create_index(
         [("project_id", 1), ("campaign_id", 1), ("user_id", 1)]
