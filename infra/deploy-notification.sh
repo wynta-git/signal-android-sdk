@@ -27,7 +27,7 @@ REPO="/home/ubuntu/pam"
 APP_USER="ubuntu"
 SERVICE_DIR="$REPO/services/notifications-engine"
 VENV="$REPO/.venv"
-PORT=8080
+PORT=8005
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 ok()      { echo "  [OK]  $*"; }
