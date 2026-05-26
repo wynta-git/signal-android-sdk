@@ -16,7 +16,7 @@
 #   3. Writes .env for scheduler-service
 #   4. Creates and enables systemd unit pam-scheduler
 #   5. Starts the service
-#   6. Readiness check on /health (port 8080)
+#   6. Readiness check on /health (port 8006)
 # =============================================================================
 
 set -euo pipefail
@@ -27,7 +27,7 @@ REPO="/home/ubuntu/pam"
 APP_USER="ubuntu"
 SERVICE_DIR="$REPO/services/scheduler-service"
 VENV="$REPO/.venv"
-PORT=8080
+PORT=8006
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 ok()      { echo "  [OK]  $*"; }

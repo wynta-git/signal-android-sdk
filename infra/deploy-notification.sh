@@ -16,7 +16,7 @@
 #   3. Writes .env for notifications-engine
 #   4. Creates and enables systemd unit pam-notif
 #   5. Starts the service
-#   6. Readiness check on /health (port 8080)
+#   6. Readiness check on /health (port 8005)
 # =============================================================================
 
 set -euo pipefail

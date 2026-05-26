@@ -34,7 +34,7 @@ REPO="/home/ubuntu/pam"
 APP_USER="ubuntu"
 SERVICE_DIR="$REPO/services/auth-service"
 VENV="$REPO/.venv"
-PORT=8006
+PORT=8002
 PRIVKEY_FILE="/home/ubuntu/pam-jwt-private.pem"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
