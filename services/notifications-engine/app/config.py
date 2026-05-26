@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     template_cache_ttl_seconds: int = 300
 
+    health_port: int = 8005
+
     debug: bool = False
     version: str = "0.1.0"
 

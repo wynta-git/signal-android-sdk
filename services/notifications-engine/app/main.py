@@ -58,7 +58,7 @@ async def _health_server(stop_event: asyncio.Event) -> None:
         await writer.drain()
         writer.close()
 
-    server = await asyncio.start_server(handle, "0.0.0.0", 8080)
+    server = await asyncio.start_server(handle, "0.0.0.0", settings.health_port)
     async with server:
         await stop_event.wait()
 
