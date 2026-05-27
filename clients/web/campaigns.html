@@ -745,6 +745,7 @@
         renderTmplPreview();
       } else {
         document.getElementById('preview-head').textContent = 'JSON Preview — POST /campaigns';
+        populateTemplateSelect();
         renderCampPreview();
       }
       clearResponse();
@@ -831,7 +832,7 @@
     async function fetchCampaigns() {
       document.getElementById('campaign-list').innerHTML = '<div class="list-empty">Loading…</div>';
       try {
-        const res = await fetch(`${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns`,
+        const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}`,
           { headers: authHeaders() });
         if (res.ok) {
           campaigns = await res.json();
@@ -891,7 +892,7 @@
     async function lifecycleAction(campaignId, action) {
       try {
         const res = await fetch(
-          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns/${campaignId}/${action}`,
+          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/${campaignId}/${action}`,
           { method: 'POST', headers: authHeaders() }
         );
         const data = await res.json().catch(() => null);
@@ -1011,7 +1012,7 @@
       const t0 = performance.now();
       try {
         const res = await fetch(
-          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/campaigns`,
+          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}`,
           { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) }
         );
         const ms = Math.round(performance.now() - t0);
