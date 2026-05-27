@@ -745,8 +745,8 @@
         renderTmplPreview();
       } else {
         document.getElementById('preview-head').textContent = 'JSON Preview — POST /campaigns';
-        populateTemplateSelect();
         renderCampPreview();
+        fetchTemplates();
       }
       clearResponse();
     }
