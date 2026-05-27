@@ -70,8 +70,8 @@ app.add_middleware(
 )
 
 app.include_router(admin_router)
-app.include_router(campaigns_router)
 app.include_router(templates_router)
+app.include_router(campaigns_router)
 
 
 @app.get("/health", include_in_schema=False)
