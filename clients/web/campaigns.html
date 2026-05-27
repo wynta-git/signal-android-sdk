@@ -710,6 +710,22 @@
       }
     }
 
+    function setAuthStatus(state, msg) {
+      const dot = document.getElementById('auth-dot');
+      const lbl = document.getElementById('auth-label');
+      if (!dot) return;
+      if (state === 'ok') {
+        dot.style.background = 'var(--green)'; dot.title = 'Authenticated';
+        lbl.textContent = 'authenticated'; lbl.style.color = 'var(--green)';
+      } else if (state === 'error') {
+        dot.style.background = 'var(--red)'; dot.title = msg || 'Auth failed';
+        lbl.textContent = 'auth failed'; lbl.style.color = 'var(--red)';
+      } else {
+        dot.style.background = 'var(--orange)'; dot.title = 'Authenticating…';
+        lbl.textContent = 'authenticating…'; lbl.style.color = 'var(--text-dim)';
+      }
+    }
+
     async function getPortalToken() {
       setAuthStatus('loading');
       try {
