@@ -1,8 +1,6 @@
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-
-from shared.models.events import REGISTERED_EVENTS
+from pydantic import BaseModel, Field, model_validator
 
 MAX_FILTERS = 10
 MAX_TIME_WINDOW_DAYS = 365
@@ -38,13 +36,6 @@ class EventFilter(BaseModel):
     frequency: FrequencyClause
     time_window: TimeWindow
 
-    @field_validator("event_name")
-    @classmethod
-    def event_name_known(cls, v: str) -> str:
-        if v not in REGISTERED_EVENTS:
-            raise ValueError(f"unknown event_name '{v}' — not in REGISTERED_EVENTS")
-        return v
-
 
 class TraitFilter(BaseModel):
     type: Literal["trait"]
@@ -63,13 +54,6 @@ class DidNotDoFilter(BaseModel):
     type: Literal["did_not_do"]
     event_name: str
     time_window: TimeWindow
-
-    @field_validator("event_name")
-    @classmethod
-    def event_name_known(cls, v: str) -> str:
-        if v not in REGISTERED_EVENTS:
-            raise ValueError(f"unknown event_name '{v}' — not in REGISTERED_EVENTS")
-        return v
 
 
 class InSegmentFilter(BaseModel):

@@ -47,12 +47,20 @@ class PurchaseCompletedProperties(BaseModel):
     items: list[PurchaseItem] = Field(default_factory=list)
 
 
+class DepositSuccessProperties(BaseModel):
+    transaction_id: str
+    amount: float
+    currency: str  # ISO 4217
+    payment_method: str | None = None
+
+
 # Registry — add new events here and mirror in docs/event-schema.md (use /add-event)
 REGISTERED_EVENTS: dict[str, type[BaseModel]] = {
     "app_opened": AppOpenedProperties,
     "screen_viewed": ScreenViewedProperties,
     "user_identified": UserIdentifiedProperties,
     "purchase_completed": PurchaseCompletedProperties,
+    "deposit_success": DepositSuccessProperties,
 }
 
 
