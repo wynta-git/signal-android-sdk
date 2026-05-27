@@ -444,13 +444,13 @@
 
     <div class="cfg-field">
       <span class="cfg-label">Auth Service URL</span>
-      <input class="cfg-input med" id="cfg-auth-url" value="http://localhost:8002"
+      <input class="cfg-input med" id="cfg-auth-url" value="http://3.7.48.14:8002"
              oninput="saveConfig()">
     </div>
 
     <div class="cfg-field">
       <span class="cfg-label">Campaign Engine URL</span>
-      <input class="cfg-input med" id="cfg-url" value="http://localhost:8004"
+      <input class="cfg-input med" id="cfg-url" value="http://3.7.48.14:8004"
              oninput="saveConfig(); refreshAll()">
     </div>
 
@@ -503,11 +503,15 @@
                   <option value="webhook">webhook</option>
                 </select>
               </div>
-              <div class="form-row" style="align-items:flex-start">
-                <label style="padding-top:6px">Body (JSON)</label>
-                <textarea class="field grow" id="tmpl-body" rows="4"
-                          placeholder='{"title": "Hello!", "message": "Your message here."}'
-                          oninput="renderTmplPreview()"></textarea>
+              <div class="form-row">
+                <label>Title</label>
+                <input class="field grow" id="tmpl-title" placeholder="Hello!"
+                       oninput="renderTmplPreview()">
+              </div>
+              <div class="form-row">
+                <label>Message</label>
+                <input class="field grow" id="tmpl-message" placeholder="Your message here."
+                       oninput="renderTmplPreview()">
               </div>
             </div>
           </div>
@@ -781,7 +785,7 @@
     async function fetchTemplates() {
       document.getElementById('template-list').innerHTML = '<div class="list-empty">Loading…</div>';
       try {
-        const res = await fetch(`${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/templates`,
+        const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/templates`,
           { headers: authHeaders() });
         if (res.ok) {
           templates = await res.json();
@@ -905,12 +909,13 @@
 
     // ── Build payloads ────────────────────────────────────────
     function buildTmplPayload() {
-      let body = {};
-      try { body = JSON.parse(document.getElementById('tmpl-body').value || '{}'); } catch (_) {}
       return {
         name:    document.getElementById('tmpl-name').value || 'Unnamed Template',
         channel: document.getElementById('tmpl-channel').value,
-        body,
+        body: {
+          title:   document.getElementById('tmpl-title').value,
+          message: document.getElementById('tmpl-message').value,
+        },
       };
     }
 
@@ -964,23 +969,13 @@
     async function createTemplate() {
       const payload = buildTmplPayload();
 
-      // Validate body JSON
-      const bodyRaw = document.getElementById('tmpl-body').value.trim();
-      if (bodyRaw) {
-        try { JSON.parse(bodyRaw); } catch (_) {
-          document.getElementById('res-body').innerHTML =
-            `<span style="color:var(--red)">Body is not valid JSON</span>`;
-          return;
-        }
-      }
-
       const btn = document.getElementById('tmpl-send-btn');
       btn.disabled = true; btn.textContent = 'Creating…';
 
       const t0 = performance.now();
       try {
         const res = await fetch(
-          `${baseUrl()}/v1/projects/${encodeURIComponent(projectId())}/templates`,
+          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/templates`,
           { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) }
         );
         const ms = Math.round(performance.now() - t0);
