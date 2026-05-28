@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Any, Literal
+from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
@@ -26,7 +27,6 @@ def _redis(request: Request):
 
 
 class SegmentCreateRequest(BaseModel):
-    segment_id: str
     name: str
     rule: SegmentRule
     refresh_strategy: Literal["scheduled", "on_event", "one_time"]
@@ -51,13 +51,11 @@ async def create_segment(
     redis=Depends(_redis),
 ) -> dict[str, Any]:
     project_id = ctx.project_id
-    existing = await storage.get_segment(db, project_id, body.segment_id)
-    if existing:
-        raise HTTPException(status_code=409, detail="segment_id already exists")
+    segment_id = str(uuid4())
 
     doc: dict[str, Any] = {
         "project_id": project_id,
-        "segment_id": body.segment_id,
+        "segment_id": segment_id,
         "name": body.name,
         "rule": body.rule.model_dump(),
         "refresh_strategy": body.refresh_strategy,
@@ -72,7 +70,7 @@ async def create_segment(
         scheduled.register_segment(doc, db, ch, redis)
     elif body.refresh_strategy == "one_time":
         background_tasks.add_task(
-            evaluate_segment, project_id, body.segment_id, body.rule, db, ch, redis
+            evaluate_segment, project_id, segment_id, body.rule, db, ch, redis
         )
 
     return {k: v for k, v in doc.items() if k != "_id"}
