@@ -58,6 +58,14 @@ app.add_middleware(
 
 
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=".*",
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next: object) -> Response:
     structlog.contextvars.clear_contextvars()

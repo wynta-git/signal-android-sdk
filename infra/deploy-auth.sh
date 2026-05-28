@@ -34,7 +34,7 @@ REPO="/home/ubuntu/pam"
 APP_USER="ubuntu"
 SERVICE_DIR="$REPO/services/auth-service"
 VENV="$REPO/.venv"
-PORT=8006
+PORT=8002
 PRIVKEY_FILE="/home/ubuntu/pam-jwt-private.pem"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ MONGO_DB=pam
 JWT_PRIVATE_KEY="$PRIVKEY_ESCAPED"
 JWT_TOKEN_TTL=3600
 
-DEBUG=false
+DEBUG=true
 VERSION=0.1.0
 EOF
 chmod 600 "$SERVICE_DIR/.env"
@@ -194,6 +194,8 @@ echo ""
 echo "  PUB=\$(cat /home/ubuntu/pam-jwt-public.pem | tr '\\n' '|' | sed 's/|/\\\\n/g')"
 echo "  echo \"SYSTEM_JWT_PUBLIC_KEY=\\\"\$PUB\\\"\" >> $REPO/services/segmentation-engine/.env"
 echo "  echo \"SYSTEM_JWT_PUBLIC_KEY=\\\"\$PUB\\\"\" >> $REPO/services/campaign-engine/.env"
+echo "  # Also copy portal JWT public key to campaign-engine:"
+echo "  grep '^PORTAL_JWT_PUBLIC_KEY=' $REPO/services/segmentation-engine/.env | tail -1 >> $REPO/services/campaign-engine/.env"
 echo "  systemctl restart pam-segmentation pam-campaign"
 echo ""
 echo "── Smoke tests ────────────────────────────────────────"

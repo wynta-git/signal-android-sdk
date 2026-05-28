@@ -80,3 +80,7 @@ portal_public.pem
 
 # Service-level personal TODOs
 services/**/TODO.md
+
+# Portal token script and keys
+gen_portal_token.py
+*.pem

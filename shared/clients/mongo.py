@@ -559,6 +559,83 @@ async def admin_delete_user(
 
 
 # ---------------------------------------------------------------------------
+# Notifications-engine helpers
+# ---------------------------------------------------------------------------
+
+
+async def get_user(
+    db: AsyncIOMotorDatabase, project_id: str, user_id: str
+) -> dict[str, Any] | None:
+    return await db["users"].find_one(
+        {"project_id": project_id, "user_id": user_id},
+        {"_id": 0},
+    )
+
+
+async def get_user_device_tokens(
+    db: AsyncIOMotorDatabase, project_id: str, user_id: str
+) -> list[dict[str, Any]]:
+    cursor = db["device_tokens"].find(
+        {"project_id": project_id, "user_id": user_id},
+        {"_id": 0},
+    )
+    return await cursor.to_list(length=None)
+
+
+async def get_project_fcm_credential(
+    db: AsyncIOMotorDatabase, project_id: str
+) -> str | None:
+    """Return the FCM service-account JSON string for a project, or None if not configured."""
+    doc = await db["projects"].find_one(
+        {"project_id": project_id},
+        {"settings.fcm_service_account_json": 1, "_id": 0},
+    )
+    if not doc:
+        return None
+    return (doc.get("settings") or {}).get("fcm_service_account_json")
+
+
+async def create_notification_delivery_indexes(db: AsyncIOMotorDatabase) -> None:
+    await db["notification_deliveries"].create_index(
+        [("project_id", 1), ("campaign_id", 1), ("user_id", 1)]
+    )
+    await db["notification_deliveries"].create_index(
+        [("project_id", 1), ("status", 1), ("attempted_at", -1)]
+    )
+    await db["notification_deliveries"].create_index(
+        [("send_id", 1), ("token_hash", 1)], unique=True
+    )
+    await db["notification_deliveries"].create_index(
+        "attempted_at",
+        expireAfterSeconds=90 * 86400,
+    )
+    await db["device_tokens"].create_index(
+        [("project_id", 1), ("user_id", 1)]
+    )
+
+
+async def insert_notification_delivery(
+    db: AsyncIOMotorDatabase, doc: dict[str, Any]
+) -> str:
+    result = await db["notification_deliveries"].insert_one(doc)
+    return str(result.inserted_id)
+
+
+async def update_notification_delivery_status(
+    db: AsyncIOMotorDatabase,
+    delivery_id: str,
+    status: str,
+    **kwargs: Any,
+) -> None:
+    from bson import ObjectId
+    updates: dict[str, Any] = {"status": status, **kwargs}
+    await db["notification_deliveries"].update_one(
+        {"_id": ObjectId(delivery_id)},
+        {"$set": updates},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Admin helpers — campaign runs
 # ---------------------------------------------------------------------------
 

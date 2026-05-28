@@ -157,6 +157,7 @@
       border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
+      flex-shrink: 0;
     }
 
     .card-head {
@@ -443,21 +444,30 @@
     <h1>PAM <span>/ Campaign Builder</span></h1>
 
     <div class="cfg-field">
+      <span class="cfg-label">Auth Service URL</span>
+      <input class="cfg-input med" id="cfg-auth-url" value="http://3.7.48.14:8002"
+             oninput="saveConfig()">
+    </div>
+
+    <div class="cfg-field">
       <span class="cfg-label">Campaign Engine URL</span>
-      <input class="cfg-input med" id="cfg-url" value="http://localhost:8004"
+      <input class="cfg-input med" id="cfg-url" value="http://3.7.48.14:8004"
              oninput="saveConfig(); refreshAll()">
     </div>
 
     <div class="cfg-field">
       <span class="cfg-label">Project ID</span>
-      <input class="cfg-input small" id="cfg-project" value="proj_abc123"
+      <input class="cfg-input small" id="cfg-project" value="proj_demo"
              oninput="saveConfig(); refreshAll()">
     </div>
 
-    <div class="cfg-field">
-      <span class="cfg-label">Bearer Token</span>
-      <input class="cfg-input wide" id="cfg-token" placeholder="pam_portal_…"
-             oninput="saveConfig()">
+    <div class="cfg-field" style="justify-content:flex-end">
+      <span class="cfg-label">Auth</span>
+      <div style="display:flex; align-items:center; gap:6px; padding-bottom:4px">
+        <span id="auth-dot" style="width:8px; height:8px; border-radius:50%; background:var(--orange); display:inline-block; flex-shrink:0" title="Authenticating…"></span>
+        <span id="auth-label" style="font-size:11px; color:var(--text-dim); font-family:var(--mono)">authenticating…</span>
+        <button onclick="reauth()" style="font-size:11px; padding:1px 7px; border:1px solid var(--border); border-radius:4px; background:none; cursor:pointer; color:var(--text-dim)">↻</button>
+      </div>
     </div>
   </div>
 
@@ -494,11 +504,15 @@
                   <option value="webhook">webhook</option>
                 </select>
               </div>
-              <div class="form-row" style="align-items:flex-start">
-                <label style="padding-top:6px">Body (JSON)</label>
-                <textarea class="field grow" id="tmpl-body" rows="4"
-                          placeholder='{"title": "Hello!", "message": "Your message here."}'
-                          oninput="renderTmplPreview()"></textarea>
+              <div class="form-row">
+                <label>Title</label>
+                <input class="field grow" id="tmpl-title" placeholder="Hello!"
+                       oninput="renderTmplPreview()">
+              </div>
+              <div class="form-row">
+                <label>Message</label>
+                <input class="field grow" id="tmpl-message" placeholder="Your message here."
+                       oninput="renderTmplPreview()">
               </div>
             </div>
           </div>
@@ -671,6 +685,69 @@
 
     function baseUrl()   { return document.getElementById('cfg-url').value.replace(/\/$/, ''); }
     function projectId() { return document.getElementById('cfg-project').value.trim(); }
+    function authUrl()   { return document.getElementById('cfg-auth-url').value.replace(/\/$/, ''); }
+
+    // ── Auth ─────────────────────────────────────────────────
+    let authToken = null;
+
+    function authHeaders() {
+      return authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+    }
+
+    function setAuthStatus(state, msg) {
+      const dot = document.getElementById('auth-dot');
+      const lbl = document.getElementById('auth-label');
+      if (!dot) return;
+      if (state === 'ok') {
+        dot.style.background = 'var(--green)'; dot.title = 'Authenticated';
+        lbl.textContent = 'authenticated'; lbl.style.color = 'var(--green)';
+      } else if (state === 'error') {
+        dot.style.background = 'var(--red)'; dot.title = msg || 'Auth failed';
+        lbl.textContent = 'auth failed'; lbl.style.color = 'var(--red)';
+      } else {
+        dot.style.background = 'var(--orange)'; dot.title = 'Authenticating…';
+        lbl.textContent = 'authenticating…'; lbl.style.color = 'var(--text-dim)';
+      }
+    }
+
+    function setAuthStatus(state, msg) {
+      const dot = document.getElementById('auth-dot');
+      const lbl = document.getElementById('auth-label');
+      if (!dot) return;
+      if (state === 'ok') {
+        dot.style.background = 'var(--green)'; dot.title = 'Authenticated';
+        lbl.textContent = 'authenticated'; lbl.style.color = 'var(--green)';
+      } else if (state === 'error') {
+        dot.style.background = 'var(--red)'; dot.title = msg || 'Auth failed';
+        lbl.textContent = 'auth failed'; lbl.style.color = 'var(--red)';
+      } else {
+        dot.style.background = 'var(--orange)'; dot.title = 'Authenticating…';
+        lbl.textContent = 'authenticating…'; lbl.style.color = 'var(--text-dim)';
+      }
+    }
+
+    async function getPortalToken() {
+      setAuthStatus('loading');
+      try {
+        const res = await fetch(`${authUrl()}/api/v1/system/portal_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'portal-ui', password: 'glgportal2026', project_id: 'proj_demo' }),
+        });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const data = await res.json();
+        authToken = data?.data?.token;
+        if (!authToken) throw new Error('No token in response');
+        setAuthStatus('ok');
+      } catch (err) {
+        authToken = null;
+        setAuthStatus('error', String(err));
+      }
+    }
+
+    function reauth() {
+      getPortalToken().then(() => refreshAll());
+    }
 
     // ── Tabs ─────────────────────────────────────────────────
     function switchTab(tab) {
@@ -681,31 +758,30 @@
       document.getElementById('content-campaigns').classList.toggle('active', tab === 'campaigns');
 
       if (tab === 'templates') {
-        document.getElementById('preview-head').textContent = 'JSON Preview — POST /api/v1/campaign/projects/{id}/templates';
+        document.getElementById('preview-head').textContent = 'JSON Preview — POST /templates';
         renderTmplPreview();
       } else {
-        document.getElementById('preview-head').textContent = 'JSON Preview — POST /api/v1/campaign/projects/{id}/campaigns';
+        document.getElementById('preview-head').textContent = 'JSON Preview — POST /campaigns';
         renderCampPreview();
+        fetchTemplates();
       }
       clearResponse();
     }
 
     // ── Config persistence ────────────────────────────────────
-    function token() { return document.getElementById('cfg-token').value.trim(); }
-
     function saveConfig() {
-      localStorage.setItem('pam_camp_url',     document.getElementById('cfg-url').value);
-      localStorage.setItem('pam_camp_project', document.getElementById('cfg-project').value);
-      localStorage.setItem('pam_camp_token',   document.getElementById('cfg-token').value);
+      localStorage.setItem('pam_camp_url',      document.getElementById('cfg-url').value);
+      localStorage.setItem('pam_camp_project',  document.getElementById('cfg-project').value);
+      localStorage.setItem('pam_camp_auth_url', document.getElementById('cfg-auth-url').value);
     }
 
     function loadConfig() {
-      const url = localStorage.getItem('pam_camp_url');
-      const pid = localStorage.getItem('pam_camp_project');
-      const tok = localStorage.getItem('pam_camp_token');
-      if (url) document.getElementById('cfg-url').value = url;
-      if (pid) document.getElementById('cfg-project').value = pid;
-      if (tok) document.getElementById('cfg-token').value = tok;
+      const url  = localStorage.getItem('pam_camp_url');
+      const pid  = localStorage.getItem('pam_camp_project');
+      const auth = localStorage.getItem('pam_camp_auth_url');
+      if (url)  document.getElementById('cfg-url').value = url;
+      if (pid)  document.getElementById('cfg-project').value = pid;
+      if (auth) document.getElementById('cfg-auth-url').value = auth;
     }
 
     // ── Trigger type change ───────────────────────────────────
@@ -728,7 +804,7 @@
       document.getElementById('template-list').innerHTML = '<div class="list-empty">Loading…</div>';
       try {
         const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/templates`,
-          { headers: { 'Authorization': `Bearer ${token()}` } });
+          { headers: authHeaders() });
         if (res.ok) {
           templates = await res.json();
           renderTemplateList();
@@ -773,8 +849,8 @@
     async function fetchCampaigns() {
       document.getElementById('campaign-list').innerHTML = '<div class="list-empty">Loading…</div>';
       try {
-        const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/campaigns`,
-          { headers: { 'Authorization': `Bearer ${token()}` } });
+        const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}`,
+          { headers: authHeaders() });
         if (res.ok) {
           campaigns = await res.json();
           renderCampaignList();
@@ -833,8 +909,8 @@
     async function lifecycleAction(campaignId, action) {
       try {
         const res = await fetch(
-          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/campaigns/${campaignId}/${action}`,
-          { method: 'POST', headers: { 'Authorization': `Bearer ${token()}` } }
+          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/${campaignId}/${action}`,
+          { method: 'POST', headers: authHeaders() }
         );
         const data = await res.json().catch(() => null);
         const cls = res.status < 300 ? 's2xx' : res.status < 500 ? 's4xx' : 's5xx';
@@ -851,12 +927,13 @@
 
     // ── Build payloads ────────────────────────────────────────
     function buildTmplPayload() {
-      let body = {};
-      try { body = JSON.parse(document.getElementById('tmpl-body').value || '{}'); } catch (_) {}
       return {
         name:    document.getElementById('tmpl-name').value || 'Unnamed Template',
         channel: document.getElementById('tmpl-channel').value,
-        body,
+        body: {
+          title:   document.getElementById('tmpl-title').value,
+          message: document.getElementById('tmpl-message').value,
+        },
       };
     }
 
@@ -910,16 +987,6 @@
     async function createTemplate() {
       const payload = buildTmplPayload();
 
-      // Validate body JSON
-      const bodyRaw = document.getElementById('tmpl-body').value.trim();
-      if (bodyRaw) {
-        try { JSON.parse(bodyRaw); } catch (_) {
-          document.getElementById('res-body').innerHTML =
-            `<span style="color:var(--red)">Body is not valid JSON</span>`;
-          return;
-        }
-      }
-
       const btn = document.getElementById('tmpl-send-btn');
       btn.disabled = true; btn.textContent = 'Creating…';
 
@@ -927,7 +994,7 @@
       try {
         const res = await fetch(
           `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/templates`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token()}` }, body: JSON.stringify(payload) }
+          { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) }
         );
         const ms = Math.round(performance.now() - t0);
         const data = await res.json().catch(() => null);
@@ -962,8 +1029,8 @@
       const t0 = performance.now();
       try {
         const res = await fetch(
-          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/campaigns`,
-          { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token()}` }, body: JSON.stringify(payload) }
+          `${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(payload) }
         );
         const ms = Math.round(performance.now() - t0);
         const data = await res.json().catch(() => null);
@@ -1014,8 +1081,10 @@
     // ── Init ─────────────────────────────────────────────────
     loadConfig();
     renderTmplPreview();
-    fetchTemplates();
-    fetchCampaigns();
+    getPortalToken().then(() => {
+      fetchTemplates();
+      fetchCampaigns();
+    });
   </script>
 
 </body>

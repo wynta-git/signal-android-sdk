@@ -77,6 +77,16 @@ A revenue event.
 | `currency` | string (ISO 4217) | yes | e.g. `USD`. |
 | `items` | array | no | `[{sku, qty, price}]`. |
 
+### `deposit_success`
+A successful deposit / funding transaction.
+
+| Property | Type | Required | Notes |
+|---|---|---|---|
+| `transaction_id` | string | yes | Idempotent per project. |
+| `amount` | float | yes | In `currency` units. |
+| `currency` | string (ISO 4217) | yes | e.g. `USD`. |
+| `payment_method` | string | no | e.g. `card`, `bank_transfer`, `crypto`. |
+
 (Add new events here, then mirror in `shared/models/events.py` — use `/add-event` to keep both in sync.)
 
 ## PII handling
