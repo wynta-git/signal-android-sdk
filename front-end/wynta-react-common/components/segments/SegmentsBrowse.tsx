@@ -59,6 +59,16 @@ export default function SegmentsBrowse({
         </button>
       </div>
 
+      {!loading && list.length > 0 && (
+        <div className="seg-thead">
+          <span className="th-id">Segment ID</span>
+          <span className="th-name">Name</span>
+          <span className="th-owner">Created by</span>
+          <span className="th-size">Members</span>
+          <span className="th-act"></span>
+        </div>
+      )}
+
       <div className="modal-body seg-modal-body">
         {loading ? (
           <div className="seg-empty">
@@ -77,13 +87,6 @@ export default function SegmentsBrowse({
           </div>
         ) : (
           <div className="seg-table">
-            <div className="seg-table-head">
-              <span className="th-id">Segment ID</span>
-              <span className="th-name">Name</span>
-              <span className="th-owner">Created by</span>
-              <span className="th-size">Members</span>
-              <span className="th-act"></span>
-            </div>
             {list.map(s => (
               <div
                 key={String(s.id)}

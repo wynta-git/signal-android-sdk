@@ -140,6 +140,22 @@ function buildDSL(payload: {
   };
 }
 
+// ── Preview evaluate ──────────────────────────────────────────────────────────
+
+export async function previewEvaluate(payload: {
+  combinator: "AND" | "OR";
+  rules: ExtendedRule[];
+}): Promise<{ size: number; computed_at: string }> {
+  const dsl = buildDSL(payload) as { version: number; match: string; filters: object[] };
+  const res = await fetch(`${SEG_API}/evaluate`, {
+    method: "POST",
+    headers: authHeader(),
+    body: JSON.stringify({ match: dsl.match, filters: dsl.filters }),
+  });
+  if (!res.ok) throw new Error(`previewEvaluate failed: ${res.status}`);
+  return res.json();
+}
+
 // ── Segment CRUD ──────────────────────────────────────────────────────────────
 
 export async function fetchSegments(): Promise<Segment[]> {

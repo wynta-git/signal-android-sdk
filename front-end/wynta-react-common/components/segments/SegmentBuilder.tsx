@@ -9,6 +9,7 @@ import {
   selectMetaTraits, selectMetaEvents, selectMetaOperators,
 } from '../../store/slices/segmentsSlice';
 import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
+import { previewEvaluate } from '../../services/segmentApi';
 import type { SegmentRule, SegmentField } from '../../types';
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
@@ -39,7 +40,6 @@ interface RuleWithMeta extends SegmentRule {
   eventPropValue?: string;
 }
 
-type SegmentType   = 'all' | 'filtered';
 type ActivePicker  = 'property' | 'behaviour' | null;
 
 interface SegmentBuilderProps {
@@ -50,13 +50,16 @@ interface SegmentBuilderProps {
 export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps) {
   const [name, setName]               = useState('');
   const [description, setDescription] = useState('');
-  const [combinator, setCombinator]   = useState<'AND' | 'OR'>('AND');
-  const [segmentType, setSegmentType] = useState<SegmentType>('all');
+  const combinator: 'AND' | 'OR'      = 'AND';
   const [propertyRules, setPropertyRules]     = useState<RuleWithMeta[]>([]);
   const [behaviourRules, setBehaviourRules]   = useState<RuleWithMeta[]>([]);
   const [nextId, setNextId]           = useState(1);
   const [activePicker, setActivePicker]       = useState<ActivePicker>(null);
   const [pickerSearch, setPickerSearch]       = useState('');
+  const [previewCount, setPreviewCount]       = useState<number | null>(null);
+  const [previewing, setPreviewing]           = useState(false);
+  const [behaviourExpanded, setBehaviourExpanded] = useState(false);
+  const [propertyExpanded, setPropertyExpanded]   = useState(false);
   const propertyPickerRef  = useRef<HTMLDivElement>(null);
   const behaviourPickerRef = useRef<HTMLDivElement>(null);
 
@@ -92,11 +95,22 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
     return { traitFields: fallbackTraits, eventFields: [] };
   }, [metaTraits, metaEvents]);
 
+  const usedBehaviourKeys = useMemo(
+    () => new Set(behaviourRules.map(r => r.field.replace(/^event:/, ''))),
+    [behaviourRules]
+  );
+  const usedPropertyKeys = useMemo(
+    () => new Set(propertyRules.map(r => r.field)),
+    [propertyRules]
+  );
+
   const pickerItems = useMemo(() => {
     const items = activePicker === 'behaviour' ? metaEvents : metaTraits;
+    const used  = activePicker === 'behaviour' ? usedBehaviourKeys : usedPropertyKeys;
     const q = pickerSearch.trim().toLowerCase();
-    return q ? items.filter(i => i.toLowerCase().includes(q)) : items;
-  }, [activePicker, pickerSearch, metaTraits, metaEvents]);
+    const available = items.filter(i => !used.has(i));
+    return q ? available.filter(i => i.toLowerCase().includes(q)) : available;
+  }, [activePicker, pickerSearch, metaTraits, metaEvents, usedBehaviourKeys, usedPropertyKeys]);
 
   const togglePicker = (mode: 'property' | 'behaviour') => {
     setActivePicker(prev => (prev === mode ? null : mode));
@@ -139,8 +153,10 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
 
   const allRules = useMemo(() => [...propertyRules, ...behaviourRules], [propertyRules, behaviourRules]);
 
+  useEffect(() => { setPreviewCount(null); }, [allRules, combinator]);
+
   const estimate = useMemo(() => {
-    if (segmentType === 'all') return 24800;
+
     if (allRules.length === 0) return 0;
     let base = 24800;
     allRules.forEach((r) => {
@@ -149,9 +165,22 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
     });
     if (combinator === 'OR') base = Math.min(24800, base * Math.max(1, allRules.length));
     return Math.max(12, base);
-  }, [allRules, combinator, segmentType]);
+  }, [allRules, combinator]);
 
-  const canSave = name.trim().length >= 2 && (segmentType === 'all' || allRules.length > 0);
+  const canSave = name.trim().length >= 2 && allRules.length > 0;
+
+  const handlePreview = async () => {
+    if (allRules.length === 0) return;
+    setPreviewing(true);
+    try {
+      const result = await previewEvaluate({ combinator, rules: allRules });
+      setPreviewCount(result.size);
+    } catch {
+      // keep previous count on error
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   const handleSave = () => {
     if (!canSave) return;
@@ -202,150 +231,129 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
     <>
       <div className="modal-body seg-builder-body">
 
-        {/* Audience type toggle */}
-        <div className="builder-audience-type">
-          <span className="builder-audience-label">Audience</span>
-          <div className="seg" style={{ '--cols': 2, padding: 3, width: 248 } as React.CSSProperties}>
-            <button
-              type="button"
-              className={segmentType === 'all' ? 'active' : ''}
-              onClick={() => setSegmentType('all')}
-            >
-              All Users
-            </button>
-            <button
-              type="button"
-              className={segmentType === 'filtered' ? 'active' : ''}
-              onClick={() => setSegmentType('filtered')}
-            >
-              Filter Users By
-            </button>
-          </div>
-        </div>
-
         {/* Filter sections */}
-        {segmentType === 'filtered' && (
-          <div className="builder-section">
+        <div className="builder-section">
             <div className="builder-filter-sections">
 
-              {/* User Property */}
-              <div className="builder-filter-section">
-                <div className="builder-filter-section-head">
-                  <Icon name="tag" size={13} color="var(--blue)"/>
-                  <span>User Property</span>
-                  <div className="builder-combinator">
-                    <span style={{ fontSize: 11.5, color: 'var(--g500)' }}>Match</span>
-                    <div className="seg" style={{ '--cols': 2, padding: 3, width: 132 } as React.CSSProperties}>
-                      <button type="button" className={combinator === 'AND' ? 'active' : ''} onClick={() => setCombinator('AND')}>ALL (AND)</button>
-                      <button type="button" className={combinator === 'OR' ? 'active' : ''} onClick={() => setCombinator('OR')}>ANY (OR)</button>
-                    </div>
-                  </div>
-                </div>
-                <div className="builder-rules">
-                  {propertyRules.length === 0 && (
-                    <div className="builder-empty">No property filters yet.</div>
-                  )}
-                  {propertyRules.map((r, i) => (
-                    <div key={r.id} className="builder-rule-item">
-                      {i > 0 && <span className="builder-join">{combinator}</span>}
-                      <RuleEditor
-                        rule={r}
-                        fields={traitFields.length > 0 ? traitFields : (SEGMENT_FIELDS as SegmentField[]).filter(f => f.type !== 'event')}
-                        metaOperators={metaOperators}
-                        onChange={(patch) => updatePropertyRule(r.id, patch)}
-                        onRemove={() => removePropertyRule(r.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="builder-add-row" ref={propertyPickerRef}>
-                  <button
-                    className={'builder-add' + (activePicker === 'property' ? ' active' : '')}
-                    type="button"
-                    onClick={() => togglePicker('property')}
-                  >
-                    <Icon name="plus" size={12}/>
-                    Add nested filter
-                    {metaTraits.length > 0 && <span className="builder-add-count">{metaTraits.length}</span>}
-                  </button>
-                  {renderPicker('property')}
-                </div>
-              </div>
-
               {/* User Behaviour */}
-              <div className="builder-filter-section">
-                <div className="builder-filter-section-head">
+              <div className={'builder-filter-section' + (!behaviourExpanded ? ' collapsed' : '')}>
+                <div className="builder-filter-section-head" onClick={() => setBehaviourExpanded(v => !v)} style={{ cursor: 'pointer' }}>
                   <Icon name="zap" size={13} color="var(--amber, #f59e0b)"/>
                   <span>User Behaviour</span>
-                  <div className="builder-combinator">
-                    <span style={{ fontSize: 11.5, color: 'var(--g500)' }}>Match</span>
-                    <div className="seg" style={{ '--cols': 2, padding: 3, width: 132 } as React.CSSProperties}>
-                      <button type="button" className={combinator === 'AND' ? 'active' : ''} onClick={() => setCombinator('AND')}>ALL (AND)</button>
-                      <button type="button" className={combinator === 'OR' ? 'active' : ''} onClick={() => setCombinator('OR')}>ANY (OR)</button>
+                  {behaviourRules.length > 0 && <span className="builder-add-count" style={{ background: 'var(--g400)' }}>{behaviourRules.length}</span>}
+                  <Icon name={behaviourExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="var(--g400)"/>
+                </div>
+                {behaviourExpanded && (
+                  <>
+                    <div className="builder-rules">
+                      {behaviourRules.length === 0 && (
+                        <div className="builder-empty">No behaviour filters yet.</div>
+                      )}
+                      {behaviourRules.map((r, i) => (
+                        <div key={r.id} className="builder-rule-item">
+                          {i > 0 && <span className="builder-join">{combinator}</span>}
+                          <RuleEditor
+                            rule={r}
+                            fields={eventFields.length > 0 ? eventFields : (SEGMENT_FIELDS as SegmentField[]).filter(f => f.type === 'event')}
+                            metaOperators={metaOperators}
+                            onChange={(patch) => updateBehaviourRule(r.id, patch)}
+                            onRemove={() => removeBehaviourRule(r.id)}
+                          />
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                </div>
-                <div className="builder-rules">
-                  {behaviourRules.length === 0 && (
-                    <div className="builder-empty">No behaviour filters yet.</div>
-                  )}
-                  {behaviourRules.map((r, i) => (
-                    <div key={r.id} className="builder-rule-item">
-                      {i > 0 && <span className="builder-join">{combinator}</span>}
-                      <RuleEditor
-                        rule={r}
-                        fields={eventFields.length > 0 ? eventFields : (SEGMENT_FIELDS as SegmentField[]).filter(f => f.type === 'event')}
-                        metaOperators={metaOperators}
-                        onChange={(patch) => updateBehaviourRule(r.id, patch)}
-                        onRemove={() => removeBehaviourRule(r.id)}
-                      />
+                    <div className="builder-add-row" ref={behaviourPickerRef}>
+                      <button
+                        className={'builder-add' + (activePicker === 'behaviour' ? ' active' : '')}
+                        type="button"
+                        onClick={() => togglePicker('behaviour')}
+                      >
+                        <Icon name="plus" size={12}/>
+                        Add nested filter
+                        {metaEvents.length > 0 && <span className="builder-add-count">{metaEvents.length}</span>}
+                      </button>
+                      {renderPicker('behaviour')}
                     </div>
-                  ))}
+                  </>
+                )}
+              </div>
+
+              {/* User Property */}
+              <div className={'builder-filter-section' + (!propertyExpanded ? ' collapsed' : '')}>
+                <div className="builder-filter-section-head" onClick={() => setPropertyExpanded(v => !v)} style={{ cursor: 'pointer' }}>
+                  <Icon name="tag" size={13} color="var(--blue)"/>
+                  <span>User Property</span>
+                  {propertyRules.length > 0 && <span className="builder-add-count" style={{ background: 'var(--g400)' }}>{propertyRules.length}</span>}
+                  <Icon name={propertyExpanded ? 'chevron-up' : 'chevron-down'} size={14} color="var(--g400)"/>
                 </div>
-                <div className="builder-add-row" ref={behaviourPickerRef}>
-                  <button
-                    className={'builder-add' + (activePicker === 'behaviour' ? ' active' : '')}
-                    type="button"
-                    onClick={() => togglePicker('behaviour')}
-                  >
-                    <Icon name="plus" size={12}/>
-                    Add nested filter
-                    {metaEvents.length > 0 && <span className="builder-add-count">{metaEvents.length}</span>}
-                  </button>
-                  {renderPicker('behaviour')}
-                </div>
+                {propertyExpanded && (
+                  <>
+                    <div className="builder-rules">
+                      {propertyRules.length === 0 && (
+                        <div className="builder-empty">No property filters yet.</div>
+                      )}
+                      {propertyRules.map((r, i) => (
+                        <div key={r.id} className="builder-rule-item">
+                          {i > 0 && <span className="builder-join">{combinator}</span>}
+                          <RuleEditor
+                            rule={r}
+                            fields={traitFields.length > 0 ? traitFields : (SEGMENT_FIELDS as SegmentField[]).filter(f => f.type !== 'event')}
+                            metaOperators={metaOperators}
+                            onChange={(patch) => updatePropertyRule(r.id, patch)}
+                            onRemove={() => removePropertyRule(r.id)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="builder-add-row" ref={propertyPickerRef}>
+                      <button
+                        className={'builder-add' + (activePicker === 'property' ? ' active' : '')}
+                        type="button"
+                        onClick={() => togglePicker('property')}
+                      >
+                        <Icon name="plus" size={12}/>
+                        Add nested filter
+                        {metaTraits.length > 0 && <span className="builder-add-count">{metaTraits.length}</span>}
+                      </button>
+                      {renderPicker('property')}
+                    </div>
+                  </>
+                )}
               </div>
 
             </div>
           </div>
-        )}
 
-        {/* Estimated reach */}
+        {/* Estimated count */}
         <div className="builder-preview">
-          <div className="builder-preview-num">{estimate.toLocaleString('en-IN')}</div>
+          <div className="builder-preview-num">
+            {previewing ? '…' : (previewCount ?? 0).toLocaleString('en-IN')}
+          </div>
           <div className="builder-preview-meta">
             <span className="k">Estimated count</span>
             <span className="v">
-              {segmentType === 'all'
-                ? '100% of active players · all users'
-                : `~${Math.round((estimate / 24800) * 100)}% of active players · ${allRules.length} filter${allRules.length === 1 ? '' : 's'} (${combinator})`}
+              {previewing
+                ? 'Computing…'
+                : previewCount !== null
+                  ? `${allRules.length} filter${allRules.length === 1 ? '' : 's'} (${combinator}) · live count`
+                  : 'Click Preview to compute'}
             </span>
           </div>
-          <button className="builder-refresh" type="button" title="Recompute">
-            <Icon name="refresh-cw" size={12}/> Preview
+          <button
+            className="builder-refresh"
+            type="button"
+            title="Recompute"
+            onClick={handlePreview}
+            disabled={previewing || allRules.length === 0}
+          >
+            <Icon name="refresh-cw" size={12}/> {previewing ? 'Loading…' : 'Preview'}
           </button>
         </div>
 
-        {/* Name + Description */}
-        <div className="builder-row builder-meta">
-          <div className="field-group" style={{ flex: 1, marginBottom: 0 }}>
-            <label>Segment name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — Maharashtra, no recent bonus"/>
-          </div>
-          <div className="field-group" style={{ flex: 1, marginBottom: 0 }}>
-            <label>Description <span style={{ color: 'var(--g400)', fontWeight: 400 }}>· optional</span></label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this segment for?"/>
-          </div>
+        {/* Segment name */}
+        <div className="field-group" style={{ marginBottom: 0 }}>
+          <label>Segment name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — Maharashtra, no recent bonus"/>
         </div>
       </div>
 
