@@ -88,19 +88,42 @@ class MetaService:
             log.warning("meta.fetch_events_failed", project_id=project_id, error=str(exc))
             return []
 
+    _FIXED_COLS = frozenset({
+        "event_id", "event_name", "schema_version", "project_id", "user_id",
+        "session_id", "timestamp", "received_at", "sdk_name", "sdk_version",
+        "platform", "os", "insert_date",
+    })
+
     async def _fetch_event_properties(
         self, project_id: str, event_name: str, ch: AsyncClient, db: AsyncIOMotorDatabase
     ) -> list[str]:
-        table = f"pam.events_{project_id}"
+        table = f"events_{project_id}"
+        ch_props: list[str] = []
         try:
-            result = await ch.query(
-                f"SELECT DISTINCT arrayJoin(mapKeys(properties)) AS prop "
-                f"FROM {table} "
-                f"WHERE event_name = {{event_name:String}} "
-                f"ORDER BY prop LIMIT 1000",
-                parameters={"event_name": event_name},
+            # Step 1: get dynamic column names (client-sent properties)
+            cols_result = await ch.query(
+                "SELECT name FROM system.columns "
+                "WHERE database = 'pam' AND table = {table:String}",
+                parameters={"table": table},
             )
-            ch_props = [row[0] for row in result.result_rows]
+            dynamic_cols = [
+                row[0] for row in cols_result.result_rows
+                if row[0] not in self._FIXED_COLS
+            ]
+
+            if dynamic_cols:
+                # Step 2: check which columns have at least one non-null value for this event
+                checks = ", ".join(
+                    f"countIf(`{col}` IS NOT NULL) > 0" for col in dynamic_cols
+                )
+                check_result = await ch.query(
+                    f"SELECT {checks} FROM pam.{table} "
+                    f"WHERE event_name = {{event_name:String}}",
+                    parameters={"event_name": event_name},
+                )
+                if check_result.result_rows:
+                    row = check_result.result_rows[0]
+                    ch_props = [col for col, has_value in zip(dynamic_cols, row) if has_value]
         except Exception as exc:
             log.warning(
                 "meta.fetch_event_properties_failed",
@@ -108,7 +131,6 @@ class MetaService:
                 event_name=event_name,
                 error=str(exc),
             )
-            ch_props = []
 
         aliases = await get_field_aliases(db, project_id, event_name)
         return sorted(set(ch_props) | set(aliases.keys()))
