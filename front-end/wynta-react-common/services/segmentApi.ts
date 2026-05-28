@@ -49,12 +49,14 @@ function toSegment(s: {
   name: string;
   members_count: number | null;
   last_refresh_time: string | null;
+  created_by: string | null;
 }): Segment {
   return {
     id: s.segment_id,
     label: s.name,
     count: s.members_count ?? 0,
     last_used_at: s.last_refresh_time ?? undefined,
+    owner: s.created_by ?? undefined,
   };
 }
 
@@ -83,8 +85,35 @@ function daysAgoISO(n: number): string {
   return d.toISOString();
 }
 
-function mapRule(rule: SegmentRule): object[] {
-  const { field, op, value, value2 } = rule;
+type ExtendedRule = SegmentRule & {
+  value2?: string;
+  eventProp?: string;
+  eventPropOp?: string;
+  eventPropValue?: string;
+};
+
+function toSnakeCase(s: string): string {
+  return s.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+function mapRule(rule: ExtendedRule): object[] {
+  const { field, op, value, value2, eventProp, eventPropOp, eventPropValue } = rule;
+
+  if (field.startsWith("event:")) {
+    const eventName = toSnakeCase(field.replace(/^event:/, ""));
+    const where: Record<string, { op: string; value: unknown }> = {};
+    if (eventProp) {
+      where[eventProp] = { op: eventPropOp ?? "eq", value: eventPropValue ?? null };
+    }
+    return [{
+      type: "event",
+      event_name: eventName,
+      ...(Object.keys(where).length > 0 ? { where } : {}),
+      frequency: { op: OP_MAP[op] ?? op, count: Number(value) || 0 },
+      time_window: { last_days: Number(value2) || 1 },
+    }];
+  }
+
   if (op === "WITHIN" || op === "NOT_WITHIN" || op === "BEFORE") {
     const days = typeof value === "string" ? parseInt(value, 10) : Number(value);
     const iso = daysAgoISO(days);
@@ -102,7 +131,7 @@ function mapRule(rule: SegmentRule): object[] {
 
 function buildDSL(payload: {
   combinator: "AND" | "OR";
-  rules: SegmentRule[];
+  rules: ExtendedRule[];
 }): object {
   return {
     version: 1,
@@ -124,10 +153,9 @@ export async function createSegment(payload: {
   name: string;
   description: string;
   combinator: "AND" | "OR";
-  rules: SegmentRule[];
+  rules: ExtendedRule[];
 }): Promise<Segment> {
   const body = {
-    segment_id: slugify(payload.name),
     name: payload.name,
     rule: buildDSL(payload),
     refresh_strategy: "one_time",

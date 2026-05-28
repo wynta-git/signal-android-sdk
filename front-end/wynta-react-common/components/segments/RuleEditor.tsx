@@ -37,16 +37,19 @@ export default function RuleEditor({ rule, fields, metaOperators, onChange, onRe
 
   const field: SegmentField = allFields.find(f => f.id === rule.field) || allFields[0];
 
-  // For event fields, strip the 'event:' prefix to get the real event name
+  // Strip 'event:' prefix; normalize to snake_case for the properties API
   const eventName = field?.type === 'event' ? field.id.replace(/^event:/, '') : null;
-  const eventProps = useCommonSelector(selectMetaEventProperties(eventName ?? ''));
+  const eventNameForApi = eventName
+    ? eventName.trim().toLowerCase().replace(/[\s-]+/g, '_')
+    : null;
+  const eventProps = useCommonSelector(selectMetaEventProperties(eventNameForApi ?? ''));
 
   // Fetch event properties when an event field is selected
   useEffect(() => {
-    if (eventName) {
-      dispatch(fetchMetaEventProperties({ projectId: PROJECT_ID, eventName }) as any);
+    if (eventNameForApi) {
+      dispatch(fetchMetaEventProperties({ projectId: PROJECT_ID, eventName: eventNameForApi }) as any);
     }
-  }, [dispatch, eventName]);
+  }, [dispatch, eventNameForApi]);
 
   // Determine ops: use server operators if available, else fall back to mock OPS
   const ops: SegmentOp[] =

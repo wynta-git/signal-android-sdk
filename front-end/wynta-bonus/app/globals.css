@@ -1259,7 +1259,7 @@ a { color: inherit; text-decoration: none; }
 
 .seg-table {
   display: grid;
-  grid-template-columns: 1fr 100px 110px 70px 140px 90px;
+  grid-template-columns: 180px 1fr 140px 90px 80px;
   align-items: stretch;
 }
 .seg-table-head { display: contents; }
@@ -1275,8 +1275,7 @@ a { color: inherit; text-decoration: none; }
   position: sticky; top: 0;
   z-index: 1;
 }
-.seg-table-head .th-size,
-.seg-table-head .th-runs { text-align: right; justify-content: flex-end; display: flex; }
+.seg-table-head .th-size { text-align: right; justify-content: flex-end; display: flex; }
 .seg-table-row { display: contents; }
 .seg-table-row > * {
   padding: 10px 8px;
@@ -1288,28 +1287,25 @@ a { color: inherit; text-decoration: none; }
 }
 .seg-table-row:hover > * { background: var(--g50); cursor: pointer; }
 .seg-table-row:last-child > * { border-bottom: none; }
+.seg-table-id {
+  font-size: 11.5px; font-family: monospace;
+  color: var(--g600);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.seg-table-id mark { background: rgba(0,145,224,0.18); color: var(--blue); padding: 0 1px; border-radius: 2px; }
 .seg-table-name { gap: 10px; }
-.seg-table-name-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.seg-table-name-text .lbl {
+.seg-table-name .lbl {
   font-size: 13px; font-weight: 600; color: var(--g900);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.seg-table-name-text .hint {
-  font-size: 11px; color: var(--g500);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.seg-table-name-text mark {
-  background: rgba(0,145,224,0.18);
-  color: var(--blue);
-  padding: 0 1px;
-  border-radius: 2px;
-}
+.seg-table-name mark { background: rgba(0,145,224,0.18); color: var(--blue); padding: 0 1px; border-radius: 2px; }
 .seg-table-size {
   justify-content: flex-end;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--g900);
 }
+.seg-table-head .th-size { text-align: right; justify-content: flex-end; display: flex; }
 .seg-table-runs {
   justify-content: flex-end;
   font-variant-numeric: tabular-nums;
@@ -1460,9 +1456,15 @@ a { color: inherit; text-decoration: none; }
   transition: background 0.12s, color 0.12s;
 }
 .rule-remove:hover { background: rgba(239,68,68,0.10); color: var(--err); }
+.builder-rule-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.builder-rule-item > .builder-rule { flex: 1; min-width: 0; }
 .builder-join {
-  align-self: flex-start;
-  margin-left: 14px;
+  flex-shrink: 0;
+  margin-top: 8px;
   font-size: 9.5px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -1616,6 +1618,42 @@ a { color: inherit; text-decoration: none; }
 }
 .builder-refresh:hover { box-shadow: var(--sh); background: var(--bp); }
 .builder-footer { justify-content: flex-end; }
+
+/* Audience type toggle row */
+.builder-audience-type {
+  display: flex; align-items: center; gap: 12px;
+}
+.builder-audience-label {
+  font-size: 11.5px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--g500);
+  white-space: nowrap;
+}
+
+/* Stacked filter sections (property then behaviour, each full-width row) */
+.builder-filter-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+.builder-filter-section {
+  background: #fff;
+  border: 1px solid var(--g200);
+  border-radius: var(--r);
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.builder-filter-section-head {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 700;
+  color: var(--g800);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--g100);
+  flex-wrap: wrap;
+}
 
 /* Modal responsive */
 @media (max-width: 700px) {
@@ -2175,10 +2213,10 @@ a { color: inherit; text-decoration: none; }
 
 .seg-players-thead, .seg-players-row {
   display: grid;
-  grid-template-columns: 36px minmax(170px, 1.4fr) 90px 110px 86px 96px 100px 76px;
+  grid-template-columns: 1fr 160px;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 16px;
+  padding: 12px 16px;
 }
 .seg-players-thead {
   background: var(--g50);
@@ -2203,7 +2241,8 @@ a { color: inherit; text-decoration: none; }
 }
 .seg-players-row .ident { min-width: 0; }
 .seg-players-row .ident .name {
-  font-weight: 600; color: var(--g900);
+  font-size: 13px; font-weight: 600; color: var(--g900);
+  font-family: monospace;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .seg-players-row .ident .email {

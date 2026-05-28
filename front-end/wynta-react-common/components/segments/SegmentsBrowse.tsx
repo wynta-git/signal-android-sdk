@@ -78,10 +78,10 @@ export default function SegmentsBrowse({
         ) : (
           <div className="seg-table">
             <div className="seg-table-head">
-              <span className="th-name">Segment</span>
-              <span className="th-size">Size</span>
-              <span className="th-used">Last evaluated</span>
-              <span className="th-owner">Owner</span>
+              <span className="th-id">Segment ID</span>
+              <span className="th-name">Name</span>
+              <span className="th-owner">Created by</span>
+              <span className="th-size">Members</span>
               <span className="th-act"></span>
             </div>
             {list.map(s => (
@@ -95,25 +95,17 @@ export default function SegmentsBrowse({
                 style={{ cursor: onPick ? 'pointer' : 'default' }}
                 title={`View ${s.count.toLocaleString('en-IN')} players in ${s.label}`}
               >
+                <span className="seg-table-id">{highlight(String(s.id), search)}</span>
                 <div className="seg-table-name">
                   <span className="seg-panel-icon"><Icon name="users" size={11}/></span>
-                  <div className="seg-table-name-text">
-                    <span className="lbl">{highlight(s.label ?? '', search)}</span>
-                    <span className="hint">{highlight(s.hint ?? s.description ?? '', search)}</span>
-                  </div>
+                  <span className="lbl">{highlight(s.label ?? '', search)}</span>
                 </div>
-                <span className="seg-table-size">{s.count.toLocaleString('en-IN')}</span>
-                <span className="seg-table-when" title={formatDateShort(s.last_used_at ?? '')}>
-                  {s.last_used_at ? formatRelative(s.last_used_at) : '—'}
-                </span>
                 <span className="seg-table-owner">
-                  {s.owner ? (
-                    <>
-                      <span className="seg-av" style={{ background: avatarGradient(s.owner) }}>{initial(s.owner)}</span>
-                      <span className="seg-owner-text">{s.owner.split('@')[0]}</span>
-                    </>
-                  ) : <span className="seg-owner-text" style={{ color: 'var(--g400)' }}>—</span>}
+                  {s.owner
+                    ? <span className="seg-owner-text">{s.owner}</span>
+                    : <span className="seg-owner-text" style={{ color: 'var(--g400)' }}>—</span>}
                 </span>
+                <span className="seg-table-size">{s.count.toLocaleString('en-IN')}</span>
                 <span className="seg-table-act" onClick={(e) => e.stopPropagation()}>
                   {onEvaluate && (
                     <button
