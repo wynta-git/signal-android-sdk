@@ -16,6 +16,9 @@ log = structlog.get_logger()
 
 _FCM_SEND_URL = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
 
+# Shared client — reuses TCP connections across all concurrent FCM calls
+_http_client = httpx.AsyncClient(timeout=10.0)
+
 # FCM error codes that indicate a permanently invalid token
 _UNREGISTERED_ERRORS = frozenset(["NOT_FOUND", "UNREGISTERED"])
 
@@ -62,8 +65,7 @@ class FcmV1Provider:
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=body, headers=headers)
+        resp = await _http_client.post(url, json=body, headers=headers)
 
         if resp.status_code == 200:
             msg_id: str = resp.json().get("name", f"fcm-{uuid.uuid4().hex[:12]}")
