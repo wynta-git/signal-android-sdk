@@ -65,6 +65,7 @@ class FcmV1Provider:
             "Content-Type": "application/json",
         }
 
+        log.info("fcm_v1.sending", user_id=recipient.user_id, token=recipient.token, body=body)
         resp = await _http_client.post(url, json=body, headers=headers)
 
         if resp.status_code == 200:
