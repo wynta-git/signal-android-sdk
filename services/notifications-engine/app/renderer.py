@@ -30,13 +30,13 @@ def render_push(
     ctx: dict[str, Any],
     project_doc: dict[str, Any] | None,
 ) -> RenderedPush:
-    push = template_doc.get("push") or {}
+    push = template_doc.get("body") or {}
     render_ctx = {
         "user": (user_doc or {}).get("traits", {}),
         "ctx": ctx,
         "project": project_doc or {},
     }
     title = _render(push.get("title", ""), render_ctx)
-    body = _render(push.get("body", ""), render_ctx)
+    body = _render(push.get("message", ""), render_ctx)
     image_url = push.get("image_url")
     return RenderedPush(title=title, body=body, image_url=image_url)
