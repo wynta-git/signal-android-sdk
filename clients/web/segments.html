@@ -582,19 +582,19 @@
 
     <div class="cfg-field">
       <span class="cfg-label">Auth Service URL</span>
-      <input class="cfg-input med" id="cfg-auth-url" value="http://localhost:8002"
+      <input class="cfg-input med" id="cfg-auth-url" value="http://3.7.48.14:8002"
              oninput="saveConfig()">
     </div>
 
     <div class="cfg-field">
       <span class="cfg-label">Segmentation Engine URL</span>
-      <input class="cfg-input med" id="cfg-url" value="http://localhost:8003"
+      <input class="cfg-input med" id="cfg-url" value="http://3.7.48.14:8003"
              oninput="saveConfig(); meta.events=[]; meta.props={}; meta.traits=[]; fetchEventNames(); fetchTraits()">
     </div>
 
     <div class="cfg-field">
       <span class="cfg-label">Project ID</span>
-      <input class="cfg-input small" id="cfg-project" value="proj_demo"
+      <input class="cfg-input small" id="cfg-project" value="glg-demo-001"
              oninput="saveConfig(); meta.events=[]; meta.props={}; meta.traits=[]; fetchEventNames(); fetchTraits()">
     </div>
 
@@ -628,11 +628,6 @@
           <div class="card">
             <div class="card-head">Segment Metadata</div>
             <div class="card-body">
-              <div class="form-row">
-                <label>Segment ID</label>
-                <input class="field grow" id="seg-id" placeholder="seg_active_buyers"
-                       oninput="renderPreview()">
-              </div>
               <div class="form-row">
                 <label>Name</label>
                 <input class="field grow" id="seg-name" placeholder="Active buyers (30d)"
@@ -926,7 +921,7 @@
         const res = await fetch(`${authUrl()}/api/v1/system/portal_token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: 'portal-ui', password: 'glgportal2026', project_id: 'proj_demo' }),
+          body: JSON.stringify({ username: 'portal-ui', password: 'glgportal2026', project_id: projectId() }),
         });
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         const data = await res.json();
@@ -1408,7 +1403,6 @@
       });
 
       return {
-        segment_id:       document.getElementById('seg-id').value || 'seg_unnamed',
         name:             document.getElementById('seg-name').value || 'Unnamed segment',
         refresh_strategy: document.getElementById('seg-refresh').value,
         ...(document.getElementById('seg-refresh').value === 'scheduled'
@@ -1433,7 +1427,6 @@
     // ── Validate DSL ──────────────────────────────────────────
     function validate(dsl) {
       const errs = [];
-      if (!dsl.segment_id.match(/^seg_[a-z0-9_]+$/)) errs.push('segment_id must match seg_[a-z0-9_]+');
       if (dsl.rule.filters.length === 0) errs.push('At least one filter is required');
       if (dsl.rule.filters.length > 10) errs.push('Max 10 filters per segment (v1 limit)');
       dsl.rule.filters.forEach((f, i) => {
