@@ -1,4 +1,6 @@
+import re
 from datetime import datetime, timezone
+from typing import Any
 
 import structlog
 from clickhouse_connect.driver.asyncclient import AsyncClient
@@ -7,13 +9,58 @@ from redis.asyncio import Redis
 
 from app import storage
 from app.dsl.compiler import CompiledRule, compile_rule
-from app.dsl.validator import DidNotDoFilter, EventFilter, SegmentRule
+from app.dsl.validator import DerivedFilter, DidNotDoFilter, EventFilter, SegmentRule
 from shared.clients.mongo import get_field_aliases, load_col_map
 from shared.clients.redis import hgetall
 
 log = structlog.get_logger()
 
 _COL_MAP_PREFIX = "pam:col_map"
+
+
+def _render_derived_sql(
+    template: str,
+    param_defs: list[dict[str, Any]],
+    project_id: str,
+    user_params: dict[str, Any],
+) -> str:
+    type_map = {p["key"]: p["type"] for p in param_defs}
+    subs: dict[str, str] = {"project_id": project_id}
+    for key, value in user_params.items():
+        if type_map.get(key) != "number":
+            raise ValueError(f"Only 'number' parameters are supported, got '{type_map.get(key)}' for '{key}'")
+        subs[key] = str(float(value))
+
+    def _replace(m: re.Match) -> str:
+        k = m.group(1)
+        if k not in subs:
+            raise ValueError(f"Unknown placeholder '{{{k}}}' in derived rule SQL")
+        return subs[k]
+
+    return re.sub(r"\{(\w+)\}", _replace, template)
+
+
+async def _execute_derived_filter(
+    f: DerivedFilter,
+    project_id: str,
+    db: AsyncIOMotorDatabase,
+    ch: AsyncClient,
+    user_id: str | None = None,
+) -> set[str]:
+    rule_doc = await storage.get_derived_rule(db, project_id, f.rule_id)
+    if not rule_doc:
+        log.warning("derived_rule.not_found", project_id=project_id, rule_id=f.rule_id)
+        return set()
+
+    sql = _render_derived_sql(rule_doc["sql"], rule_doc.get("parameters", []), project_id, f.parameters)
+
+    if user_id is not None:
+        sql = f"SELECT user_id FROM ({sql}) AS _d WHERE user_id = {{target_user:String}}"
+        rows = await ch.query(sql, parameters={"target_user": user_id})
+    else:
+        rows = await ch.query(sql)
+
+    return {row[0] for row in rows.result_rows}
 
 
 async def _get_col_map(
@@ -84,6 +131,9 @@ async def evaluate_segment(
         members = await storage.get_segment_member_ids(redis, project_id, seg_id)
         user_id_sets.append(members)
 
+    for f in compiled.derived_filters:
+        user_id_sets.append(await _execute_derived_filter(f, project_id, db, ch))
+
     if not user_id_sets:
         final: set[str] = set()
     elif compiled.match == "all":
@@ -148,6 +198,10 @@ async def evaluate_user_for_segment(
     for seg_id in compiled.in_segment_ids:
         members = await storage.get_segment_member_ids(redis, project_id, seg_id)
         per_filter_results.append(user_id in members)
+
+    for f in compiled.derived_filters:
+        result = await _execute_derived_filter(f, project_id, db, ch, user_id=user_id)
+        per_filter_results.append(len(result) > 0)
 
     if not per_filter_results:
         is_member = False

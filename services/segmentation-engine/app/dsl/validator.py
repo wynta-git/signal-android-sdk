@@ -61,8 +61,14 @@ class InSegmentFilter(BaseModel):
     segment_id: str
 
 
+class DerivedFilter(BaseModel):
+    type: Literal["derived"]
+    rule_id: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
 AnyFilter = Annotated[
-    Union[EventFilter, TraitFilter, DidNotDoFilter, InSegmentFilter],
+    Union[EventFilter, TraitFilter, DidNotDoFilter, InSegmentFilter, DerivedFilter],
     Field(discriminator="type"),
 ]
 

@@ -9,6 +9,7 @@ from redis.asyncio import Redis
 log = structlog.get_logger()
 
 SEGMENTS_COL = "segments"
+DERIVED_RULES_COL = "derived_rules"
 
 
 def _members_key(project_id: str, segment_id: str) -> str:
@@ -23,6 +24,9 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     try:
         await db[SEGMENTS_COL].create_indexes([
             IndexModel([("project_id", ASCENDING), ("segment_id", ASCENDING)], unique=True),
+        ])
+        await db[DERIVED_RULES_COL].create_indexes([
+            IndexModel([("project_id", ASCENDING), ("rule_id", ASCENDING)], unique=True),
         ])
         log.info("mongodb_indexes.ensured")
     except Exception as exc:
@@ -174,6 +178,51 @@ async def get_segment_member_ids(
     redis: Redis, project_id: str, segment_id: str
 ) -> set[str]:
     return await redis.smembers(_members_key(project_id, segment_id))
+
+
+async def create_derived_rule(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> None:
+    await db[DERIVED_RULES_COL].insert_one(doc)
+    log.info("derived_rule.created", project_id=doc["project_id"], rule_id=doc["rule_id"])
+
+
+async def get_derived_rule(
+    db: AsyncIOMotorDatabase, project_id: str, rule_id: str
+) -> dict[str, Any] | None:
+    return await db[DERIVED_RULES_COL].find_one(
+        {"project_id": project_id, "rule_id": rule_id},
+        {"_id": 0},
+    )
+
+
+async def list_derived_rules(
+    db: AsyncIOMotorDatabase, project_id: str
+) -> list[dict[str, Any]]:
+    cursor = db[DERIVED_RULES_COL].find({"project_id": project_id}, {"_id": 0})
+    return await cursor.to_list(length=None)
+
+
+async def update_derived_rule(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    rule_id: str,
+    updates: dict[str, Any],
+) -> bool:
+    result = await db[DERIVED_RULES_COL].update_one(
+        {"project_id": project_id, "rule_id": rule_id},
+        {"$set": updates},
+    )
+    return result.matched_count > 0
+
+
+async def delete_derived_rule(
+    db: AsyncIOMotorDatabase, project_id: str, rule_id: str
+) -> bool:
+    result = await db[DERIVED_RULES_COL].delete_one(
+        {"project_id": project_id, "rule_id": rule_id}
+    )
+    if result.deleted_count:
+        log.info("derived_rule.deleted", project_id=project_id, rule_id=rule_id)
+    return result.deleted_count > 0
 
 
 async def list_scheduled_segments(

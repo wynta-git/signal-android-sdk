@@ -73,9 +73,29 @@ class MetaService:
     def __init__(self) -> None:
         self._refreshing: set[str] = set()
 
-    async def get_events(self, project_id: str, ch: AsyncClient, redis: Redis) -> list[str]:
-        key = f"meta:{project_id}:events"
-        return await self._cached(key, redis, lambda: self._fetch_events(project_id, ch))
+    async def get_events(
+        self, project_id: str, ch: AsyncClient, redis: Redis, db: AsyncIOMotorDatabase
+    ) -> dict:
+        raw_key = f"meta:{project_id}:events"
+        derived_key = f"meta:{project_id}:derived_rule_ids"
+        raw_events, derived_rules = await asyncio.gather(
+            self._cached(raw_key, redis, lambda: self._fetch_events(project_id, ch)),
+            self._cached(derived_key, redis, lambda: self._fetch_derived_rule_ids(project_id, db)),
+        )
+        return {"raw_events": raw_events, "derived_rules": derived_rules}
+
+    async def get_derived_rule(
+        self, project_id: str, rule_id: str, db: AsyncIOMotorDatabase
+    ) -> dict | None:
+        from app import storage
+        doc = await storage.get_derived_rule(db, project_id, rule_id)
+        if doc is None:
+            return None
+        return {
+            "id": doc["rule_id"],
+            "name": doc["name"],
+            "parameters": doc.get("parameters", []),
+        }
 
     async def get_event_properties(
         self, project_id: str, event_name: str, ch: AsyncClient, redis: Redis, db: AsyncIOMotorDatabase
@@ -265,6 +285,13 @@ class MetaService:
             return "string"
 
         return _infer_type(values)
+
+    async def _fetch_derived_rule_ids(
+        self, project_id: str, db: AsyncIOMotorDatabase
+    ) -> list[str]:
+        from app import storage
+        rules = await storage.list_derived_rules(db, project_id)
+        return [r["rule_id"] for r in rules]
 
     async def _fetch_traits(self, project_id: str, db: AsyncIOMotorDatabase) -> list[str]:
         pipeline = [

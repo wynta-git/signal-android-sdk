@@ -20,7 +20,7 @@ Owns segment definitions and memberships. Compiles DSL → queries.
 - NEVER write to `users`, `campaigns`, `notification_*` collections.
 - NEVER expose public endpoints — internal API only, mTLS.
 - ALWAYS scope every query by `project_id` (multi-tenant isolation).
-- NEVER allow user-supplied raw SQL. DSL must be compiled by us.
+- NEVER allow user-supplied raw SQL in segment rules. DSL must be compiled by us. Exception: admin-authored SQL templates in `derived_rules` collection (managed via `SystemAuthDep` endpoints only). User-supplied segment rule `parameters` values are type-validated before substitution — only `number` type is supported.
 
 ## Key files (once built)
 

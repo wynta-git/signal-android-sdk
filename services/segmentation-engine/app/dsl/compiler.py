@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.dsl.validator import (
     AnyFilter,
+    DerivedFilter,
     DidNotDoFilter,
     EventFilter,
     InSegmentFilter,
@@ -54,6 +55,7 @@ class CompiledRule:
     trait_queries: list[CompiledTraitQuery] = field(default_factory=list)
     did_not_do_queries: list[CompiledEventQuery] = field(default_factory=list)
     in_segment_ids: list[str] = field(default_factory=list)
+    derived_filters: list[DerivedFilter] = field(default_factory=list)
 
 
 def compile_rule(rule: SegmentRule, project_id: str, col_map: dict[str, str]) -> CompiledRule:
@@ -72,6 +74,8 @@ def _compile_filter(f: AnyFilter, project_id: str, compiled: CompiledRule, col_m
         compiled.did_not_do_queries.append(_compile_did_not_do_filter(f, project_id))
     elif isinstance(f, InSegmentFilter):
         compiled.in_segment_ids.append(f.segment_id)
+    elif isinstance(f, DerivedFilter):
+        compiled.derived_filters.append(f)
 
 
 def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, str]) -> CompiledEventQuery:

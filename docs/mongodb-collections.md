@@ -12,6 +12,7 @@ Database: `pam`
 | `users` | api-service (`/v1/identify`) | segmentation-engine, campaign-engine, notifications-engine | User profiles. Identified ids, traits, last_seen. |
 | `anonymous_to_user` | api-service (`/v1/identify`) | api-service | Mapping from anonymous device id → user_id (set by `/v1/identify`). |
 | `segments` | segmentation-engine | campaign-engine | Segment definitions and metadata. |
+| `derived_rules` | segmentation-engine admin API | segmentation-engine (query-time) | Admin-authored SQL templates for derived segment rules. |
 | `campaigns` | campaign-engine | notifications-engine | Campaign definitions, schedule, audience, channel, template. |
 | `campaign_runs` | campaign-engine | notifications-engine | Each execution of a campaign. |
 | `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook templates. |
@@ -166,6 +167,26 @@ Database: `pam`
 }
 // Indexes: { project_id: 1, user_id: 1 }  (non-unique — one user, many tokens)
 // Owner: api-service (SDK registers tokens). Read by: notifications-engine.
+```
+
+### `derived_rules`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  rule_id: "high_value_tier_reached",      // slug, unique per project
+  name: "High Value Tier Reached",
+  sql: "SELECT user_id FROM pam.events_{project_id} WHERE ...",
+  parameters: [
+    { key: "threshold", type: "number" }   // only "number" type supported
+  ],
+  created_at: ISODate,
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1, rule_id: 1 } unique
+// Owner: segmentation-engine admin API (SystemAuthDep — internal only).
+// SQL substitution: {project_id} injected by engine; parameter keys substituted after type validation.
+// Only "number" parameter type is supported to prevent SQL injection via user-supplied values.
 ```
 
 ### `col_maps`

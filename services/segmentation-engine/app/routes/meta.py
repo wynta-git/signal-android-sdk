@@ -28,9 +28,24 @@ async def list_events(
     ctx: PortalAuthDep,
     ch=Depends(_ch),
     redis=Depends(_redis),
+    db=Depends(_db),
     meta=Depends(_meta),
-) -> list[str]:
-    return await meta.get_events(ctx.project_id, ch, redis)
+) -> dict:
+    return await meta.get_events(ctx.project_id, ch, redis, db)
+
+
+@router.get("/events/derived/{rule_id}")
+async def get_derived_rule(
+    ctx: PortalAuthDep,
+    rule_id: str,
+    db=Depends(_db),
+    meta=Depends(_meta),
+) -> dict:
+    rule = await meta.get_derived_rule(ctx.project_id, rule_id, db)
+    if rule is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Derived rule not found")
+    return rule
 
 
 @router.get("/events/{event_name}/properties")
