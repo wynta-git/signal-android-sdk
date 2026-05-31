@@ -1,44 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(/Users/khanin/.local/bin/uv run *)",
-      "Bash(python3 -m json.tool)",
-      "Bash(uv run *)",
-      "Bash(npm install *)",
-      "Bash(mkdir -p /Users/khanin/Source/pam/services/bonus/web/src/app/heads/new /Users/khanin/Source/pam/services/bonus/web/src/app/heads/\\\\[id\\\\]/subheads/new /Users/khanin/Source/pam/services/bonus/web/src/app/heads/\\\\[id\\\\]/subheads/\\\\[subheadId\\\\]/configures/new \"/Users/khanin/Source/pam/services/bonus/web/src/app/heads/[id]/subheads/[subheadId]/configures/[configureId]\")",
-      "Bash(npm run *)",
-      "Bash(cp -r src/app/* app/)",
-      "Bash(cp -r src/components .)",
-      "Bash(cp -r src/lib .)",
-      "Bash(cp -r src/store .)",
-      "Bash(python3)",
-      "Bash(mysql -u root -ppassword wynta_bonus)",
-      "Bash(mysql -u root -ppassword wynta_bonus -e \"SELECT COUNT\\(*\\) FROM bonus_configure; SELECT COUNT\\(*\\) FROM bonus_head; SELECT COUNT\\(*\\) FROM player_bonus_grant;\")",
-      "Bash(curl -s http://localhost:8100/health)",
-      "Bash(curl -s -X POST http://localhost:8100/bonus-heads -H 'Content-Type: application/json' -d '{ *)",
-      "Bash(curl -s -X POST http://localhost:8100/bonus-release-triggers -H 'Content-Type: application/json' -d '{ *)",
-      "Bash(curl -s -o /dev/null -w 'Duplicate: %{http_code}\\\\n' -X POST http://localhost:8100/bonus-release-triggers -H 'Content-Type: application/json' -d '{\"site_id\":1,\"code\":\"AUTO-1\",\"trigger_type\":\"DEPOSIT\",\"occurrence\":0,\"created_by\":\"ops.lead\"}')",
-      "Bash(curl -s -o /dev/null -w 'Bad code: %{http_code}\\\\n' -X POST http://localhost:8100/bonus-release-triggers -H 'Content-Type: application/json' -d '{\"site_id\":1,\"code\":\"INVALID_CODE\",\"trigger_type\":\"DEPOSIT\",\"occurrence\":0,\"created_by\":\"ops.lead\"}')",
-      "Bash(curl -s -o /dev/null -w \"GET trigger: %{http_code}\\\\n\" http://localhost:8100/bonus-release-triggers/1)",
-      "Bash(mysql -u root -ppassword wynta_bonus -e 'SELECT id, code, HEX\\(code\\), active FROM bonus_configure_code WHERE code='\\\\''FIRST_DEPOSIT'\\\\'';')",
-      "Bash(tail -5 /tmp/bonus-service.log)",
-      "Read(//private/tmp/**)",
-      "Bash(mysql -u root -ppassword wynta_bonus -e 'SELECT configure_id, site_id FROM bonus_configure_code WHERE site_id=1 AND code='\\\\''FIRST_DEPOSIT'\\\\'' AND active=1 LIMIT 1;')",
-      "Bash(pkill -f \"uvicorn app.main:app\")",
-      "Bash(git commit -m ' *)",
-      "Bash(curl -s http://localhost:8000/health)",
-      "Bash(curl -s http://localhost:8001/health)",
-      "Bash(curl -s http://localhost:8010/docs)",
-      "Bash(python3 -c ' *)",
-      "Bash(curl -s -X POST http://localhost:8010/bonus-heads -H 'Content-Type: application/json' -d '{ *)",
-      "Bash(curl -s -L http://localhost:3001)",
-      "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e ' *)",
-      "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e \"DESCRIBE player_bonus_grant;\")",
-      "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e \"DESCRIBE bonus_chunk;\")",
-      "Bash(mysql -h localhost -u root -ppassword wynta_bonus -e \"DESCRIBE bonus_budget_limit;\")"
-    ],
-    "additionalDirectories": [
-      "/Users/khanin/Source/pam/services/bonus/web/src/app/heads/[id]/subheads"
+      "Bash(git push *)",
+      "Bash(cd /d/PAM/front-end && find . -maxdepth 4 -path ./node_modules -prune -o -type f \\\\\\( -name \"*auth*\" -o -name \"*login*\" -o -name \"*Auth*\" -o -name \"*Login*\" \\\\\\) -print)",
+      "Read(//d/d/PAM/**)",
+      "Bash(grep -E \"^-.*\\\\.py$\")",
+      "Bash(Get-ChildItem shared\\\\auth -ErrorAction SilentlyContinue)"
     ]
   }
 }
