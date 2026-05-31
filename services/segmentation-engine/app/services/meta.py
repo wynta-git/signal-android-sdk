@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+from datetime import datetime
 from typing import Any
 
 import structlog
@@ -15,11 +16,57 @@ log = structlog.get_logger()
 _SOFT_TTL = 300   # return stale + background-refresh after this many seconds
 _HARD_TTL = 600   # Redis key absolute expiry
 
+_PROP_TYPE_SOFT_TTL = 86400 * 7   # 7 days
+_PROP_TYPE_HARD_TTL = 86400 * 30  # 30 days
+
 _OPERATORS: dict[str, list[str]] = {
     "frequency": ["eq", "neq", "gt", "gte", "lt", "lte"],
     "property":  ["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "exists"],
     "trait":     ["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "exists"],
 }
+
+_OPERATORS_BY_TYPE: dict[str, list[str]] = {
+    "number":   ["eq", "neq", "gt", "gte", "lt", "lte", "between", "exists"],
+    "string":   ["eq", "neq", "contains", "starts_with", "in", "not_in", "exists"],
+    "boolean":  ["eq", "exists"],
+    "datetime": ["before", "after", "between", "within_last", "exists"],
+}
+
+
+def _infer_type(values: list[Any]) -> str:
+    if not values:
+        return "string"
+
+    # Native Python bool (ClickHouse Bool column)
+    if all(isinstance(v, bool) for v in values):
+        return "boolean"
+
+    # Native Python numeric (Float64/Int64 base columns like amount)
+    if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
+        return "number"
+
+    # Nullable(String) dynamic columns — values arrive as strings
+    str_vals = [str(v).strip().lower() for v in values]
+
+    # Boolean strings — only when exclusively true/false/yes/no/0/1
+    if all(s in {"true", "false", "yes", "no", "0", "1"} for s in str_vals):
+        return "boolean"
+
+    # Numeric strings
+    try:
+        [float(s) for s in str_vals]
+        return "number"
+    except ValueError:
+        pass
+
+    # ISO datetime strings
+    try:
+        [datetime.fromisoformat(s) for s in str_vals]
+        return "datetime"
+    except ValueError:
+        pass
+
+    return "string"
 
 
 class MetaService:
@@ -46,6 +93,34 @@ class MetaService:
 
     def get_operators(self) -> dict[str, Any]:
         return _OPERATORS
+
+    async def get_property_operators(
+        self,
+        project_id: str,
+        event_name: str,
+        prop_name: str,
+        ch: AsyncClient,
+        redis: Redis,
+        db: AsyncIOMotorDatabase,
+    ) -> dict[str, Any]:
+        key = f"meta:{project_id}:prop_operators:{event_name}:{prop_name}"
+        raw = await redis.get(key)
+        if raw is not None:
+            blob = json.loads(raw)
+            if time.time() - blob["ts"] > _PROP_TYPE_SOFT_TTL and key not in self._refreshing:
+                asyncio.create_task(
+                    self._refresh_prop_type(key, redis, project_id, event_name, prop_name, ch, db)
+                )
+            return blob["data"]
+
+        prop_type = await self._fetch_property_type(project_id, event_name, prop_name, ch, db)
+        data = {"type": prop_type, "operators": _OPERATORS_BY_TYPE[prop_type]}
+        await redis.set(
+            key,
+            json.dumps({"data": data, "ts": time.time()}),
+            ex=_PROP_TYPE_HARD_TTL,
+        )
+        return data
 
     # ── cache helpers ─────────────────────────────────────────────────────────
 
@@ -134,6 +209,62 @@ class MetaService:
 
         aliases = await get_field_aliases(db, project_id, event_name)
         return sorted(set(ch_props) | set(aliases.keys()))
+
+    async def _refresh_prop_type(
+        self,
+        key: str,
+        redis: Redis,
+        project_id: str,
+        event_name: str,
+        prop_name: str,
+        ch: AsyncClient,
+        db: AsyncIOMotorDatabase,
+    ) -> None:
+        self._refreshing.add(key)
+        try:
+            prop_type = await self._fetch_property_type(project_id, event_name, prop_name, ch, db)
+            data = {"type": prop_type, "operators": _OPERATORS_BY_TYPE[prop_type]}
+            await redis.set(
+                key,
+                json.dumps({"data": data, "ts": time.time()}),
+                ex=_PROP_TYPE_HARD_TTL,
+            )
+        except Exception as exc:
+            log.warning("meta_cache.refresh_prop_type_failed", key=key, error=str(exc))
+        finally:
+            self._refreshing.discard(key)
+
+    async def _fetch_property_type(
+        self,
+        project_id: str,
+        event_name: str,
+        prop_name: str,
+        ch: AsyncClient,
+        db: AsyncIOMotorDatabase,
+    ) -> str:
+        aliases = await get_field_aliases(db, project_id, event_name)
+        col = aliases.get(prop_name, prop_name)
+
+        table = f"pam.events_{project_id}"
+        try:
+            result = await ch.query(
+                f"SELECT `{col}` FROM {table} "
+                f"WHERE event_name = {{event_name:String}} AND `{col}` IS NOT NULL "
+                f"LIMIT 200",
+                parameters={"event_name": event_name},
+            )
+            values = [row[0] for row in result.result_rows]
+        except Exception as exc:
+            log.warning(
+                "meta.fetch_property_type_failed",
+                project_id=project_id,
+                event_name=event_name,
+                prop=prop_name,
+                error=str(exc),
+            )
+            return "string"
+
+        return _infer_type(values)
 
     async def _fetch_traits(self, project_id: str, db: AsyncIOMotorDatabase) -> list[str]:
         pipeline = [
