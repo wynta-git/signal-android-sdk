@@ -63,9 +63,20 @@ def _register_job(
     if _scheduler.get_job(job_id):
         _scheduler.remove_job(job_id)
 
+    try:
+        trigger = CronTrigger.from_crontab(cron)
+    except ValueError:
+        log.warning(
+            "scheduler.invalid_cron_skipped",
+            project_id=project_id,
+            segment_id=segment_id,
+            cron=cron,
+        )
+        return
+
     _scheduler.add_job(
         _run_evaluation,
-        trigger=CronTrigger.from_crontab(cron),
+        trigger=trigger,
         id=job_id,
         kwargs={"project_id": project_id, "segment_id": segment_id, "rule": rule, "db": db, "ch": ch, "redis": redis},
         replace_existing=True,
