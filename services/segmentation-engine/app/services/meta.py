@@ -9,7 +9,7 @@ from clickhouse_connect.driver.asyncclient import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
 
-from shared.clients.mongo import get_field_aliases
+from shared.clients.mongo import get_field_aliases, get_trait_schema
 
 log = structlog.get_logger()
 
@@ -113,6 +113,30 @@ class MetaService:
 
     def get_operators(self) -> dict[str, Any]:
         return _OPERATORS
+
+    async def get_trait_operators(
+        self, project_id: str, trait_name: str, db: AsyncIOMotorDatabase, redis: Redis
+    ) -> dict[str, Any]:
+        key = f"meta:{project_id}:trait_operators:{trait_name}"
+        raw = await redis.get(key)
+        if raw is not None:
+            blob = json.loads(raw)
+            if time.time() - blob["ts"] < _PROP_TYPE_SOFT_TTL:
+                return blob["data"]
+
+        schema = await get_trait_schema(db, project_id, trait_name)
+        if schema:
+            trait_type = schema["type"]
+        else:
+            trait_type = await self._fetch_trait_type_from_users(project_id, trait_name, db)
+
+        data = {"type": trait_type, "operators": _OPERATORS_BY_TYPE[trait_type]}
+        await redis.set(
+            key,
+            json.dumps({"data": data, "ts": time.time()}),
+            ex=_PROP_TYPE_HARD_TTL,
+        )
+        return data
 
     async def get_property_operators(
         self,
@@ -284,6 +308,17 @@ class MetaService:
             )
             return "string"
 
+        return _infer_type(values)
+
+    async def _fetch_trait_type_from_users(
+        self, project_id: str, trait_name: str, db: AsyncIOMotorDatabase
+    ) -> str:
+        cursor = db["users"].find(
+            {"project_id": project_id, f"traits.{trait_name}": {"$exists": True}},
+            {f"traits.{trait_name}": 1, "_id": 0},
+        ).limit(200)
+        docs = await cursor.to_list(length=None)
+        values = [d["traits"][trait_name] for d in docs if trait_name in d.get("traits", {})]
         return _infer_type(values)
 
     async def _fetch_derived_rule_ids(

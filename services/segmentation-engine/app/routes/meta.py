@@ -73,6 +73,17 @@ async def get_property_operators(
     return await meta.get_property_operators(ctx.project_id, event_name, prop_name, ch, redis, db)
 
 
+@router.get("/traits/{trait_name}/operators")
+async def get_trait_operators(
+    ctx: PortalAuthDep,
+    trait_name: str,
+    db=Depends(_db),
+    redis=Depends(_redis),
+    meta=Depends(_meta),
+) -> dict[str, Any]:
+    return await meta.get_trait_operators(ctx.project_id, trait_name, db, redis)
+
+
 @router.get("/traits")
 async def list_traits(
     ctx: PortalAuthDep,

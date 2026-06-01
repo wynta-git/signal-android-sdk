@@ -726,6 +726,53 @@ async def list_field_aliases(
     return await cursor.to_list(length=None)
 
 
+def _infer_trait_type(value: Any) -> str:
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, datetime):
+        return "datetime"
+    if isinstance(value, str):
+        try:
+            datetime.fromisoformat(value)
+            return "datetime"
+        except ValueError:
+            pass
+        try:
+            float(value)
+            return "number"
+        except ValueError:
+            pass
+        if value.strip().lower() in {"true", "false", "yes", "no"}:
+            return "boolean"
+    return "string"
+
+
+async def upsert_trait_schemas(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    traits: dict[str, Any],
+) -> None:
+    now = datetime.now(tz=timezone.utc)
+    for trait, value in traits.items():
+        trait_type = _infer_trait_type(value)
+        await db["trait_schemas"].update_one(
+            {"project_id": project_id, "trait": trait},
+            {"$setOnInsert": {"project_id": project_id, "trait": trait, "type": trait_type, "created_at": now}},
+            upsert=True,
+        )
+
+
+async def get_trait_schema(
+    db: AsyncIOMotorDatabase, project_id: str, trait: str
+) -> dict[str, Any] | None:
+    return await db["trait_schemas"].find_one(
+        {"project_id": project_id, "trait": trait},
+        {"_id": 0},
+    )
+
+
 async def upsert_user_profile(
     db: AsyncIOMotorDatabase,
     *,
@@ -753,3 +800,5 @@ async def upsert_user_profile(
         update,
         upsert=True,
     )
+    if traits:
+        await upsert_trait_schemas(db, project_id, traits)

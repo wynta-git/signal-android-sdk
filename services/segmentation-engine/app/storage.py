@@ -28,6 +28,9 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
         await db[DERIVED_RULES_COL].create_indexes([
             IndexModel([("project_id", ASCENDING), ("rule_id", ASCENDING)], unique=True),
         ])
+        await db["trait_schemas"].create_indexes([
+            IndexModel([("project_id", ASCENDING), ("trait", ASCENDING)], unique=True),
+        ])
         log.info("mongodb_indexes.ensured")
     except Exception as exc:
         log.error("mongodb_indexes.failed", error=str(exc))
