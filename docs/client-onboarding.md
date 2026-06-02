@@ -294,18 +294,140 @@ No Redis setup is required. All keys are created and expired automatically:
 
 ---
 
+## Promoting Frequently-Used Properties to Typed Base Columns
+
+By default, every `properties` key a client sends becomes a `Nullable(String)` dynamic column in ClickHouse. This is fine for most fields.
+
+But if a property is **queried frequently** (filtered, aggregated, sorted), promote it to a typed base column instead. This avoids string casting on every query and makes the schema explicit.
+
+### Decision rule
+
+| Condition | Action |
+|---|---|
+| Queried with `SUM()`, `AVG()`, `WHERE >` — needs a real type | Promote |
+| Present in most events for this client | Promote |
+| Rare, one-off, or free-text | Leave as dynamic `Nullable(String)` |
+
+### Choosing the right ClickHouse type
+
+| Data | ClickHouse type |
+|---|---|
+| Decimal number (money, score) | `Nullable(Float64)` |
+| Whole number (count, rank) | `Nullable(Int64)` |
+| Short string, low cardinality (status, country, platform) | `LowCardinality(String)` |
+| Short string, high cardinality (IDs, names) | `String` |
+| Date/time | `Nullable(DateTime64(3, 'UTC'))` |
+| True/false | `Nullable(UInt8)` |
+
+### How to promote a property (4 places + ClickHouse)
+
+For each property you want to promote, update all of the following. **Order matters — `_BASE_COLUMNS` and `_base_values()` must stay in sync.**
+
+**1. `_BASE_COLUMNS`** — [event-processor/app/writer.py](../services/event-processor/app/writer.py)
+```python
+_BASE_COLUMNS = [
+    ...
+    "your_field",    # add here
+]
+```
+
+**2. `_PROMOTED_KEYS`** — same file
+```python
+_PROMOTED_KEYS = frozenset({"amount", "currency", "your_field"})
+```
+
+**3. `_base_values()`** — same file, extract from `props` and add to the return list at the **same position** as `_BASE_COLUMNS`
+```python
+def _base_values(event):
+    props = event.get("properties") or {}
+    ...
+    your_field_raw = props.get("your_field")
+    ...
+    return [
+        ...
+        str(your_field_raw) if your_field_raw is not None else None,   # add here
+    ]
+```
+
+**4. `_CLIENT_TABLE_DDL`** — [event-processor/app/schema_manager.py](../services/event-processor/app/schema_manager.py)
+```sql
+your_field   LowCardinality(String),   -- or the right type
+```
+
+**5. ClickHouse `ALTER TABLE`** — for every existing client table
+```sql
+ALTER TABLE pam.events_{project_id}
+    ADD COLUMN IF NOT EXISTS your_field LowCardinality(String) DEFAULT '';
+```
+
+### Example — promoting 3 fields from properties
+
+Say a client sends `payment_method`, `transaction_id`, `loyalty_points` in every event and you query them constantly.
+
+```python
+# writer.py
+
+_BASE_COLUMNS = [
+    ...existing...,
+    "payment_method",
+    "transaction_id",
+    "loyalty_points",
+]
+
+_PROMOTED_KEYS = frozenset({
+    "amount", "currency",
+    "payment_method", "transaction_id", "loyalty_points",
+})
+
+def _base_values(event):
+    props = event.get("properties") or {}
+    ...
+    loyalty_raw = props.get("loyalty_points")
+    loyalty: int | None = None
+    if loyalty_raw is not None:
+        try:
+            loyalty = int(loyalty_raw)
+        except (TypeError, ValueError):
+            pass
+
+    return [
+        ...existing...,
+        str(props.get("payment_method") or ""),
+        str(props.get("transaction_id") or ""),
+        loyalty,
+    ]
+```
+
+```sql
+-- schema_manager.py DDL
+payment_method   LowCardinality(String),
+transaction_id   String,
+loyalty_points   Nullable(Int64),
+```
+
+```sql
+-- Run on ClickHouse for each existing client table
+ALTER TABLE pam.events_{project_id} ADD COLUMN IF NOT EXISTS payment_method LowCardinality(String) DEFAULT '';
+ALTER TABLE pam.events_{project_id} ADD COLUMN IF NOT EXISTS transaction_id String DEFAULT '';
+ALTER TABLE pam.events_{project_id} ADD COLUMN IF NOT EXISTS loyalty_points Nullable(Int64);
+```
+
+---
+
 ## Checklist
 
 ```
 [ ] 1. Insert projects document (project_id, name, pii_salt, settings)
 [ ] 2. Create admin token  → scope: ["admin"], env: "live"
 [ ] 3. Create events:write token → scope: ["events:write"], env: "live"
-[ ] 4. Hand events:write token to client SDK
-[ ] 5. Send a test /track event — verify 202 response
-[ ] 6. Send a test /identify call — verify user appears in users collection
-[ ] 7. (Optional) Configure field aliases if SDK property names differ
-[ ] 8. (Optional) Create event routes for fanout topics
-[ ] 9. (Optional) Create segments and campaigns
+[ ] 4. Review client's event structure — identify frequently-used properties
+[ ] 5. Promote frequent properties to base columns (4 places + ALTER TABLE)
+[ ] 6. Hand events:write token to client SDK
+[ ] 7. Send a test /track event — verify 202 response
+[ ] 8. Send a test /identify call — verify user appears in users collection
+[ ] 9. (Optional) Configure field aliases if SDK property names differ
+[ ] 10. (Optional) Create event routes for fanout topics
+[ ] 11. (Optional) Create segments and campaigns
 ```
 
 ---
