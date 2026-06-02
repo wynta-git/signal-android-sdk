@@ -56,7 +56,7 @@ def _register_job(
 ) -> None:
     project_id = seg["project_id"]
     segment_id = seg["segment_id"]
-    cron = seg.get("scheduled_cron", "0 */6 * * *")
+    cron = seg.get("scheduled_cron") or "0 */6 * * *"
     rule = SegmentRule.model_validate(seg["rule"])
     job_id = _job_id(project_id, segment_id)
 
@@ -65,7 +65,7 @@ def _register_job(
 
     try:
         trigger = CronTrigger.from_crontab(cron)
-    except ValueError:
+    except (ValueError, TypeError):
         log.warning(
             "scheduler.invalid_cron_skipped",
             project_id=project_id,
