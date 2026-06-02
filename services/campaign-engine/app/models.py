@@ -154,9 +154,20 @@ class CreateCampaignRequest(BaseModel):
     trigger: Trigger
     audience: Audience
     channel: Literal["push", "email", "sms", "webhook"]
-    template_id: str
+    template_id: str | None = None
+    message_title: str | None = None
+    message_body: str | None = None
+    deep_link: str | None = None
     rate_limit: RateLimit = Field(default_factory=RateLimit)
     delay: Delay | None = None
+
+    @model_validator(mode="after")
+    def check_template_or_inline(self) -> CreateCampaignRequest:
+        if not self.template_id and not (self.message_title and self.message_body):
+            raise ValueError(
+                "Provide either template_id or both message_title and message_body"
+            )
+        return self
 
 
 class UpdateCampaignRequest(BaseModel):

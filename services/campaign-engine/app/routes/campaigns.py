@@ -15,6 +15,7 @@ from shared.clients.mongo import (
     delete_campaign,
     get_campaign,
     insert_campaign,
+    insert_template,
     list_campaigns,
     update_campaign,
 )
@@ -43,6 +44,23 @@ async def create_campaign(
     if body.trigger.type == "scheduled" and body.trigger.schedule:
         trigger_dict["cron"] = build_cron(body.trigger.schedule)
 
+    # Resolve template — auto-create an inline template if template_id not provided
+    template_id = body.template_id
+    if not template_id:
+        template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
+        inline_body: dict = {"title": body.message_title, "body": body.message_body}
+        if body.deep_link:
+            inline_body["deep_link"] = body.deep_link
+        await insert_template(db, {
+            "template_id": template_id,
+            "project_id": project_id,
+            "name": f"{body.name} (inline)",
+            "channel": body.channel,
+            "body": inline_body,
+            "created_at": now,
+            "updated_at": now,
+        })
+
     doc = {
         "campaign_id": campaign_id,
         "project_id": project_id,
@@ -51,7 +69,7 @@ async def create_campaign(
         "trigger": trigger_dict,
         "audience": body.audience.model_dump(mode="json"),
         "channel": body.channel,
-        "template_id": body.template_id,
+        "template_id": template_id,
         "rate_limit": body.rate_limit.model_dump(mode="json"),
         "delay": body.delay.model_dump(mode="json") if body.delay else None,
         "created_at": now,
