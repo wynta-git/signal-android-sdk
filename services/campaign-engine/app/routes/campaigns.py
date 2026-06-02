@@ -6,6 +6,7 @@ import structlog
 from croniter import croniter
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.cron_builder import build_cron
 from app.dependencies import PortalAuthDep, get_db
 from app.models import CreateCampaignRequest, UpdateCampaignRequest
 from app.prefetch import trigger_segment_refresh
@@ -37,12 +38,17 @@ async def create_campaign(
     project_id = ctx.project_id
     campaign_id = f"camp_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
+
+    trigger_dict = body.trigger.model_dump(mode="json")
+    if body.trigger.type == "scheduled" and body.trigger.schedule:
+        trigger_dict["cron"] = build_cron(body.trigger.schedule)
+
     doc = {
         "campaign_id": campaign_id,
         "project_id": project_id,
         "name": body.name,
         "status": "draft",
-        "trigger": body.trigger.model_dump(mode="json"),
+        "trigger": trigger_dict,
         "audience": body.audience.model_dump(mode="json"),
         "channel": body.channel,
         "template_id": body.template_id,
@@ -148,6 +154,10 @@ async def activate_campaign(
             raise HTTPException(status_code=422, detail="one_off campaign requires trigger.send_at")
         updates["status"] = "scheduled"
 
+    elif trigger_type == "immediate":
+        updates["status"] = "running"
+        updates["next_run_at"] = now
+
     elif trigger_type == "scheduled":
         cron = doc["trigger"].get("cron")
         if not cron:
@@ -155,7 +165,17 @@ async def activate_campaign(
         if not croniter.is_valid(cron):
             raise HTTPException(status_code=422, detail=f"Invalid cron expression: {cron}")
         updates["status"] = "running"
-        updates["next_run_at"] = _next_cron_run(cron, now)
+        # Respect start_date: don't schedule first run before it
+        schedule = doc["trigger"].get("schedule") or {}
+        start_date_str = schedule.get("start_date")
+        base = now
+        if start_date_str:
+            from datetime import date
+            sd = date.fromisoformat(start_date_str)
+            start_dt = datetime(sd.year, sd.month, sd.day, tzinfo=timezone.utc)
+            if start_dt > now:
+                base = start_dt
+        updates["next_run_at"] = _next_cron_run(cron, base)
 
     else:
         updates["status"] = "running"

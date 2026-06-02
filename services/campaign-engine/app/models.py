@@ -1,17 +1,79 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+_VALID_DOW = {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
+
+
+class ScheduleInput(BaseModel):
+    type: Literal["daily", "weekly", "monthly"]
+    timezone: str = "UTC"
+    start_date: date | None = None
+    end_date: date | None = None
+    schedule_time: str  # "HH:MM" 24h
+    days_of_week: list[str] | None = None   # weekly only e.g. ["MON","WED","FRI"]
+    days_of_month: list[int] | None = None  # monthly only e.g. [5, 15, 25], capped 1-28
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str) -> str:
+        try:
+            ZoneInfo(v)
+        except (ZoneInfoNotFoundError, KeyError):
+            raise ValueError(f"Unknown timezone: {v}")
+        return v
+
+    @field_validator("schedule_time")
+    @classmethod
+    def validate_time(cls, v: str) -> str:
+        parts = v.split(":")
+        if len(parts) != 2 or not all(p.isdigit() for p in parts):
+            raise ValueError("schedule_time must be HH:MM")
+        if not (0 <= int(parts[0]) <= 23 and 0 <= int(parts[1]) <= 59):
+            raise ValueError("schedule_time must be a valid 24h time")
+        return v
+
+    @field_validator("days_of_week")
+    @classmethod
+    def validate_days_of_week(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        upper = [d.upper() for d in v]
+        invalid = [d for d in upper if d not in _VALID_DOW]
+        if invalid:
+            raise ValueError(f"Invalid days: {invalid}. Must be one of {_VALID_DOW}")
+        return upper
+
+    @field_validator("days_of_month")
+    @classmethod
+    def validate_days_of_month(cls, v: list[int] | None) -> list[int] | None:
+        if v is None:
+            return v
+        bad = [d for d in v if not 1 <= d <= 28]
+        if bad:
+            raise ValueError(f"days_of_month values must be 1–28, got {bad}")
+        return v
+
+    @model_validator(mode="after")
+    def check_required_fields(self) -> ScheduleInput:
+        if self.type == "weekly" and not self.days_of_week:
+            raise ValueError("days_of_week is required for weekly schedule")
+        if self.type == "monthly" and not self.days_of_month:
+            raise ValueError("days_of_month is required for monthly schedule")
+        return self
 
 
 class Trigger(BaseModel):
-    type: Literal["event", "scheduled", "one_off"]
-    event_name: str | None = None   # type=event
-    cron: str | None = None         # type=scheduled
-    send_at: datetime | None = None # type=one_off
+    type: Literal["event", "scheduled", "one_off", "immediate"]
+    event_name: str | None = None    # type=event
+    schedule: ScheduleInput | None = None  # UI sends this; engine converts to cron
+    cron: str | None = None          # computed by engine, never sent by UI
+    send_at: datetime | None = None  # type=one_off
 
 
 class Audience(BaseModel):
