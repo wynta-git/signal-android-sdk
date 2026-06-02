@@ -1,6 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import * as segmentApi from '../../services/segmentApi';
-import type { Segment, SegmentRule, AsyncStatus } from '../../types';
+import type {
+  Segment, SegmentRule, AsyncStatus,
+  MetaEventItem, TraitOperatorsResponse, DerivedRuleConfig, ParameterOperatorsResponse,
+} from '../../types';
 import type { MemberPage, MetaOperators, EvaluateResult } from '../../services/segmentApi';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -12,10 +15,20 @@ interface SegmentsState {
   status: AsyncStatus;
   evaluating: Record<string, boolean>;
   evaluateResults: Record<string, EvaluateResult>;
+  // Meta — events (raw + derived combined)
+  metaEvents: MetaEventItem[];
+  // Meta — traits
   metaTraits: string[];
-  metaEvents: string[];
+  // Meta — global operators (fallback)
   metaOperators: MetaOperators | null;
+  // Per-event properties (raw events)
   metaEventProperties: Record<string, string[]>;
+  // Per-trait operators: keyed by trait name
+  metaTraitOperators: Record<string, TraitOperatorsResponse>;
+  // Derived rule configs: keyed by rule_name
+  metaDerivedRules: Record<string, DerivedRuleConfig>;
+  // Derived rule param operators: keyed by "${rule_name}:${param_name}"
+  metaDerivedParamOps: Record<string, ParameterOperatorsResponse>;
 }
 
 const initialState: SegmentsState = {
@@ -25,11 +38,20 @@ const initialState: SegmentsState = {
   status: 'idle',
   evaluating: {},
   evaluateResults: {},
-  metaTraits: [],
   metaEvents: [],
+  metaTraits: [],
   metaOperators: null,
   metaEventProperties: {},
+  metaTraitOperators: {},
+  metaDerivedRules: {},
+  metaDerivedParamOps: {},
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function toLabel(s: string): string {
+  return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
 // ── Thunks ────────────────────────────────────────────────────────────────────
 
@@ -40,8 +62,15 @@ export const fetchSegments = createAsyncThunk(
 
 export const createSegment = createAsyncThunk(
   'segments/create',
-  (payload: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) =>
-    segmentApi.createSegment(payload)
+  (payload: {
+    name: string;
+    description: string;
+    combinator: 'AND' | 'OR';
+    rules: SegmentRule[];
+    refresh_strategy?: string;
+    scheduled_cron?: string;
+    created_by?: string | null;
+  }) => segmentApi.createSegment(payload)
 );
 
 export const getSegment = createAsyncThunk(
@@ -82,9 +111,26 @@ export const fetchMetaTraits = createAsyncThunk(
   (projectId: string) => segmentApi.fetchMetaTraits(projectId)
 );
 
+/** Fetches raw_events + derived_rules, combines into MetaEventItem[] */
 export const fetchMetaEvents = createAsyncThunk(
   'segments/fetchMetaEvents',
-  (projectId: string) => segmentApi.fetchMetaEvents(projectId)
+  async (projectId: string): Promise<MetaEventItem[]> => {
+    const raw = await segmentApi.fetchMetaEvents(projectId);
+    // Normalise: handle both old string[] (legacy) and new { raw_events, derived_rules }
+    if (Array.isArray(raw)) {
+      return (raw as unknown as string[]).map(e => ({
+        id: e, label: toLabel(e), source: 'raw_event' as const,
+      }));
+    }
+    const items: MetaEventItem[] = [];
+    for (const e of (raw.raw_events ?? [])) {
+      items.push({ id: e, label: toLabel(e), source: 'raw_event' });
+    }
+    for (const r of (raw.derived_rules ?? [])) {
+      items.push({ id: r, label: toLabel(r), source: 'derived_rule' });
+    }
+    return items;
+  }
 );
 
 export const fetchMetaOperators = createAsyncThunk(
@@ -97,6 +143,28 @@ export const fetchMetaEventProperties = createAsyncThunk(
   ({ projectId, eventName }: { projectId: string; eventName: string }) =>
     segmentApi.fetchMetaEventProperties(projectId, eventName)
       .then(props => ({ eventName, props }))
+);
+
+/** Fetches operators for a specific trait. Cached in metaTraitOperators. */
+export const fetchTraitOperators = createAsyncThunk(
+  'segments/fetchTraitOperators',
+  (trait: string) =>
+    segmentApi.fetchTraitOperators(trait).then(data => ({ trait, data }))
+);
+
+/** Fetches config (parameters) for a derived rule. Cached in metaDerivedRules. */
+export const fetchDerivedRuleConfig = createAsyncThunk(
+  'segments/fetchDerivedRuleConfig',
+  (ruleName: string) =>
+    segmentApi.fetchDerivedRuleConfig(ruleName).then(data => ({ ruleName, data }))
+);
+
+/** Fetches operators for one parameter of a derived rule. Cached in metaDerivedParamOps. */
+export const fetchDerivedRuleParamOperators = createAsyncThunk(
+  'segments/fetchDerivedRuleParamOperators',
+  ({ ruleName, paramName }: { ruleName: string; paramName: string }) =>
+    segmentApi.fetchDerivedRuleParamOperators(ruleName, paramName)
+      .then(data => ({ ruleName, paramName, data }))
 );
 
 // ── Slice ─────────────────────────────────────────────────────────────────────
@@ -177,6 +245,44 @@ const segmentsSlice = createSlice({
       .addCase(fetchMetaEventProperties.fulfilled, (state, action) => {
         const { eventName, props } = action.payload;
         state.metaEventProperties[eventName] = props;
+      })
+
+      .addCase(fetchTraitOperators.fulfilled, (state, action) => {
+        state.metaTraitOperators[action.payload.trait] = action.payload.data;
+      })
+
+      .addCase(fetchDerivedRuleConfig.fulfilled, (state, action) => {
+        const data = action.payload.data;
+
+        if (data && !Array.isArray(data.parameters)) {
+          // Object-dict shape → normalise to array
+          data.parameters = Object.entries(
+            (data.parameters as Record<string, Record<string, unknown>>) ?? {}
+          ).map(([name, cfg]) => ({
+            name,
+            key:  name,
+            label: (cfg?.label as string) ?? undefined,
+            type:  (cfg?.type  as string) ?? 'text',
+            options: Array.isArray(cfg?.options) ? (cfg.options as string[]) : undefined,
+            default_value: (cfg?.default_value as string) ?? undefined,
+          }));
+        } else if (data && Array.isArray(data.parameters)) {
+          // New array shape: each entry may use `key` instead of `name`
+          data.parameters = data.parameters.map((p: any) => ({
+            ...p,
+            // Canonicalise: prefer existing `name`, fall back to `key`
+            name: (p.name ?? p.key ?? '') as string,
+            key:  (p.key  ?? p.name ?? '') as string,
+            type: (p.type ?? 'text') as string,
+          }));
+        }
+
+        state.metaDerivedRules[action.payload.ruleName] = data;
+      })
+
+      .addCase(fetchDerivedRuleParamOperators.fulfilled, (state, action) => {
+        const key = `${action.payload.ruleName}:${action.payload.paramName}`;
+        state.metaDerivedParamOps[key] = action.payload.data;
       });
   },
 });
@@ -204,6 +310,7 @@ export const selectEvaluateResult = (segmentId: string) =>
 export const selectMetaTraits = (state: { segments: SegmentsState }) =>
   state.segments.metaTraits;
 
+/** Returns combined MetaEventItem[] (raw_events + derived_rules) */
 export const selectMetaEvents = (state: { segments: SegmentsState }) =>
   state.segments.metaEvents;
 
@@ -213,5 +320,25 @@ export const selectMetaOperators = (state: { segments: SegmentsState }) =>
 export const selectMetaEventProperties = (eventName: string) =>
   (state: { segments: SegmentsState }) =>
     state.segments.metaEventProperties[eventName] ?? [];
+
+export const selectMetaTraitOperators = (trait: string) =>
+  (state: { segments: SegmentsState }) =>
+    state.segments.metaTraitOperators[trait] ?? null;
+
+export const selectDerivedRuleConfig = (ruleName: string) =>
+  (state: { segments: SegmentsState }) =>
+    state.segments.metaDerivedRules[ruleName] ?? null;
+
+export const selectDerivedRuleParamOps = (ruleName: string, paramName: string) =>
+  (state: { segments: SegmentsState }) =>
+    state.segments.metaDerivedParamOps[`${ruleName}:${paramName}`] ?? null;
+
+export const selectSegmentById = (id: string) =>
+  (state: { segments: SegmentsState }) =>
+    state.segments.entities[id] ?? null;
+
+/** Returns the full evaluating map so callers can check any id without per-row hooks. */
+export const selectAllEvaluating = (state: { segments: SegmentsState }) =>
+  state.segments.evaluating;
 
 export default segmentsSlice.reducer;

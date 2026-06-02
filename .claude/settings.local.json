@@ -52,7 +52,12 @@
       "Bash(curl -s --max-time 5 http://3.7.48.14:8006/api/v1/ready)",
       "Bash(curl -s --max-time 5 http://localhost:8006/api/v1/ready)",
       "Bash(curl *)",
-      "Bash(mongosh --eval \"db.runCommand\\({ping:1}\\)\")"
+      "Bash(mongosh --eval \"db.runCommand\\({ping:1}\\)\")",
+      "Bash(grep -E \"\\(wynta-|front-end$\\)\")",
+      "Bash(yarn workspace *)",
+      "Bash(npx tsc *)",
+      "Bash(sed -n '1093,1140p' /home/ubuntu/gridlogic_dev/pam/front-end/wynta-react-common/app/globals.css)",
+      "Bash(sed -n '1226,1340p' /home/ubuntu/gridlogic_dev/pam/front-end/wynta-react-common/app/globals.css)"
     ],
     "additionalDirectories": [
       "/Users/khanin/Source/pam/services/bonus/web/src/app/heads/[id]/subheads"

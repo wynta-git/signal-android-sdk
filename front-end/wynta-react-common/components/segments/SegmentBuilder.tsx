@@ -10,7 +10,7 @@ import {
 } from '../../store/slices/segmentsSlice';
 import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
 import { previewEvaluate } from '../../services/segmentApi';
-import type { SegmentRule, SegmentField } from '../../types';
+import type { SegmentRule, SegmentField, MetaEventItem } from '../../types';
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
@@ -18,26 +18,39 @@ function toLabel(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function buildSplitFields(traits: string[], events: string[]): { traitFields: SegmentField[]; eventFields: SegmentField[] } {
+function buildSplitFields(
+  traits: string[],
+  events: MetaEventItem[],
+): { traitFields: SegmentField[]; eventFields: SegmentField[] } {
   const knownMap = Object.fromEntries(SEGMENT_FIELDS.map(f => [f.id, f]));
   const traitFields: SegmentField[] = traits.map(t =>
     knownMap[t] ?? { id: t, label: toLabel(t), type: 'text' as const }
   );
-  const eventFields: SegmentField[] = events.map(e => ({
-    id: `event:${e}`,
-    label: toLabel(e),
-    type: 'event' as const,
+  const eventFields: SegmentField[] = events.map((e): SegmentField => ({
+    id: e.source === 'derived_rule' ? `derived:${e.id}` : `event:${e.id}`,
+    label: e.label,
+    type: e.source === 'derived_rule' ? 'derived' as const : 'event' as const,
   }));
   return { traitFields, eventFields };
 }
 
-interface RuleWithMeta extends SegmentRule {
+export interface RuleWithMeta extends SegmentRule {
   id: number;
   unit?: string;
   value2?: string;
   eventProp?: string;
   eventPropOp?: string;
   eventPropValue?: string;
+  derivedParams?: Record<string, { op: string; value: string }>;
+}
+
+export interface SegmentBuilderInitialValues {
+  name: string;
+  description: string;
+  combinator: 'AND' | 'OR';
+  propertyRules: RuleWithMeta[];
+  behaviourRules: RuleWithMeta[];
+  nextId: number;
 }
 
 type ActivePicker  = 'property' | 'behaviour' | null;
@@ -45,27 +58,29 @@ type ActivePicker  = 'property' | 'behaviour' | null;
 interface SegmentBuilderProps {
   onCancel: () => void;
   onSave: (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) => void;
+  mode?: 'create' | 'edit';
+  initialValues?: SegmentBuilderInitialValues;
 }
 
-export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps) {
-  const [name, setName]               = useState('');
-  const [description, setDescription] = useState('');
-  const combinator: 'AND' | 'OR'      = 'AND';
-  const [propertyRules, setPropertyRules]     = useState<RuleWithMeta[]>([]);
-  const [behaviourRules, setBehaviourRules]   = useState<RuleWithMeta[]>([]);
-  const [nextId, setNextId]           = useState(1);
+export default function SegmentBuilder({ onCancel, onSave, mode = 'create', initialValues }: SegmentBuilderProps) {
+  const [name, setName]               = useState(() => initialValues?.name        ?? '');
+  const [description, setDescription] = useState(() => initialValues?.description ?? '');
+  const [combinator, setCombinator]   = useState<'AND' | 'OR'>(() => initialValues?.combinator ?? 'AND');
+  const [propertyRules, setPropertyRules]   = useState<RuleWithMeta[]>(() => initialValues?.propertyRules  ?? []);
+  const [behaviourRules, setBehaviourRules] = useState<RuleWithMeta[]>(() => initialValues?.behaviourRules ?? []);
+  const [nextId, setNextId]           = useState(() => initialValues?.nextId ?? 1);
   const [activePicker, setActivePicker]       = useState<ActivePicker>(null);
   const [pickerSearch, setPickerSearch]       = useState('');
   const [previewCount, setPreviewCount]       = useState<number | null>(null);
   const [previewing, setPreviewing]           = useState(false);
-  const [behaviourExpanded, setBehaviourExpanded] = useState(false);
-  const [propertyExpanded, setPropertyExpanded]   = useState(false);
+  const [behaviourExpanded, setBehaviourExpanded] = useState(true);
+  const [propertyExpanded, setPropertyExpanded]   = useState(true);
   const propertyPickerRef  = useRef<HTMLDivElement>(null);
   const behaviourPickerRef = useRef<HTMLDivElement>(null);
 
   const dispatch      = useDispatch();
   const metaTraits    = useCommonSelector(selectMetaTraits);
-  const metaEvents    = useCommonSelector(selectMetaEvents);
+  const metaEvents    = useCommonSelector(selectMetaEvents);   // MetaEventItem[]
   const metaOperators = useCommonSelector(selectMetaOperators);
 
   useEffect(() => {
@@ -88,15 +103,18 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
   }, [activePicker]);
 
   const { traitFields, eventFields } = useMemo(() => {
-    if (metaTraits.length > 0 || metaEvents.length > 0) {
-      return buildSplitFields(metaTraits, metaEvents);
+    const safeTraits = Array.isArray(metaTraits) ? metaTraits : [];
+    const safeEvents = Array.isArray(metaEvents) ? metaEvents : [];
+    if (safeTraits.length > 0 || safeEvents.length > 0) {
+      return buildSplitFields(safeTraits, safeEvents);
     }
     const fallbackTraits = (SEGMENT_FIELDS as SegmentField[]).filter(f => f.type !== 'event');
     return { traitFields: fallbackTraits, eventFields: [] };
   }, [metaTraits, metaEvents]);
 
+  // Strip both event: and derived: prefixes to get the raw name for dedup
   const usedBehaviourKeys = useMemo(
-    () => new Set(behaviourRules.map(r => r.field.replace(/^event:/, ''))),
+    () => new Set(behaviourRules.map(r => r.field.replace(/^(event:|derived:)/, ''))),
     [behaviourRules]
   );
   const usedPropertyKeys = useMemo(
@@ -104,30 +122,45 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
     [propertyRules]
   );
 
-  const pickerItems = useMemo(() => {
-    const items = activePicker === 'behaviour' ? metaEvents : metaTraits;
-    const used  = activePicker === 'behaviour' ? usedBehaviourKeys : usedPropertyKeys;
+  // Separate picker lists so each can be typed correctly
+  const behaviourPickerItems = useMemo((): MetaEventItem[] => {
+    const safe = Array.isArray(metaEvents) ? metaEvents : [];
     const q = pickerSearch.trim().toLowerCase();
-    const available = items.filter(i => !used.has(i));
-    return q ? available.filter(i => i.toLowerCase().includes(q)) : available;
-  }, [activePicker, pickerSearch, metaTraits, metaEvents, usedBehaviourKeys, usedPropertyKeys]);
+    const available = safe.filter(e => !usedBehaviourKeys.has(e.id));
+    return q
+      ? available.filter(e => e.id.toLowerCase().includes(q) || e.label.toLowerCase().includes(q))
+      : available;
+  }, [pickerSearch, metaEvents, usedBehaviourKeys]);
+
+  const propertyPickerItems = useMemo((): string[] => {
+    const safe = Array.isArray(metaTraits) ? metaTraits : [];
+    const q = pickerSearch.trim().toLowerCase();
+    const available = safe.filter(t => !usedPropertyKeys.has(t));
+    return q ? available.filter(t => t.toLowerCase().includes(q)) : available;
+  }, [pickerSearch, metaTraits, usedPropertyKeys]);
 
   const togglePicker = (mode: 'property' | 'behaviour') => {
     setActivePicker(prev => (prev === mode ? null : mode));
     setPickerSearch('');
   };
 
-  const handlePickerSelect = (item: string) => {
+  const handlePickerSelect = (itemId: string) => {
     const opsMap = OPS as Record<string, { id: string; label: string }[]>;
     let fieldId: string;
     let firstOp: string;
 
     if (activePicker === 'behaviour') {
-      fieldId = `event:${item}`;
-      firstOp = (opsMap['event'] ?? [{ id: 'gte', label: '≥' }])[0]?.id ?? 'gte';
+      const eventItem = metaEvents.find(e => e.id === itemId);
+      if (eventItem?.source === 'derived_rule') {
+        fieldId = `derived:${itemId}`;
+        firstOp = ''; // derived rules use per-parameter ops
+      } else {
+        fieldId = `event:${itemId}`;
+        firstOp = (opsMap['event'] ?? [{ id: 'gte', label: '≥' }])[0]?.id ?? 'gte';
+      }
     } else {
-      fieldId = item;
-      const knownField = (SEGMENT_FIELDS as SegmentField[]).find(f => f.id === item);
+      fieldId = itemId;
+      const knownField = (SEGMENT_FIELDS as SegmentField[]).find(f => f.id === itemId);
       const fieldType  = knownField?.type ?? 'text';
       firstOp = (opsMap[fieldType] ?? opsMap['text'] ?? [{ id: 'eq', label: 'is' }])[0]?.id ?? 'eq';
     }
@@ -156,7 +189,6 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
   useEffect(() => { setPreviewCount(null); }, [allRules, combinator]);
 
   const estimate = useMemo(() => {
-
     if (allRules.length === 0) return 0;
     let base = 24800;
     allRules.forEach((r) => {
@@ -192,37 +224,71 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
       <div className="builder-picker">
         <div className="builder-picker-header">
           <Icon name={type === 'behaviour' ? 'zap' : 'tag'} size={12} color="var(--blue)"/>
-          <span>{type === 'behaviour' ? 'Events' : 'Traits'}</span>
+          <span>{type === 'behaviour' ? 'Events & Rules' : 'Traits'}</span>
+          <button
+            type="button"
+            className="builder-picker-close"
+            onClick={() => { setActivePicker(null); setPickerSearch(''); }}
+            aria-label="Close"
+          >
+            <Icon name="x" size={13}/>
+          </button>
         </div>
         <div className="builder-picker-search">
           <Icon name="search" size={12} color="var(--g400)"/>
           <input
             autoFocus
-            placeholder={`Search ${type === 'behaviour' ? 'events' : 'traits'}…`}
+            placeholder={`Search ${type === 'behaviour' ? 'events & rules' : 'traits'}…`}
             value={pickerSearch}
             onChange={e => setPickerSearch(e.target.value)}
             onKeyDown={e => { if (e.key === 'Escape') { setActivePicker(null); setPickerSearch(''); } }}
           />
         </div>
         <div className="builder-picker-list">
-          {pickerItems.length === 0 ? (
-            <div className="builder-picker-empty">
-              {pickerSearch
-                ? `No ${type === 'behaviour' ? 'events' : 'traits'} match "${pickerSearch}"`
-                : `No ${type === 'behaviour' ? 'events' : 'traits'} available`}
-            </div>
-          ) : pickerItems.map(item => (
-            <button
-              key={item}
-              className="builder-picker-item"
-              type="button"
-              onClick={() => handlePickerSelect(item)}
-            >
-              <Icon name={type === 'behaviour' ? 'zap' : 'tag'} size={11} color="var(--g400)"/>
-              <span>{toLabel(item)}</span>
-              <span className="builder-picker-item-raw">{item}</span>
-            </button>
-          ))}
+          {type === 'behaviour' ? (
+            behaviourPickerItems.length === 0 ? (
+              <div className="builder-picker-empty">
+                {pickerSearch
+                  ? `No events match "${pickerSearch}"`
+                  : 'No events available'}
+              </div>
+            ) : behaviourPickerItems.map(item => (
+              <button
+                key={item.id}
+                className="builder-picker-item"
+                type="button"
+                onClick={() => handlePickerSelect(item.id)}
+              >
+                <Icon
+                  name={item.source === 'derived_rule' ? 'git-branch' : 'zap'}
+                  size={11}
+                  color={item.source === 'derived_rule' ? 'var(--amber, #f59e0b)' : 'var(--g400)'}
+                />
+                <span>{item.label}</span>
+                {item.source === 'derived_rule' && (
+                  <span className="picker-source-badge picker-source-badge--derived">derived</span>
+                )}
+              </button>
+            ))
+          ) : (
+            propertyPickerItems.length === 0 ? (
+              <div className="builder-picker-empty">
+                {pickerSearch
+                  ? `No traits match "${pickerSearch}"`
+                  : 'No traits available'}
+              </div>
+            ) : propertyPickerItems.map(item => (
+              <button
+                key={item}
+                className="builder-picker-item"
+                type="button"
+                onClick={() => handlePickerSelect(item)}
+              >
+                <Icon name="tag" size={11} color="var(--g400)"/>
+                <span>{toLabel(item)}</span>
+              </button>
+            ))
+          )}
         </div>
       </div>
     ) : null;
@@ -230,6 +296,15 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
   return (
     <>
       <div className="modal-body seg-builder-body">
+
+        {/* Info banner */}
+        <div className="asm-banner">
+          <Icon name="refresh-cw" size={13} color="#0073B2" />
+          <span>
+            This segment re-evaluates its conditions each time the campaign runs,
+            rather than locking in a fixed list of players.
+          </span>
+        </div>
 
         {/* Filter sections */}
         <div className="builder-section">
@@ -269,7 +344,7 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
                         onClick={() => togglePicker('behaviour')}
                       >
                         <Icon name="plus" size={12}/>
-                        Add nested filter
+                        Add Condition
                         {metaEvents.length > 0 && <span className="builder-add-count">{metaEvents.length}</span>}
                       </button>
                       {renderPicker('behaviour')}
@@ -312,7 +387,7 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
                         onClick={() => togglePicker('property')}
                       >
                         <Icon name="plus" size={12}/>
-                        Add nested filter
+                        Add Condition
                         {metaTraits.length > 0 && <span className="builder-add-count">{metaTraits.length}</span>}
                       </button>
                       {renderPicker('property')}
@@ -325,9 +400,13 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
           </div>
 
         {/* Estimated count */}
-        <div className="builder-preview">
+        {/* <div className="builder-preview">
           <div className="builder-preview-num">
-            {previewing ? '…' : (previewCount ?? 0).toLocaleString('en-IN')}
+            {previewing
+              ? '…'
+              : previewCount !== null
+                ? previewCount.toLocaleString('en-IN')
+                : '—'}
           </div>
           <div className="builder-preview-meta">
             <span className="k">Estimated count</span>
@@ -348,7 +427,7 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
           >
             <Icon name="refresh-cw" size={12}/> {previewing ? 'Loading…' : 'Preview'}
           </button>
-        </div>
+        </div> */}
 
         {/* Segment name */}
         <div className="field-group" style={{ marginBottom: 0 }}>
@@ -358,13 +437,15 @@ export default function SegmentBuilder({ onCancel, onSave }: SegmentBuilderProps
       </div>
 
       <div className="modal-footer-row builder-footer">
-        <button className="btn btn-ghost btn-sm" type="button" onClick={onCancel}>
-          <Icon name="arrow-left" size={12}/> Back to browse
-        </button>
+        {mode === 'create' && (
+          <button className="btn btn-ghost btn-sm" type="button" onClick={onCancel}>
+            <Icon name="arrow-left" size={12}/> Back to browse
+          </button>
+        )}
         <div style={{ flex: 1 }}/>
         <button className="btn btn-secondary btn-sm" type="button" onClick={onCancel}>Cancel</button>
         <button className="btn btn-primary btn-sm" type="button" disabled={!canSave} onClick={handleSave}>
-          <Icon name="check" size={12}/> Save segment
+          <Icon name="check" size={12}/> {mode === 'edit' ? 'Update segment' : 'Save segment'}
         </button>
       </div>
     </>

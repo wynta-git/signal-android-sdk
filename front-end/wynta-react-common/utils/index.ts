@@ -46,3 +46,80 @@ export function avatarGradient(name: string): string {
 export function initial(name: string | undefined | null): string {
   return (name || '?').trim()[0]?.toUpperCase() || '?';
 }
+
+/* ------------------------------------------------------------------ */
+/* Segment condition formatter                                          */
+/* ------------------------------------------------------------------ */
+
+/** Convert snake_case / kebab-case to Title Case. */
+function toLabel(s: string): string {
+  return s.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const FREQ_OP: Record<string, string> = {
+  eq: '=', neq: '!=', gt: '>', gte: '>=', lt: '<', lte: '<=',
+};
+
+type AnyFilter = Record<string, unknown>;
+
+function formatFilter(f: AnyFilter): string {
+  switch (f.type as string) {
+
+    case 'event': {
+      const name  = toLabel(String(f.event_name ?? ''));
+      const freq  = (f.frequency ?? {}) as { op?: string; count?: number };
+      const win   = (f.time_window ?? {}) as { last_days?: number };
+      const op    = FREQ_OP[freq.op ?? ''] ?? freq.op ?? '';
+      const count = freq.count ?? 1;
+      let out = `${name} ${op} ${count}`.trim();
+      if (win.last_days !== undefined) out += ` and within last ${win.last_days} days`;
+      return out;
+    }
+
+    case 'trait': {
+      const name  = toLabel(String(f.trait ?? ''));
+      const op    = FREQ_OP[String(f.op ?? '')] ?? String(f.op ?? '');
+      const raw   = f.value;
+      const value = Array.isArray(raw)
+        ? (raw as string[]).join(', ')
+        : String(raw ?? '');
+      return `${name} ${op} ${value}`.trim();
+    }
+
+    case 'did_not_do': {
+      const name = toLabel(String(f.event_name ?? ''));
+      const days = (f.time_window as { last_days?: number } | undefined)?.last_days;
+      return days !== undefined
+        ? `Did Not Do ${name} in last ${days} days`
+        : `Did Not Do ${name}`;
+    }
+
+    case 'in_segment':
+      return `In Segment: ${String(f.segment_id ?? '')}`;
+
+    case 'derived':
+    case 'derived_rule':
+      return toLabel(String(f.rule_id ?? f.rule_name ?? ''));
+
+    default:
+      return '';
+  }
+}
+
+/**
+ * Convert a segment's `rule` DSL into a concise human-readable condition string.
+ * Raw API data is never mutated — only transformed for display.
+ *
+ * @example
+ *   formatConditions({ match: 'all', filters: [{ type: 'trait', trait: 'age', op: 'gte', value: 18 }] })
+ *   // → "Age >= 18"
+ */
+export function formatConditions(rule: unknown): string {
+  if (!rule || typeof rule !== 'object') return '';
+  const r = rule as { match?: string; filters?: AnyFilter[] };
+  if (!Array.isArray(r.filters) || r.filters.length === 0) return '';
+
+  const sep    = r.match === 'any' ? ' OR ' : ' AND ';
+  const parts  = r.filters.map(f => formatFilter(f)).filter(Boolean);
+  return parts.join(sep);
+}
