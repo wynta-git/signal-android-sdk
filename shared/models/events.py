@@ -73,6 +73,9 @@ class EventEnvelope(BaseModel):
     session_id: str | None = None
     timestamp: datetime
     received_at: datetime | None = None  # set server-side by api-service
-    sdk: SdkInfo
+    sdk: SdkInfo | None = None
     device: DeviceInfo | None = None
+    platform: str | None = None
+    device_type: str | None = None
+    brand_id: str | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
