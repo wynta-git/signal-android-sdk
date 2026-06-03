@@ -182,7 +182,7 @@ async def handle_send_job(
             log.warning("consumer.circuit_open", provider=provider_name)
             return
 
-        recipient = Recipient(user_id=job.user_id, token=token, platform=platform, project_id=job.project_id)
+        recipient = Recipient(user_id=job.user_id, token=token, platform=platform, project_id=job.project_id, auto_dismiss_seconds=job.auto_dismiss_seconds)
         try:
             result = await provider.send(recipient, payload)
             breaker.record_success()

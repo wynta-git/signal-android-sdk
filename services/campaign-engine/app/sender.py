@@ -29,6 +29,8 @@ async def emit_send_job(
         template_id=campaign.template_id,
         context=context or {},
         deliver_at=deliver_at,
+        auto_dismiss_seconds=campaign.auto_dismiss_seconds,
+        ignore_global_min_delay=campaign.ignore_global_min_delay,
     )
     key = user_id.encode()
     value = json.dumps(job.model_dump(mode="json")).encode()

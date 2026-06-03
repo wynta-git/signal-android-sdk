@@ -47,16 +47,20 @@ class FcmV1Provider:
         access_token = await self._token_store.get_token(self._credential_json)
         url = _FCM_SEND_URL.format(project_id=self._project_id)
 
+        data: dict[str, str] = {
+            "title": payload.title,
+            "content": payload.body,
+            "type": "PUSH",
+            **({"image_url": payload.image_url} if payload.image_url else {}),
+            **{k: str(v) for k, v in payload.extra.items()},
+        }
+        if recipient.auto_dismiss_seconds is not None:
+            data["auto_dismiss_seconds"] = str(recipient.auto_dismiss_seconds)
+
         body: dict[str, Any] = {
             "message": {
                 "token": recipient.token,
-                "data": {
-                    "title": payload.title,
-                    "content": payload.body,
-                    "type": "PUSH",
-                    **({"image_url": payload.image_url} if payload.image_url else {}),
-                    **{k: str(v) for k, v in payload.extra.items()},
-                },
+                "data": data,
             }
         }
 
