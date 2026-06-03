@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     portal_token_ttl: int = 900
     portal_refresh_interval: int = 720
 
-    # Public key from external auth system (Wynta) for JWT exchange flow
-    external_jwt_public_key: str = ""
+    # Path to public key file from external auth system (Wynta) for JWT exchange flow
+    external_jwt_public_key_path: str = ""
 
     debug: bool = False
     version: str = "0.1.0"
