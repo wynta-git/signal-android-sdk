@@ -15,6 +15,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from shared.clients.mongo import (
     delete_campaign,
     get_campaign,
+    get_template,
     insert_campaign,
     insert_template,
     list_campaigns,
@@ -134,6 +135,10 @@ async def get_campaign_route(
     doc = await get_campaign(db, ctx.project_id, campaign_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Campaign not found")
+    if template_id := doc.get("template_id"):
+        template = await get_template(db, ctx.project_id, template_id)
+        if template:
+            doc["message"] = template.get("body", {})
     return doc
 
 
