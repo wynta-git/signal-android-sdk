@@ -113,12 +113,18 @@ export default function CampaignsPage() {
   const [objective, setObjective] = useState('');
   const [channel,   setChannel]   = useState('');
 
-  const filtered = useMemo(() => rows.filter(r => {
-    if (search    && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
-    if (objective && r.objective !== objective) return false;
-    if (channel   && r.channel   !== channel)   return false;
-    return true;
-  }), [rows, search, objective, channel]);
+  const filtered = useMemo(() => rows
+    .filter(r => {
+      if (search    && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (objective && r.objective !== objective) return false;
+      if (channel   && r.channel   !== channel)   return false;
+      return true;
+    })
+    .sort((a, b) => {
+      const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return tb - ta;
+    }), [rows, search, objective, channel]);
 
   const objectives = useMemo(() => [...new Set(rows.map(r => r.objective).filter(Boolean))], [rows]);
   const channels   = useMemo(() => [...new Set(rows.map(r => r.channel))], [rows]);

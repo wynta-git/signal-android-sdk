@@ -347,36 +347,61 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
 
         {/* CSV Upload — shown when CSV Import is selected */}
         {segmentMode === 'custom' && (
-          <div className="seg-csv-upload">
-            <label className="seg-csv-label" htmlFor="seg-csv-input">
-              <Icon name="file-text" size={28} color="var(--g400)" />
-              <span className="seg-csv-hint">
-                {csvFile ? csvFile.name : 'Click to select a .csv file'}
+          <>
+            {/* Sample CSV download link */}
+            <div className="seg-csv-sample-row">
+              <span className="seg-csv-sample-hint">
+                Upload a CSV with a <code>user_id</code> column.
               </span>
-              {csvFile && (
-                <span className="seg-csv-meta">
-                  {(csvFile.size / 1024).toFixed(1)} KB
-                </span>
-              )}
-            </label>
-            <input
-              id="seg-csv-input"
-              type="file"
-              accept=".csv,text/csv"
-              style={{ display: 'none' }}
-              onChange={e => setCsvFile(e.target.files?.[0] ?? null)}
-            />
-            {csvFile && (
               <button
                 type="button"
-                className="seg-csv-clear"
-                onClick={() => setCsvFile(null)}
-                aria-label="Remove file"
+                className="seg-csv-sample-btn"
+                onClick={() => {
+                  const csv = 'user_id\nuser_001\nuser_002\nuser_003';
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url  = URL.createObjectURL(blob);
+                  const a    = document.createElement('a');
+                  a.href     = url;
+                  a.download = 'sample_segment.csv';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
               >
-                <Icon name="x" size={13} /> Remove
+                <Icon name="download" size={13} /> Download Sample CSV
               </button>
-            )}
-          </div>
+            </div>
+
+            <div className="seg-csv-upload">
+              <label className="seg-csv-label" htmlFor="seg-csv-input">
+                <Icon name="file-text" size={28} color="var(--g400)" />
+                <span className="seg-csv-hint">
+                  {csvFile ? csvFile.name : 'Click to select a .csv file'}
+                </span>
+                {csvFile && (
+                  <span className="seg-csv-meta">
+                    {(csvFile.size / 1024).toFixed(1)} KB
+                  </span>
+                )}
+              </label>
+              <input
+                id="seg-csv-input"
+                type="file"
+                accept=".csv,text/csv"
+                style={{ display: 'none' }}
+                onChange={e => setCsvFile(e.target.files?.[0] ?? null)}
+              />
+              {csvFile && (
+                <button
+                  type="button"
+                  className="seg-csv-clear"
+                  onClick={() => setCsvFile(null)}
+                  aria-label="Remove file"
+                >
+                  <Icon name="x" size={13} /> Remove
+                </button>
+              )}
+            </div>
+          </>
         )}
 
         {/* Filter sections — hidden when CSV Import is selected */}
@@ -505,7 +530,7 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
         {/* Segment name */}
         <div className="field-group" style={{ marginBottom: 0 }}>
           <label>Segment name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — Maharashtra, no recent bonus"/>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
         </div>
       </div>
 

@@ -12,7 +12,7 @@ import {
 } from '../../store/slices/segmentsSlice';
 import AddSegmentModal     from './AddSegmentModal';
 import DeleteSegmentModal  from './DeleteSegmentModal';
-import { formatConditions } from '../../utils';
+import { formatConditions, formatRelative } from '../../utils';
 import type { Segment } from '../../types';
 
 
@@ -36,9 +36,7 @@ function toRow(s: Segment): SegmentRow {
     type:      isDyn ? 'dynamic' : 'static',
     conditions: formatConditions(s.rule) || (s as any).description || (s.hint ?? ''),
     reach:     s.count ? s.count.toLocaleString('en-IN') + ' players' : '—',
-    created:   (s as any).created_at
-               ? new Date((s as any).created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-               : '—',
+    created:   formatRelative(s.last_used_at),
     createdBy: (s as any).owner ?? s.owner ?? 'System',
     usedIn:    (s as any).used_in ?? [],
   };
@@ -98,6 +96,30 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
     });
   }, [rows, search, typeFilter]);
 
+  /* ── Export current filtered rows as CSV ── */
+  function handleExport() {
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const headers = ['Segment Name', 'Conditions', 'Est. Reach', 'Created', 'Created By', 'Used In'];
+    const csvRows = [
+      headers.join(','),
+      ...filtered.map(r => [
+        esc(r.name),
+        esc(r.conditions),
+        esc(r.reach),
+        esc(r.created),
+        esc(r.createdBy),
+        esc(r.usedIn.join('; ')),
+      ].join(',')),
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'segments.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const totalCount      = rows.length;
   const activeCampaigns = rows.reduce((n, r) => {
     if (r.usedIn.length === 0) return n;
@@ -128,7 +150,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
           </div>
         </div>
         <div className="seg-page-actions">
-          <button className="seg-btn-secondary" type="button">
+          <button className="seg-btn-secondary" type="button" onClick={handleExport}>
             <Icon name="download" size={14} />
             Export
           </button>
@@ -173,15 +195,6 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
-            <select
-              className="seg-type-select"
-              value={typeFilter}
-              onChange={e => setType(e.target.value as 'all' | 'static' | 'dynamic')}
-            >
-              <option value="all">All types</option>
-              <option value="static">Static</option>
-              <option value="dynamic">Dynamic</option>
-            </select>
           </div>
         </div>
 
