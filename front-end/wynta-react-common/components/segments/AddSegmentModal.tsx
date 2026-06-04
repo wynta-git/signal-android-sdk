@@ -141,7 +141,8 @@ export interface AddSegmentModalProps {
   mode:       'create' | 'edit';
   segmentId?: string;          // required when mode === 'edit'
   onClose:    () => void;
-  onSaved?:   (data: { name: string }) => void;
+  /** id is the newly-created segment ID — available only in create mode */
+  onSaved?:   (data: { name: string; id?: string }) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -215,9 +216,11 @@ export default function AddSegmentModal({
       } else {
         /* POST /api/v1/segments */
         const result = await dispatch(createSegment(data)).unwrap();
-        if (result?.id) {
-          dispatch(evaluateSegment(String(result.id)));
-        }
+        const newId  = result?.id ? String(result.id) : undefined;
+        if (newId) dispatch(evaluateSegment(newId));
+        onSaved?.({ name: data.name, id: newId });
+        onClose();
+        return;
       }
 
       onSaved?.({ name: data.name });

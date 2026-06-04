@@ -1,0 +1,341 @@
+'use client';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useDispatch } from 'react-redux';
+import Icon from 'wynta-react-common/components/Icon';
+import { useAppSelector } from '../../store/hooks';
+import {
+  fetchCampaigns,
+  getCampaign,
+  deleteCampaign,
+  activateCampaign,
+  pauseCampaign,
+  resumeCampaign,
+  cancelCampaign,
+  selectAllCampaigns,
+  selectCampaignsStatus,
+} from '../../store/slices/campaignsSlice';
+import type { Campaign, CampaignStatus } from '../../services/campaignApi';
+import ChannelSelectModal from './ChannelSelectModal';
+import CampaignWizard from './CampaignWizard';
+import DeleteCampaignModal from './DeleteCampaignModal';
+
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                              */
+/* ------------------------------------------------------------------ */
+function channelLabel(ch: string) {
+  const map: Record<string, string> = {
+    push: 'Push', email: 'Email', sms: 'SMS',
+    in_app: 'In-App', on_site: 'On-Site', cards: 'Cards',
+    whatsapp: 'WhatsApp', telegram: 'Telegram', rcs: 'RCS',
+  };
+  return map[ch] ?? ch;
+}
+
+const STATUS_CFG: Record<CampaignStatus, { label: string; cls: string }> = {
+  running:   { label: 'Running',   cls: 'cp-badge cp-badge--running'   },
+  scheduled: { label: 'Scheduled', cls: 'cp-badge cp-badge--scheduled' },
+  draft:     { label: 'Draft',     cls: 'cp-badge cp-badge--draft'     },
+  paused:    { label: 'Paused',    cls: 'cp-badge cp-badge--paused'    },
+  completed: { label: 'Completed', cls: 'cp-badge cp-badge--completed' },
+  cancelled: { label: 'Cancelled', cls: 'cp-badge cp-badge--cancelled' },
+};
+
+function formatRevenue(n?: number) {
+  if (!n) return '—';
+  if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
+  return `₹${n.toLocaleString('en-IN')}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Component                                                            */
+/* ------------------------------------------------------------------ */
+export default function CampaignsPage() {
+  const dispatch     = useDispatch<any>();
+  const apiCampaigns = useAppSelector(selectAllCampaigns);
+  const status       = useAppSelector(selectCampaignsStatus);
+
+  /* Fire exactly once per mount — ref persists through React 18 Strict Mode remount */
+  const didFetch = useRef(false);
+  useEffect(() => {
+    if (didFetch.current) return;
+    didFetch.current = true;
+    dispatch(fetchCampaigns());
+  }, [dispatch]);
+
+  const rows = apiCampaigns;
+
+  /* Filters */
+  const [search,    setSearch]    = useState('');
+  const [objective, setObjective] = useState('');
+  const [channel,   setChannel]   = useState('');
+
+  const filtered = useMemo(() => rows.filter(r => {
+    if (search    && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (objective && r.objective !== objective) return false;
+    if (channel   && r.channel   !== channel)   return false;
+    return true;
+  }), [rows, search, objective, channel]);
+
+  const objectives = useMemo(() => [...new Set(rows.map(r => r.objective).filter(Boolean))], [rows]);
+  const channels   = useMemo(() => [...new Set(rows.map(r => r.channel))], [rows]);
+
+  /* Modals */
+  const [showChannelModal, setShowChannelModal] = useState(false);
+  const [wizardChannel,    setWizardChannel]    = useState<string | null>(null);
+  const [editCampaign,     setEditCampaign]     = useState<Campaign | null>(null);
+  const [wizardViewMode,   setWizardViewMode]   = useState(false);
+  const [deleteTarget,     setDeleteTarget]     = useState<Campaign | null>(null);
+  const [loadingId,        setLoadingId]        = useState<string | null>(null);
+
+  /* Action menu */
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+
+  /** Fetch full campaign details then open the wizard in view or edit mode. */
+  async function openWizard(c: Campaign, viewOnly: boolean) {
+    setLoadingId(c.id);
+    try {
+      const full = await dispatch(getCampaign({ campaignId: c.id })).unwrap();
+      setEditCampaign(full);
+      setWizardViewMode(viewOnly);
+    } catch {
+      /* fallback: use list data */
+      setEditCampaign(c);
+      setWizardViewMode(viewOnly);
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
+  function handleAction(action: string, c: Campaign) {
+    setOpenMenu(null);
+    const ids = { campaignId: c.id };
+    if (action === 'view')      { openWizard(c, true);  return; }
+    if (action === 'edit')      { openWizard(c, false); return; }
+    if (action === 'delete')    setDeleteTarget(c);
+    if (action === 'activate')  dispatch(activateCampaign(ids));
+    if (action === 'pause')     dispatch(pauseCampaign(ids));
+    if (action === 'resume')    dispatch(resumeCampaign(ids));
+    if (action === 'cancel')    dispatch(cancelCampaign(ids));
+    if (action === 'duplicate') {
+      /* Fetch full details so title/content/deep_link are available in the copy */
+      setLoadingId(c.id);
+      dispatch(getCampaign({ campaignId: c.id }))
+        .unwrap()
+        .then((full: Campaign) => {
+          setEditCampaign({ ...full, id: '', name: `${full.name} (copy)`, status: 'draft' });
+          setWizardViewMode(false);
+        })
+        .catch(() => {
+          /* Fallback to list data if detail fetch fails */
+          setEditCampaign({ ...c, id: '', name: `${c.name} (copy)`, status: 'draft' });
+          setWizardViewMode(false);
+        })
+        .finally(() => setLoadingId(null));
+    }
+  }
+
+  function closeWizard() {
+    setWizardChannel(null);
+    setEditCampaign(null);
+    setWizardViewMode(false);
+  }
+
+  /* ── Show wizard in-place (replaces list, sidebar stays visible) ── */
+  if (wizardChannel || editCampaign) {
+    return (
+      <CampaignWizard
+        /* key forces a full remount (fresh useState) when a different campaign opens */
+        key={editCampaign?.id ?? 'new'}
+        channel={wizardChannel ?? editCampaign!.channel}
+        campaign={editCampaign ?? undefined}
+        viewMode={wizardViewMode}
+        onClose={closeWizard}
+        onSaved={() => { closeWizard(); dispatch(fetchCampaigns()); }}
+      />
+    );
+  }
+
+  return (
+    <div className="cp-page">
+      {/* ── Header ── */}
+      <div className="cp-page-header">
+        <div>
+          <div className="cp-page-title">Campaigns</div>
+          <div className="cp-page-subtitle">Unified omnichannel campaign orchestration</div>
+        </div>
+        <div className="cp-page-actions">
+          <button className="seg-btn-secondary" type="button">
+            <Icon name="download" size={14} /> Export CSV
+          </button>
+          <button className="seg-btn-primary" type="button" onClick={() => setShowChannelModal(true)}>
+            <Icon name="plus" size={14} /> Add Campaign
+          </button>
+        </div>
+      </div>
+
+      {/* ── Filters ── */}
+      <div className="cp-filter-card">
+        <div className="cp-filter-title">Filter Campaigns</div>
+        <div className="cp-filter-row">
+          <div className="cp-filter-group">
+            <label className="cp-filter-label">Campaign</label>
+            <input
+              className="cp-filter-input"
+              placeholder="Search campaign name"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="cp-filter-group">
+            <label className="cp-filter-label">Objective</label>
+            <select className="cp-filter-select" value={objective} onChange={e => setObjective(e.target.value)}>
+              <option value="">All Objectives</option>
+              {objectives.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div className="cp-filter-group">
+            <label className="cp-filter-label">Channel</label>
+            <select className="cp-filter-select" value={channel} onChange={e => setChannel(e.target.value)}>
+              <option value="">All Channels</option>
+              {channels.map(ch => <option key={ch} value={ch}>{channelLabel(ch)}</option>)}
+            </select>
+          </div>
+          <button className="seg-btn-secondary" type="button" onClick={() => { setSearch(''); setObjective(''); setChannel(''); }}>
+            Apply Filters
+          </button>
+        </div>
+      </div>
+
+      {/* ── Table ── */}
+      <div className="cp-table-card">
+        <div className="cp-table-title">All Campaigns</div>
+        <div className="seg-table-scroll">
+          <table className="cp-table">
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Objective</th>
+                <th>Behavioral Segment</th>
+                <th>Channels</th>
+                <th>Status</th>
+                <th>Revenue Impact</th>
+                <th>Last Activity</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {status === 'loading' ? (
+                <tr><td colSpan={8} className="cp-table-empty">Loading campaigns…</td></tr>
+              ) : status === 'failed' ? (
+                <tr><td colSpan={8} className="cp-table-empty">Failed to load campaigns. Check your connection and try again.</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={8} className="cp-table-empty">
+                  {rows.length === 0 ? 'No campaigns yet. Click + Add Campaign to create one.' : 'No campaigns match your filters.'}
+                </td></tr>
+              ) : filtered.map(c => {
+                const badge = STATUS_CFG[c.status] ?? { label: c.status, cls: 'cp-badge cp-badge--draft' };
+                return (
+                  <tr key={c.id}>
+                    <td className="cp-cell-name">{c.name}</td>
+                    <td>{c.objective ?? '—'}</td>
+                    <td>{c.segment_name ?? '—'}</td>
+                    <td>{channelLabel(c.channel)}</td>
+                    <td><span className={badge.cls}>{badge.label}</span></td>
+                    <td>{formatRevenue(c.revenue_impact)}</td>
+                    <td>{c.last_activity ?? '—'}</td>
+                    <td>
+                      <div className="cp-actions">
+                        <button
+                          className="seg-row-btn"
+                          type="button"
+                          disabled={loadingId === c.id}
+                          onClick={() => handleAction('view', c)}
+                        >
+                          {loadingId === c.id ? '…' : 'View'}
+                        </button>
+                        <button
+                          className="seg-row-btn"
+                          type="button"
+                          disabled={loadingId === c.id}
+                          onClick={() => handleAction('edit', c)}
+                        >
+                          {loadingId === c.id ? '…' : 'Edit'}
+                        </button>
+                        {/* More menu */}
+                        <div className="cp-more-wrap">
+                          <button
+                            className="seg-row-btn cp-more-btn"
+                            type="button"
+                            onClick={() => setOpenMenu(openMenu === c.id ? null : c.id)}
+                          >
+                            <Icon name="more-horizontal" size={14} />
+                          </button>
+                          {openMenu === c.id && (
+                            <div className="cp-more-menu">
+                              <button type="button" onClick={() => handleAction('duplicate', c)}>
+                                <Icon name="copy" size={13}/> Duplicate
+                              </button>
+                              {c.status === 'draft' || c.status === 'scheduled' ? (
+                                <button type="button" onClick={() => handleAction('activate', c)}>
+                                  <Icon name="play" size={13}/> Activate
+                                </button>
+                              ) : null}
+                              {c.status === 'running' ? (
+                                <button type="button" onClick={() => handleAction('pause', c)}>
+                                  <Icon name="pause" size={13}/> Pause
+                                </button>
+                              ) : null}
+                              {c.status === 'paused' ? (
+                                <button type="button" onClick={() => handleAction('resume', c)}>
+                                  <Icon name="play" size={13}/> Resume
+                                </button>
+                              ) : null}
+                              {c.status !== 'cancelled' && c.status !== 'completed' ? (
+                                <button type="button" className="cp-more-danger" onClick={() => handleAction('cancel', c)}>
+                                  <Icon name="x-circle" size={13}/> Cancel
+                                </button>
+                              ) : null}
+                              <div className="cp-more-divider"/>
+                              <button type="button" className="cp-more-danger" onClick={() => handleAction('delete', c)}>
+                                <Icon name="trash-2" size={13}/> Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Modals ── */}
+      {showChannelModal && (
+        <ChannelSelectModal
+          onClose={() => setShowChannelModal(false)}
+          onSelect={ch => { setShowChannelModal(false); setWizardChannel(ch); }}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteCampaignModal
+          campaign={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            dispatch(deleteCampaign({ campaignId: deleteTarget.id }));
+            setDeleteTarget(null);
+          }}
+        />
+      )}
+
+      {/* Close more-menu on outside click */}
+      {openMenu && (
+        <div className="cp-overlay-dismiss" onClick={() => setOpenMenu(null)} />
+      )}
+    </div>
+  );
+}

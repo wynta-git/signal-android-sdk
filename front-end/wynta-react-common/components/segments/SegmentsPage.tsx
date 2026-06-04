@@ -15,83 +15,6 @@ import DeleteSegmentModal  from './DeleteSegmentModal';
 import { formatConditions } from '../../utils';
 import type { Segment } from '../../types';
 
-/* ------------------------------------------------------------------ */
-/* Static sample rows shown when backend returns no data               */
-/* ------------------------------------------------------------------ */
-const SAMPLE_SEGMENTS: SegmentRow[] = [
-  {
-    id: 's1', name: 'VIP Players', type: 'static',
-    conditions: 'Loyalty Tier = Gold or Platinum',
-    reach: '1,240 players', created: '12 Jan 2026', createdBy: 'Funessa B.',
-    usedIn: ['Weekend Cashback', 'VIP Email'],
-  },
-  {
-    id: 's2', name: 'Inactive 7 Days', type: 'static',
-    conditions: 'Days Since Last Login > 7',
-    reach: '3,180 players', created: '10 Jan 2026', createdBy: 'Funessa B.',
-    usedIn: ['Re-engagement Push', 'Deposit Reminder SMS'],
-  },
-  {
-    id: 's3', name: 'Slot Players', type: 'static',
-    conditions: 'Preferred Game Category = Slots',
-    reach: '2,890 players', created: '08 Jan 2026', createdBy: 'Funessa B.',
-    usedIn: ['New Game Launch'],
-  },
-  {
-    id: 's4', name: 'Bonus Expiry Risk', type: 'static',
-    conditions: 'Bonus Expiry (hours) < 48 AND Bonus Active = Yes',
-    reach: '412 players', created: '15 Jan 2026', createdBy: 'Funessa B.',
-    usedIn: ['Bonus Expiry Push', 'Expiry Alert SMS'],
-  },
-  {
-    id: 's5', name: 'All Opted-in Players', type: 'static',
-    conditions: 'Push Opted-in = Yes',
-    reach: '8,241 players', created: '01 Jan 2026', createdBy: 'System',
-    usedIn: ['3 campaigns'],
-  },
-  {
-    id: 's6', name: 'Registered Yesterday & Deposited Today', type: 'dynamic',
-    conditions: 'Registration Date = yesterday AND First Deposit Date = today',
-    reach: '~28 players/day', created: '20 Jan 2026', createdBy: 'Funessa B.',
-    usedIn: ['FTD Welcome Push'],
-  },
-  {
-    id: 's7', name: 'Birthday This Week', type: 'dynamic',
-    conditions: 'Birthday (upcoming) within 7 days',
-    reach: '~84 players/week', created: '05 Jan 2026', createdBy: 'Funessa B.',
-    usedIn: ['Birthday Push'],
-  },
-  {
-    id: 's8', name: 'High Deposit Value', type: 'static',
-    conditions: 'Lifetime Deposits > ₹50,000',
-    reach: '5,620 players', created: '03 Jan 2026', createdBy: 'Funessa B.',
-    usedIn: [],
-  },
-  {
-    id: 's9', name: 'Lapsed 30 Days', type: 'dynamic',
-    conditions: 'Last Login > 30 days AND Was Active last month',
-    reach: '~190 players/week', created: '28 Dec 2025', createdBy: 'System',
-    usedIn: ['Win-back Flow'],
-  },
-  {
-    id: 's10', name: 'New Depositors (FTD)', type: 'dynamic',
-    conditions: 'First Deposit Date = today',
-    reach: '~35 players/day', created: '01 Jan 2026', createdBy: 'System',
-    usedIn: ['Welcome Journey'],
-  },
-  {
-    id: 's11', name: 'At-Risk Players', type: 'static',
-    conditions: 'Health Score < 40 AND Active last 30 days',
-    reach: '1,840 players', created: '12 Dec 2025', createdBy: 'Funessa B.',
-    usedIn: [],
-  },
-  {
-    id: 's12', name: 'Weekend Warriors', type: 'dynamic',
-    conditions: 'Sessions on Sat/Sun > 3 (last 4 weeks)',
-    reach: '~920 players/week', created: '20 Dec 2025', createdBy: 'Funessa B.',
-    usedIn: [],
-  },
-];
 
 interface SegmentRow {
   id: string;
@@ -136,10 +59,11 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
     if (status === 'idle') dispatch(fetchSegments());
   }, [dispatch, status]);
 
-  const rows: SegmentRow[] = useMemo(() => {
-    if (apiSegments.length > 0) return apiSegments.map(toRow);
-    return SAMPLE_SEGMENTS;
-  }, [apiSegments]);
+  /* Use only real API data — no sample / fallback rows */
+  const rows: SegmentRow[] = useMemo(
+    () => apiSegments.map(toRow),
+    [apiSegments],
+  );
 
   /* Evaluating state: id → boolean (for reach column spinner) */
   const evaluating = useCommonSelector(selectAllEvaluating);
@@ -268,7 +192,25 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {status === 'loading' ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--crm-fg4)' }}>
+                    Loading segments…
+                  </td>
+                </tr>
+              ) : status === 'failed' ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--crm-negative, #D64545)' }}>
+                    Unable to load segments. Check your connection and try again.
+                  </td>
+                </tr>
+              ) : filtered.length === 0 && rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--crm-fg4)' }}>
+                    No segments found. Click <strong>+ Add Segment</strong> to create one.
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--crm-fg4)' }}>
                     No segments match your search.

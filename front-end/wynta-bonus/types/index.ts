@@ -102,7 +102,7 @@ export interface BonusConfigure {
   no_of_chunks?: number;
   bonus_amount_fixed?: string | null;
   bonus_amount_percent?: string | null;
-  bonus_amount_max?: string;
+  bonus_amount_max?: string | null;
   cashback_bonus_amount_fixed?: string | null;
   cashback_bonus_amount_percent?: string | null;
   cashback_bonus_amount_max?: string | number | null;

@@ -8,7 +8,7 @@ export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
 export const useAppSelector = useSelector.withTypes<RootState>();
 
 type CommonState = {
-  brands: ReturnType<typeof brandsReducer>;
-  segments: ReturnType<typeof segmentsReducer>;
+  brands:    ReturnType<typeof brandsReducer>;
+  segments:  ReturnType<typeof segmentsReducer>;
 };
 export const useCommonSelector: TypedUseSelectorHook<CommonState> = useSelector;

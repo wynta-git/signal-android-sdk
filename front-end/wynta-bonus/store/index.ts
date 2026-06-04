@@ -10,8 +10,8 @@ import budgetsReducer from './slices/budgetsSlice';
 import usageReducer from './slices/usageSlice';
 import historyReducer from './slices/historySlice';
 import segmentsReducer from 'wynta-react-common/store/slices/segmentsSlice';
-import kpiReducer from './slices/kpiSlice';
-import usersReducer from 'wynta-react-common/store/slices/usersSlice';
+import kpiReducer       from './slices/kpiSlice';
+import usersReducer     from 'wynta-react-common/store/slices/usersSlice';
 import type { SelectedNode } from '../types';
 
 const LS_NODE_KEY = 'bonus_selected_node';
@@ -29,7 +29,7 @@ export const store = configureStore({
     usage: usageReducer,
     history: historyReducer,
     segments: segmentsReducer,
-    kpi: kpiReducer,
+    kpi:      kpiReducer,
     users: usersReducer,
   },
 });

@@ -1,9 +1,26 @@
 'use client';
-import { useState } from 'react';
-import CrmSidebar from './CrmSidebar';
-import SegmentsPage from 'wynta-react-common/components/segments/SegmentsPage';
+import { useState }  from 'react';
+import { Provider }  from 'react-redux';
+import { store }     from '../store';
+import CrmSidebar    from './CrmSidebar';
+import SegmentsPage  from 'wynta-react-common/components/segments/SegmentsPage';
+import CampaignsPage from './campaigns/CampaignsPage';
 
+/**
+ * CrmApp wraps itself in the wynta-crm store Provider.
+ * This guarantees the campaigns (and all CRM) state is available regardless
+ * of whether the app is running standalone (wynta-crm) or embedded inside
+ * wynta-web (which uses wynta-bonus/store that has no campaigns reducer).
+ */
 export default function CrmApp() {
+  return (
+    <Provider store={store}>
+      <CrmShell />
+    </Provider>
+  );
+}
+
+function CrmShell() {
   const [activeNav, setActiveNav] = useState('segments');
 
   return (
@@ -12,19 +29,9 @@ export default function CrmApp() {
 
       <main className="crm-main">
         <div className="crm-content">
-          {activeNav === 'segments' ? (
-            <SegmentsPage />
-          ) : (
-            /* Dashboard and all other pages are empty shells for now */
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              minHeight: '60vh',
-              color: 'var(--crm-fg4)',
-              fontSize: 14,
-            }} />
+          {activeNav === 'segments'  ? <SegmentsPage  /> :
+           activeNav === 'campaigns' ? <CampaignsPage /> : (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'60vh', color:'var(--crm-fg4)', fontSize:14 }} />
           )}
         </div>
       </main>
