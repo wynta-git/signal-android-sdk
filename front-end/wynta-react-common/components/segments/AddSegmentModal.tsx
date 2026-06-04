@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal }        from 'react-dom';
 import { useDispatch }         from 'react-redux';
 import Icon                    from '../Icon';
@@ -173,9 +173,14 @@ export default function AddSegmentModal({
     };
   }, [onClose]);
 
+  /* Ref guard — prevents React 18 Strict Mode from firing the fetch twice */
+  const didFetch = useRef(false);
+
   /* Fetch segment details for edit mode */
   useEffect(() => {
     if (mode !== 'edit' || !segmentId) return;
+    if (didFetch.current) return;
+    didFetch.current = true;
 
     setLoading(true);
     setLoadError('');
@@ -194,10 +199,12 @@ export default function AddSegmentModal({
 
   /* Save handler passed to SegmentBuilder */
   const handleSave = async (data: {
-    name: string;
-    description: string;
-    combinator: 'AND' | 'OR';
-    rules: SegmentRule[];
+    name:         string;
+    description:  string;
+    combinator:   'AND' | 'OR';
+    rules:        SegmentRule[];
+    segmentType?: 'filter' | 'custom';
+    csvFile?:     File;
   }) => {
     try {
       if (mode === 'edit' && segmentId) {
@@ -215,7 +222,11 @@ export default function AddSegmentModal({
         dispatch(evaluateSegment(segmentId));
       } else {
         /* POST /api/v1/segments */
-        const result = await dispatch(createSegment(data)).unwrap();
+        const result = await dispatch(createSegment({
+          ...data,
+          segmentType: data.segmentType,
+          csvFile:     data.csvFile,
+        })).unwrap();
         const newId  = result?.id ? String(result.id) : undefined;
         if (newId) dispatch(evaluateSegment(newId));
         onSaved?.({ name: data.name, id: newId });

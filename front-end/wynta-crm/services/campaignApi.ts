@@ -432,7 +432,7 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
       rate_limit: {
         // Send the exact value — 0 when toggle is off, user value when toggle is on
         per_user_per_day:            p.delivery_controls?.max_frequency        ?? 0,
-        per_user_per_campaign_total: p.delivery_controls?.per_user_per_campaign_total ?? 0,
+        per_user_per_campaign_total: p.delivery_controls?.per_user_per_campaign_total || null,
       },
       delay: {
         minutes: toMinutes(

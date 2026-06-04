@@ -236,9 +236,34 @@ export async function createSegment(payload: {
   refresh_strategy?: string;
   scheduled_cron?: string;
   created_by?: string | null;
+  /** "filter" = JSON conditions payload (default); "custom" = CSV multipart upload */
+  segmentType?: "filter" | "custom";
+  csvFile?: File;
 }): Promise<Segment> {
+  /* ── CSV / custom type — multipart/form-data ── */
+  if (payload.segmentType === "custom" && payload.csvFile) {
+    const form = new FormData();
+    form.append("name",             payload.name);
+    form.append("type",             "custom");
+    form.append("refresh_strategy", payload.refresh_strategy ?? "scheduled");
+    if (payload.created_by)        form.append("created_by", payload.created_by);
+    if (payload.scheduled_cron)    form.append("scheduled_cron", payload.scheduled_cron);
+    form.append("file", payload.csvFile);
+
+    const res = await fetch(SEG_API, {
+      method: "POST",
+      // Do NOT set Content-Type — browser sets it automatically with boundary
+      headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_SEG_TOKEN ?? ""}` },
+      body: form,
+    });
+    if (!res.ok) throw new Error(`createSegment (csv) failed: ${res.status}`);
+    return toSegment(await res.json());
+  }
+
+  /* ── Filter type — application/json ── */
   const body: Record<string, unknown> = {
     name:             payload.name,
+    type:             "filter",
     rule:             buildDSL(payload),
     refresh_strategy: payload.refresh_strategy ?? "scheduled",
     created_by:       payload.created_by ?? null,

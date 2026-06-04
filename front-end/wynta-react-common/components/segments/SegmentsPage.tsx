@@ -60,8 +60,15 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
   }, [dispatch, status]);
 
   /* Use only real API data — no sample / fallback rows */
+  /* Sort by last_refresh_time desc (maps to last_used_at in Segment type) */
   const rows: SegmentRow[] = useMemo(
-    () => apiSegments.map(toRow),
+    () => [...apiSegments]
+      .sort((a, b) => {
+        const tA = a.last_used_at ? new Date(a.last_used_at).getTime() : 0;
+        const tB = b.last_used_at ? new Date(b.last_used_at).getTime() : 0;
+        return tB - tA;
+      })
+      .map(toRow),
     [apiSegments],
   );
 
