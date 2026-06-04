@@ -86,6 +86,7 @@ async def _handle_message(
                 db=db,
                 ch=ch,
                 redis=redis,
+                brand_id=seg.get("brand_id"),
             )
         except Exception:
             log.exception(

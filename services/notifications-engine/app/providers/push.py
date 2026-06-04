@@ -16,6 +16,9 @@ log = structlog.get_logger()
 
 _FCM_SEND_URL = "https://fcm.googleapis.com/v1/projects/{project_id}/messages:send"
 
+# Shared client — reuses TCP connections across all concurrent FCM calls
+_http_client = httpx.AsyncClient(timeout=10.0)
+
 # FCM error codes that indicate a permanently invalid token
 _UNREGISTERED_ERRORS = frozenset(["NOT_FOUND", "UNREGISTERED"])
 
@@ -44,16 +47,20 @@ class FcmV1Provider:
         access_token = await self._token_store.get_token(self._credential_json)
         url = _FCM_SEND_URL.format(project_id=self._project_id)
 
+        data: dict[str, str] = {
+            "title": payload.title,
+            "content": payload.body,
+            "type": "PUSH",
+            **({"image_url": payload.image_url} if payload.image_url else {}),
+            **{k: str(v) for k, v in payload.extra.items()},
+        }
+        if recipient.auto_dismiss_seconds is not None:
+            data["auto_dismiss_seconds"] = str(recipient.auto_dismiss_seconds)
+
         body: dict[str, Any] = {
             "message": {
                 "token": recipient.token,
-                "data": {
-                    "title": payload.title,
-                    "content": payload.body,
-                    "type": "PUSH",
-                    **({"image_url": payload.image_url} if payload.image_url else {}),
-                    **{k: str(v) for k, v in payload.extra.items()},
-                },
+                "data": data,
             }
         }
 
@@ -62,8 +69,8 @@ class FcmV1Provider:
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=body, headers=headers)
+        log.info("fcm_v1.sending", user_id=recipient.user_id, token=recipient.token, body=body)
+        resp = await _http_client.post(url, json=body, headers=headers)
 
         if resp.status_code == 200:
             msg_id: str = resp.json().get("name", f"fcm-{uuid.uuid4().hex[:12]}")

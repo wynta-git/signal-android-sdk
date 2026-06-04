@@ -136,10 +136,13 @@ async def list_campaigns(
     db: AsyncIOMotorDatabase,
     project_id: str,
     status: str | None = None,
+    brand_id: str | None = None,
 ) -> list[dict[str, Any]]:
     query: dict[str, Any] = {"project_id": project_id}
     if status:
         query["status"] = status
+    if brand_id is not None:
+        query["brand_id"] = brand_id
     cursor = db["campaigns"].find(query, {"_id": 0}).sort("created_at", -1)
     return await cursor.to_list(length=None)
 
@@ -167,17 +170,21 @@ async def delete_campaign(
 
 
 async def get_running_campaigns_for_event(
-    db: AsyncIOMotorDatabase, project_id: str, event_name: str
+    db: AsyncIOMotorDatabase, project_id: str, event_name: str, brand_id: str | None = None
 ) -> list[dict[str, Any]]:
-    cursor = db["campaigns"].find(
-        {
-            "project_id": project_id,
-            "status": "running",
-            "trigger.type": "event",
-            "trigger.event_name": event_name,
-        },
-        {"_id": 0},
-    )
+    query: dict[str, Any] = {
+        "project_id": project_id,
+        "status": "running",
+        "trigger.type": "event",
+        "trigger.event_name": event_name,
+    }
+    if brand_id:
+        # Brand-scoped campaigns for this brand + project-wide campaigns (brand_id null/missing)
+        query["$or"] = [{"brand_id": brand_id}, {"brand_id": None}]
+    else:
+        # Event has no brand — only project-wide campaigns fire
+        query["brand_id"] = None
+    cursor = db["campaigns"].find(query, {"_id": 0})
     return await cursor.to_list(length=None)
 
 
@@ -614,11 +621,29 @@ async def create_notification_delivery_indexes(db: AsyncIOMotorDatabase) -> None
     )
 
 
+async def upsert_device_token(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    token: str,
+    platform: str,
+) -> None:
+    await db["device_tokens"].update_one(
+        {"project_id": project_id, "user_id": user_id, "token": token},
+        {"$set": {"platform": platform}},
+        upsert=True,
+    )
+
+
 async def insert_notification_delivery(
     db: AsyncIOMotorDatabase, doc: dict[str, Any]
 ) -> str:
-    result = await db["notification_deliveries"].insert_one(doc)
-    return str(result.inserted_id)
+    from pymongo.errors import DuplicateKeyError
+    try:
+        result = await db["notification_deliveries"].insert_one(doc)
+        return str(result.inserted_id)
+    except DuplicateKeyError:
+        return ""
 
 
 async def update_notification_delivery_status(
@@ -726,6 +751,53 @@ async def list_field_aliases(
     return await cursor.to_list(length=None)
 
 
+def _infer_trait_type(value: Any) -> str:
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, datetime):
+        return "datetime"
+    if isinstance(value, str):
+        try:
+            datetime.fromisoformat(value)
+            return "datetime"
+        except ValueError:
+            pass
+        try:
+            float(value)
+            return "number"
+        except ValueError:
+            pass
+        if value.strip().lower() in {"true", "false", "yes", "no"}:
+            return "boolean"
+    return "string"
+
+
+async def upsert_trait_schemas(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    traits: dict[str, Any],
+) -> None:
+    now = datetime.now(tz=timezone.utc)
+    for trait, value in traits.items():
+        trait_type = _infer_trait_type(value)
+        await db["trait_schemas"].update_one(
+            {"project_id": project_id, "trait": trait},
+            {"$setOnInsert": {"project_id": project_id, "trait": trait, "type": trait_type, "created_at": now}},
+            upsert=True,
+        )
+
+
+async def get_trait_schema(
+    db: AsyncIOMotorDatabase, project_id: str, trait: str
+) -> dict[str, Any] | None:
+    return await db["trait_schemas"].find_one(
+        {"project_id": project_id, "trait": trait},
+        {"_id": 0},
+    )
+
+
 async def upsert_user_profile(
     db: AsyncIOMotorDatabase,
     *,
@@ -753,3 +825,5 @@ async def upsert_user_profile(
         update,
         upsert=True,
     )
+    if traits:
+        await upsert_trait_schemas(db, project_id, traits)

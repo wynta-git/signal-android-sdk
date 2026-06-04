@@ -8,6 +8,7 @@ class Recipient:
     token: str
     platform: str  # android | ios | web
     project_id: str
+    auto_dismiss_seconds: int | None = None
 
 
 @dataclass

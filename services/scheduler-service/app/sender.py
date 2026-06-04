@@ -1,4 +1,5 @@
 """Campaign execution: fan-out to segment members and emit per-user send jobs."""
+import asyncio
 import json
 import uuid
 from datetime import date, datetime, timezone
@@ -148,33 +149,36 @@ async def run_campaign(
     skipped = 0
     failed = 0
 
+    async def _process_user(user_id: str) -> str:
+        try:
+            if not await _in_audience(audience, project_id, user_id, redis):
+                return "skipped"
+            if not await _rate_allowed(rate_limit, campaign_id, user_id, redis):
+                return "skipped"
+            await _emit_send_job(
+                producer,
+                campaign=campaign,
+                run_id=run_id,
+                user_id=user_id,
+                deliver_at=now,
+            )
+            await _mark_sent(rate_limit, campaign_id, user_id, redis)
+            return "sent"
+        except Exception:
+            log.exception(
+                "sender.user_failed",
+                campaign_id=campaign_id,
+                project_id=project_id,
+                user_id=user_id,
+                run_id=run_id,
+            )
+            return "failed"
+
     async for batch in stream_segment_members(redis, project_id, segment_id):
-        for user_id in batch:
-            try:
-                if not await _in_audience(audience, project_id, user_id, redis):
-                    skipped += 1
-                    continue
-                if not await _rate_allowed(rate_limit, campaign_id, user_id, redis):
-                    skipped += 1
-                    continue
-                await _emit_send_job(
-                    producer,
-                    campaign=campaign,
-                    run_id=run_id,
-                    user_id=user_id,
-                    deliver_at=now,
-                )
-                await _mark_sent(rate_limit, campaign_id, user_id, redis)
-                sent += 1
-            except Exception:
-                log.exception(
-                    "sender.user_failed",
-                    campaign_id=campaign_id,
-                    project_id=project_id,
-                    user_id=user_id,
-                    run_id=run_id,
-                )
-                failed += 1
+        results = await asyncio.gather(*[_process_user(uid) for uid in batch])
+        sent += results.count("sent")
+        skipped += results.count("skipped")
+        failed += results.count("failed")
 
     await update_campaign_run(
         db,

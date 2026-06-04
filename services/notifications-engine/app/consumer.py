@@ -182,7 +182,7 @@ async def handle_send_job(
             log.warning("consumer.circuit_open", provider=provider_name)
             return
 
-        recipient = Recipient(user_id=job.user_id, token=token, platform=platform, project_id=job.project_id)
+        recipient = Recipient(user_id=job.user_id, token=token, platform=platform, project_id=job.project_id, auto_dismiss_seconds=job.auto_dismiss_seconds)
         try:
             result = await provider.send(recipient, payload)
             breaker.record_success()
@@ -265,7 +265,13 @@ async def process_batch(
     if not jobs:
         return
 
-    await asyncio.gather(*[handle_send_job(job, db, redis, producer) for job in jobs])
+    semaphore = asyncio.Semaphore(20)
+
+    async def _bounded(job: SendJob) -> None:
+        async with semaphore:
+            await handle_send_job(job, db, redis, producer)
+
+    await asyncio.gather(*[_bounded(job) for job in jobs])
     log.info("consumer.batch_done", count=len(jobs))
 
 
@@ -289,10 +295,19 @@ async def consumer_loop(
 
     async with consumer:
         run_task = asyncio.create_task(consumer.run())
-        await stop_event.wait()
+        stop_task = asyncio.create_task(stop_event.wait())
+        done, _ = await asyncio.wait(
+            [run_task, stop_task], return_when=asyncio.FIRST_COMPLETED
+        )
         await consumer.stop()
-        import contextlib
-
         run_task.cancel()
+        stop_task.cancel()
+        import contextlib
         with contextlib.suppress(asyncio.CancelledError):
             await run_task
+        # Re-raise if consumer crashed so systemd restarts the service
+        for task in done:
+            if task is run_task and not task.cancelled():
+                exc = task.exception()
+                if exc:
+                    raise exc

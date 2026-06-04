@@ -26,6 +26,15 @@ class Settings(BaseSettings):
     # Separate RS256 public key for portal UI tokens — set PORTAL_JWT_PUBLIC_KEY env var
     portal_jwt_public_key: str = ""
 
+    # S3 — custom audience CSV storage
+    s3_bucket: str = "pam-custom-audiences"
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_region: str = "ap-south-1"
+    custom_audience_max_bytes: int = 52_428_800   # 50 MB
+    custom_audience_max_rows: int = 500_000
+
     debug: bool = False
     version: str = "0.1.0"
 

@@ -2,6 +2,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 
+from app.dependencies import PortalAuthDep
+
 router = APIRouter(prefix="/api/v1/segments/meta", tags=["meta"])
 
 
@@ -23,36 +25,78 @@ def _meta(request: Request):
 
 @router.get("/events")
 async def list_events(
-    project_id: str,
+    ctx: PortalAuthDep,
     ch=Depends(_ch),
     redis=Depends(_redis),
+    db=Depends(_db),
     meta=Depends(_meta),
-) -> list[str]:
-    return await meta.get_events(project_id, ch, redis)
+) -> dict:
+    return await meta.get_events(ctx.project_id, ch, redis, db)
+
+
+@router.get("/events/derived/{rule_id}")
+async def get_derived_rule(
+    ctx: PortalAuthDep,
+    rule_id: str,
+    db=Depends(_db),
+    meta=Depends(_meta),
+) -> dict:
+    rule = await meta.get_derived_rule(ctx.project_id, rule_id, db)
+    if rule is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Derived rule not found")
+    return rule
 
 
 @router.get("/events/{event_name}/properties")
 async def list_event_properties(
-    project_id: str,
+    ctx: PortalAuthDep,
     event_name: str,
     ch=Depends(_ch),
     redis=Depends(_redis),
     db=Depends(_db),
     meta=Depends(_meta),
 ) -> list[str]:
-    return await meta.get_event_properties(project_id, event_name, ch, redis, db)
+    return await meta.get_event_properties(ctx.project_id, event_name, ch, redis, db)
+
+
+@router.get("/events/{event_name}/properties/{prop_name}/operators")
+async def get_property_operators(
+    ctx: PortalAuthDep,
+    event_name: str,
+    prop_name: str,
+    ch=Depends(_ch),
+    redis=Depends(_redis),
+    db=Depends(_db),
+    meta=Depends(_meta),
+) -> dict[str, Any]:
+    return await meta.get_property_operators(ctx.project_id, event_name, prop_name, ch, redis, db)
+
+
+@router.get("/traits/{trait_name}/operators")
+async def get_trait_operators(
+    ctx: PortalAuthDep,
+    trait_name: str,
+    db=Depends(_db),
+    redis=Depends(_redis),
+    meta=Depends(_meta),
+) -> dict[str, Any]:
+    return await meta.get_trait_operators(ctx.project_id, trait_name, db, redis)
 
 
 @router.get("/traits")
 async def list_traits(
-    project_id: str,
+    ctx: PortalAuthDep,
     db=Depends(_db),
     redis=Depends(_redis),
     meta=Depends(_meta),
 ) -> list[str]:
-    return await meta.get_traits(project_id, db, redis)
+    return await meta.get_traits(ctx.project_id, db, redis)
 
 
 @router.get("/operators")
-async def list_operators(meta=Depends(_meta)) -> dict[str, Any]:
+async def list_operators(
+    ctx: PortalAuthDep,
+    meta=Depends(_meta),
+) -> dict[str, Any]:
     return meta.get_operators()

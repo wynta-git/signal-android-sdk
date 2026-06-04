@@ -259,7 +259,6 @@
       border-radius: 7px; padding: 12px;
       font-size: 12px; font-family: var(--mono);
       overflow-x: auto; white-space: pre;
-      max-height: 280px; overflow-y: auto;
       line-height: 1.6;
     }
     .code-block.response-ok { border-left: 3px solid var(--green); }
@@ -341,6 +340,10 @@
     <label>Project ID</label>
     <input id="cfgProject" value="proj_demo" style="width:100px">
   </div>
+  <div class="cfg">
+    <label>Test User ID</label>
+    <input id="cfgUser1" value="user001" style="width:100px">
+  </div>
 
   <div class="header-actions">
     <div style="text-align:right">
@@ -401,7 +404,7 @@ const token   = () => cfg('cfgToken');
 const svcUser = () => cfg('cfgSvcUser');
 const svcPass = () => cfg('cfgSvcPass');
 const projId  = () => cfg('cfgProject');
-const demoUser1 = () => `demo_${state.runId}_001`;
+const demoUser1 = () => cfg('cfgUser1') || `demo_${state.runId}_001`;
 const demoUser2 = () => `demo_${state.runId}_002`;
 
 // ── Step definitions ────────────────────────────────────────────────────────
@@ -470,9 +473,16 @@ const STEPS = [
     run: stepCreateCampaign,
   },
   {
+    id: 'cron',
+    title: 'Create Cron Campaign',
+    desc: 'Create a scheduled campaign that fires every 5 minutes targeting the same segment — shows next_run_at computed on activation',
+    pipeNodes: ['pipe-camp'],
+    run: stepCreateCronCampaign,
+  },
+  {
     id: 'trigger',
     title: 'Fire Trigger Event',
-    desc: 'Send a purchase_completed event — the running campaign will intercept it and emit a send job',
+    desc: 'Send a purchase_completed event — the event campaign intercepts it from Kafka and emits a send job',
     pipeNodes: ['pipe-api', 'pipe-kafka', 'pipe-camp'],
     run: stepFireTrigger,
   },
@@ -625,6 +635,7 @@ async function stepCreateSegment(card) {
   showResponse(card, r);
   if (r.status === 409) return 'Segment already exists (reused)';
   if (!r.ok) throw new Error(JSON.stringify(r.data));
+  state.segmentId = r.data.segment_id;
   return `Segment "${state.segmentId}" created`;
 }
 
@@ -681,7 +692,7 @@ async function stepCreateTemplate(card) {
 
   showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}/templates`, body);
   const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}/templates`,
-    body, { Authorization: `Bearer ${token()}` });
+    body, { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
   if (!r.ok) throw new Error(JSON.stringify(r.data));
   state.templateId = r.data.template_id;
@@ -716,6 +727,75 @@ async function stepCreateCampaign(card) {
 
   if (!ra.ok) throw new Error('Activate failed');
   return `"${state.campaignId}" → ${ra.data.status}`;
+}
+
+async function stepCreateCronCampaign(card) {
+  const CRON = '*/5 * * * *';
+  const body = {
+    name: `Demo Cron Campaign (${state.runId})`,
+    trigger: { type: 'scheduled', cron: CRON },
+    audience: { segment_id: state.segmentId },
+    channel: 'push',
+    template_id: state.templateId,
+  };
+
+  // Explain the cron expression
+  const body_el = card.querySelector('.step-body');
+  const explain = document.createElement('div');
+  explain.innerHTML = `
+    <div style="background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:8px;
+      padding:10px 14px;font-size:12px;line-height:1.7;margin-bottom:4px">
+      <strong>Cron:</strong> <code style="font-family:var(--mono)">${CRON}</code>
+      — fires every 5 minutes.<br>
+      On activation the campaign-engine computes <code style="font-family:var(--mono)">next_run_at</code>
+      and sets status to <code style="font-family:var(--mono)">"running"</code>.
+      The <strong>scheduler-service</strong> polls MongoDB every second, locks campaigns
+      whose <code style="font-family:var(--mono)">next_run_at ≤ now</code>, fans out send
+      jobs for all segment members, then advances <code style="font-family:var(--mono)">next_run_at</code>
+      to the next cron tick.
+    </div>`;
+  body_el.appendChild(explain);
+
+  showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`, body);
+  const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`,
+    body, { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(JSON.stringify(r.data));
+  state.cronCampaignId = r.data.campaign_id;
+
+  // Activate — sets status=running and next_run_at
+  const ra = await api('POST',
+    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.cronCampaignId}/activate`,
+    null, { Authorization: `Bearer ${state.portalJwt}` });
+
+  // Fetch the full campaign doc to show next_run_at
+  const rd = await api('GET',
+    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.cronCampaignId}`,
+    null, { Authorization: `Bearer ${state.portalJwt}` });
+
+  const nextRun = rd.data?.next_run_at ? new Date(rd.data.next_run_at).toLocaleTimeString() : '—';
+  const el = document.createElement('div');
+  el.innerHTML = `
+    <div class="section-label" style="margin-top:10px">Activate response</div>
+    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(ra.data, null, 2)}</div>
+    <div class="section-label" style="margin-top:10px">Campaign detail (next_run_at)</div>
+    <div class="code-block response-ok">${JSON.stringify({
+      campaign_id: rd.data?.campaign_id,
+      status: rd.data?.status,
+      trigger: rd.data?.trigger,
+      next_run_at: rd.data?.next_run_at,
+      audience: rd.data?.audience,
+    }, null, 2)}</div>
+    <div style="margin-top:8px;background:var(--green-bg);border:1px solid #bbf7d0;
+      border-radius:8px;padding:10px 14px;font-size:12px">
+      Next scheduled fire: <strong>${nextRun}</strong>
+      — scheduler-service will pick this up, check segment membership, and emit send jobs
+      for all members of <em>${state.segmentId}</em>.
+    </div>`;
+  body_el.appendChild(el);
+
+  if (!ra.ok) throw new Error('Activate failed');
+  return `"${state.cronCampaignId}" → ${ra.data.status}, fires at ${nextRun}`;
 }
 
 async function stepFireTrigger(card) {
@@ -842,10 +922,6 @@ function setStepState(id, st, msg = '') {
 }
 
 function expandCard(id) {
-  STEPS.forEach(s => {
-    const b = document.getElementById(`body-${s.id}`);
-    if (b) b.classList.remove('open');
-  });
   const b = document.getElementById(`body-${id}`);
   if (b) b.classList.add('open');
   document.getElementById(`card-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

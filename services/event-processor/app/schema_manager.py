@@ -61,13 +61,11 @@ CREATE TABLE IF NOT EXISTS {table}
     session_id     String,
     timestamp      DateTime64(3, 'UTC'),
     received_at    DateTime64(3, 'UTC'),
-    sdk_name       LowCardinality(String),
-    sdk_version    String,
     platform       LowCardinality(String),
-    os             LowCardinality(String),
+    device_type    LowCardinality(String),
+    brand_id       LowCardinality(String),
     amount         Nullable(Float64),
     currency       LowCardinality(Nullable(String)),
-    order_id       Nullable(String),
     insert_date    Date    DEFAULT toDate(received_at),
     created_at     DateTime DEFAULT now()
 )

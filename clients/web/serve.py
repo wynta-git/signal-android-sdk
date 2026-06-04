@@ -11,7 +11,10 @@ handler.extensions_map[".html"] = "text/html"
 
 with http.server.HTTPServer(("", PORT), handler) as httpd:
     print(f"Serving PAM client at http://localhost:{PORT}/")
+    print(f"  index     → http://localhost:{PORT}/index.html")
+    print(f"  demo      → http://localhost:{PORT}/demo.html")
     print(f"  segments  → http://localhost:{PORT}/segments.html")
     print(f"  campaigns → http://localhost:{PORT}/campaigns.html")
+    print(f"  admin     → http://localhost:{PORT}/admin.html")
     print("Press Ctrl+C to stop.")
     httpd.serve_forever()
