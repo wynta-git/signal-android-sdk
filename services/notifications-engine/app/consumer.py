@@ -289,10 +289,19 @@ async def consumer_loop(
 
     async with consumer:
         run_task = asyncio.create_task(consumer.run())
-        await stop_event.wait()
+        stop_task = asyncio.create_task(stop_event.wait())
+        done, _ = await asyncio.wait(
+            [run_task, stop_task], return_when=asyncio.FIRST_COMPLETED
+        )
         await consumer.stop()
-        import contextlib
-
         run_task.cancel()
+        stop_task.cancel()
+        import contextlib
         with contextlib.suppress(asyncio.CancelledError):
             await run_task
+        # Re-raise if consumer crashed so systemd restarts the service
+        for task in done:
+            if task is run_task and not task.cancelled():
+                exc = task.exception()
+                if exc:
+                    raise exc
