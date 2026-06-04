@@ -638,8 +638,12 @@ async def upsert_device_token(
 async def insert_notification_delivery(
     db: AsyncIOMotorDatabase, doc: dict[str, Any]
 ) -> str:
-    result = await db["notification_deliveries"].insert_one(doc)
-    return str(result.inserted_id)
+    from pymongo.errors import DuplicateKeyError
+    try:
+        result = await db["notification_deliveries"].insert_one(doc)
+        return str(result.inserted_id)
+    except DuplicateKeyError:
+        return ""
 
 
 async def update_notification_delivery_status(
