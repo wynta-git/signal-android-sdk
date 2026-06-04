@@ -37,6 +37,6 @@ def render_push(
         "project": project_doc or {},
     }
     title = _render(push.get("title", ""), render_ctx)
-    body = _render(push.get("message", ""), render_ctx)
+    body = _render(push.get("body", ""), render_ctx)
     image_url = push.get("image_url")
     return RenderedPush(title=title, body=body, image_url=image_url)
