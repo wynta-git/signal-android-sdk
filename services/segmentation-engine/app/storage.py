@@ -51,9 +51,12 @@ async def get_segment(
 
 
 async def list_segments(
-    db: AsyncIOMotorDatabase, project_id: str
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
 ) -> list[dict[str, Any]]:
-    cursor = db[SEGMENTS_COL].find({"project_id": project_id}, {"_id": 0})
+    query: dict[str, Any] = {"project_id": project_id}
+    if brand_id is not None:
+        query["brand_id"] = brand_id
+    cursor = db[SEGMENTS_COL].find(query, {"_id": 0})
     return await cursor.to_list(length=None)
 
 

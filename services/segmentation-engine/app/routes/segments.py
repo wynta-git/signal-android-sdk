@@ -85,8 +85,8 @@ async def create_segment(
 
 
 @router.get("")
-async def list_segments(ctx: PortalAuthDep, db=Depends(_db)) -> list[dict[str, Any]]:
-    return await storage.list_segments(db, ctx.project_id)
+async def list_segments(ctx: PortalAuthDep, db=Depends(_db), brand_id: str | None = Query(default=None)) -> list[dict[str, Any]]:
+    return await storage.list_segments(db, ctx.project_id, brand_id=brand_id)
 
 
 @router.get("/{segment_id}")

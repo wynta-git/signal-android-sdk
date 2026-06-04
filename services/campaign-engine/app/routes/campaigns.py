@@ -148,8 +148,9 @@ async def list_campaigns_route(
     ctx: PortalAuthDep,
     db: DbDep,
     status: str | None = None,
+    brand_id: str | None = None,
 ) -> list[dict]:
-    docs = await list_campaigns(db, ctx.project_id, status=status)
+    docs = await list_campaigns(db, ctx.project_id, status=status, brand_id=brand_id)
     return [_to_api_format(d) for d in docs]
 
 

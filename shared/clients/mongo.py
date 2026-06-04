@@ -136,10 +136,13 @@ async def list_campaigns(
     db: AsyncIOMotorDatabase,
     project_id: str,
     status: str | None = None,
+    brand_id: str | None = None,
 ) -> list[dict[str, Any]]:
     query: dict[str, Any] = {"project_id": project_id}
     if status:
         query["status"] = status
+    if brand_id is not None:
+        query["brand_id"] = brand_id
     cursor = db["campaigns"].find(query, {"_id": 0}).sort("created_at", -1)
     return await cursor.to_list(length=None)
 
