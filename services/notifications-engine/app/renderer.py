@@ -30,7 +30,7 @@ def render_push(
     ctx: dict[str, Any],
     project_doc: dict[str, Any] | None,
 ) -> RenderedPush:
-    push = template_doc.get("push") or {}
+    push = template_doc.get("body") or {}
     render_ctx = {
         "user": (user_doc or {}).get("traits", {}),
         "ctx": ctx,

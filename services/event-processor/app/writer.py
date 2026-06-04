@@ -22,18 +22,16 @@ _BASE_COLUMNS = [
     "session_id",
     "timestamp",
     "received_at",
-    "sdk_name",
-    "sdk_version",
     "platform",
-    "os",
+    "device_type",
+    "brand_id",
     "amount",
     "currency",
-    "order_id",
 ]
 
 # Properties keys promoted to typed base columns — excluded from dynamic columns
 # so they don't collide with the dedicated base column of the same sanitized name.
-_PROMOTED_KEYS = frozenset({"amount", "currency", "order_id"})
+_PROMOTED_KEYS = frozenset({"amount", "currency"})
 
 # Fields intentionally excluded from ClickHouse columns (base or dynamic).
 # To drop a base column: add it here AND remove from _BASE_COLUMNS + _base_values().
@@ -49,12 +47,9 @@ def _parse_dt(value: str | None) -> datetime:
 
 def _base_values(event: dict[str, Any]) -> list[Any]:
     props = event.get("properties") or {}
-    sdk = event.get("sdk") or {}
-    device = event.get("device") or {}
 
     amount_raw = props.get("amount")
     currency_raw = props.get("currency")
-    order_id_raw = props.get("order_id")
 
     amount: float | None = None
     if amount_raw is not None:
@@ -72,13 +67,11 @@ def _base_values(event: dict[str, Any]) -> list[Any]:
         str(event.get("session_id") or ""),
         _parse_dt(event.get("timestamp")),
         _parse_dt(event.get("received_at") or event.get("timestamp")),
-        str(sdk.get("name") or ""),
-        str(sdk.get("version") or ""),
-        str(device.get("platform") or ""),
-        str(device.get("os") or ""),
+        str(event.get("platform") or ""),
+        str(event.get("device_type") or ""),
+        str(event.get("brand_id") or ""),
         amount,
         str(currency_raw) if currency_raw is not None else None,
-        str(order_id_raw) if order_id_raw is not None else None,
     ]
 
 

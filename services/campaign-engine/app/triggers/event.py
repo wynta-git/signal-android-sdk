@@ -12,7 +12,7 @@ from redis.asyncio import Redis
 from app.audience import is_in_audience
 from app.config import settings
 from app.models import Campaign, CampaignRun
-from app.rate_limit import check_rate_limit, mark_sent
+from app.rate_limit import check_min_delay, check_rate_limit, mark_sent
 from app.sender import emit_send_job
 from shared.clients.mongo import (
     get_active_campaign_run,
@@ -70,7 +70,8 @@ async def _handle_event(
     if not (project_id and user_id and event_name):
         return
 
-    campaigns = await get_running_campaigns_for_event(db, project_id, event_name)
+    brand_id: str | None = event.get("brand_id") or None
+    campaigns = await get_running_campaigns_for_event(db, project_id, event_name, brand_id)
     if not campaigns:
         return
 
@@ -114,6 +115,16 @@ async def _process_for_user(
     if not allowed:
         log.debug(
             "event_consumer.rate_limited",
+            project_id=campaign.project_id,
+            campaign_id=campaign.campaign_id,
+            user_id=user_id,
+        )
+        return
+
+    min_delay_ok = await check_min_delay(campaign, user_id, redis)
+    if not min_delay_ok:
+        log.debug(
+            "event_consumer.min_delay_suppressed",
             project_id=campaign.project_id,
             campaign_id=campaign.campaign_id,
             user_id=user_id,

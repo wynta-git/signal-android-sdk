@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.routes.exchange_token import router as exchange_token_router
 from app.routes.portal_token import router as portal_token_router
 from app.routes.brands import router as brands_router
 from app.routes.ready import router as ready_router
@@ -76,6 +77,7 @@ async def request_context_middleware(request: Request, call_next: object) -> Res
 _V1 = "/api/v1/system"
 app.include_router(token_router, prefix=_V1)
 app.include_router(portal_token_router, prefix=_V1)
+app.include_router(exchange_token_router, prefix=_V1)
 app.include_router(ready_router, prefix=_V1)
 app.include_router(users_router, prefix=_V1)
 app.include_router(brands_router, prefix=_V1)

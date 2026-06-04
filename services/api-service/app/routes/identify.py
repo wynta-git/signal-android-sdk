@@ -9,10 +9,15 @@ from shared.auth.token import TokenContext
 from app.config import settings
 from app.middleware.idempotency import check_idempotency, store_idempotency
 from app.middleware.ratelimit import project_rate_limit, user_rate_limit
-from shared.clients.mongo import upsert_user_profile
+from shared.clients.mongo import upsert_device_token, upsert_user_profile
 
 router = APIRouter()
 log = structlog.get_logger()
+
+
+class DeviceInfo(BaseModel):
+    token: str
+    platform: str = "android"
 
 
 class IdentifyRequest(BaseModel):
@@ -21,6 +26,7 @@ class IdentifyRequest(BaseModel):
     traits: dict[str, Any] = Field(default_factory=dict)
     unset_traits: list[str] = Field(default_factory=list)
     timestamp: datetime
+    device: DeviceInfo | None = None
 
 
 class IdentifyResponse(BaseModel):
@@ -70,6 +76,15 @@ async def identify(
         raise HTTPException(
             status_code=503,
             detail={"code": "internal_error", "message": "Failed to save user profile"},
+        )
+
+    if body.device:
+        await upsert_device_token(
+            db,
+            project_id=ctx.project_id,
+            user_id=body.user_id,
+            token=body.device.token,
+            platform=body.device.platform,
         )
 
     log.info("identify", user_id=body.user_id, project_id=ctx.project_id)

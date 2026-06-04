@@ -1,22 +1,93 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+_VALID_DOW = {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
+
+
+class ScheduleInput(BaseModel):
+    type: Literal["immediate", "once", "daily", "weekly", "monthly"]
+    timezone: str = "UTC"
+    start_date: date | None = None
+    end_date: date | None = None
+    schedule_time: str | None = None  # "HH:MM" 24h — not required for "immediate"
+    days_of_week: list[str] | None = None   # weekly only e.g. ["MON","WED","FRI"]
+    days_of_month: list[int] | None = None  # monthly only e.g. [5, 15, 25], capped 1-28
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str) -> str:
+        try:
+            ZoneInfo(v)
+        except (ZoneInfoNotFoundError, KeyError):
+            raise ValueError(f"Unknown timezone: {v}")
+        return v
+
+    @field_validator("schedule_time")
+    @classmethod
+    def validate_time(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        parts = v.split(":")
+        if len(parts) != 2 or not all(p.isdigit() for p in parts):
+            raise ValueError("schedule_time must be HH:MM")
+        if not (0 <= int(parts[0]) <= 23 and 0 <= int(parts[1]) <= 59):
+            raise ValueError("schedule_time must be a valid 24h time")
+        return v
+
+    @field_validator("days_of_week")
+    @classmethod
+    def validate_days_of_week(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        upper = [d.upper() for d in v]
+        invalid = [d for d in upper if d not in _VALID_DOW]
+        if invalid:
+            raise ValueError(f"Invalid days: {invalid}. Must be one of {_VALID_DOW}")
+        return upper
+
+    @field_validator("days_of_month")
+    @classmethod
+    def validate_days_of_month(cls, v: list[int] | None) -> list[int] | None:
+        if v is None:
+            return v
+        bad = [d for d in v if not 1 <= d <= 28]
+        if bad:
+            raise ValueError(f"days_of_month values must be 1–28, got {bad}")
+        return v
+
+    @model_validator(mode="after")
+    def check_required_fields(self) -> ScheduleInput:
+        if self.type == "immediate":
+            return self
+        if self.type in ("once", "daily", "weekly", "monthly") and not self.schedule_time:
+            raise ValueError(f"schedule_time is required for {self.type} schedule")
+        if self.type == "once" and not self.start_date:
+            raise ValueError("start_date is required for once schedule")
+        if self.type == "weekly" and not self.days_of_week:
+            raise ValueError("days_of_week is required for weekly schedule")
+        if self.type == "monthly" and not self.days_of_month:
+            raise ValueError("days_of_month is required for monthly schedule")
+        return self
 
 
 class Trigger(BaseModel):
-    type: Literal["event", "scheduled", "one_off"]
-    event_name: str | None = None   # type=event
-    cron: str | None = None         # type=scheduled
-    send_at: datetime | None = None # type=one_off
+    type: Literal["event", "scheduled", "one_off", "immediate"]
+    event_name: str | None = None    # type=event
+    schedule: ScheduleInput | None = None  # UI sends this; engine converts to cron
+    cron: str | None = None          # computed by engine, never sent by UI
+    send_at: datetime | None = None  # type=one_off
 
 
 class Audience(BaseModel):
     segment_id: str | None = None
     all: bool = False
+    target_platforms: list[str] = []
 
 
 class Delay(BaseModel):
@@ -31,7 +102,10 @@ class RateLimit(BaseModel):
 class Campaign(BaseModel):
     campaign_id: str
     project_id: str
+    brand_id: str | None = None
     name: str
+    tags: str | None = None
+    objective: str | None = None
     status: Literal["draft", "scheduled", "running", "paused", "completed", "cancelled"]
     trigger: Trigger
     audience: Audience
@@ -39,6 +113,9 @@ class Campaign(BaseModel):
     template_id: str
     rate_limit: RateLimit = Field(default_factory=RateLimit)
     delay: Delay | None = None
+    min_delay_between_sends_minutes: int | None = None
+    ignore_global_min_delay: bool = False
+    auto_dismiss_seconds: int | None = None
     created_at: datetime
     updated_at: datetime
     # Scheduler fields — managed by scheduler-service, not campaign-engine
@@ -70,6 +147,8 @@ class SendJob(BaseModel):
     template_id: str
     context: dict[str, Any] = Field(default_factory=dict)
     deliver_at: datetime
+    auto_dismiss_seconds: int | None = None
+    ignore_global_min_delay: bool = False
 
 
 class NotificationTemplate(BaseModel):
@@ -87,22 +166,68 @@ class NotificationTemplate(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class CreateCampaignRequest(BaseModel):
-    name: str
-    trigger: Trigger
-    audience: Audience
-    channel: Literal["push", "email", "sms", "webhook"]
-    template_id: str
+class InlineMessage(BaseModel):
+    title: str
+    body: str
+    deep_link: str | None = None
+
+
+class ChannelConfig(BaseModel):
+    type: Literal["push", "email", "sms", "webhook"]
+    template_id: str | None = None
+    message: InlineMessage | None = None
+
+    @model_validator(mode="after")
+    def check_template_or_message(self) -> ChannelConfig:
+        if not self.template_id and not self.message:
+            raise ValueError("Provide either template_id or message")
+        return self
+
+
+class AutoDismiss(BaseModel):
+    dismiss_after_seconds: int
+
+
+class DeliveryConfig(BaseModel):
     rate_limit: RateLimit = Field(default_factory=RateLimit)
     delay: Delay | None = None
+    min_delay_between_sends_minutes: int | None = None
+    ignore_global_min_delay: bool = False
+    auto_dismiss: AutoDismiss | None = None
+
+
+class TriggerInput(BaseModel):
+    type: Literal["event", "scheduled"]
+    event_name: str | None = None
+    schedule: ScheduleInput | None = None
+
+    @model_validator(mode="after")
+    def check_required_fields(self) -> TriggerInput:
+        if self.type == "event" and not self.event_name:
+            raise ValueError("event_name is required for event trigger")
+        if self.type == "scheduled" and not self.schedule:
+            raise ValueError("schedule is required for scheduled trigger")
+        return self
+
+
+class CreateCampaignRequest(BaseModel):
+    name: str
+    brand_id: str | None = None
+    tags: str | None = None
+    objective: str | None = None
+    trigger: TriggerInput
+    audience: Audience
+    channel: ChannelConfig
+    delivery: DeliveryConfig = Field(default_factory=DeliveryConfig)
 
 
 class UpdateCampaignRequest(BaseModel):
     name: str | None = None
+    tags: str | None = None
+    objective: str | None = None
     audience: Audience | None = None
-    template_id: str | None = None
-    rate_limit: RateLimit | None = None
-    delay: Delay | None = None
+    channel: ChannelConfig | None = None
+    delivery: DeliveryConfig | None = None
 
 
 class CreateTemplateRequest(BaseModel):

@@ -14,6 +14,8 @@ class SendJob(BaseModel):
     template_id: str
     context: dict[str, Any] = {}
     deliver_at: datetime
+    auto_dismiss_seconds: int | None = None
+    ignore_global_min_delay: bool = False
 
 
 class DeliveryEvent(BaseModel):

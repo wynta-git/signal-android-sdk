@@ -1,11 +1,13 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 import structlog
 from croniter import croniter
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.cron_builder import build_cron
 from app.dependencies import PortalAuthDep, get_db
 from app.models import CreateCampaignRequest, UpdateCampaignRequest
 from app.prefetch import trigger_segment_refresh
@@ -13,13 +15,40 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from shared.clients.mongo import (
     delete_campaign,
     get_campaign,
+    get_template,
     insert_campaign,
+    insert_template,
     list_campaigns,
     update_campaign,
 )
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/campaign/projects/{project_id}", tags=["campaigns"])
+
+
+def _to_api_format(doc: dict) -> dict:
+    """Map internal trigger types back to the API contract before returning to the UI."""
+    trigger = doc.get("trigger", {})
+    internal_type = trigger.get("type")
+
+    if internal_type == "one_off":
+        doc = {
+            **doc,
+            "trigger": {
+                "type": "scheduled",
+                "schedule": {"type": "once", "send_at": trigger.get("send_at")},
+            },
+        }
+    elif internal_type == "immediate":
+        doc = {
+            **doc,
+            "trigger": {
+                "type": "scheduled",
+                "schedule": {"type": "immediate"},
+            },
+        }
+
+    return doc
 
 DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 
@@ -37,17 +66,70 @@ async def create_campaign(
     project_id = ctx.project_id
     campaign_id = f"camp_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
+
+    # --- Map trigger to internal format ---
+    trigger_dict: dict
+    if body.trigger.type == "event":
+        trigger_dict = {"type": "event", "event_name": body.trigger.event_name}
+    else:
+        sch = body.trigger.schedule  # guaranteed non-None by TriggerInput validator
+        if sch.type == "immediate":
+            trigger_dict = {"type": "immediate"}
+        elif sch.type == "once":
+            tz = ZoneInfo(sch.timezone)
+            h, m = map(int, sch.schedule_time.split(":"))  # type: ignore[union-attr]
+            send_dt = datetime(
+                sch.start_date.year, sch.start_date.month, sch.start_date.day,  # type: ignore[union-attr]
+                h, m, tzinfo=tz,
+            )
+            trigger_dict = {"type": "one_off", "send_at": send_dt.astimezone(timezone.utc)}
+        else:
+            trigger_dict = {
+                "type": "scheduled",
+                "schedule": sch.model_dump(mode="json"),
+                "cron": build_cron(sch),  # type: ignore[arg-type]
+            }
+
+    # --- Resolve template ---
+    channel_type = body.channel.type
+    template_id = body.channel.template_id
+    if not template_id:
+        msg = body.channel.message  # guaranteed non-None by ChannelConfig validator
+        template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
+        inline_body: dict = {"title": msg.title, "body": msg.body}  # type: ignore[union-attr]
+        if msg.deep_link:  # type: ignore[union-attr]
+            inline_body["deep_link"] = msg.deep_link  # type: ignore[union-attr]
+        await insert_template(db, {
+            "template_id": template_id,
+            "project_id": project_id,
+            "name": f"{body.name} (inline)",
+            "channel": channel_type,
+            "body": inline_body,
+            "created_at": now,
+            "updated_at": now,
+        })
+
+    # --- Map delivery ---
+    dlv = body.delivery
+    auto_dismiss_seconds = dlv.auto_dismiss.dismiss_after_seconds if dlv.auto_dismiss else None
+
     doc = {
         "campaign_id": campaign_id,
         "project_id": project_id,
+        "brand_id": body.brand_id,
         "name": body.name,
+        "tags": body.tags,
+        "objective": body.objective,
         "status": "draft",
-        "trigger": body.trigger.model_dump(mode="json"),
+        "trigger": trigger_dict,
         "audience": body.audience.model_dump(mode="json"),
-        "channel": body.channel,
-        "template_id": body.template_id,
-        "rate_limit": body.rate_limit.model_dump(mode="json"),
-        "delay": body.delay.model_dump(mode="json") if body.delay else None,
+        "channel": channel_type,
+        "template_id": template_id,
+        "rate_limit": dlv.rate_limit.model_dump(mode="json"),
+        "delay": dlv.delay.model_dump(mode="json") if dlv.delay else None,
+        "min_delay_between_sends_minutes": dlv.min_delay_between_sends_minutes,
+        "ignore_global_min_delay": dlv.ignore_global_min_delay,
+        "auto_dismiss_seconds": auto_dismiss_seconds,
         "created_at": now,
         "updated_at": now,
         # Scheduler fields — managed by scheduler-service
@@ -66,8 +148,10 @@ async def list_campaigns_route(
     ctx: PortalAuthDep,
     db: DbDep,
     status: str | None = None,
+    brand_id: str | None = None,
 ) -> list[dict]:
-    return await list_campaigns(db, ctx.project_id, status=status)
+    docs = await list_campaigns(db, ctx.project_id, status=status, brand_id=brand_id)
+    return [_to_api_format(d) for d in docs]
 
 
 @router.get("/{campaign_id}")
@@ -79,7 +163,11 @@ async def get_campaign_route(
     doc = await get_campaign(db, ctx.project_id, campaign_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Campaign not found")
-    return doc
+    if template_id := doc.get("template_id"):
+        template = await get_template(db, ctx.project_id, template_id)
+        if template:
+            doc["message"] = template.get("body", {})
+    return _to_api_format(doc)
 
 
 @router.patch("/{campaign_id}")
@@ -96,7 +184,49 @@ async def update_campaign_route(
     if doc["status"] != "draft":
         raise HTTPException(status_code=409, detail="Only draft campaigns can be edited")
 
-    updates = body.model_dump(exclude_none=True, mode="json")
+    now = datetime.now(timezone.utc)
+    updates: dict = {}
+
+    if body.name is not None:
+        updates["name"] = body.name
+    if body.tags is not None:
+        updates["tags"] = body.tags
+    if body.objective is not None:
+        updates["objective"] = body.objective
+    if body.audience is not None:
+        updates["audience"] = body.audience.model_dump(mode="json")
+
+    if body.channel is not None:
+        ch = body.channel
+        if ch.template_id:
+            updates["template_id"] = ch.template_id
+        elif ch.message:
+            template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
+            await insert_template(db, {
+                "template_id": template_id,
+                "project_id": project_id,
+                "name": f"{doc['name']} (inline)",
+                "channel": doc["channel"],
+                "body": {
+                    "title": ch.message.title,
+                    "body": ch.message.body,
+                    **({"deep_link": ch.message.deep_link} if ch.message.deep_link else {}),
+                },
+                "created_at": now,
+                "updated_at": now,
+            })
+            updates["template_id"] = template_id
+
+    if body.delivery is not None:
+        dlv = body.delivery
+        updates["rate_limit"] = dlv.rate_limit.model_dump(mode="json")
+        updates["delay"] = dlv.delay.model_dump(mode="json") if dlv.delay else None
+        updates["min_delay_between_sends_minutes"] = dlv.min_delay_between_sends_minutes
+        updates["ignore_global_min_delay"] = dlv.ignore_global_min_delay
+        updates["auto_dismiss_seconds"] = (
+            dlv.auto_dismiss.dismiss_after_seconds if dlv.auto_dismiss else None
+        )
+
     if not updates:
         return doc
 
@@ -148,6 +278,10 @@ async def activate_campaign(
             raise HTTPException(status_code=422, detail="one_off campaign requires trigger.send_at")
         updates["status"] = "scheduled"
 
+    elif trigger_type == "immediate":
+        updates["status"] = "running"
+        updates["next_run_at"] = now
+
     elif trigger_type == "scheduled":
         cron = doc["trigger"].get("cron")
         if not cron:
@@ -155,7 +289,17 @@ async def activate_campaign(
         if not croniter.is_valid(cron):
             raise HTTPException(status_code=422, detail=f"Invalid cron expression: {cron}")
         updates["status"] = "running"
-        updates["next_run_at"] = _next_cron_run(cron, now)
+        # Respect start_date: don't schedule first run before it
+        schedule = doc["trigger"].get("schedule") or {}
+        start_date_str = schedule.get("start_date")
+        base = now
+        if start_date_str:
+            from datetime import date
+            sd = date.fromisoformat(start_date_str)
+            start_dt = datetime(sd.year, sd.month, sd.day, tzinfo=timezone.utc)
+            if start_dt > now:
+                base = start_dt
+        updates["next_run_at"] = _next_cron_run(cron, base)
 
     else:
         updates["status"] = "running"
