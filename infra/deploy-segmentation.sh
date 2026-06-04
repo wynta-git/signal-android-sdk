@@ -64,11 +64,12 @@ section "2. Installing segmentation-engine dependencies"
 
 UV="$(as_user bash -c 'command -v uv')"
 
-info "Installing apscheduler into shared venv..."
+info "Installing apscheduler and aioboto3 into shared venv..."
 as_user "$UV" pip install --python "$VENV/bin/python" \
     "apscheduler>=3.10.0" \
+    "aioboto3>=12.0.0" \
     --quiet
-ok "apscheduler installed"
+ok "apscheduler and aioboto3 installed"
 
 # ── 3. write .env ─────────────────────────────────────────────────────────────
 section "3. Writing .env"
