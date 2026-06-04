@@ -79,6 +79,13 @@ def _compile_filter(f: AnyFilter, project_id: str, compiled: CompiledRule, col_m
         compiled.derived_filters.append(f)
 
 
+_PROMOTED_COLS: dict[str, str] = {
+    "amount": "amount",
+    "currency": "currency",
+    "order_id": "order_id",
+}
+
+
 def render_sql(sql: str, params: dict) -> str:
     """Return SQL with placeholders replaced by actual values — for logging only."""
     def _sub(m: re.Match) -> str:
@@ -94,10 +101,11 @@ def render_sql(sql: str, params: dict) -> str:
 
 def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, str], brand_id: str | None = None) -> CompiledEventQuery:
     since = _since_timestamp(f.time_window.last_days)
+    effective_col_map = {**_PROMOTED_COLS, **col_map}
     params: dict[str, object] = {
         "project_id": project_id,
         "event_name": f.event_name,
-        "since": since,
+        "since": since.strftime("%Y-%m-%d %H:%M:%S"),
     }
 
     where_clauses = [
@@ -112,7 +120,7 @@ def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, st
 
     for idx, (prop_key, constraint) in enumerate(f.where.items()):
         param_key = f"prop_val_{idx}"
-        col_name = col_map.get(prop_key)
+        col_name = effective_col_map.get(prop_key)
 
         if col_name is None:
             # Column not in this project's table — no event can satisfy this constraint.
@@ -133,8 +141,18 @@ def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, st
             where_clauses.append(f"startsWith({col_name}, {{{param_key}:String}})")
         else:
             ch_op = _CH_OP_MAP[constraint.op]
-            params[param_key] = str(constraint.value)
-            where_clauses.append(f"{col_name} {ch_op} {{{param_key}:String}}")
+            if isinstance(constraint.value, bool):
+                params[param_key] = int(constraint.value)
+                where_clauses.append(f"{col_name} {ch_op} {{{param_key}:UInt8}}")
+            elif isinstance(constraint.value, int):
+                params[param_key] = constraint.value
+                where_clauses.append(f"{col_name} {ch_op} {{{param_key}:Int64}}")
+            elif isinstance(constraint.value, float):
+                params[param_key] = constraint.value
+                where_clauses.append(f"{col_name} {ch_op} {{{param_key}:Float64}}")
+            else:
+                params[param_key] = str(constraint.value)
+                where_clauses.append(f"{col_name} {ch_op} {{{param_key}:String}}")
 
     freq_op = _CH_OP_MAP[f.frequency.op]
     freq_param = "freq_count"
@@ -156,7 +174,7 @@ def _compile_did_not_do_filter(f: DidNotDoFilter, project_id: str, brand_id: str
     params: dict[str, object] = {
         "project_id": project_id,
         "event_name": f.event_name,
-        "since": since,
+        "since": since.strftime("%Y-%m-%d %H:%M:%S"),
     }
     # Returns user_ids that have NOT done the event in the window.
     # Strategy: all project users minus those who did the event.
