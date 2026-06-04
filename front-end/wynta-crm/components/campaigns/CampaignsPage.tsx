@@ -41,6 +41,49 @@ const STATUS_CFG: Record<CampaignStatus, { label: string; cls: string }> = {
   cancelled: { label: 'Cancelled', cls: 'cp-badge cp-badge--cancelled' },
 };
 
+function scheduleTypeLabel(c: Campaign): string {
+  const sc = c.schedule;
+  if (!sc) return '—';
+  if (sc.schedule_type === 'one_time') {
+    return sc.execution_type === 'specific_datetime' ? 'One Time' : 'Immediate';
+  }
+  if (sc.schedule_type === 'periodic') {
+    const f = sc.frequency ?? (sc as any).periodic_type ?? '';
+    return f ? f.charAt(0).toUpperCase() + f.slice(1) : 'Periodic';
+  }
+  return '—';
+}
+
+function formatActivity(dateStr?: string): string {
+  if (!dateStr) return '—';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr; // pass through if already formatted
+
+  const now     = new Date();
+  const diffMs  = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+
+  if (diffMin < 1)   return 'just now';
+  if (diffMin < 60)  return `${diffMin}m ago`;
+
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24)   return `${diffHr}h ago`;
+
+  const todayStr     = now.toDateString();
+  const yesterday    = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toDateString();
+  const dateStr2     = date.toDateString();
+
+  if (dateStr2 === todayStr)     return 'Today';
+  if (dateStr2 === yesterdayStr) return 'Yesterday';
+
+  const diffDay = Math.floor(diffMs / 86_400_000);
+  if (diffDay < 7)  return `${diffDay}d ago`;
+  if (diffDay < 30) return `${Math.floor(diffDay / 7)}w ago`;
+
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+}
+
 function formatRevenue(n?: number) {
   if (!n) return '—';
   if (n >= 100000) return `₹${(n / 100000).toFixed(2)}L`;
@@ -218,6 +261,7 @@ export default function CampaignsPage() {
                 <th>Objective</th>
                 <th>Behavioral Segment</th>
                 <th>Channels</th>
+                <th>Schedule</th>
                 <th>Status</th>
                 <th>Revenue Impact</th>
                 <th>Last Activity</th>
@@ -226,11 +270,11 @@ export default function CampaignsPage() {
             </thead>
             <tbody>
               {status === 'loading' ? (
-                <tr><td colSpan={8} className="cp-table-empty">Loading campaigns…</td></tr>
+                <tr><td colSpan={9} className="cp-table-empty">Loading campaigns…</td></tr>
               ) : status === 'failed' ? (
-                <tr><td colSpan={8} className="cp-table-empty">Failed to load campaigns. Check your connection and try again.</td></tr>
+                <tr><td colSpan={9} className="cp-table-empty">Failed to load campaigns. Check your connection and try again.</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="cp-table-empty">
+                <tr><td colSpan={9} className="cp-table-empty">
                   {rows.length === 0 ? 'No campaigns yet. Click + Add Campaign to create one.' : 'No campaigns match your filters.'}
                 </td></tr>
               ) : filtered.map(c => {
@@ -241,9 +285,10 @@ export default function CampaignsPage() {
                     <td>{c.objective ?? '—'}</td>
                     <td>{c.segment_name ?? '—'}</td>
                     <td>{channelLabel(c.channel)}</td>
+                    <td>{scheduleTypeLabel(c)}</td>
                     <td><span className={badge.cls}>{badge.label}</span></td>
                     <td>{formatRevenue(c.revenue_impact)}</td>
-                    <td>{c.last_activity ?? '—'}</td>
+                    <td>{formatActivity(c.last_activity)}</td>
                     <td>
                       <div className="cp-actions">
                         <button

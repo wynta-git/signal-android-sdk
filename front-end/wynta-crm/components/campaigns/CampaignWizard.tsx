@@ -7,6 +7,7 @@ import {
   fetchSegments,
   selectAllSegments,
   selectSegmentsStatus,
+  evaluateSegment,
 } from 'wynta-react-common/store/slices/segmentsSlice';
 import type { Segment } from 'wynta-react-common/types';
 import AddSegmentModal from 'wynta-react-common/components/segments/AddSegmentModal';
@@ -635,8 +636,25 @@ function SegmentPicker({ selectedId, selectedName, onSelect }: SegmentPickerProp
 interface Step1Props { s: Step1State; onChange: (s: Step1State) => void; channel: string; }
 
 function Step1({ s, onChange, channel }: Step1Props) {
-  const set    = (patch: Partial<Step1State>) => onChange({ ...s, ...patch });
-  const isPush = channel === 'push';
+  const dispatch = useDispatch<any>();
+  const set      = (patch: Partial<Step1State>) => onChange({ ...s, ...patch });
+  const isPush   = channel === 'push';
+
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [previewing, setPreviewing]     = useState(false);
+
+  const handlePreview = async () => {
+    if (!s.segment_id) return;
+    setPreviewing(true);
+    try {
+      const result = await dispatch(evaluateSegment(s.segment_id)).unwrap();
+      setPreviewCount(result.size);
+    } catch {
+      /* keep previous count on error */
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   const TRIGGERS = [
     { id: 'on_session_start', label: 'On session start',  desc: 'Show on any screen when the session starts.' },
@@ -736,8 +754,38 @@ function Step1({ s, onChange, channel }: Step1Props) {
         <SegmentPicker
           selectedId={s.segment_id}
           selectedName={s.segment_name}
-          onSelect={(id, name) => set({ segment_id: id, segment_name: name })}
+          onSelect={(id, name) => { set({ segment_id: id, segment_name: name }); setPreviewCount(null); }}
         />
+
+        {/* Estimated count — shown only after a segment is selected */}
+        {s.segment_id && <div className="builder-preview" style={{ marginTop: 14 }}>
+          <div className="builder-preview-num">
+            {previewing
+              ? '…'
+              : previewCount !== null
+                ? previewCount.toLocaleString('en-IN')
+                : '—'}
+          </div>
+          <div className="builder-preview-meta">
+            <span className="k">Estimated count</span>
+            <span className="v">
+              {previewing
+                ? 'Computing…'
+                : previewCount !== null
+                  ? 'Segment members · live count'
+                  : 'Click Preview to compute'}
+            </span>
+          </div>
+          <button
+            className="builder-refresh"
+            type="button"
+            title="Recompute"
+            onClick={handlePreview}
+            disabled={previewing || !s.segment_id}
+          >
+            <Icon name="refresh-cw" size={12} /> {previewing ? 'Loading…' : 'Preview'}
+          </button>
+        </div>}
       </div>
 
       {/* Control group — hidden for Push */}
