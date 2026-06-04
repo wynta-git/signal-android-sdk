@@ -36,6 +36,7 @@ class SegmentCreateRequest(BaseModel):
     refresh_strategy: Literal["scheduled", "on_event", "one_time"]
     scheduled_cron: str | None = Field(default=None)
     created_by: str | None = Field(default=None)
+    brand_id: str | None = Field(default=None)
 
 
 class SegmentUpdateRequest(BaseModel):
@@ -43,6 +44,7 @@ class SegmentUpdateRequest(BaseModel):
     rule: SegmentRule | None = None
     refresh_strategy: Literal["scheduled", "on_event", "one_time"] | None = None
     scheduled_cron: str | None = None
+    brand_id: str | None = None
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -66,6 +68,7 @@ async def create_segment(
         "refresh_strategy": body.refresh_strategy,
         "scheduled_cron": body.scheduled_cron,
         "created_by": body.created_by,
+        "brand_id": body.brand_id,
         "members_count": None,
         "last_refresh_time": None,
     }
@@ -75,7 +78,7 @@ async def create_segment(
         scheduled.register_segment(doc, db, ch, redis)
     elif body.refresh_strategy == "one_time":
         background_tasks.add_task(
-            evaluate_segment, project_id, segment_id, body.rule, db, ch, redis
+            evaluate_segment, project_id, segment_id, body.rule, db, ch, redis, body.brand_id
         )
 
     return {k: v for k, v in doc.items() if k != "_id"}
@@ -119,6 +122,8 @@ async def update_segment(
         updates["refresh_strategy"] = body.refresh_strategy
     if body.scheduled_cron is not None:
         updates["scheduled_cron"] = body.scheduled_cron
+    if body.brand_id is not None:
+        updates["brand_id"] = body.brand_id
 
     await storage.update_segment(db, project_id, segment_id, updates)
 
@@ -291,5 +296,5 @@ async def trigger_evaluate(
         return {"segment_id": segment_id, "detail": "custom_audience segments are not re-evaluated"}
 
     rule = SegmentRule.model_validate(seg["rule"])
-    final = await evaluate_segment(project_id, segment_id, rule, db, ch, redis)
+    final = await evaluate_segment(project_id, segment_id, rule, db, ch, redis, brand_id=seg.get("brand_id"))
     return {"segment_id": segment_id, "size": len(final), "computed_at": datetime.now(tz=timezone.utc)}

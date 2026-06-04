@@ -25,6 +25,31 @@ from shared.clients.mongo import (
 log = structlog.get_logger()
 router = APIRouter(prefix="/api/v1/campaign/projects/{project_id}", tags=["campaigns"])
 
+
+def _to_api_format(doc: dict) -> dict:
+    """Map internal trigger types back to the API contract before returning to the UI."""
+    trigger = doc.get("trigger", {})
+    internal_type = trigger.get("type")
+
+    if internal_type == "one_off":
+        doc = {
+            **doc,
+            "trigger": {
+                "type": "scheduled",
+                "schedule": {"type": "once", "send_at": trigger.get("send_at")},
+            },
+        }
+    elif internal_type == "immediate":
+        doc = {
+            **doc,
+            "trigger": {
+                "type": "scheduled",
+                "schedule": {"type": "immediate"},
+            },
+        }
+
+    return doc
+
 DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 
 
@@ -91,6 +116,7 @@ async def create_campaign(
     doc = {
         "campaign_id": campaign_id,
         "project_id": project_id,
+        "brand_id": body.brand_id,
         "name": body.name,
         "tags": body.tags,
         "objective": body.objective,
@@ -123,7 +149,8 @@ async def list_campaigns_route(
     db: DbDep,
     status: str | None = None,
 ) -> list[dict]:
-    return await list_campaigns(db, ctx.project_id, status=status)
+    docs = await list_campaigns(db, ctx.project_id, status=status)
+    return [_to_api_format(d) for d in docs]
 
 
 @router.get("/{campaign_id}")
@@ -139,7 +166,7 @@ async def get_campaign_route(
         template = await get_template(db, ctx.project_id, template_id)
         if template:
             doc["message"] = template.get("body", {})
-    return doc
+    return _to_api_format(doc)
 
 
 @router.patch("/{campaign_id}")

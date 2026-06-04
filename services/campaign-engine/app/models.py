@@ -102,6 +102,7 @@ class RateLimit(BaseModel):
 class Campaign(BaseModel):
     campaign_id: str
     project_id: str
+    brand_id: str | None = None
     name: str
     tags: str | None = None
     objective: str | None = None
@@ -211,6 +212,7 @@ class TriggerInput(BaseModel):
 
 class CreateCampaignRequest(BaseModel):
     name: str
+    brand_id: str | None = None
     tags: str | None = None
     objective: str | None = None
     trigger: TriggerInput

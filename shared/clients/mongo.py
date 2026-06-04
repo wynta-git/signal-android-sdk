@@ -167,17 +167,21 @@ async def delete_campaign(
 
 
 async def get_running_campaigns_for_event(
-    db: AsyncIOMotorDatabase, project_id: str, event_name: str
+    db: AsyncIOMotorDatabase, project_id: str, event_name: str, brand_id: str | None = None
 ) -> list[dict[str, Any]]:
-    cursor = db["campaigns"].find(
-        {
-            "project_id": project_id,
-            "status": "running",
-            "trigger.type": "event",
-            "trigger.event_name": event_name,
-        },
-        {"_id": 0},
-    )
+    query: dict[str, Any] = {
+        "project_id": project_id,
+        "status": "running",
+        "trigger.type": "event",
+        "trigger.event_name": event_name,
+    }
+    if brand_id:
+        # Brand-scoped campaigns for this brand + project-wide campaigns (brand_id null/missing)
+        query["$or"] = [{"brand_id": brand_id}, {"brand_id": None}]
+    else:
+        # Event has no brand — only project-wide campaigns fire
+        query["brand_id"] = None
+    cursor = db["campaigns"].find(query, {"_id": 0})
     return await cursor.to_list(length=None)
 
 

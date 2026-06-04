@@ -58,6 +58,7 @@ def _register_job(
     segment_id = seg["segment_id"]
     cron = seg.get("scheduled_cron") or "0 */6 * * *"
     rule = SegmentRule.model_validate(seg["rule"])
+    brand_id: str | None = seg.get("brand_id")
     job_id = _job_id(project_id, segment_id)
 
     if _scheduler.get_job(job_id):
@@ -78,7 +79,7 @@ def _register_job(
         _run_evaluation,
         trigger=trigger,
         id=job_id,
-        kwargs={"project_id": project_id, "segment_id": segment_id, "rule": rule, "db": db, "ch": ch, "redis": redis},
+        kwargs={"project_id": project_id, "segment_id": segment_id, "rule": rule, "brand_id": brand_id, "db": db, "ch": ch, "redis": redis},
         replace_existing=True,
     )
     log.info(
@@ -96,10 +97,11 @@ async def _run_evaluation(
     db: AsyncIOMotorDatabase,
     ch: AsyncClient,
     redis: Redis,
+    brand_id: str | None = None,
 ) -> None:
     log.info("scheduler.run_start", project_id=project_id, segment_id=segment_id)
     try:
-        await evaluate_segment(project_id, segment_id, rule, db, ch, redis)
+        await evaluate_segment(project_id, segment_id, rule, db, ch, redis, brand_id=brand_id)
     except Exception:
         log.exception("scheduler.run_failed", project_id=project_id, segment_id=segment_id)
 

@@ -58,27 +58,27 @@ class CompiledRule:
     derived_filters: list[DerivedFilter] = field(default_factory=list)
 
 
-def compile_rule(rule: SegmentRule, project_id: str, col_map: dict[str, str]) -> CompiledRule:
+def compile_rule(rule: SegmentRule, project_id: str, col_map: dict[str, str], brand_id: str | None = None) -> CompiledRule:
     compiled = CompiledRule(match=rule.match)
     for f in rule.filters:
-        _compile_filter(f, project_id, compiled, col_map)
+        _compile_filter(f, project_id, compiled, col_map, brand_id)
     return compiled
 
 
-def _compile_filter(f: AnyFilter, project_id: str, compiled: CompiledRule, col_map: dict[str, str]) -> None:
+def _compile_filter(f: AnyFilter, project_id: str, compiled: CompiledRule, col_map: dict[str, str], brand_id: str | None = None) -> None:
     if isinstance(f, EventFilter):
-        compiled.event_queries.append(_compile_event_filter(f, project_id, col_map))
+        compiled.event_queries.append(_compile_event_filter(f, project_id, col_map, brand_id))
     elif isinstance(f, TraitFilter):
         compiled.trait_queries.append(_compile_trait_filter(f, project_id))
     elif isinstance(f, DidNotDoFilter):
-        compiled.did_not_do_queries.append(_compile_did_not_do_filter(f, project_id))
+        compiled.did_not_do_queries.append(_compile_did_not_do_filter(f, project_id, brand_id))
     elif isinstance(f, InSegmentFilter):
         compiled.in_segment_ids.append(f.segment_id)
     elif isinstance(f, DerivedFilter):
         compiled.derived_filters.append(f)
 
 
-def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, str]) -> CompiledEventQuery:
+def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, str], brand_id: str | None = None) -> CompiledEventQuery:
     since = _since_timestamp(f.time_window.last_days)
     params: dict[str, object] = {
         "project_id": project_id,
@@ -91,6 +91,10 @@ def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, st
         "event_name = {event_name:String}",
         "timestamp >= {since:DateTime}",
     ]
+
+    if brand_id:
+        where_clauses.append("brand_id = {brand_id:String}")
+        params["brand_id"] = brand_id
 
     for idx, (prop_key, constraint) in enumerate(f.where.items()):
         param_key = f"prop_val_{idx}"
@@ -133,7 +137,7 @@ def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, st
     return CompiledEventQuery(sql=sql, params=params)
 
 
-def _compile_did_not_do_filter(f: DidNotDoFilter, project_id: str) -> CompiledEventQuery:
+def _compile_did_not_do_filter(f: DidNotDoFilter, project_id: str, brand_id: str | None = None) -> CompiledEventQuery:
     since = _since_timestamp(f.time_window.last_days)
     params: dict[str, object] = {
         "project_id": project_id,
@@ -143,12 +147,20 @@ def _compile_did_not_do_filter(f: DidNotDoFilter, project_id: str) -> CompiledEv
     # Returns user_ids that have NOT done the event in the window.
     # Strategy: all project users minus those who did the event.
     table = f"pam.events_{project_id}"
+    outer_brand_clause = ""
+    inner_brand_clause = ""
+    if brand_id:
+        params["brand_id"] = brand_id
+        outer_brand_clause = " AND brand_id = {brand_id:String}"
+        inner_brand_clause = " AND brand_id = {brand_id:String}"
     sql = (
         f"SELECT DISTINCT user_id FROM {table}"
         " WHERE project_id = {project_id:String}"
+        f"{outer_brand_clause}"
         " AND user_id NOT IN ("
         f"   SELECT DISTINCT user_id FROM {table}"
         "   WHERE project_id = {project_id:String}"
+        f"{inner_brand_clause}"
         "   AND event_name = {event_name:String}"
         "   AND timestamp >= {since:DateTime}"
         " )"

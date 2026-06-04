@@ -70,7 +70,8 @@ async def _handle_event(
     if not (project_id and user_id and event_name):
         return
 
-    campaigns = await get_running_campaigns_for_event(db, project_id, event_name)
+    brand_id: str | None = event.get("brand_id") or None
+    campaigns = await get_running_campaigns_for_event(db, project_id, event_name, brand_id)
     if not campaigns:
         return
 

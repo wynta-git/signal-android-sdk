@@ -105,13 +105,14 @@ async def evaluate_segment(
     db: AsyncIOMotorDatabase,
     ch: AsyncClient,
     redis: Redis,
+    brand_id: str | None = None,
 ) -> set[str]:
     """
     Run all compiled queries for a segment and return the final user_id set.
     Also persists memberships and updates segment metadata.
     """
     col_map = await _build_col_map(project_id, rule, redis, db)
-    compiled = compile_rule(rule, project_id, col_map)
+    compiled = compile_rule(rule, project_id, col_map, brand_id)
     user_id_sets: list[set[str]] = []
 
     for q in compiled.event_queries:
@@ -165,13 +166,14 @@ async def evaluate_user_for_segment(
     db: AsyncIOMotorDatabase,
     ch: AsyncClient,
     redis: Redis,
+    brand_id: str | None = None,
 ) -> bool:
     """
     Re-evaluate membership for a single user. Used by event-driven refresh.
     Returns True if the user is now a member.
     """
     col_map = await _build_col_map(project_id, rule, redis, db)
-    compiled = compile_rule(rule, project_id, col_map)
+    compiled = compile_rule(rule, project_id, col_map, brand_id)
     per_filter_results: list[bool] = []
 
     for q in compiled.event_queries:
