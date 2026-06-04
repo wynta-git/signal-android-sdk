@@ -621,6 +621,20 @@ async def create_notification_delivery_indexes(db: AsyncIOMotorDatabase) -> None
     )
 
 
+async def upsert_device_token(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    token: str,
+    platform: str,
+) -> None:
+    await db["device_tokens"].update_one(
+        {"project_id": project_id, "user_id": user_id, "token": token},
+        {"$set": {"platform": platform}},
+        upsert=True,
+    )
+
+
 async def insert_notification_delivery(
     db: AsyncIOMotorDatabase, doc: dict[str, Any]
 ) -> str:
