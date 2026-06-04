@@ -49,7 +49,7 @@ class FcmV1Provider:
 
         data: dict[str, str] = {
             "title": payload.title,
-            "body": payload.body,
+            "content": payload.body,
             "type": "PUSH",
             **({"image_url": payload.image_url} if payload.image_url else {}),
             **{k: str(v) for k, v in payload.extra.items()},
