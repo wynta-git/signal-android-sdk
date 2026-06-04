@@ -265,7 +265,13 @@ async def process_batch(
     if not jobs:
         return
 
-    await asyncio.gather(*[handle_send_job(job, db, redis, producer) for job in jobs])
+    semaphore = asyncio.Semaphore(20)
+
+    async def _bounded(job: SendJob) -> None:
+        async with semaphore:
+            await handle_send_job(job, db, redis, producer)
+
+    await asyncio.gather(*[_bounded(job) for job in jobs])
     log.info("consumer.batch_done", count=len(jobs))
 
 
