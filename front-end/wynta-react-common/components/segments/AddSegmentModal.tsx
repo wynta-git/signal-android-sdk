@@ -282,6 +282,7 @@ export default function AddSegmentModal({
           <SegmentBuilder
             key={mode === 'edit' ? segmentId : 'create'}
             mode={mode}
+            segmentId={mode === 'edit' ? segmentId : undefined}
             initialValues={initialValues}
             onCancel={onClose}
             onSave={handleSave}

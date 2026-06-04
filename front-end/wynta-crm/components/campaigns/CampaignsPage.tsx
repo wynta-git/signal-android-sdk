@@ -190,6 +190,31 @@ export default function CampaignsPage() {
     setWizardViewMode(false);
   }
 
+  function handleExport() {
+    const esc = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const headers = ['Campaign', 'Objective', 'Behavioral Segment', 'Channels', 'Schedule', 'Status', 'Revenue Impact', 'Last Activity'];
+    const csvRows = [
+      headers.join(','),
+      ...filtered.map(c => [
+        esc(c.name),
+        esc(c.objective ?? ''),
+        esc(c.segment_name ?? ''),
+        esc(channelLabel(c.channel)),
+        esc(scheduleTypeLabel(c)),
+        esc(STATUS_CFG[c.status]?.label ?? c.status),
+        esc(c.revenue_impact ? String(c.revenue_impact) : ''),
+        esc(formatActivity(c.last_activity)),
+      ].join(',')),
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'campaigns.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   /* ── Show wizard in-place (replaces list, sidebar stays visible) ── */
   if (wizardChannel || editCampaign) {
     return (
@@ -214,7 +239,7 @@ export default function CampaignsPage() {
           <div className="cp-page-subtitle">Unified omnichannel campaign orchestration</div>
         </div>
         <div className="cp-page-actions">
-          <button className="seg-btn-secondary" type="button">
+          <button className="seg-btn-secondary" type="button" onClick={handleExport}>
             <Icon name="download" size={14} /> Export CSV
           </button>
           <button className="seg-btn-primary" type="button" onClick={() => setShowChannelModal(true)}>

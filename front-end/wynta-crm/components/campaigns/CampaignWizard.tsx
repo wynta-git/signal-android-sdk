@@ -530,7 +530,13 @@ function SegmentPicker({ selectedId, selectedName, onSelect }: SegmentPickerProp
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? segments.filter(s => segLabel(s).toLowerCase().includes(q)) : segments;
+    const list = q ? segments.filter(s => segLabel(s).toLowerCase().includes(q)) : [...segments];
+    // Sort descending by last_refresh_time (last_used_at)
+    return list.sort((a, b) => {
+      const tA = a.last_used_at ? new Date(a.last_used_at).getTime() : 0;
+      const tB = b.last_used_at ? new Date(b.last_used_at).getTime() : 0;
+      return tB - tA;
+    });
   }, [segments, search]);
 
   /* Display value: prefer live name from store, fall back to stored name */

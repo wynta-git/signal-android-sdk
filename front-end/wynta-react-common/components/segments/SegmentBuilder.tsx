@@ -7,6 +7,7 @@ import { useCommonSelector } from '../../store/hooks';
 import {
   fetchMetaTraits, fetchMetaEvents, fetchMetaOperators,
   selectMetaTraits, selectMetaEvents, selectMetaOperators,
+  evaluateSegment,
 } from '../../store/slices/segmentsSlice';
 import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
 import { previewEvaluate } from '../../services/segmentApi';
@@ -65,11 +66,12 @@ interface SegmentBuilderProps {
     segmentType?:  'filter' | 'custom';
     csvFile?:      File;
   }) => void;
-  mode?: 'create' | 'edit';
+  mode?:         'create' | 'edit';
+  segmentId?:    string;   // used in edit mode to call evaluate API
   initialValues?: SegmentBuilderInitialValues;
 }
 
-export default function SegmentBuilder({ onCancel, onSave, mode = 'create', initialValues }: SegmentBuilderProps) {
+export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segmentId, initialValues }: SegmentBuilderProps) {
   const [name, setName]               = useState(() => initialValues?.name        ?? '');
   const [description, setDescription] = useState(() => initialValues?.description ?? '');
   const [combinator, setCombinator]   = useState<'AND' | 'OR'>(() => initialValues?.combinator ?? 'AND');
@@ -216,17 +218,31 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
     (segmentMode === 'custom' ? csvFile !== null : allRules.length > 0);
 
   const handlePreview = async () => {
-    if (allRules.length === 0) return;
     setPreviewing(true);
     try {
-      const result = await previewEvaluate({ combinator, rules: allRules });
-      setPreviewCount(result.size);
+      if (mode === 'edit' && segmentId) {
+        /* In edit mode call the segment evaluate endpoint for accurate count */
+        const result = await dispatch(evaluateSegment(segmentId) as any).unwrap();
+        setPreviewCount(result.size);
+      } else {
+        if (allRules.length === 0) { setPreviewing(false); return; }
+        const result = await previewEvaluate({ combinator, rules: allRules });
+        setPreviewCount(result.size);
+      }
     } catch {
       // keep previous count on error
     } finally {
       setPreviewing(false);
     }
   };
+
+  /* Auto-trigger evaluate when segment opens in edit mode */
+  useEffect(() => {
+    if (mode === 'edit' && segmentId && previewCount === null && !previewing) {
+      handlePreview();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, segmentId]);
 
   const handleSave = () => {
     if (!canSave) return;
@@ -497,35 +513,37 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
             </div>
           </div>}
 
-        {/* Estimated count */}
-        {/* <div className="builder-preview">
-          <div className="builder-preview-num">
-            {previewing
-              ? '…'
-              : previewCount !== null
-                ? previewCount.toLocaleString('en-IN')
-                : '—'}
-          </div>
-          <div className="builder-preview-meta">
-            <span className="k">Estimated count</span>
-            <span className="v">
+        {/* Estimated count — visible in edit mode only */}
+        {mode === 'edit' && (
+          <div className="builder-preview">
+            <div className="builder-preview-num">
               {previewing
-                ? 'Computing…'
+                ? '…'
                 : previewCount !== null
-                  ? `${allRules.length} filter${allRules.length === 1 ? '' : 's'} (${combinator}) · live count`
-                  : 'Click Preview to compute'}
-            </span>
+                  ? previewCount.toLocaleString('en-IN')
+                  : '—'}
+            </div>
+            <div className="builder-preview-meta">
+              <span className="k">Estimated count</span>
+              <span className="v">
+                {previewing
+                  ? 'Computing…'
+                  : previewCount !== null
+                    ? 'Segment members · live count'
+                    : 'Click Preview to compute'}
+              </span>
+            </div>
+            <button
+              className="builder-refresh"
+              type="button"
+              title="Recompute"
+              onClick={handlePreview}
+              disabled={previewing}
+            >
+              <Icon name="refresh-cw" size={12}/> {previewing ? 'Loading…' : 'Preview'}
+            </button>
           </div>
-          <button
-            className="builder-refresh"
-            type="button"
-            title="Recompute"
-            onClick={handlePreview}
-            disabled={previewing || allRules.length === 0}
-          >
-            <Icon name="refresh-cw" size={12}/> {previewing ? 'Loading…' : 'Preview'}
-          </button>
-        </div> */}
+        )}
 
         {/* Segment name */}
         <div className="field-group" style={{ marginBottom: 0 }}>
