@@ -116,10 +116,12 @@ async def evaluate_segment(
     user_id_sets: list[set[str]] = []
 
     for q in compiled.event_queries:
+        log.debug("ch.query", sql=q.sql, params=q.params, project_id=project_id, segment_id=segment_id)
         rows = await ch.query(q.sql, parameters=q.params)
         user_id_sets.append({row[0] for row in rows.result_rows})
 
     for q in compiled.did_not_do_queries:
+        log.debug("ch.query", sql=q.sql, params=q.params, project_id=project_id, segment_id=segment_id)
         rows = await ch.query(q.sql, parameters=q.params)
         user_id_sets.append({row[0] for row in rows.result_rows})
 
@@ -179,12 +181,14 @@ async def evaluate_user_for_segment(
     for q in compiled.event_queries:
         sql = q.sql + f" AND user_id = {{target_user:String}}"
         params = {**q.params, "target_user": user_id}
+        log.debug("ch.query", sql=sql, params=params, project_id=project_id, segment_id=segment_id, user_id=user_id)
         rows = await ch.query(sql, parameters=params)
         per_filter_results.append(len(rows.result_rows) > 0)
 
     for q in compiled.did_not_do_queries:
         sql = q.sql + f" AND user_id = {{target_user:String}}"
         params = {**q.params, "target_user": user_id}
+        log.debug("ch.query", sql=sql, params=params, project_id=project_id, segment_id=segment_id, user_id=user_id)
         rows = await ch.query(sql, parameters=params)
         per_filter_results.append(len(rows.result_rows) > 0)
 

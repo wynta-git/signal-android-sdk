@@ -119,8 +119,18 @@ def _compile_event_filter(f: EventFilter, project_id: str, col_map: dict[str, st
             where_clauses.append(f"startsWith({col_name}, {{{param_key}:String}})")
         else:
             ch_op = _CH_OP_MAP[constraint.op]
-            params[param_key] = str(constraint.value)
-            where_clauses.append(f"{col_name} {ch_op} {{{param_key}:String}}")
+            if isinstance(constraint.value, bool):
+                params[param_key] = int(constraint.value)
+                where_clauses.append(f"{col_name} {ch_op} {{{param_key}:UInt8}}")
+            elif isinstance(constraint.value, int):
+                params[param_key] = constraint.value
+                where_clauses.append(f"{col_name} {ch_op} {{{param_key}:Int64}}")
+            elif isinstance(constraint.value, float):
+                params[param_key] = constraint.value
+                where_clauses.append(f"{col_name} {ch_op} {{{param_key}:Float64}}")
+            else:
+                params[param_key] = str(constraint.value)
+                where_clauses.append(f"{col_name} {ch_op} {{{param_key}:String}}")
 
     freq_op = _CH_OP_MAP[f.frequency.op]
     freq_param = "freq_count"
