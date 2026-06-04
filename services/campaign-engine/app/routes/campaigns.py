@@ -82,7 +82,7 @@ async def create_campaign(
                 sch.start_date.year, sch.start_date.month, sch.start_date.day,  # type: ignore[union-attr]
                 h, m, tzinfo=tz,
             )
-            trigger_dict = {"type": "one_off", "send_at": send_dt.astimezone(timezone.utc).isoformat()}
+            trigger_dict = {"type": "one_off", "send_at": send_dt.astimezone(timezone.utc)}
         else:
             trigger_dict = {
                 "type": "scheduled",
