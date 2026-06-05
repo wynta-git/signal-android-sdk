@@ -189,7 +189,7 @@ export default function EventsPage() {
         {/* Left: event lists */}
         <div className="ev-left">
           <EventList
-            title="Raw Events"
+            title="User Events"
             icon="zap"
             iconColor="var(--warn, #f59e0b)"
             items={rawEvents}

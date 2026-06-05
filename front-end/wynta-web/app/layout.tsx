@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
       </head>
       <body style={{ backgroundColor: 'rgb(192, 200, 215)' }}>
-        <script src="/scripts/js/jquery-1.12.4.js"></script>
+        <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
         <Providers>
           <DjHeaderSlot />
           {children}
