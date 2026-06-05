@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import jwt
+import structlog
+
+log = structlog.get_logger()
 
 EXTERNAL_JWT_ALGORITHM = "HS256"
 
@@ -23,17 +26,27 @@ def validate_external_jwt(token: str, secret_key: str) -> ExternalTokenContext:
             token,
             secret_key,
             algorithms=[EXTERNAL_JWT_ALGORITHM],
-            options={"require": ["sub", "exp", "iat"]},
+            options={"require": ["exp"]},
         )
     except jwt.PyJWTError:
         raise InvalidExternalTokenError()
 
-    sub = payload.get("sub")
-    project_id = payload.get("project_id")
+    log.info(
+        "external_jwt_payload",
+        user_id=payload.get("user_id"),
+        email=payload.get("email"),
+        program_name=payload.get("program name"),
+        program_id=payload.get("program id"),
+        exp=payload.get("exp"),
+    )
 
-    if not isinstance(sub, str) or not sub:
+    # External token uses "user_id" and "program id" (integer) instead of "sub"/"project_id"
+    sub = payload.get("user_id")
+    raw_project_id = payload.get("program id")
+
+    if not sub or not str(sub).strip():
         raise InvalidExternalTokenError()
-    if not isinstance(project_id, str) or not project_id:
+    if raw_project_id is None:
         raise InvalidExternalTokenError()
 
-    return ExternalTokenContext(sub=sub, project_id=project_id)
+    return ExternalTokenContext(sub=str(sub), project_id=str(raw_project_id))
