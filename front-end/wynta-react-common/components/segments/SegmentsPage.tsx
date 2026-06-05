@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import Icon from '../Icon';
 import { useCommonSelector } from '../../store/hooks';
@@ -52,10 +52,13 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
 
   const apiSegments = useCommonSelector(selectAllSegments);
   const status      = useCommonSelector(selectSegmentsStatus);
+  const didFetch    = useRef(false);
 
   useEffect(() => {
-    if (status === 'idle') dispatch(fetchSegments());
-  }, [dispatch, status]);
+    if (didFetch.current) return;
+    didFetch.current = true;
+    dispatch(fetchSegments());
+  }, [dispatch]);
 
   /* Use only real API data — no sample / fallback rows */
   /* Sort by last_refresh_time desc (maps to last_used_at in Segment type) */
