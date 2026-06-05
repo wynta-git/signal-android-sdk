@@ -373,21 +373,21 @@ async def dashboard_campaigns(
 
     sent_by_campaign = {r["_id"]: r["total_sent"] for r in run_rows}
 
-    campaigns = [
-        {
+    campaigns = []
+    for d in campaign_docs:
+        seg_id = (d.get("audience") or {}).get("segment_id")
+        campaigns.append({
             "campaign_id": d["campaign_id"],
             "name": d["name"],
             "channel": d["channel"],
-            "segment_id": seg_id := (d.get("audience") or {}).get("segment_id"),
+            "segment_id": seg_id,
             "segment_name": name_by_segment.get(seg_id) if seg_id else None,
             "total_sent": sent_by_campaign.get(d["campaign_id"], 0),
             "status": d["status"],
             "open_rate": None,
             "ctr": None,
             "click_throughs": None,
-        }
-        for d in campaign_docs
-    ]
+        })
 
     campaigns.sort(key=lambda c: c["total_sent"], reverse=True)
     return {"total": total, "limit": limit, "offset": offset, "campaigns": campaigns}
