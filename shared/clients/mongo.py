@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import asyncio
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import structlog
@@ -242,6 +243,23 @@ async def lock_due_cron_campaign(
         {
             "status": "running",
             "trigger.type": "scheduled",
+            "next_run_at": {"$lte": now},
+            "picked": False,
+        },
+        {"$set": {"picked": True, "picked_at": now}},
+        projection={"_id": 0},
+        return_document=True,
+    )
+
+
+async def lock_due_immediate_campaign(
+    db: AsyncIOMotorDatabase, now: datetime
+) -> dict[str, Any] | None:
+    """Atomically claim the next due immediate campaign. Returns the locked doc or None."""
+    return await db["campaigns"].find_one_and_update(
+        {
+            "status": "running",
+            "trigger.type": "immediate",
             "next_run_at": {"$lte": now},
             "picked": False,
         },
@@ -827,3 +845,113 @@ async def upsert_user_profile(
     )
     if traits:
         await upsert_trait_schemas(db, project_id, traits)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard helpers
+# ---------------------------------------------------------------------------
+
+
+async def get_dashboard_delivery_stats(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    since: datetime,
+    until: datetime,
+) -> list[dict[str, Any]]:
+    """Aggregate notification_deliveries by (channel, status, date) for dashboard use."""
+    pipeline = [
+        {
+            "$match": {
+                "project_id": project_id,
+                "attempted_at": {"$gte": since, "$lte": until},
+            }
+        },
+        {
+            "$group": {
+                "_id": {
+                    "channel": "$channel",
+                    "status": "$status",
+                    "date": {
+                        "$dateToString": {
+                            "format": "%Y-%m-%d",
+                            "date": "$attempted_at",
+                        }
+                    },
+                },
+                "count": {"$sum": 1},
+            }
+        },
+    ]
+    cursor = db["notification_deliveries"].aggregate(pipeline)
+    return await cursor.to_list(length=None)
+
+
+async def get_dashboard_user_health(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+) -> dict[str, int]:
+    """
+    Returns user counts bucketed by activity.
+    Approximate: based on last_seen_at (updated on /identify only, not raw events).
+    """
+    now = datetime.now(timezone.utc)
+    cutoff_30d = now - timedelta(days=30)
+    cutoff_90d = now - timedelta(days=90)
+
+    total, new, healthy, at_risk, churned = await asyncio.gather(
+        db["users"].count_documents({"project_id": project_id}),
+        db["users"].count_documents({
+            "project_id": project_id,
+            "first_seen_at": {"$gte": cutoff_30d},
+        }),
+        db["users"].count_documents({
+            "project_id": project_id,
+            "last_seen_at": {"$gte": cutoff_30d},
+        }),
+        db["users"].count_documents({
+            "project_id": project_id,
+            "last_seen_at": {"$gte": cutoff_90d, "$lt": cutoff_30d},
+        }),
+        db["users"].count_documents({
+            "project_id": project_id,
+            "last_seen_at": {"$lt": cutoff_90d},
+        }),
+    )
+
+    return {
+        "total_users": total,
+        "new": new,
+        "healthy": healthy,
+        "at_risk": at_risk,
+        "churned": churned,
+    }
+
+
+async def get_dashboard_channel_optin(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+) -> dict[str, int]:
+    """
+    Opted-in user counts per channel.
+    Push: distinct user_ids in device_tokens.
+    Email/SMS: users with hashed trait present (approximate — hashed at identify time).
+    """
+    push_agg = await db["device_tokens"].aggregate([
+        {"$match": {"project_id": project_id}},
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "count"},
+    ]).to_list(length=1)
+    push_count = push_agg[0]["count"] if push_agg else 0
+
+    email_count, sms_count = await asyncio.gather(
+        db["users"].count_documents({
+            "project_id": project_id,
+            "traits.email_hash": {"$exists": True, "$ne": None},
+        }),
+        db["users"].count_documents({
+            "project_id": project_id,
+            "traits.phone_hash": {"$exists": True, "$ne": None},
+        }),
+    )
+
+    return {"push": push_count, "email": email_count, "sms": sms_count}

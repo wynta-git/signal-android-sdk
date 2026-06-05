@@ -103,6 +103,9 @@ MONGO_DB=pam
 JWT_PRIVATE_KEY="$PRIVKEY_ESCAPED"
 JWT_TOKEN_TTL=3600
 
+# HS256 secret used to validate external JWTs (e.g. Wynta) in /exchange_token
+EXTERNAL_JWT_SECRET_KEY="${EXTERNAL_JWT_SECRET_KEY:-}"
+
 DEBUG=true
 VERSION=0.1.0
 EOF
