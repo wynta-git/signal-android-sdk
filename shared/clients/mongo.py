@@ -251,6 +251,23 @@ async def lock_due_cron_campaign(
     )
 
 
+async def lock_due_immediate_campaign(
+    db: AsyncIOMotorDatabase, now: datetime
+) -> dict[str, Any] | None:
+    """Atomically claim the next due immediate campaign. Returns the locked doc or None."""
+    return await db["campaigns"].find_one_and_update(
+        {
+            "status": "running",
+            "trigger.type": "immediate",
+            "next_run_at": {"$lte": now},
+            "picked": False,
+        },
+        {"$set": {"picked": True, "picked_at": now}},
+        projection={"_id": 0},
+        return_document=True,
+    )
+
+
 async def complete_oneoff_campaign(
     db: AsyncIOMotorDatabase, project_id: str, campaign_id: str
 ) -> None:
