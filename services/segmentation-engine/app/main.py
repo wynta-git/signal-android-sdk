@@ -17,6 +17,7 @@ from app.services.meta import MetaService
 from shared.clients.clickhouse import make_clickhouse_client
 from shared.clients.mongo import make_mongo_client
 from shared.clients.redis import make_redis_client
+from shared.cors import CORS_ORIGINS
 
 configure_logging(debug=settings.debug)
 log = structlog.get_logger()
@@ -71,13 +72,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="segmentation-engine", version=settings.version, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(admin_router)
-app.include_router(segments_router)
-app.include_router(meta_router)
+route_prefix = "/api/v1/segments"
+app.include_router(admin_router, prefix=route_prefix)
+app.include_router(segments_router,prefix=route_prefix)
+app.include_router(meta_router,prefix=route_prefix)
 
 
 @app.get("/health")

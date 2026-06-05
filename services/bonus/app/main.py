@@ -11,6 +11,7 @@ from app.auth import verify_s2s_request
 from app.db import close_pool, init_pool
 from app.routers.bonus_head import register_exception_handlers
 from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_release_trigger, bonus_eligibility, bonus_summary, player_bonus
+from shared.cors import CORS_ORIGINS
 
 structlog.configure(
     processors=[
@@ -42,24 +43,24 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000","http://127.0.0.1:8081"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-_V1 = "/api/v1/bonus"
+route_prefix = "/api/v1/bonus"
 _s2s = [Depends(verify_s2s_request)]
 
 # Back-office routers — no S2S auth required
-app.include_router(bonus_head.router,            prefix=_V1)
-app.include_router(bonus_subhead.router,         prefix=_V1)
-app.include_router(bonus_configure.router,       prefix=_V1)
-app.include_router(bonus_release_trigger.router, prefix=_V1)
-app.include_router(bonus_eligibility.router,     prefix=_V1)
-app.include_router(bonus_summary.router,         prefix=_V1)
+app.include_router(bonus_head.router,            prefix=route_prefix)
+app.include_router(bonus_subhead.router,         prefix=route_prefix)
+app.include_router(bonus_configure.router,       prefix=route_prefix)
+app.include_router(bonus_release_trigger.router, prefix=route_prefix)
+app.include_router(bonus_eligibility.router,     prefix=route_prefix)
+app.include_router(bonus_summary.router,         prefix=route_prefix)
 
 # Player bonus router — S2S auth required (called by game servers)
-app.include_router(player_bonus.router,          prefix=_V1, dependencies=_s2s)
+app.include_router(player_bonus.router,          prefix=route_prefix, dependencies=_s2s)
 register_exception_handlers(app)
 bonus_release_trigger.register_exception_handlers(app)
 bonus_eligibility.register_exception_handlers(app)

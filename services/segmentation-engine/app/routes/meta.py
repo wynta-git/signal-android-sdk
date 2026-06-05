@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 
 from app.dependencies import PortalAuthDep
 
-router = APIRouter(prefix="/api/v1/segments/meta", tags=["meta"])
+router = APIRouter(prefix="/meta", tags=["meta"])
 
 
 def _ch(request: Request):

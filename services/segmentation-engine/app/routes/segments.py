@@ -15,7 +15,7 @@ from app.dsl.validator import SegmentRule
 from app.refresh import scheduled
 from app.refresh.engine import evaluate_segment
 
-router = APIRouter(prefix="/api/v1/segments", tags=["segments"])
+router = APIRouter(prefix="/list", tags=["segments"])
 
 
 def _db(request: Request):

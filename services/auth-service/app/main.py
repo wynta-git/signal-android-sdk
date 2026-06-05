@@ -14,6 +14,7 @@ from app.routes.ready import router as ready_router
 from app.routes.token import router as token_router
 from app.routes.users import router as users_router
 from shared.clients.mongo import make_mongo_client
+from shared.cors import CORS_ORIGINS
 from shared.logging_config import configure_logging
 
 configure_logging(debug=settings.debug)
@@ -44,7 +45,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -57,15 +58,15 @@ async def request_context_middleware(request: Request, call_next: object) -> Res
     return await call_next(request)  # type: ignore[operator]
 
 
-_V1 = "/api/v1/system"
-app.include_router(token_router, prefix=_V1)
-app.include_router(portal_token_router, prefix=_V1)
-app.include_router(exchange_token_router, prefix=_V1)
-app.include_router(ready_router, prefix=_V1)
-app.include_router(users_router, prefix=_V1)
-app.include_router(brands_router, prefix=_V1)
+route_prefix = "/api/v1/system"
+app.include_router(token_router, prefix=route_prefix)
+app.include_router(portal_token_router, prefix=route_prefix)
+app.include_router(exchange_token_router, prefix=route_prefix)
+app.include_router(ready_router, prefix=route_prefix)
+app.include_router(users_router, prefix=route_prefix)
+app.include_router(brands_router, prefix=route_prefix)
 
 
-@app.get(_V1+"/health", include_in_schema=False)
+@app.get(route_prefix+"/health", include_in_schema=False)
 async def health() -> dict[str, str]:
     return {"status": "ok", "version": settings.version}
