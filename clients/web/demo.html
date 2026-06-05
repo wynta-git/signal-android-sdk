@@ -474,10 +474,17 @@ const STEPS = [
   },
   {
     id: 'cron',
-    title: 'Create Cron Campaign',
-    desc: 'Create a scheduled campaign that fires every 5 minutes targeting the same segment — shows next_run_at computed on activation',
+    title: 'Create Daily Campaign',
+    desc: 'Create a recurring daily campaign — engine converts the schedule to a cron expression and computes next_run_at on activation',
     pipeNodes: ['pipe-camp'],
     run: stepCreateCronCampaign,
+  },
+  {
+    id: 'immediate',
+    title: 'Create Immediate Campaign',
+    desc: 'Create a campaign with trigger.type=immediate — activates straight to running with next_run_at=now, scheduler picks it up within one poll cycle',
+    pipeNodes: ['pipe-camp'],
+    run: stepCreateImmediateCampaign,
   },
   {
     id: 'trigger',
@@ -704,8 +711,7 @@ async function stepCreateCampaign(card) {
     name: `Demo Campaign (${state.runId})`,
     trigger: { type: 'event', event_name: 'purchase_completed' },
     audience: { segment_id: state.segmentId },
-    channel: 'push',
-    template_id: state.templateId,
+    channel: { type: 'push', template_id: state.templateId },
   };
 
   showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`, body);
@@ -730,23 +736,22 @@ async function stepCreateCampaign(card) {
 }
 
 async function stepCreateCronCampaign(card) {
-  const CRON = '*/5 * * * *';
+  const SCHEDULE = { type: 'daily', schedule_time: '09:00', timezone: 'Asia/Kolkata' };
   const body = {
-    name: `Demo Cron Campaign (${state.runId})`,
-    trigger: { type: 'scheduled', cron: CRON },
+    name: `Demo Daily Campaign (${state.runId})`,
+    trigger: { type: 'scheduled', schedule: SCHEDULE },
     audience: { segment_id: state.segmentId },
-    channel: 'push',
-    template_id: state.templateId,
+    channel: { type: 'push', template_id: state.templateId },
   };
 
-  // Explain the cron expression
+  // Explain the schedule
   const body_el = card.querySelector('.step-body');
   const explain = document.createElement('div');
   explain.innerHTML = `
     <div style="background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:8px;
       padding:10px 14px;font-size:12px;line-height:1.7;margin-bottom:4px">
-      <strong>Cron:</strong> <code style="font-family:var(--mono)">${CRON}</code>
-      — fires every 5 minutes.<br>
+      <strong>Schedule:</strong> <code style="font-family:var(--mono)">daily at 09:00 IST</code>
+      — the engine converts this to a cron expression and stores it internally.<br>
       On activation the campaign-engine computes <code style="font-family:var(--mono)">next_run_at</code>
       and sets status to <code style="font-family:var(--mono)">"running"</code>.
       The <strong>scheduler-service</strong> polls MongoDB every second, locks campaigns
@@ -795,7 +800,58 @@ async function stepCreateCronCampaign(card) {
   body_el.appendChild(el);
 
   if (!ra.ok) throw new Error('Activate failed');
-  return `"${state.cronCampaignId}" → ${ra.data.status}, fires at ${nextRun}`;
+  return `"${state.cronCampaignId}" → ${ra.data.status}, next run at ${nextRun}`;
+}
+
+async function stepCreateImmediateCampaign(card) {
+  const body = {
+    name: `Demo Immediate Campaign (${state.runId})`,
+    trigger: { type: 'scheduled', schedule: { type: 'immediate' } },
+    audience: { segment_id: state.segmentId },
+    channel: { type: 'push', template_id: state.templateId },
+  };
+
+  const body_el = card.querySelector('.step-body');
+  const explain = document.createElement('div');
+  explain.innerHTML = `
+    <div style="background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:8px;
+      padding:10px 14px;font-size:12px;line-height:1.7;margin-bottom:4px">
+      <strong>Immediate trigger</strong> — fires once for all current segment members as soon
+      as it is activated. The engine sets
+      <code style="font-family:var(--mono)">status = "running"</code> and
+      <code style="font-family:var(--mono)">next_run_at = now</code> immediately on activation.
+      The <strong>scheduler-service</strong> picks it up in the next poll cycle, fans out send
+      jobs for all segment members, then marks the campaign
+      <code style="font-family:var(--mono)">"completed"</code>.
+    </div>`;
+  body_el.appendChild(explain);
+
+  showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`, body);
+  const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`,
+    body, { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(JSON.stringify(r.data));
+  state.immediateCampaignId = r.data.campaign_id;
+
+  // Activate — sets status=running and next_run_at=now immediately
+  const ra = await api('POST',
+    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.immediateCampaignId}/activate`,
+    null, { Authorization: `Bearer ${state.portalJwt}` });
+
+  const el = document.createElement('div');
+  el.innerHTML = `
+    <div class="section-label" style="margin-top:10px">Activate response</div>
+    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(ra.data, null, 2)}</div>
+    <div style="margin-top:8px;background:var(--green-bg);border:1px solid #bbf7d0;
+      border-radius:8px;padding:10px 14px;font-size:12px">
+      Campaign is now <strong>running</strong> — scheduler-service will pick it up within
+      one poll cycle and fan out send jobs for all members of <em>${state.segmentId}</em>,
+      then mark it <strong>completed</strong>.
+    </div>`;
+  body_el.appendChild(el);
+
+  if (!ra.ok) throw new Error('Activate failed');
+  return `"${state.immediateCampaignId}" → ${ra.data.status} (fires immediately)`;
 }
 
 async function stepFireTrigger(card) {
@@ -1033,6 +1089,8 @@ function resetDemo() {
   state.segmentId = null;
   state.campaignId = null;
   state.templateId = null;
+  state.cronCampaignId = null;
+  state.immediateCampaignId = null;
   state.runId = Date.now().toString(36);
   renderUI();
   document.getElementById('progressBar').style.width = '0%';
