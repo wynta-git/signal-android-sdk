@@ -2,13 +2,14 @@ import type {
   Segment, SegmentRule,
   TraitOperatorsResponse, DerivedRuleConfig, ParameterOperatorsResponse,
 } from "../types";
+import { getToken } from './tokenRegistry';
 
 const BASE = process.env.NEXT_PUBLIC_SEG_API_URL || "http://localhost:8003";
 const SEG_API = `${BASE}/api/v1/segments`;
 
 const authHeader = () => ({
   "Content-Type": "application/json",
-  Authorization: `Bearer ${process.env.NEXT_PUBLIC_SEG_TOKEN ?? ""}`,
+  Authorization: `Bearer ${getToken()}`,
 });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -253,7 +254,7 @@ export async function createSegment(payload: {
     const res = await fetch(SEG_API, {
       method: "POST",
       // Do NOT set Content-Type — browser sets it automatically with boundary
-      headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_SEG_TOKEN ?? ""}` },
+      headers: { Authorization: `Bearer ${getToken()}` },
       body: form,
     });
     if (!res.ok) throw new Error(`createSegment (csv) failed: ${res.status}`);
