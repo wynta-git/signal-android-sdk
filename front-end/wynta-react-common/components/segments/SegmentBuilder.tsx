@@ -7,6 +7,7 @@ import { useCommonSelector } from '../../store/hooks';
 import {
   fetchMetaTraits, fetchMetaEvents, fetchMetaOperators,
   selectMetaTraits, selectMetaEvents, selectMetaOperators,
+  evaluateSegment,
 } from '../../store/slices/segmentsSlice';
 import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
 import { previewEvaluate } from '../../services/segmentApi';
@@ -57,12 +58,20 @@ type ActivePicker  = 'property' | 'behaviour' | null;
 
 interface SegmentBuilderProps {
   onCancel: () => void;
-  onSave: (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) => void;
-  mode?: 'create' | 'edit';
+  onSave: (data: {
+    name:          string;
+    description:   string;
+    combinator:    'AND' | 'OR';
+    rules:         SegmentRule[];
+    segmentType?:  'filter' | 'custom';
+    csvFile?:      File;
+  }) => void;
+  mode?:         'create' | 'edit';
+  segmentId?:    string;   // used in edit mode to call evaluate API
   initialValues?: SegmentBuilderInitialValues;
 }
 
-export default function SegmentBuilder({ onCancel, onSave, mode = 'create', initialValues }: SegmentBuilderProps) {
+export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segmentId, initialValues }: SegmentBuilderProps) {
   const [name, setName]               = useState(() => initialValues?.name        ?? '');
   const [description, setDescription] = useState(() => initialValues?.description ?? '');
   const [combinator, setCombinator]   = useState<'AND' | 'OR'>(() => initialValues?.combinator ?? 'AND');
@@ -73,17 +82,23 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
   const [pickerSearch, setPickerSearch]       = useState('');
   const [previewCount, setPreviewCount]       = useState<number | null>(null);
   const [previewing, setPreviewing]           = useState(false);
+  const [segmentMode, setSegmentMode]         = useState<'filter' | 'custom'>('filter');
+  const [csvFile, setCsvFile]                 = useState<File | null>(null);
   const [behaviourExpanded, setBehaviourExpanded] = useState(true);
   const [propertyExpanded, setPropertyExpanded]   = useState(true);
   const propertyPickerRef  = useRef<HTMLDivElement>(null);
   const behaviourPickerRef = useRef<HTMLDivElement>(null);
+  const metaFetchedRef     = useRef(false);
 
   const dispatch      = useDispatch();
   const metaTraits    = useCommonSelector(selectMetaTraits);
   const metaEvents    = useCommonSelector(selectMetaEvents);   // MetaEventItem[]
   const metaOperators = useCommonSelector(selectMetaOperators);
 
+  /* Fire once — ref persists through React 18 Strict Mode remount */
   useEffect(() => {
+    if (metaFetchedRef.current) return;
+    metaFetchedRef.current = true;
     dispatch(fetchMetaTraits(PROJECT_ID) as any);
     dispatch(fetchMetaEvents(PROJECT_ID) as any);
     dispatch(fetchMetaOperators() as any);
@@ -199,14 +214,21 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
     return Math.max(12, base);
   }, [allRules, combinator]);
 
-  const canSave = name.trim().length >= 2 && allRules.length > 0;
+  const canSave = name.trim().length >= 2 &&
+    (segmentMode === 'custom' ? csvFile !== null : allRules.length > 0);
 
   const handlePreview = async () => {
-    if (allRules.length === 0) return;
     setPreviewing(true);
     try {
-      const result = await previewEvaluate({ combinator, rules: allRules });
-      setPreviewCount(result.size);
+      if (mode === 'edit' && segmentId) {
+        /* In edit mode call the segment evaluate endpoint for accurate count */
+        const result = await dispatch(evaluateSegment(segmentId) as any).unwrap();
+        setPreviewCount(result.size);
+      } else {
+        if (allRules.length === 0) { setPreviewing(false); return; }
+        const result = await previewEvaluate({ combinator, rules: allRules });
+        setPreviewCount(result.size);
+      }
     } catch {
       // keep previous count on error
     } finally {
@@ -214,9 +236,22 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
     }
   };
 
+  /* Auto-trigger evaluate when segment opens in edit mode */
+  useEffect(() => {
+    if (mode === 'edit' && segmentId && previewCount === null && !previewing) {
+      handlePreview();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, segmentId]);
+
   const handleSave = () => {
     if (!canSave) return;
-    onSave({ name, description, combinator, rules: allRules });
+    onSave({
+      name, description, combinator,
+      rules:        segmentMode === 'filter' ? allRules : [],
+      segmentType:  segmentMode,
+      csvFile:      segmentMode === 'custom' ? (csvFile ?? undefined) : undefined,
+    });
   };
 
   const renderPicker = (type: 'property' | 'behaviour') =>
@@ -306,8 +341,87 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
           </span>
         </div>
 
-        {/* Filter sections */}
-        <div className="builder-section">
+        {/* Segment type toggle — only for create mode */}
+        {mode === 'create' && (
+          <div className="seg-type-toggle">
+            <button
+              type="button"
+              className={'seg-type-btn' + (segmentMode === 'filter' ? ' active' : '')}
+              onClick={() => { setSegmentMode('filter'); setCsvFile(null); }}
+            >
+              <Icon name="filter" size={13} /> Filters
+            </button>
+            <button
+              type="button"
+              className={'seg-type-btn' + (segmentMode === 'custom' ? ' active' : '')}
+              onClick={() => setSegmentMode('custom')}
+            >
+              <Icon name="upload" size={13} /> CSV Import
+            </button>
+          </div>
+        )}
+
+        {/* CSV Upload — shown when CSV Import is selected */}
+        {segmentMode === 'custom' && (
+          <>
+            {/* Sample CSV download link */}
+            <div className="seg-csv-sample-row">
+              <span className="seg-csv-sample-hint">
+                Upload a CSV with a <code>user_id</code> column.
+              </span>
+              <button
+                type="button"
+                className="seg-csv-sample-btn"
+                onClick={() => {
+                  const csv = 'user_id\nuser_001\nuser_002\nuser_003';
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url  = URL.createObjectURL(blob);
+                  const a    = document.createElement('a');
+                  a.href     = url;
+                  a.download = 'sample_segment.csv';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Icon name="download" size={13} /> Download Sample CSV
+              </button>
+            </div>
+
+            <div className="seg-csv-upload">
+              <label className="seg-csv-label" htmlFor="seg-csv-input">
+                <Icon name="file-text" size={28} color="var(--g400)" />
+                <span className="seg-csv-hint">
+                  {csvFile ? csvFile.name : 'Click to select a .csv file'}
+                </span>
+                {csvFile && (
+                  <span className="seg-csv-meta">
+                    {(csvFile.size / 1024).toFixed(1)} KB
+                  </span>
+                )}
+              </label>
+              <input
+                id="seg-csv-input"
+                type="file"
+                accept=".csv,text/csv"
+                style={{ display: 'none' }}
+                onChange={e => setCsvFile(e.target.files?.[0] ?? null)}
+              />
+              {csvFile && (
+                <button
+                  type="button"
+                  className="seg-csv-clear"
+                  onClick={() => setCsvFile(null)}
+                  aria-label="Remove file"
+                >
+                  <Icon name="x" size={13} /> Remove
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Filter sections — hidden when CSV Import is selected */}
+        {segmentMode === 'filter' && <div className="builder-section">
             <div className="builder-filter-sections">
 
               {/* User Behaviour */}
@@ -397,42 +511,44 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', init
               </div>
 
             </div>
-          </div>
+          </div>}
 
-        {/* Estimated count */}
-        {/* <div className="builder-preview">
-          <div className="builder-preview-num">
-            {previewing
-              ? '…'
-              : previewCount !== null
-                ? previewCount.toLocaleString('en-IN')
-                : '—'}
-          </div>
-          <div className="builder-preview-meta">
-            <span className="k">Estimated count</span>
-            <span className="v">
+        {/* Estimated count — visible in edit mode only */}
+        {mode === 'edit' && (
+          <div className="builder-preview">
+            <div className="builder-preview-num">
               {previewing
-                ? 'Computing…'
+                ? '…'
                 : previewCount !== null
-                  ? `${allRules.length} filter${allRules.length === 1 ? '' : 's'} (${combinator}) · live count`
-                  : 'Click Preview to compute'}
-            </span>
+                  ? previewCount.toLocaleString('en-IN')
+                  : '—'}
+            </div>
+            <div className="builder-preview-meta">
+              <span className="k">Estimated count</span>
+              <span className="v">
+                {previewing
+                  ? 'Computing…'
+                  : previewCount !== null
+                    ? 'Segment members · live count'
+                    : 'Click Preview to compute'}
+              </span>
+            </div>
+            <button
+              className="builder-refresh"
+              type="button"
+              title="Recompute"
+              onClick={handlePreview}
+              disabled={previewing}
+            >
+              <Icon name="refresh-cw" size={12}/> {previewing ? 'Loading…' : 'Preview'}
+            </button>
           </div>
-          <button
-            className="builder-refresh"
-            type="button"
-            title="Recompute"
-            onClick={handlePreview}
-            disabled={previewing || allRules.length === 0}
-          >
-            <Icon name="refresh-cw" size={12}/> {previewing ? 'Loading…' : 'Preview'}
-          </button>
-        </div> */}
+        )}
 
         {/* Segment name */}
         <div className="field-group" style={{ marginBottom: 0 }}>
           <label>Segment name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — Maharashtra, no recent bonus"/>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
         </div>
       </div>
 

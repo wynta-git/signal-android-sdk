@@ -265,10 +265,11 @@ export default function RuleEditor({ rule, fields, metaOperators, onChange, onRe
   const eventProps = useCommonSelector(selectMetaEventProperties(eventNameForApi ?? ''));
 
   useEffect(() => {
-    if (eventNameForApi) {
+    /* Skip if data already cached — prevents duplicate calls in Strict Mode */
+    if (eventNameForApi && eventProps.length === 0) {
       dispatch(fetchMetaEventProperties({ projectId: PROJECT_ID, eventName: eventNameForApi }) as any);
     }
-  }, [dispatch, eventNameForApi]);
+  }, [dispatch, eventNameForApi]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Trait: per-trait operators ────────────────────────────────────────────
   const isTrait = field?.type !== 'event' && field?.type !== 'derived';
@@ -428,7 +429,7 @@ export default function RuleEditor({ rule, fields, metaOperators, onChange, onRe
             ) : field?.type === 'event' ? (
               <div className="rule-recency">
                 <input className="rule-value rule-num" type="number" min="0" value={String(rule.value || '')} onChange={e => onChange({ value: e.target.value })} placeholder="count"/>
-                <span style={{ color: 'var(--g400)', fontSize: 12 }}>times in last</span>
+                <span style={{ color: 'var(--g400)', fontSize: 12 }}>last</span>
                 <input className="rule-value rule-num" type="number" min="1" value={rule.value2 || ''} onChange={e => onChange({ value2: e.target.value })} placeholder="30"/>
                 <span style={{ color: 'var(--g400)', fontSize: 12 }}>days</span>
               </div>

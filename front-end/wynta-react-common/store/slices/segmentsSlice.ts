@@ -70,6 +70,8 @@ export const createSegment = createAsyncThunk(
     refresh_strategy?: string;
     scheduled_cron?: string;
     created_by?: string | null;
+    segmentType?: 'filter' | 'custom';
+    csvFile?: File;
   }) => segmentApi.createSegment(payload)
 );
 
@@ -108,7 +110,13 @@ export const fetchSegmentMembers = createAsyncThunk(
 
 export const fetchMetaTraits = createAsyncThunk(
   'segments/fetchMetaTraits',
-  (projectId: string) => segmentApi.fetchMetaTraits(projectId)
+  (projectId: string) => segmentApi.fetchMetaTraits(projectId),
+  {
+    condition: (_arg, { getState }) => {
+      const s = (getState() as { segments?: SegmentsState }).segments;
+      return !s || s.metaTraits.length === 0;
+    },
+  }
 );
 
 /** Fetches raw_events + derived_rules, combines into MetaEventItem[] */
@@ -130,12 +138,24 @@ export const fetchMetaEvents = createAsyncThunk(
       items.push({ id: r, label: toLabel(r), source: 'derived_rule' });
     }
     return items;
+  },
+  {
+    condition: (_arg, { getState }) => {
+      const s = (getState() as { segments?: SegmentsState }).segments;
+      return !s || s.metaEvents.length === 0;
+    },
   }
 );
 
 export const fetchMetaOperators = createAsyncThunk(
   'segments/fetchMetaOperators',
-  () => segmentApi.fetchMetaOperators()
+  () => segmentApi.fetchMetaOperators(),
+  {
+    condition: (_arg, { getState }) => {
+      const s = (getState() as { segments?: SegmentsState }).segments;
+      return !s || s.metaOperators === null;
+    },
+  }
 );
 
 export const fetchMetaEventProperties = createAsyncThunk(

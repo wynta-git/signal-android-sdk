@@ -103,6 +103,7 @@ interface RawSchedule {
   start_date?:    string;
   end_date?:      string;
   schedule_time?: string;        // HH:MM 24-h
+  send_at?:       string;        // ISO datetime used by 'once' schedule type
   days_of_week?:  string[];
   days_of_month?: number[];
 }
@@ -218,7 +219,7 @@ function toCampaign(r: RawCampaign): Campaign {
   } else if (scType === 'once') {
     const dt = sc?.start_date
       ? `${sc.start_date}T${sc.schedule_time ?? '00:00'}`
-      : (r.trigger?.send_at ?? '');
+      : sc?.send_at ?? r.trigger?.send_at ?? '';
     schedule = { schedule_type: 'one_time', execution_type: 'specific_datetime', datetime: dt, timezone: sc?.timezone };
   } else if (scType) {
     // periodic: daily | weekly | monthly
@@ -375,10 +376,11 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
     if (isAsap) {
       scheduleType = 'immediate';
     } else {
-      // specific_datetime
+      // specific_datetime — send datetime as-is
       scheduleType = 'once';
       if (sc.datetime) {
-        const [date, timeRaw] = sc.datetime.split('T');
+        scheduleConfig.send_at       = sc.datetime;
+        const [date, timeRaw]        = sc.datetime.split('T');
         scheduleConfig.start_date    = date;
         scheduleConfig.schedule_time = (timeRaw ?? '').slice(0, 5);
       }
@@ -432,7 +434,7 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
       rate_limit: {
         // Send the exact value — 0 when toggle is off, user value when toggle is on
         per_user_per_day:            p.delivery_controls?.max_frequency        ?? 0,
-        per_user_per_campaign_total: p.delivery_controls?.per_user_per_campaign_total ?? 0,
+        per_user_per_campaign_total: p.delivery_controls?.per_user_per_campaign_total || null,
       },
       delay: {
         minutes: toMinutes(
