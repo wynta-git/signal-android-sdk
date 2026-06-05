@@ -5,6 +5,7 @@ import { store }     from '../store';
 import CrmSidebar    from './CrmSidebar';
 import SegmentsPage  from 'wynta-react-common/components/segments/SegmentsPage';
 import CampaignsPage from './campaigns/CampaignsPage';
+import DashboardPage from './dashboard/DashboardPage';
 
 /**
  * CrmApp wraps itself in the wynta-crm store Provider.
@@ -21,7 +22,7 @@ export default function CrmApp() {
 }
 
 function CrmShell() {
-  const [activeNav, setActiveNav] = useState('segments');
+  const [activeNav, setActiveNav] = useState('dashboard');
 
   return (
     <div className="crm-shell">
@@ -29,7 +30,8 @@ function CrmShell() {
 
       <main className="crm-main">
         <div className="crm-content">
-          {activeNav === 'segments'  ? <SegmentsPage  /> :
+          {activeNav === 'dashboard'  ? <DashboardPage /> :
+           activeNav === 'segments'  ? <SegmentsPage  /> :
            activeNav === 'campaigns' ? <CampaignsPage /> : (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'60vh', color:'var(--crm-fg4)', fontSize:14 }} />
           )}
