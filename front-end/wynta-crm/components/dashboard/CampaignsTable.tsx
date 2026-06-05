@@ -17,7 +17,8 @@ function TrackedCell({ v }: { v: TrackedMetric | undefined }) {
   return <>{v.value.toFixed(1)}%</>;
 }
 
-function fmt(n: number): string {
+function fmt(n: number | undefined | null): string {
+  if (n == null) return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString();

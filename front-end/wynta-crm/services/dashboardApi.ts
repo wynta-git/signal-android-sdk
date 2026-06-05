@@ -1,9 +1,12 @@
+import { getToken } from 'wynta-react-common/services/tokenRegistry';
+
 const BASE = process.env.NEXT_PUBLIC_CAMPAIGN_API_URL || 'http://3.7.48.14:8004';
 const ROOT = (projectId: string) =>
   `${BASE}/api/v1/campaign/projects/${projectId}/dashboard`;
 
 const authHeader = () => ({
-  Authorization: `Bearer ${process.env.NEXT_PUBLIC_SEG_TOKEN ?? ''}`,
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${getToken()}`,
 });
 
 // ── Types ─────────────────────────────────────────────────────────────────────

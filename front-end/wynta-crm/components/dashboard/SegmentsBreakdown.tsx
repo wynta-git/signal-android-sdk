@@ -5,7 +5,8 @@ import { selectDashboardSummary, selectDashboardStatus } from '../../store/slice
 const DONUT_COLORS = ['#0091e0', '#10b981', '#f59e0b', '#ef4444'];
 const DONUT_LABELS = ['New', 'Healthy', 'At Risk', 'Churned'];
 
-function fmt(n: number): string {
+function fmt(n: number | undefined | null): string {
+  if (n == null) return '—';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString();

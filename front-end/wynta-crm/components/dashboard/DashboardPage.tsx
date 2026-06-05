@@ -10,13 +10,14 @@ import {
   setWindowDays,
   selectDashboardWindowDays,
 } from '../../store/slices/dashboardSlice';
-import QuickStats       from './QuickStats';
-import ChannelReach     from './ChannelReach';
-import PlayerSegments   from './PlayerSegments';
-import ChannelsTable    from './ChannelsTable';
-import CampaignsTable   from './CampaignsTable';
-import AnalyticsChart   from './AnalyticsChart';
-import PlayerHealth     from './PlayerHealth';
+import { getToken } from 'wynta-react-common/services/tokenRegistry';
+import QuickStats        from './QuickStats';
+import ChannelReach      from './ChannelReach';
+import PlayerSegments    from './PlayerSegments';
+import ChannelsTable     from './ChannelsTable';
+import CampaignsTable    from './CampaignsTable';
+import AnalyticsChart    from './AnalyticsChart';
+import PlayerHealth      from './PlayerHealth';
 import SegmentsBreakdown from './SegmentsBreakdown';
 
 const WINDOW_OPTIONS = [
@@ -40,8 +41,25 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (initialized.current) return;
-    initialized.current = true;
-    loadAll(windowDays);
+
+    // Fire immediately if token is already set (e.g. navigating back to dashboard)
+    if (getToken()) {
+      initialized.current = true;
+      loadAll(windowDays);
+      return;
+    }
+
+    // Token set by DjHeaderSlot asynchronously — poll tokenRegistry directly
+    // (Redux store bridgeToken is unreliable since DjHeaderSlot may be outside our Provider)
+    const interval = setInterval(() => {
+      if (getToken() && !initialized.current) {
+        initialized.current = true;
+        loadAll(windowDays);
+        clearInterval(interval);
+      }
+    }, 300);
+
+    return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
