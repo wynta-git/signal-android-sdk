@@ -76,7 +76,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-route_prefix = "/api/v1/segments"
+route_prefix = "/api/v1/segmenet"
 app.include_router(admin_router, prefix=route_prefix)
 app.include_router(segments_router,prefix=route_prefix)
 app.include_router(meta_router,prefix=route_prefix)
