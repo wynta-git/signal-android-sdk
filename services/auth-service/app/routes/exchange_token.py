@@ -31,17 +31,11 @@ class ExchangeTokenResponse(BaseModel):
 
 @router.post("/exchange_token", response_model=ExchangeTokenResponse)
 async def exchange_token(body: ExchangeTokenRequest, request: Request) -> ExchangeTokenResponse:
-    if not settings.external_jwt_public_key_path:
+    if not settings.external_jwt_secret_key:
         raise HTTPException(status_code=503, detail={"code": "not_configured", "message": "External JWT validation not configured"})
 
     try:
-        public_key = open(settings.external_jwt_public_key_path).read()
-    except OSError:
-        log.error("exchange_token_public_key_file_missing", path=settings.external_jwt_public_key_path)
-        raise HTTPException(status_code=503, detail={"code": "misconfigured", "message": "Public key file not found"})
-
-    try:
-        ext_ctx = validate_external_jwt(body.token, public_key)
+        ext_ctx = validate_external_jwt(body.token, settings.external_jwt_secret_key)
     except InvalidExternalTokenError:
         log.warning("exchange_token_invalid_external_jwt")
         raise HTTPException(

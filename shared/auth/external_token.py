@@ -3,7 +3,7 @@ from typing import Any
 
 import jwt
 
-EXTERNAL_JWT_ALGORITHM = "RS256"
+EXTERNAL_JWT_ALGORITHM = "HS256"
 
 
 class InvalidExternalTokenError(Exception):
@@ -17,11 +17,11 @@ class ExternalTokenContext:
     project_id: str
 
 
-def validate_external_jwt(token: str, public_key: str) -> ExternalTokenContext:
+def validate_external_jwt(token: str, secret_key: str) -> ExternalTokenContext:
     try:
         payload: dict[str, Any] = jwt.decode(
             token,
-            public_key,
+            secret_key,
             algorithms=[EXTERNAL_JWT_ALGORITHM],
             options={"require": ["sub", "exp", "iat"]},
         )
