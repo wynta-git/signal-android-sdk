@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from shared.cors import CORS_ORIGINS
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -17,7 +19,7 @@ class Settings(BaseSettings):
 
     rate_limit_enabled: bool = True
 
-    cors_origins: list[str] = ["*"]
+    cors_origins: list[str] = CORS_ORIGINS
 
     debug: bool = False
     version: str = "0.1.0"

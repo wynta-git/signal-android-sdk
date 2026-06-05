@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PAM — Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f6fa;
+      --surface: #ffffff;
+      --surface2: #f0f1f5;
+      --border: #dde1ea;
+      --accent: #4f46e5;
+      --text: #1a1d2e;
+      --text-dim: #7c84a0;
+      --green: #16a34a;
+      --red: #dc2626;
+      --orange: #ea580c;
+      --blue: #2563eb;
+      --purple: #7c3aed;
+      --amber: #d97706;
+      --pink: #db2777;
+      --mono: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Config bar ── */
+    .config-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .config-bar h1 {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: 1px;
+      padding-bottom: 6px;
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+
+    .config-bar h1 span { color: var(--text-dim); font-weight: 400; font-size: 13px; letter-spacing: 0; }
+
+    .cfg-field { display: flex; flex-direction: column; gap: 4px; }
+
+    .cfg-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .cfg-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 13px;
+      font-family: var(--mono);
+      transition: border-color 0.15s;
+    }
+
+    .cfg-input:focus { outline: none; border-color: var(--accent); }
+    .cfg-input.med   { width: 180px; }
+    .cfg-input.small { width: 120px; }
+    .cfg-input.xsmall { width: 72px; }
+
+    .refresh-topbtn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.15s;
+      margin-bottom: 4px;
+    }
+
+    .refresh-topbtn:hover { opacity: 0.85; }
+
+    /* ── Main scroll ── */
+    .main { flex: 1; overflow-y: auto; padding: 20px; min-height: 0; }
+
+    /* ── Page header ── */
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .page-title { font-size: 16px; font-weight: 800; }
+
+    .page-date { text-align: right; }
+    .page-date-main { font-size: 13px; font-weight: 700; color: var(--text); }
+    .page-date-compare { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+    /* ── Stat grid ── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px 10px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-label { font-size: 11px; color: var(--text-dim); font-weight: 500; margin-bottom: 6px; }
+
+    .stat-value { font-size: 28px; font-weight: 800; line-height: 1; letter-spacing: -0.5px; margin-bottom: 5px; }
+
+    .stat-change {
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .stat-change.up      { color: var(--green); }
+    .stat-change.down    { color: var(--red); }
+    .stat-change.neutral { color: var(--text-dim); }
+
+    .stat-badge {
+      position: absolute;
+      top: 10px; right: 10px;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+
+    .badge-orange { background: #fff7ed; color: var(--orange); }
+    .badge-green  { background: #dcfce7; color: var(--green); }
+    .badge-blue   { background: #eff6ff; color: var(--blue); }
+
+    .stat-spark {
+      position: absolute;
+      bottom: 6px; right: 8px;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+
+    /* ── Two-column ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+
+    /* ── Panel ── */
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+
+    .panel-head {
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-head-left { display: flex; align-items: center; gap: 8px; }
+    .panel-head-icon { font-size: 14px; }
+    .panel-head-sub  { font-size: 11px; font-weight: 400; color: var(--text-dim); }
+    .panel-head-link { font-size: 12px; color: var(--accent); font-weight: 600; cursor: pointer; }
+
+    .panel-body { padding: 14px 16px; }
+
+    /* ── Channel reach ── */
+    .ch-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .ch-row:last-child { margin-bottom: 0; }
+
+    .ch-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    .ch-name { font-size: 13px; font-weight: 500; width: 72px; flex-shrink: 0; }
+
+    .ch-track {
+      flex: 1;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .ch-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+
+    .ch-pct { font-size: 13px; font-weight: 700; width: 38px; text-align: right; flex-shrink: 0; }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    .pill-live   { background: #dcfce7; color: var(--green); }
+    .pill-paused { background: #fff7ed; color: var(--amber); }
+
+    /* ── Segment bars ── */
+    .seg-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 9px;
+    }
+
+    .seg-row:last-child { margin-bottom: 0; }
+
+    .seg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    .seg-name {
+      font-size: 12px;
+      font-weight: 500;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .seg-track { width: 120px; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; flex-shrink: 0; }
+    .seg-fill  { height: 100%; border-radius: 3px; }
+
+    .seg-pct   { font-size: 11px; color: var(--text-dim); width: 30px; text-align: right; flex-shrink: 0; }
+    .seg-count { font-size: 12px; font-weight: 700; width: 38px; text-align: right; flex-shrink: 0; }
+
+    /* ── Full panel (mb) ── */
+    .full-panel { margin-bottom: 12px; }
+
+    /* ── Table ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+    .data-table th {
+      padding: 9px 14px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .data-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover   { background: var(--bg); }
+
+    .tbl-link { font-weight: 600; color: var(--accent); cursor: pointer; }
+    .tbl-link:hover { text-decoration: underline; }
+
+    .rate-good { color: var(--green); font-weight: 600; }
+    .rate-na   { color: var(--text-dim); }
+
+    .reach-wrap { display: flex; align-items: center; gap: 6px; }
+
+    .reach-track {
+      width: 70px; height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .reach-fill { height: 100%; border-radius: 2px; }
+
+    .chip {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      white-space: nowrap;
+    }
+
+    .chip-running   { background: #dcfce7; color: var(--green); }
+    .chip-scheduled { background: #dbeafe; color: var(--blue); }
+    .chip-paused    { background: #fff7ed; color: var(--amber); }
+    .chip-push      { background: #f0fdf4; color: var(--green); }
+    .chip-email     { background: #eff6ff; color: var(--blue); }
+    .chip-sms       { background: #fffbeb; color: var(--amber); }
+    .chip-webhook   { background: #fff7ed; color: var(--orange); }
+
+    .seg-chip {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--surface2);
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    /* ── Two-col analytics ── */
+    .analytics-row { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; margin-bottom: 12px; }
+    .health-row    { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; margin-bottom: 12px; }
+
+    /* ── Bar chart ── */
+    .bar-chart-wrap { height: 130px; display: flex; align-items: flex-end; gap: 3px; padding-bottom: 2px; }
+
+    .bar-group { flex: 1; display: flex; align-items: flex-end; gap: 2px; }
+
+    .bar-seg {
+      flex: 1;
+      border-radius: 2px 2px 0 0;
+      min-height: 2px;
+      transition: height 0.4s ease;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-dim); }
+    .legend-dot  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+    .chart-summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .cs-item   { text-align: center; }
+    .cs-label  { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
+    .cs-val    { font-size: 12px; font-weight: 700; }
+    .cs-sub    { font-size: 10px; color: var(--text-dim); }
+
+    /* ── Reports ── */
+    .mtd-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .mtd-card { background: var(--bg); border-radius: 6px; padding: 10px 12px; }
+    .mtd-label { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
+    .mtd-value { font-size: 18px; font-weight: 800; }
+    .mtd-change { font-size: 10px; font-weight: 600; margin-top: 1px; }
+    .mtd-change.up   { color: var(--green); }
+    .mtd-change.down { color: var(--red); }
+
+    .report-list-head { font-size: 11px; font-weight: 700; color: var(--text-dim); margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+    .report-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .report-item:last-child { border-bottom: none; }
+    .report-item:hover .report-name { color: var(--accent); }
+
+    .report-name { display: flex; align-items: center; gap: 8px; }
+    .report-icon { color: var(--text-dim); width: 16px; text-align: center; }
+
+    /* ── Player Health ── */
+    .health-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .hcard {
+      border-radius: 8px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+
+    .hcard-new     { background: #eff6ff; }
+    .hcard-healthy { background: #f0fdf4; }
+    .hcard-risk    { background: #fffbeb; }
+    .hcard-churned { background: #fef2f2; }
+
+    .hcard-label { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+    .hcard-new     .hcard-label { color: var(--blue); }
+    .hcard-healthy .hcard-label { color: var(--green); }
+    .hcard-risk    .hcard-label { color: var(--amber); }
+    .hcard-churned .hcard-label { color: var(--red); }
+
+    .hcard-val { font-size: 22px; font-weight: 800; line-height: 1; }
+    .hcard-new     .hcard-val { color: var(--blue); }
+    .hcard-healthy .hcard-val { color: var(--green); }
+    .hcard-risk    .hcard-val { color: var(--amber); }
+    .hcard-churned .hcard-val { color: var(--red); }
+
+    .hcard-pct { font-size: 11px; margin-top: 3px; opacity: 0.7; }
+    .hcard-new     .hcard-pct { color: var(--blue); }
+    .hcard-healthy .hcard-pct { color: var(--green); }
+    .hcard-risk    .hcard-pct { color: var(--amber); }
+    .hcard-churned .hcard-pct { color: var(--red); }
+
+    .hbar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+    .hbar-label { flex: 1; color: var(--text-dim); }
+    .hbar-track { flex: 2; height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .hbar-fill  { height: 100%; border-radius: 3px; }
+    .hbar-val   { font-weight: 700; width: 32px; text-align: right; font-size: 11px; }
+
+    /* ── Donut ── */
+    .donut-area { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .donut-legend { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .dl-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); }
+    .dl-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    .optin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .optin-card { background: var(--bg); border-radius: 6px; padding: 10px 12px; }
+    .optin-label { font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
+    .optin-val   { font-size: 16px; font-weight: 800; }
+
+    /* ── Table footer ── */
+    .table-foot {
+      padding: 8px 14px;
+      font-size: 11px;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .table-foot a { color: var(--accent); font-weight: 600; cursor: pointer; }
+
+    /* ── Auth status ── */
+    .auth-wrap { display: flex; align-items: center; gap: 6px; padding-bottom: 4px; }
+
+    /* ── Skeleton ── */
+    .skel { background: var(--surface2); border-radius: 4px; animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .na { color: var(--text-dim); }
+  </style>
+</head>
+<body>
+
+<!-- Config bar -->
+<div class="config-bar">
+  <h1>PAM <span>/ Dashboard</span></h1>
+
+  <div class="cfg-field">
+    <span class="cfg-label">Auth Service URL</span>
+    <input class="cfg-input med" id="cfg-auth-url" value="http://3.7.48.14:8002" oninput="saveConfig()">
+  </div>
+
+  <div class="cfg-field">
+    <span class="cfg-label">Campaign Engine URL</span>
+    <input class="cfg-input med" id="cfg-url" value="http://3.7.48.14:8004" oninput="saveConfig()">
+  </div>
+
+  <div class="cfg-field">
+    <span class="cfg-label">Project ID</span>
+    <input class="cfg-input small" id="cfg-project" value="proj_demo" oninput="saveConfig()">
+  </div>
+
+  <div class="cfg-field">
+    <span class="cfg-label">Window (days)</span>
+    <select class="cfg-input xsmall" id="cfg-window" onchange="saveConfig(); loadAll()">
+      <option value="7" selected>7d</option>
+      <option value="14">14d</option>
+      <option value="30">30d</option>
+    </select>
+  </div>
+
+  <div class="cfg-field">
+    <span class="cfg-label">Auth</span>
+    <div class="auth-wrap">
+      <span id="auth-dot" style="width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;flex-shrink:0"></span>
+      <span id="auth-label" style="font-size:11px;color:var(--text-dim);font-family:var(--mono)">authenticating…</span>
+      <button onclick="reauth()" style="font-size:11px;padding:1px 7px;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer;color:var(--text-dim)">↻</button>
+    </div>
+  </div>
+
+  <div class="cfg-field" style="justify-content:flex-end">
+    <span class="cfg-label">&nbsp;</span>
+    <button class="refresh-topbtn" onclick="loadAll()">↻ Refresh</button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main" id="main">
+
+  <!-- Page header -->
+  <div class="page-header">
+    <div class="page-title">Quick Stats</div>
+    <div class="page-date">
+      <div class="page-date-main" id="date-range">—</div>
+      <div class="page-date-compare" id="date-compare">Compare to: —</div>
+    </div>
+  </div>
+
+  <!-- Stat row 1 -->
+  <div class="stat-grid" id="stat-row1">
+    <div class="stat-card"><div class="stat-label">Reachable Players</div><div class="stat-value skel" style="height:28px;width:80px">&nbsp;</div></div>
+    <div class="stat-card"><div class="stat-label">Active This Week</div><div class="stat-value skel" style="height:28px;width:70px">&nbsp;</div></div>
+    <div class="stat-card"><div class="stat-label">Live Campaigns</div><div class="stat-value skel" style="height:28px;width:40px">&nbsp;</div></div>
+    <div class="stat-card"><div class="stat-label">Active Segments</div><div class="stat-value skel" style="height:28px;width:40px">&nbsp;</div></div>
+    <div class="stat-card"><div class="stat-label">Unsubscribe Rate</div><div class="stat-value skel" style="height:28px;width:60px">&nbsp;</div></div>
+  </div>
+
+  <!-- Stat row 2 -->
+  <div class="stat-grid" style="margin-bottom:12px" id="stat-row2">
+    <div class="stat-card"><div class="stat-label">Messages Sent (7d)</div><div class="stat-value skel" style="height:28px;width:90px">&nbsp;</div></div>
+    <div class="stat-card"><div class="stat-label">Overall Open Rate</div><div class="stat-value skel" style="height:28px;width:60px">&nbsp;</div></div>
+    <div class="stat-card"><div class="stat-label">Click-through Rate</div><div class="stat-value skel" style="height:28px;width:60px">&nbsp;</div></div>
+    <div class="stat-card"><div class="stat-label">Opt-outs (7d)</div><div class="stat-value skel" style="height:28px;width:60px">&nbsp;</div></div>
+    <div class="stat-card"><div class="stat-label">Player Responses</div><div class="stat-value skel" style="height:28px;width:70px">&nbsp;</div></div>
+  </div>
+
+  <!-- Channel Reach + Player Segments -->
+  <div class="two-col" style="margin-bottom:12px">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-head-icon">📡</span>
+          <span>Channel Reach</span>
+        </div>
+        <span class="panel-head-sub" id="reach-window">7-day window</span>
+      </div>
+      <div class="panel-body" id="channel-reach-body">
+        <div style="color:var(--text-dim);font-size:12px">Loading…</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-head-icon">👥</span>
+          <span>Player Segments</span>
+        </div>
+        <span class="panel-head-link">Manage →</span>
+      </div>
+      <div class="panel-body" id="segment-reach-body">
+        <div style="color:var(--text-dim);font-size:12px">Loading…</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- All Channels table -->
+  <div class="panel full-panel">
+    <div class="panel-head">
+      <div class="panel-head-left">
+        <span class="panel-head-icon">🗂</span>
+        <span>All Channels — Status &amp; Performance</span>
+      </div>
+      <button onclick="loadChannels()" style="font-size:11px;padding:3px 10px;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer;color:var(--text-dim);font-family:inherit">↓ Export</button>
+    </div>
+    <div id="channels-table-wrap">
+      <div style="padding:20px;color:var(--text-dim);font-size:12px;text-align:center">Loading…</div>
+    </div>
+    <div class="table-foot" id="channels-table-foot" style="display:none">
+      <span id="channels-foot-text"></span>
+    </div>
+  </div>
+
+  <!-- Live Campaign Performance -->
+  <div class="panel full-panel">
+    <div class="panel-head">
+      <div class="panel-head-left">
+        <span class="panel-head-icon">⚡</span>
+        <span>Live Campaign Performance</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button style="font-size:11px;padding:3px 10px;border:1px solid var(--border);border-radius:5px;background:none;cursor:pointer;color:var(--text-dim);font-family:inherit">⊞ Filter</button>
+        <button style="font-size:11px;padding:3px 12px;border:none;border-radius:5px;background:var(--accent);cursor:pointer;color:#fff;font-family:inherit;font-weight:700">+ Add Campaign</button>
+      </div>
+    </div>
+    <div id="campaigns-table-wrap">
+      <div style="padding:20px;color:var(--text-dim);font-size:12px;text-align:center">Loading…</div>
+    </div>
+    <div class="table-foot" id="campaigns-table-foot" style="display:none">
+      <span id="campaigns-foot-text"></span>
+      <span><a onclick="loadCampaigns()">view all</a></span>
+    </div>
+  </div>
+
+  <!-- Campaign Analytics + Reports -->
+  <div class="analytics-row">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-head-icon">📊</span>
+          <span>Campaign Analytics</span>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button onclick="setChartMode('bar')" id="btn-bar" style="font-size:14px;padding:2px 7px;border:1px solid var(--border);border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;border-color:var(--accent)">▐▌</button>
+          <button onclick="setChartMode('line')" id="btn-line" style="font-size:14px;padding:2px 7px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text-dim);cursor:pointer">↗</button>
+        </div>
+      </div>
+      <div class="panel-body" id="analytics-body">
+        <div style="color:var(--text-dim);font-size:12px">Loading…</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-head-icon">📋</span>
+          <span>Reports</span>
+        </div>
+        <span class="panel-head-link">Open Reports →</span>
+      </div>
+      <div class="panel-body" id="reports-body">
+        <div style="color:var(--text-dim);font-size:12px">Loading…</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Player Health + Segments Breakdown -->
+  <div class="health-row">
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-head-icon">💚</span>
+          <span>Player Health</span>
+        </div>
+        <span class="panel-head-sub">approximate · based on last seen</span>
+      </div>
+      <div class="panel-body" id="health-body">
+        <div style="color:var(--text-dim);font-size:12px">Loading…</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-head-left">
+          <span class="panel-head-icon">🕐</span>
+          <span>Player Segments Breakdown</span>
+        </div>
+      </div>
+      <div class="panel-body" id="breakdown-body">
+        <div style="color:var(--text-dim);font-size:12px">Loading…</div>
+      </div>
+    </div>
+
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ── Config & Auth ────────────────────────────────────────────────────────────
+
+let authToken = null;
+let chartMode = 'bar';
+let analyticsData = null;
+
+function baseUrl()   { return document.getElementById('cfg-url').value.replace(/\/$/,''); }
+function authUrl()   { return document.getElementById('cfg-auth-url').value.replace(/\/$/,''); }
+function projectId() { return document.getElementById('cfg-project').value.trim(); }
+function windowDays(){ return parseInt(document.getElementById('cfg-window').value) || 7; }
+
+function authHeaders() {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
+
+function setAuthStatus(state) {
+  const dot = document.getElementById('auth-dot');
+  const lbl = document.getElementById('auth-label');
+  if (state === 'ok') {
+    dot.style.background = 'var(--green)';
+    lbl.textContent = 'authenticated'; lbl.style.color = 'var(--green)';
+  } else if (state === 'error') {
+    dot.style.background = 'var(--red)';
+    lbl.textContent = 'auth failed'; lbl.style.color = 'var(--red)';
+  } else {
+    dot.style.background = 'var(--amber)';
+    lbl.textContent = 'authenticating…'; lbl.style.color = 'var(--text-dim)';
+  }
+}
+
+async function getPortalToken() {
+  setAuthStatus('loading');
+  try {
+    const res = await fetch(`${authUrl()}/api/v1/system/portal_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'portal-ui', password: 'glgportal2026', project_id: projectId() }),
+    });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    authToken = data?.data?.token;
+    if (!authToken) throw new Error('no token');
+    setAuthStatus('ok');
+  } catch (e) {
+    authToken = null;
+    setAuthStatus('error');
+  }
+}
+
+function reauth() { getPortalToken().then(() => loadAll()); }
+
+// ── Persistence ──────────────────────────────────────────────────────────────
+
+function saveConfig() {
+  localStorage.setItem('pam_dash_url',     document.getElementById('cfg-url').value);
+  localStorage.setItem('pam_dash_auth',    document.getElementById('cfg-auth-url').value);
+  localStorage.setItem('pam_dash_project', document.getElementById('cfg-project').value);
+  localStorage.setItem('pam_dash_window',  document.getElementById('cfg-window').value);
+}
+
+function loadConfig() {
+  const url  = localStorage.getItem('pam_dash_url');
+  const auth = localStorage.getItem('pam_dash_auth');
+  const pid  = localStorage.getItem('pam_dash_project');
+  const win  = localStorage.getItem('pam_dash_window');
+  if (url)  document.getElementById('cfg-url').value = url;
+  if (auth) document.getElementById('cfg-auth-url').value = auth;
+  if (pid)  document.getElementById('cfg-project').value = pid;
+  if (win)  document.getElementById('cfg-window').value = win;
+}
+
+// ── Date header ──────────────────────────────────────────────────────────────
+
+function renderDateHeader() {
+  const now  = new Date();
+  const days = windowDays();
+  const from = new Date(now - days * 86400000);
+  const prev = new Date(from - days * 86400000);
+
+  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+
+  document.getElementById('date-range').textContent   = `${fmt(from)} – ${fmt(now)}`;
+  document.getElementById('date-compare').textContent = `Compare to: ${fmt(prev)} – ${fmt(from)}`;
+  document.getElementById('reach-window').textContent = `${days}-day window`;
+}
+
+// ── API helpers ──────────────────────────────────────────────────────────────
+
+async function api(path) {
+  const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/dashboard/${path}?window_days=${windowDays()}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(res.status);
+  return res.json();
+}
+
+async function apiSegments() {
+  const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/dashboard/segments?limit=10`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(res.status);
+  return res.json();
+}
+
+async function apiCampaigns() {
+  const res = await fetch(`${baseUrl()}/api/v1/campaign/projects/${encodeURIComponent(projectId())}/dashboard/campaigns?limit=10`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error(res.status);
+  return res.json();
+}
+
+// ── Load all ─────────────────────────────────────────────────────────────────
+
+function loadAll() {
+  renderDateHeader();
+  loadSummary();
+  loadChannels();
+  loadSegments();
+  loadCampaigns();
+  loadAnalytics();
+}
+
+async function loadSummary() {
+  try {
+    const d = await api('summary');
+    renderStatRow1(d.quick_stats, d.channel_optin);
+    renderStatRow2(d.quick_stats);
+    renderHealth(d.player_health);
+    renderBreakdown(d.player_health, d.channel_optin);
+    renderReports(null, d);
+  } catch (e) {
+    console.error('summary error', e);
+  }
+}
+
+async function loadChannels() {
+  try {
+    const d = await api('channels');
+    renderChannelReach(d.channels);
+    renderChannelTable(d.channels);
+  } catch (e) {
+    document.getElementById('channel-reach-body').innerHTML = err('Could not load channels');
+    document.getElementById('channels-table-wrap').innerHTML = err('Could not load channels');
+  }
+}
+
+async function loadSegments() {
+  try {
+    const d = await apiSegments();
+    renderSegmentReach(d.segments, d.total_members_across_segments);
+  } catch (e) {
+    document.getElementById('segment-reach-body').innerHTML = err('Could not load segments');
+  }
+}
+
+async function loadCampaigns() {
+  try {
+    const d = await apiCampaigns();
+    renderCampaignTable(d.campaigns, d.total);
+  } catch (e) {
+    document.getElementById('campaigns-table-wrap').innerHTML = err('Could not load campaigns');
+  }
+}
+
+async function loadAnalytics() {
+  try {
+    const d = await api('analytics');
+    analyticsData = d;
+    renderAnalytics(d);
+    renderReports(d, null);
+  } catch (e) {
+    document.getElementById('analytics-body').innerHTML = err('Could not load analytics');
+  }
+}
+
+// ── Renderers ────────────────────────────────────────────────────────────────
+
+function renderStatRow1(qs, optin) {
+  document.getElementById('stat-row1').innerHTML = `
+    ${statCard('Reachable Players', fmt(qs.reachable_players?.value), qs.reachable_players?.change_pct)}
+    ${statCard('Active This Week', fmt(qs.active_this_week?.value), qs.active_this_week?.change_pct, '~approx')}
+    ${statCard('Live Campaigns', fmt(qs.live_campaigns?.value), null)}
+    ${statCard('Active Segments', fmt(qs.active_segments?.value), null)}
+    ${statCard('Unsubscribe Rate', '—', null, null, true)}
+  `;
+}
+
+function renderStatRow2(qs) {
+  const win = windowDays();
+  document.getElementById('stat-row2').innerHTML = `
+    ${statCard(`Messages Sent (${win}d)`, fmt(qs.messages_sent?.value), qs.messages_sent?.change_pct)}
+    ${statCard('Overall Open Rate', '—', null, null, true)}
+    ${statCard('Click-through Rate', '—', null, null, true)}
+    ${statCard('Opt-outs (7d)', '—', null, null, true)}
+    ${statCard('Player Responses', '—', null, null, true)}
+  `;
+}
+
+function statCard(label, value, changePct, note, untracked) {
+  const changeHtml = untracked
+    ? `<span class="stat-change neutral">↓↓ not tracked</span>`
+    : changePct != null
+      ? `<span class="stat-change ${changePct >= 0 ? 'up' : 'down'}">${changePct >= 0 ? '↑' : '↓'}${Math.abs(changePct)}%</span>`
+      : note
+        ? `<span class="stat-change neutral">${esc(note)}</span>`
+        : `<span class="stat-change neutral">same</span>`;
+
+  return `
+    <div class="stat-card">
+      <div class="stat-label">${esc(label)}</div>
+      <div class="stat-value">${esc(String(value ?? '—'))}</div>
+      ${changeHtml}
+    </div>
+  `;
+}
+
+// ── Channel Reach ────────────────────────────────────────────────────────────
+
+const CH_COLORS = {
+  email: '#2563eb', push: '#16a34a', sms: '#d97706',
+  webhook: '#ea580c', 'in-app': '#db2777',
+};
+
+function chColor(ch) { return CH_COLORS[ch] || '#7c84a0'; }
+
+function renderChannelReach(channels) {
+  if (!channels || !channels.length) {
+    document.getElementById('channel-reach-body').innerHTML = '<div style="color:var(--text-dim);font-size:12px">No channel data yet.</div>';
+    return;
+  }
+
+  document.getElementById('channel-reach-body').innerHTML = channels.map(c => {
+    const pct  = c.reach_pct != null ? Math.round(c.reach_pct * 100) : null;
+    const fill = pct != null ? pct : 0;
+    const color = chColor(c.channel);
+    const pillClass = c.status === 'live' ? 'pill-live' : 'pill-paused';
+    const pillDot   = c.status === 'live' ? '●' : '●';
+
+    return `
+      <div class="ch-row">
+        <span class="ch-dot" style="background:${color}"></span>
+        <span class="ch-name">${esc(cap(c.channel))}</span>
+        <div class="ch-track">
+          <div class="ch-fill" style="width:${fill}%;background:${color}"></div>
+        </div>
+        <span class="ch-pct">${pct != null ? pct + '%' : '—'}</span>
+        <span class="status-pill ${pillClass}">${pillDot} ${esc(cap(c.status))}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Segment Reach ────────────────────────────────────────────────────────────
+
+const SEG_COLORS = ['#2563eb','#16a34a','#d97706','#d97706','#ec4899','#94a3b8','#7c3aed'];
+
+function renderSegmentReach(segments, totalMembers) {
+  if (!segments || !segments.length) {
+    document.getElementById('segment-reach-body').innerHTML = '<div style="color:var(--text-dim);font-size:12px">No segments yet.</div>';
+    return;
+  }
+
+  document.getElementById('segment-reach-body').innerHTML = segments.map((s, i) => {
+    const pct    = s.pct != null ? Math.round(s.pct * 100) : 0;
+    const fill   = Math.min(pct, 100);
+    const color  = SEG_COLORS[i % SEG_COLORS.length];
+    const count  = fmtK(s.members_count);
+
+    return `
+      <div class="seg-row">
+        <span class="seg-dot" style="background:${color}"></span>
+        <span class="seg-name">${esc(s.name)}</span>
+        <div class="seg-track">
+          <div class="seg-fill" style="width:${fill}%;background:${color}"></div>
+        </div>
+        <span class="seg-pct">${pct}%</span>
+        <span class="seg-count">${count}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Channels Table ────────────────────────────────────────────────────────────
+
+function renderChannelTable(channels) {
+  if (!channels || !channels.length) {
+    document.getElementById('channels-table-wrap').innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:12px;text-align:center">No channel data yet.</div>';
+    return;
+  }
+
+  const rows = channels.map(c => {
+    const color    = chColor(c.channel);
+    const pct      = c.reach_pct != null ? Math.round(c.reach_pct * 100) : null;
+    const delRate  = c.delivery_rate != null ? `<span class="rate-good">${pct100(c.delivery_rate)}</span>` : '<span class="rate-na">—</span>';
+    const pillCls  = c.status === 'live' ? 'pill-live' : 'pill-paused';
+    const spark    = sparkline(c.trend_7d || [], color);
+
+    return `
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;flex-shrink:0"></span>
+            <span style="font-weight:600">${esc(cap(c.channel))}</span>
+          </div>
+        </td>
+        <td><span class="status-pill ${pillCls}" style="font-size:10px">● ${esc(cap(c.status))}</span></td>
+        <td>${fmt(c.messages_sent)}</td>
+        <td>${delRate}</td>
+        <td class="rate-na">—</td>
+        <td class="rate-na">—</td>
+        <td>
+          <div class="reach-wrap">
+            <div class="reach-track"><div class="reach-fill" style="width:${pct != null ? pct : 0}%;background:${color}"></div></div>
+            <span style="font-size:12px;font-weight:600">${pct != null ? pct + '%' : '—'}</span>
+          </div>
+        </td>
+        <td>${spark}</td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('channels-table-wrap').innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Channel</th>
+          <th>Status</th>
+          <th>Messages Sent</th>
+          <th>Delivery Rate</th>
+          <th>Open Rate</th>
+          <th>CTR</th>
+          <th>Reach Score</th>
+          <th>Trend (7d)</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  const foot = document.getElementById('channels-table-foot');
+  const liveCount   = channels.filter(c => c.status === 'live').length;
+  const pausedCount = channels.filter(c => c.status === 'paused').length;
+  document.getElementById('channels-foot-text').innerHTML =
+    `<span style="color:var(--green);font-weight:600">● ${liveCount} Live</span>` +
+    (pausedCount ? `&nbsp;&nbsp;<span style="color:var(--amber);font-weight:600">● ${pausedCount} Paused</span>` : '');
+  foot.style.display = '';
+}
+
+// ── Campaign Table ────────────────────────────────────────────────────────────
+
+function renderCampaignTable(campaigns, total) {
+  if (!campaigns || !campaigns.length) {
+    document.getElementById('campaigns-table-wrap').innerHTML = '<div style="padding:20px;color:var(--text-dim);font-size:12px;text-align:center">No live campaigns.</div>';
+    return;
+  }
+
+  const rows = campaigns.map(c => {
+    const segHtml = c.segment_name
+      ? `<span class="seg-chip">${esc(c.segment_name)}</span>`
+      : `<span class="rate-na">All</span>`;
+
+    return `
+      <tr>
+        <td><span class="tbl-link">${esc(c.name)}</span></td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="width:8px;height:8px;border-radius:50%;background:${chColor(c.channel)};display:inline-block;flex-shrink:0"></span>
+            <span>${esc(cap(c.channel))}</span>
+          </div>
+        </td>
+        <td>${segHtml}</td>
+        <td style="font-weight:600">${fmt(c.total_sent)}</td>
+        <td class="rate-na">—</td>
+        <td class="rate-na">—</td>
+        <td class="rate-na">—</td>
+        <td><span class="chip chip-${esc(c.status)}">● ${esc(cap(c.status))}</span></td>
+      </tr>
+    `;
+  }).join('');
+
+  document.getElementById('campaigns-table-wrap').innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Campaign ↕</th>
+          <th>Channel</th>
+          <th>Segment</th>
+          <th>Sent ↕</th>
+          <th>Open Rate ↕</th>
+          <th>CTR ↕</th>
+          <th>Click-throughs ↕</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+  const foot = document.getElementById('campaigns-table-foot');
+  document.getElementById('campaigns-foot-text').textContent = `Showing ${campaigns.length} of ${total} campaigns —`;
+  foot.style.display = '';
+}
+
+// ── Analytics / Bar Chart ─────────────────────────────────────────────────────
+
+function setChartMode(mode) {
+  chartMode = mode;
+  document.getElementById('btn-bar').style.background  = mode === 'bar'  ? 'var(--accent)' : 'none';
+  document.getElementById('btn-bar').style.color       = mode === 'bar'  ? '#fff' : 'var(--text-dim)';
+  document.getElementById('btn-bar').style.borderColor = mode === 'bar'  ? 'var(--accent)' : 'var(--border)';
+  document.getElementById('btn-line').style.background = mode === 'line' ? 'var(--accent)' : 'none';
+  document.getElementById('btn-line').style.color      = mode === 'line' ? '#fff' : 'var(--text-dim)';
+  document.getElementById('btn-line').style.borderColor = mode === 'line' ? 'var(--accent)' : 'var(--border)';
+  if (analyticsData) renderAnalytics(analyticsData);
+}
+
+function renderAnalytics(d) {
+  const daily = d.daily || [];
+  const maxSent = Math.max(...daily.map(r => r.sent), 1);
+
+  let chartHtml;
+  if (chartMode === 'bar') {
+    const bars = daily.slice(-14).map(r => {
+      const hSent = Math.round((r.sent / maxSent) * 110);
+      const hOpen = 0;  // not tracked
+      const hConv = 0;  // not tracked
+      return `
+        <div class="bar-group">
+          <div class="bar-seg" style="height:${hSent}px;background:var(--blue)"></div>
+          <div class="bar-seg" style="height:${hOpen}px;background:var(--surface2)"></div>
+          <div class="bar-seg" style="height:${hConv}px;background:var(--surface2)"></div>
+        </div>
+      `;
+    }).join('');
+
+    chartHtml = `<div class="bar-chart-wrap">${bars}</div>`;
+  } else {
+    // Line chart via SVG
+    const pts = daily.slice(-14);
+    const w = 400, h = 110;
+    const step = w / Math.max(pts.length - 1, 1);
+    const coords = pts.map((r, i) => [i * step, h - Math.round((r.sent / maxSent) * (h - 4)) - 2]);
+    const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c[0]},${c[1]}`).join(' ');
+    chartHtml = `
+      <svg width="100%" height="130" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+        <path d="${path}" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        ${coords.map(c => `<circle cx="${c[0]}" cy="${c[1]}" r="3" fill="var(--blue)"/>`).join('')}
+      </svg>
+    `;
+  }
+
+  const totalSent = daily.reduce((a, r) => a + r.sent, 0);
+  const peakDay   = daily.length ? daily.reduce((a, b) => b.sent > a.sent ? b : a) : null;
+
+  document.getElementById('analytics-body').innerHTML = `
+    ${chartHtml}
+    <div class="chart-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Sent (K)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--surface2);border:1px solid var(--border)"></div> Opens (not tracked)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--surface2);border:1px solid var(--border)"></div> Conversions (not tracked)</div>
+    </div>
+    <div class="chart-summary">
+      <div class="cs-item">
+        <div class="cs-label">Total Sent (window)</div>
+        <div class="cs-val">${fmtK(totalSent)}</div>
+      </div>
+      <div class="cs-item">
+        <div class="cs-label">Peak Day</div>
+        <div class="cs-val">${peakDay ? fmtDate(peakDay.date) : '—'}</div>
+        <div class="cs-sub">${peakDay ? fmt(peakDay.sent) + ' sent' : ''}</div>
+      </div>
+      <div class="cs-item">
+        <div class="cs-label">Avg. CTR</div>
+        <div class="cs-val na">—</div>
+        <div class="cs-sub" style="color:var(--text-dim)">not tracked</div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+
+let _summaryData   = null;
+let _analyticsData = null;
+
+function renderReports(analytics, summary) {
+  if (analytics) _analyticsData = analytics;
+  if (summary)   _summaryData   = summary;
+
+  const mtd    = _analyticsData?.mtd || {};
+  const optin  = _summaryData?.channel_optin || {};
+
+  document.getElementById('reports-body').innerHTML = `
+    <div class="mtd-grid">
+      ${mtdCard('Messages Sent (MTD)', mtd.messages_sent?.value, mtd.messages_sent?.change_pct)}
+      ${mtdCard('Avg. Open Rate (MTD)', null, null, true)}
+      ${mtdCard('Churn Prevented', null, null, true)}
+      ${mtdCard('Segment Growth (MTD)', null, null, true)}
+    </div>
+    <div class="report-list-head">All CRM Reports</div>
+    <div class="report-list">
+      ${reportItem('📊', 'Campaign Stats Report')}
+      ${reportItem('👥', 'Segment Analysis Report')}
+      ${reportItem('🗂', 'Channel Delivery Report')}
+      ${reportItem('💚', 'Player Lifecycle Report')}
+      ${reportItem('↩', 'Churn &amp; Retention Report')}
+    </div>
+  `;
+}
+
+function mtdCard(label, value, changePct, untracked) {
+  const valHtml = untracked
+    ? `<div class="mtd-value na">—</div><div class="mtd-change" style="color:var(--text-dim)">not tracked</div>`
+    : `<div class="mtd-value">${fmt(value)}</div>
+       ${changePct != null ? `<div class="mtd-change ${changePct >= 0 ? 'up' : 'down'}">${changePct >= 0 ? '↑' : '↓'}${Math.abs(changePct)}%</div>` : ''}`;
+  return `
+    <div class="mtd-card">
+      <div class="mtd-label">${esc(label)}</div>
+      ${valHtml}
+    </div>
+  `;
+}
+
+function reportItem(icon, name) {
+  return `
+    <div class="report-item">
+      <div class="report-name">
+        <span class="report-icon">${icon}</span>
+        <span>${name}</span>
+      </div>
+      <span style="color:var(--text-dim)">›</span>
+    </div>
+  `;
+}
+
+// ── Player Health ─────────────────────────────────────────────────────────────
+
+function renderHealth(h) {
+  if (!h) return;
+
+  const total = h.total_users || 1;
+  const newPct     = pct(h.new?.count, total);
+  const healthyPct = pct(h.healthy?.count, total);
+  const riskPct    = pct(h.at_risk?.count, total);
+  const churnPct   = pct(h.churned?.count, total);
+
+  document.getElementById('health-body').innerHTML = `
+    <div class="health-grid">
+      <div class="hcard hcard-new">
+        <div class="hcard-label">New</div>
+        <div class="hcard-val">${fmtK(h.new?.count)}</div>
+        <div class="hcard-pct">${newPct}%</div>
+      </div>
+      <div class="hcard hcard-healthy">
+        <div class="hcard-label">Healthy</div>
+        <div class="hcard-val">${fmtK(h.healthy?.count)}</div>
+        <div class="hcard-pct">${healthyPct}%</div>
+      </div>
+      <div class="hcard hcard-risk">
+        <div class="hcard-label">At Risk</div>
+        <div class="hcard-val">${fmtK(h.at_risk?.count)}</div>
+        <div class="hcard-pct">${riskPct}%</div>
+      </div>
+      <div class="hcard hcard-churned">
+        <div class="hcard-label">Churned</div>
+        <div class="hcard-val">${fmtK(h.churned?.count)}</div>
+        <div class="hcard-pct">${churnPct}%</div>
+      </div>
+    </div>
+
+    <div class="hbar-row">
+      <span class="hbar-label">At-Risk Contacted</span>
+      <div class="hbar-track"><div class="hbar-fill" style="width:0%;background:var(--blue)"></div></div>
+      <span class="hbar-val na">—</span>
+    </div>
+    <div class="hbar-row">
+      <span class="hbar-label">Re-engagement Rate</span>
+      <div class="hbar-track"><div class="hbar-fill" style="width:0%;background:var(--green)"></div></div>
+      <span class="hbar-val na">—</span>
+    </div>
+    <div class="hbar-row" style="margin-bottom:0">
+      <span class="hbar-label">Win-back Success</span>
+      <div class="hbar-track"><div class="hbar-fill" style="width:0%;background:var(--amber)"></div></div>
+      <span class="hbar-val na">—</span>
+    </div>
+  `;
+}
+
+// ── Segments Breakdown (Donut) ────────────────────────────────────────────────
+
+function renderBreakdown(h, optin) {
+  if (!h) return;
+
+  const total      = h.total_users || 1;
+  const segments   = [
+    { label: 'Healthy',  count: h.healthy?.count || 0, color: '#16a34a' },
+    { label: 'At-Risk',  count: h.at_risk?.count  || 0, color: '#d97706' },
+    { label: 'Churned',  count: h.churned?.count  || 0, color: '#dc2626' },
+    { label: 'New',      count: h.new?.count      || 0, color: '#2563eb' },
+  ];
+
+  const donut = donutChart(segments, total);
+  const legend = segments.map(s =>
+    `<div class="dl-item"><span class="dl-dot" style="background:${s.color}"></span>${esc(s.label)} (${pct(s.count, total)}%)</div>`
+  ).join('');
+
+  document.getElementById('breakdown-body').innerHTML = `
+    <div class="donut-area">
+      ${donut}
+      <div class="donut-legend">${legend}</div>
+    </div>
+    <div class="optin-grid">
+      <div class="optin-card">
+        <div class="optin-label">Opted-in to Email</div>
+        <div class="optin-val">${fmt(optin?.email?.count)}</div>
+      </div>
+      <div class="optin-card">
+        <div class="optin-label">Opted-in to SMS</div>
+        <div class="optin-val">${fmt(optin?.sms?.count)}</div>
+      </div>
+      <div class="optin-card">
+        <div class="optin-label">Opted-in to Push</div>
+        <div class="optin-val">${fmt(optin?.push?.count)}</div>
+      </div>
+      <div class="optin-card">
+        <div class="optin-label">Opted-in to WhatsApp</div>
+        <div class="optin-val na">—</div>
+      </div>
+    </div>
+  `;
+}
+
+function donutChart(segments, total) {
+  const r = 46, cx = 60, cy = 60;
+  const circumference = 2 * Math.PI * r;
+  let offset = 0;
+  const paths = segments.map(s => {
+    const proportion = total ? s.count / total : 0;
+    const dash  = proportion * circumference;
+    const gap   = circumference - dash;
+    const path  = `<circle
+      cx="${cx}" cy="${cy}" r="${r}"
+      fill="none"
+      stroke="${s.color}"
+      stroke-width="16"
+      stroke-dasharray="${dash} ${gap}"
+      stroke-dashoffset="${circumference * 0.25 - offset}"
+      transform="rotate(-90 ${cx} ${cy})"
+    />`;
+    offset += dash;
+    return path;
+  });
+
+  return `
+    <svg width="120" height="120" viewBox="0 0 120 120">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface2)" stroke-width="16"/>
+      ${paths.join('')}
+      <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle"
+            font-size="13" font-weight="800" fill="var(--text)">${fmtK(total)}</text>
+      <text x="${cx}" y="${cy + 14}" text-anchor="middle"
+            font-size="9" fill="var(--text-dim)">players</text>
+    </svg>
+  `;
+}
+
+// ── Sparkline SVG ─────────────────────────────────────────────────────────────
+
+function sparkline(trend, color) {
+  if (!trend || trend.length < 2) return '<span class="rate-na">—</span>';
+  const vals = trend.map(t => t.sent);
+  const max  = Math.max(...vals, 1);
+  const w = 70, h = 28, pad = 2;
+  const step = (w - pad * 2) / (vals.length - 1);
+  const pts  = vals.map((v, i) => [
+    pad + i * step,
+    h - pad - ((v / max) * (h - pad * 2)),
+  ]);
+  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <path d="${d}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+// ── Formatting helpers ────────────────────────────────────────────────────────
+
+function fmt(v) {
+  if (v == null || v === '') return '—';
+  return Number(v).toLocaleString();
+}
+
+function fmtK(v) {
+  if (v == null) return '—';
+  if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+  if (v >= 1000)    return (v / 1000).toFixed(1) + 'K';
+  return String(v);
+}
+
+function pct100(v) { return v != null ? (v * 100).toFixed(1) + '%' : '—'; }
+
+function pct(part, total) {
+  if (!total || part == null) return 0;
+  return Math.round((part / total) * 100);
+}
+
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function err(msg) {
+  return `<div style="padding:20px;color:var(--red);font-size:12px;text-align:center">${esc(msg)}</div>`;
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+loadConfig();
+getPortalToken().then(() => loadAll());
+</script>
+
+</body>
+</html>

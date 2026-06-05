@@ -47,7 +47,7 @@ def _map_validation_error(e: ValidationError) -> tuple[str, str]:
 
 
 @router.post(
-    "/api/v1/events/track",
+    "/track",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=TrackResponse,
 )

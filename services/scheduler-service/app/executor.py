@@ -117,7 +117,7 @@ async def handle_execution(
 
     # 4. Post-execution state update
     now = _utcnow()
-    if event.trigger_type == "one_off":
+    if event.trigger_type in ("one_off", "immediate"):
         await complete_oneoff_campaign(db, project_id, campaign_id)
     else:
         cron = campaign.get("trigger", {}).get("cron", "")

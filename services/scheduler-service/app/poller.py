@@ -8,7 +8,11 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import settings
 from app.models import ExecutionEvent
-from shared.clients.mongo import lock_due_cron_campaign, lock_due_oneoff_campaign
+from shared.clients.mongo import (
+    lock_due_cron_campaign,
+    lock_due_immediate_campaign,
+    lock_due_oneoff_campaign,
+)
 
 log = structlog.get_logger()
 
@@ -49,6 +53,16 @@ async def poll_once(db: AsyncIOMotorDatabase, producer: AIOKafkaProducer) -> Non
                 campaign_id=campaign["campaign_id"],
                 project_id=campaign["project_id"],
                 trigger_type="scheduled",
+                fired_at=now,
+            )
+            await _publish(producer, event)
+
+        campaign = await lock_due_immediate_campaign(db, now)
+        if campaign:
+            event = ExecutionEvent(
+                campaign_id=campaign["campaign_id"],
+                project_id=campaign["project_id"],
+                trigger_type="immediate",
                 fired_at=now,
             )
             await _publish(producer, event)
