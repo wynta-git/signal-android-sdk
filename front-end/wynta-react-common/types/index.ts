@@ -2,6 +2,12 @@
 
 // ── Common ────────────────────────────────────────────────────────────────────
 
+export interface WyntaBridge {
+  token?: string;
+  user?:  unknown;
+  [key: string]: unknown;
+}
+
 export type AsyncStatus = 'idle' | 'loading' | 'succeeded' | 'failed';
 
 export interface Brand {
@@ -16,6 +22,12 @@ export interface SystemUser {
   username: string;
   email: string;
   user_type: string;
+}
+
+export interface AuthResponse {
+  data: {
+    token: string;
+  };
 }
 
 // ── Segments & Players ────────────────────────────────────────────────────────

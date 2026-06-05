@@ -5,7 +5,13 @@
       "Bash(cd /d/PAM/front-end && find . -maxdepth 4 -path ./node_modules -prune -o -type f \\\\\\( -name \"*auth*\" -o -name \"*login*\" -o -name \"*Auth*\" -o -name \"*Login*\" \\\\\\) -print)",
       "Read(//d/d/PAM/**)",
       "Bash(grep -E \"^-.*\\\\.py$\")",
-      "Bash(Get-ChildItem shared\\\\auth -ErrorAction SilentlyContinue)"
+      "Bash(Get-ChildItem shared\\\\auth -ErrorAction SilentlyContinue)",
+      "Bash(npx tsc *)",
+      "Bash(rm -rf wynta-web/node_modules wynta-bonus/node_modules wynta-crm/node_modules wynta-react-common/node_modules)",
+      "Bash(ls node_modules/.bin/next -la)",
+      "Bash(node node_modules/.bin/next --version)",
+      "Bash(grep -E \"^next$|^react$\")",
+      "Bash(npm install *)"
     ]
   }
 }

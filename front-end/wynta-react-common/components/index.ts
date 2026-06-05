@@ -9,3 +9,4 @@ export { default as MultiSelect } from './MultiSelect';
 export { default as Pager } from './Pager';
 export { default as Toggle } from './Toggle';
 export { default as ValidityBar } from './ValidityBar';
+export { default as DjHeaderSlot } from './DjHeaderSlot';
