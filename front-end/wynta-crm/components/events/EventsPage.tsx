@@ -198,7 +198,7 @@ export default function EventsPage() {
             onSelect={handleSelect}
           />
 
-          <EventList
+          {/* <EventList
             title="Derived Rules"
             icon="git-branch"
             iconColor="var(--blue, #0091e0)"
@@ -207,10 +207,10 @@ export default function EventsPage() {
             loading={loading}
             onSelect={() => {}}
             selectable={false}
-          />
+          /> */}
 
           <EventList
-            title="Property"
+            title="User Property"
             icon="tag"
             iconColor="var(--success, #10b981)"
             items={traits}

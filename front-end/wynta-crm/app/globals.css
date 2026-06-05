@@ -82,6 +82,7 @@ html, body {
   flex-direction: column;
   z-index: 10;
   overflow: hidden;
+  padding-top: 42px;
 }
 
 .crm-nav-scroll {
@@ -261,6 +262,7 @@ html, body {
 .crm-content {
   flex: 1;
   overflow-y: auto;
+  padding-top: 42px;
 }
 
 /* ============================================================

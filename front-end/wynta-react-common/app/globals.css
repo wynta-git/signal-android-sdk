@@ -3440,6 +3440,7 @@ body {
   border-right: 1px solid var(--crm-border);
   position: sticky; top: 0; height: 100vh;
   display: flex; flex-direction: column; z-index: 10; overflow: hidden;
+  padding-top: 42px;
 }
 .crm-nav-scroll {
   flex: 1; overflow-y: auto; padding: 6px 0 8px; scrollbar-width: none;
@@ -3520,7 +3521,7 @@ body {
 
 /* Main area */
 .crm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 100vh; overflow: hidden; }
-.crm-content { flex: 1; overflow-y: auto; }
+.crm-content { flex: 1; overflow-y: auto; padding-top: 42px;}
 
 /* Segments page */
 .seg-page { padding: 20px 24px 48px; min-height: 100%; background: var(--crm-bg); }
