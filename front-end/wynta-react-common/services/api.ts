@@ -5,7 +5,7 @@ const BONUS_API =
   "/api/v1/system";
 
 const AUTH_API =
-  (process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:8002") +
+  (process.env.NEXT_PUBLIC_AUTH_API_URL || "http://3.7.48.14:8002") +
   "/api/v1/system";
 
 export const api = {

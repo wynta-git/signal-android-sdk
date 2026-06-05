@@ -29,11 +29,9 @@ export default function DjHeaderSlot() {
       const input = prompt('No auth token found. Please enter your bridge token:');
       if (input) dispatchToken(input);
     }
-    promptForToken();
 
     fetch('/admin/header-fragment/', { credentials: 'include' })
       .then(response => {
-        console.log('[DjHeaderSlot] Received response for header fragment:', response.headers.get('X-Wynta-Bridge'));
         const bridge: WyntaBridge = JSON.parse(response.headers.get('X-Wynta-Bridge') || '{}');
         window.__WYNTA_BRIDGE__ = bridge;
         dispatch(setBridgeData(bridge));
