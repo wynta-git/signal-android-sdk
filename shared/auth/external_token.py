@@ -8,6 +8,11 @@ log = structlog.get_logger()
 
 EXTERNAL_JWT_ALGORITHM = "HS256"
 
+# Temporary mapping: external program id → PAM project_id. Remove once Wynta sends project_id directly.
+_PROGRAM_ID_TO_PROJECT_ID: dict[int, str] = {
+    233: "proj_demo",
+}
+
 
 class InvalidExternalTokenError(Exception):
     """JWT is missing, malformed, expired, has an invalid signature, or is missing required claims.
@@ -49,4 +54,9 @@ def validate_external_jwt(token: str, secret_key: str) -> ExternalTokenContext:
     if raw_project_id is None:
         raise InvalidExternalTokenError()
 
-    return ExternalTokenContext(sub=str(sub), project_id=str(raw_project_id))
+    project_id = _PROGRAM_ID_TO_PROJECT_ID.get(int(raw_project_id))
+    if project_id is None:
+        log.warning("external_jwt_unmapped_program_id", program_id=raw_project_id)
+        raise InvalidExternalTokenError()
+
+    return ExternalTokenContext(sub=str(sub), project_id=project_id)
