@@ -151,7 +151,7 @@ export default function AnalyticsChart() {
           <div style={{ display: 'flex', gap: 6 }}>
             {/* Field toggle */}
             <div style={{ display: 'flex', border: '1px solid var(--crm-border)', borderRadius: 6, overflow: 'hidden' }}>
-              {(['sent', 'delivered'] as const).map(f => (
+              {(['sent', 'failed'] as const).map(f => (
                 <button key={f} onClick={() => setField(f)} style={{
                   fontSize: 11, padding: '4px 10px', border: 'none', cursor: 'pointer',
                   background: field === f ? 'var(--crm-blue)' : 'transparent',
@@ -211,8 +211,8 @@ export default function AnalyticsChart() {
         {!loading && mtd && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[
-              { label: 'Total Sent',       value: fmt(mtd.messages_sent?.value) },
-              { label: 'Avg. Delivery Rate', value: mtd.avg_delivery_rate?.value != null ? `${(mtd.avg_delivery_rate.value * 100).toFixed(1)}%` : '—' },
+              { label: 'Total Sent',         value: fmt(mtd.total_sent) },
+              { label: 'Total Delivered',    value: fmt(mtd.total_delivered) },
               { label: 'Avg. Open Rate',   value: <TrackedMtdValue v={mtd.avg_open_rate} /> },
               { label: 'Avg. CTR',         value: <TrackedMtdValue v={mtd.avg_ctr} /> },
             ].map(row => (

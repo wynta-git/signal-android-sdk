@@ -51,7 +51,7 @@ export default function PlayerSegments() {
       {!loading && items.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {items.map((seg, i) => (
-            <div key={seg.segment_id ?? i}>
+            <div key={seg.id ?? i}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{
                   fontSize: 12, fontWeight: 500, color: 'var(--crm-fg2)',
