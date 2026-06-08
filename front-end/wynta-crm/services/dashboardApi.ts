@@ -1,11 +1,15 @@
+import { getToken } from 'wynta-react-common/services/tokenRegistry';
 
 const BASE = process.env.NEXT_PUBLIC_CAMPAIGN_API_URL || 'http://3.7.48.14:8004';
 const ROOT = (projectId: string) =>
   `${BASE}/api/v1/campaign/projects/${projectId}/dashboard`;
 
+// // Hardcoded token (expired — kept for reference):
+// // Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...proj_demo...
+
 const authHeader = () => ({
   'Content-Type': 'application/json',
-  Authorization: `Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJwb3J0YWwtdWkiLCJpc3MiOiJwYW0tYXV0aC1zZXJ2aWNlIiwidHlwZSI6InBvcnRhbCIsInByb2plY3RfaWQiOiJwcm9qX2RlbW8iLCJpYXQiOjE3ODA2NzQwNTQsImV4cCI6MTc4MDY5NTY1NCwic2NvcGUiOlsic2VnbWVudHM6cmVhZCIsInNlZ21lbnRzOndyaXRlIiwiY2FtcGFpZ25zOnJlYWQiLCJjYW1wYWlnbnM6d3JpdGUiXX0.demjLpwe_JjhMJ0RzLxFNCNji_szc0uIVJnqLNuoWZYHm0ynLvfCGctGE8LUcqKfWJ1jQkHG9B4jPsljtp_84An48M7mfmYPoDfgYJB0UmdcYSICHacIY1yFUErX0Q7lpI7ggJYmDEqG_b6_UMMPz0Y3-Xu_EesMptHR1CGsx-n48oXmTskkgD3pgvxhttBDla6s2qsfWpjjhwMa3o_CvHEmyHWSl04fC1Lb5YYiF9ISRyK0bSpFk18WhTCt6A5XyL5w6rNyvZc1Jo3S8i6LxsruztjL7OnJPd7TS9daDHOFieHXCIxzBhEqiZMjyb0FIzIFNXhbDRu2kGuzIzenug`,
+  Authorization: `Bearer ${getToken()}`,
 });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -105,25 +109,24 @@ export interface DailyAnalytics {
 }
 
 export interface AnalyticsData {
-  window_days: number;
   daily: DailyAnalytics[];
   mtd: {
-    messages_sent:     { value: number; change_pct?: number | null };
-    avg_delivery_rate: { value: number | null };
-    avg_open_rate:     TrackedMetric;
-    avg_ctr:           TrackedMetric;
+    total_sent: number;
+    total_delivered: number;
+    avg_open_rate: TrackedMetric;
+    avg_ctr: TrackedMetric;
   };
 }
 
 // ── Fetch functions ───────────────────────────────────────────────────────────
 
-export async function fetchSummary(projectId: string, windowDays = 7): Promise<SummaryData> {
+export async function fetchSummary(projectId: string, windowDays = 30): Promise<SummaryData> {
   const res = await fetch(`${ROOT(projectId)}/summary?window_days=${windowDays}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchSummary failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchChannels(projectId: string, windowDays = 7): Promise<ChannelData[]> {
+export async function fetchChannels(projectId: string, windowDays = 30): Promise<ChannelData[]> {
   const res = await fetch(`${ROOT(projectId)}/channels?window_days=${windowDays}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchChannels failed: ${res.status}`);
   const data = await res.json();
