@@ -607,9 +607,9 @@ html, body {
   background: #FFFFFF;
   border-radius: 10px;
   box-shadow: 0 20px 60px rgba(17, 24, 39, 0.22), 0 4px 16px rgba(17, 24, 39, 0.10);
-  width: 100%;
-  max-width: 640px;
-  max-height: 88vh;
+  width: 900px;
+  max-width: 90vw;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   animation: asm-slide-up 0.16s cubic-bezier(0.22, 1, 0.36, 1);

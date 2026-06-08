@@ -253,7 +253,7 @@ export default function AddSegmentModal({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="asm-modal" style={{width:"900px;"}} onMouseDown={e => e.stopPropagation()}>
+      <div className="asm-modal" onMouseDown={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="asm-header">
