@@ -12,14 +12,15 @@ function fmt(n: number | undefined | null): string {
   return n.toLocaleString();
 }
 
-function DonutChart({ values, colors, size = 140, stroke = 26 }: {
+function DonutChart({ values, colors, totalUsers, size = 140, stroke = 26 }: {
   values: number[];
   colors: string[];
+  totalUsers: number;
   size?: number;
   stroke?: number;
 }) {
-  const total = values.reduce((a, b) => a + b, 0);
-  if (total === 0) return <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--g100)' }} />;
+  const total = totalUsers || 1;
+  if (values.every(v => v === 0)) return <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--g100)' }} />;
 
   const r = (size - stroke) / 2;
   const cx = size / 2;
@@ -39,8 +40,8 @@ function DonutChart({ values, colors, size = 140, stroke = 26 }: {
         stroke={colors[i]}
         strokeWidth={stroke}
         strokeDasharray={`${dash} ${gap}`}
-        strokeDashoffset={-offset * circ / total * circ / circ}
-        style={{ transform: `rotate(${offset * 360 / total - 90}deg)`, transformOrigin: `${cx}px ${cy}px` }}
+        strokeDashoffset={-offset / total * circ}
+        style={{ transform: `rotate(${offset / total * 360 - 90}deg)`, transformOrigin: `${cx}px ${cy}px` }}
       />
     );
     offset += v;
@@ -52,7 +53,7 @@ function DonutChart({ values, colors, size = 140, stroke = 26 }: {
       {slices}
       <text x={cx} y={cy - 4} textAnchor="middle" fontSize={11} fill="var(--crm-fg4)">Total</text>
       <text x={cx} y={cy + 12} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--crm-fg1)">
-        {fmt(total)}
+        {fmt(totalUsers)}
       </text>
     </svg>
   );
@@ -66,7 +67,7 @@ export default function SegmentsBreakdown() {
   const optin   = summary?.channel_optin;
 
   const values = health
-    ? [health.new, health.healthy, health.at_risk, health.churned]
+    ? [health.new.count, health.healthy.count, health.at_risk.count, health.churned.count]
     : [];
 
   return (
@@ -97,12 +98,11 @@ export default function SegmentsBreakdown() {
 
       {!loading && health && (
         <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-          <DonutChart values={values} colors={DONUT_COLORS} />
+          <DonutChart values={values} colors={DONUT_COLORS} totalUsers={health.total_users} />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {DONUT_LABELS.map((label, i) => {
               const count = values[i];
-              const total = health.total;
-              const pct = total > 0 ? (count / total * 100).toFixed(1) : '0.0';
+              const pct = health.total_users > 0 ? (count / health.total_users * 100).toFixed(1) : '0.0';
               return (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 10, height: 10, borderRadius: 2, background: DONUT_COLORS[i], flexShrink: 0 }} />
@@ -123,12 +123,11 @@ export default function SegmentsBreakdown() {
             Channel Opt-ins
           </div>
           <div style={{ display: 'flex', gap: 16 }}>
-            {(Object.entries(optin) as [string, { opted_in: number; total: number }][]).map(([ch, v]) => {
-              const pct = v.total > 0 ? (v.opted_in / v.total * 100).toFixed(0) : '0';
+            {(Object.entries(optin) as [string, { count: number }][]).map(([ch, v]) => {
               return (
                 <div key={ch} style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--crm-fg1)' }}>{fmt(v.opted_in)}</div>
-                  <div style={{ fontSize: 10, color: 'var(--crm-fg4)', marginTop: 1 }}>{ch.toUpperCase()} · {pct}%</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--crm-fg1)' }}>{fmt(v.count)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--crm-fg4)', marginTop: 1 }}>{ch.toUpperCase()}</div>
                 </div>
               );
             })}

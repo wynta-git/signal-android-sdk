@@ -1,27 +1,21 @@
 'use client';
 import { useAppSelector } from '../../store/hooks';
 import { selectDashboardChannels, selectDashboardStatus } from '../../store/slices/dashboardSlice';
-import type { TrackedMetric } from '../../services/dashboardApi';
+import type { ChannelData } from '../../services/dashboardApi';
 
-const UNTRACKED_TITLE = 'Not yet tracked — requires provider delivery callbacks';
+const UNTRACKED = <span title="Not yet tracked — requires provider delivery callbacks" style={{ color: 'var(--crm-fg4)' }}>—</span>;
 
-function TrackedCell({ v }: { v: TrackedMetric | undefined }) {
-  if (!v || !v.tracked || v.value === null) {
-    return <span title={UNTRACKED_TITLE} style={{ color: 'var(--crm-fg4)' }}>—</span>;
-  }
-  return <>{v.value.toFixed(1)}%</>;
-}
-
-function Sparkline({ data }: { data: number[] }) {
+function Sparkline({ data }: { data: ChannelData['trend_7d'] }) {
   if (!data || data.length < 2) return <span style={{ color: 'var(--crm-fg4)' }}>—</span>;
-  const max = Math.max(...data, 1);
+  const vals = data.map(t => t.sent);
+  const max = Math.max(...vals, 1);
   const W = 56, H = 22;
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * W;
+  const pts = vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * W;
     const y = H - (v / max) * H;
     return `${x},${y}`;
   }).join(' ');
-  const lastUp = data[data.length - 1] >= data[data.length - 2];
+  const lastUp = vals[vals.length - 1] >= vals[vals.length - 2];
   return (
     <svg width={W} height={H} style={{ display: 'block' }}>
       <polyline points={pts} fill="none" stroke={lastUp ? 'var(--crm-positive)' : 'var(--crm-negative)'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
@@ -92,7 +86,7 @@ export default function ChannelsTable() {
               <tr key={ch.channel}>
                 <td style={TD}>
                   <span style={{ fontWeight: 500, color: 'var(--crm-fg1)' }}>
-                    {ch.display_name || ch.channel}
+                    {ch.channel.charAt(0).toUpperCase() + ch.channel.slice(1)}
                   </span>
                 </td>
                 <td style={TD}>
@@ -107,17 +101,11 @@ export default function ChannelsTable() {
                 <td style={{ ...TD, textAlign: 'right', fontWeight: 500 }}>
                   {fmt(ch.messages_sent)}
                 </td>
-                <td style={{ ...TD, textAlign: 'right' }}>
-                  {ch.delivery_rate != null ? `${ch.delivery_rate.toFixed(1)}%` : (
-                    <span title={UNTRACKED_TITLE} style={{ color: 'var(--crm-fg4)' }}>—</span>
-                  )}
+                <td style={{ ...TD, textAlign: 'right', color: 'var(--crm-positive)', fontWeight: 600 }}>
+                  {ch.delivery_rate != null ? `${(ch.delivery_rate * 100).toFixed(1)}%` : UNTRACKED}
                 </td>
-                <td style={{ ...TD, textAlign: 'right' }}>
-                  <TrackedCell v={ch.open_rate} />
-                </td>
-                <td style={{ ...TD, textAlign: 'right' }}>
-                  <TrackedCell v={ch.ctr} />
-                </td>
+                <td style={{ ...TD, textAlign: 'right' }}>{UNTRACKED}</td>
+                <td style={{ ...TD, textAlign: 'right' }}>{UNTRACKED}</td>
                 <td style={{ ...TD, textAlign: 'center' }}>
                   <Sparkline data={ch.trend_7d} />
                 </td>

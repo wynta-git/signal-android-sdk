@@ -49,7 +49,7 @@ export default function ChannelReach() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <span style={{ fontSize: 14 }}>{CHANNEL_ICON[ch.channel] ?? '📡'}</span>
                   <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--crm-fg2)' }}>
-                    {ch.display_name || ch.channel}
+                    {ch.channel.charAt(0).toUpperCase() + ch.channel.slice(1)}
                   </span>
                   <span style={{
                     fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 20,
@@ -60,12 +60,12 @@ export default function ChannelReach() {
                   </span>
                 </div>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--crm-fg1)' }}>
-                  {ch.reach_pct.toFixed(1)}%
+                  {ch.reach_pct != null ? `${Math.round(ch.reach_pct * 100)}%` : '—'}
                 </span>
               </div>
               <div style={{ height: 6, background: 'var(--g100)', borderRadius: 4, overflow: 'hidden' }}>
                 <div style={{
-                  height: '100%', width: `${Math.min(ch.reach_pct, 100)}%`,
+                  height: '100%', width: `${Math.min((ch.reach_pct ?? 0) * 100, 100)}%`,
                   background: ch.status === 'live' ? 'var(--crm-blue)' : 'var(--g300)',
                   borderRadius: 4, transition: 'width 0.4s ease',
                 }} />

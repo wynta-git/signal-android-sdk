@@ -28,7 +28,7 @@ export default function PlayerHealth() {
   const status  = useAppSelector(selectDashboardStatus);
   const loading = status.summary === 'loading';
   const health  = summary?.player_health;
-  const total   = health?.total ?? 1;
+  const total   = health?.total_users ?? 1;
 
   return (
     <div style={{
@@ -56,8 +56,8 @@ export default function PlayerHealth() {
       {!loading && health && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {BUCKETS.map(b => {
-            const count = health[b.key];
-            const pct   = total > 0 ? (count / total) * 100 : 0;
+            const count = health[b.key].count;
+            const pct   = (health[b.key].pct ?? 0) * 100;
             return (
               <div key={b.key} style={{
                 background: b.bg, borderRadius: 8, padding: '10px 14px',

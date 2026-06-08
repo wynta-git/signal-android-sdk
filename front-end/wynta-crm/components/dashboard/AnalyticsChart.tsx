@@ -20,7 +20,7 @@ function TrackedMtdValue({ v }: { v: TrackedMetric | undefined }) {
   return <>{v.value.toFixed(1)}%</>;
 }
 
-function BarChart({ data, field }: { data: DailyAnalytics[]; field: 'sent' | 'delivered' }) {
+function BarChart({ data, field }: { data: DailyAnalytics[]; field: 'sent' | 'failed' }) {
   const W = 560, H = 140, PAD = { top: 12, right: 8, bottom: 30, left: 40 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
@@ -66,7 +66,7 @@ function BarChart({ data, field }: { data: DailyAnalytics[]; field: 'sent' | 'de
   );
 }
 
-function LineChart({ data, field }: { data: DailyAnalytics[]; field: 'sent' | 'delivered' }) {
+function LineChart({ data, field }: { data: DailyAnalytics[]; field: 'sent' | 'failed' }) {
   const W = 560, H = 140, PAD = { top: 12, right: 8, bottom: 30, left: 40 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
@@ -134,7 +134,7 @@ export default function AnalyticsChart() {
   const status    = useAppSelector(selectDashboardStatus);
   const loading   = status.analytics === 'loading';
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
-  const [field, setField]         = useState<'sent' | 'delivered'>('sent');
+  const [field, setField]         = useState<'sent' | 'failed'>('sent');
 
   const daily = analytics?.daily ?? [];
   const mtd   = analytics?.mtd;
@@ -158,7 +158,7 @@ export default function AnalyticsChart() {
                   color: field === f ? '#fff' : 'var(--crm-fg3)',
                   fontWeight: field === f ? 600 : 400,
                 }}>
-                  {f === 'sent' ? 'Sent' : 'Delivered'}
+                  {f === 'sent' ? 'Sent' : 'Failed'}
                 </button>
               ))}
             </div>
@@ -211,8 +211,8 @@ export default function AnalyticsChart() {
         {!loading && mtd && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[
-              { label: 'Total Sent',       value: fmt(mtd.total_sent) },
-              { label: 'Total Delivered',  value: fmt(mtd.total_delivered) },
+              { label: 'Total Sent',       value: fmt(mtd.messages_sent?.value) },
+              { label: 'Avg. Delivery Rate', value: mtd.avg_delivery_rate?.value != null ? `${(mtd.avg_delivery_rate.value * 100).toFixed(1)}%` : '—' },
               { label: 'Avg. Open Rate',   value: <TrackedMtdValue v={mtd.avg_open_rate} /> },
               { label: 'Avg. CTR',         value: <TrackedMtdValue v={mtd.avg_ctr} /> },
             ].map(row => (

@@ -5,17 +5,8 @@ import {
   selectDashboardCampaigns, selectDashboardStatus,
   fetchDashboardCampaigns,
 } from '../../store/slices/dashboardSlice';
-import type { TrackedMetric } from '../../services/dashboardApi';
-
-const UNTRACKED_TITLE = 'Not yet tracked — requires provider delivery callbacks';
+const UNTRACKED = <span title="Not yet tracked — requires provider delivery callbacks" style={{ color: 'var(--crm-fg4)' }}>—</span>;
 const PAGE_SIZE = 10;
-
-function TrackedCell({ v }: { v: TrackedMetric | undefined }) {
-  if (!v || !v.tracked || v.value === null) {
-    return <span title={UNTRACKED_TITLE} style={{ color: 'var(--crm-fg4)' }}>—</span>;
-  }
-  return <>{v.value.toFixed(1)}%</>;
-}
 
 function fmt(n: number | undefined | null): string {
   if (n == null) return '—';
@@ -108,7 +99,7 @@ export default function CampaignsTable() {
             {!loading && items.map(c => {
               const st = STATUS_STYLE[c.status] ?? { bg: 'var(--g100)', fg: 'var(--crm-fg4)' };
               return (
-                <tr key={c.id}>
+                <tr key={c.campaign_id}>
                   <td style={TD}>
                     <span style={{ fontWeight: 500, color: 'var(--crm-fg1)' }}>{c.name}</span>
                   </td>
@@ -125,9 +116,9 @@ export default function CampaignsTable() {
                   </td>
                   <td style={{ ...TD, color: 'var(--crm-fg3)' }}>{c.segment_name || '—'}</td>
                   <td style={{ ...TD, textAlign: 'right', fontWeight: 500 }}>{fmt(c.total_sent)}</td>
-                  <td style={{ ...TD, textAlign: 'right' }}><TrackedCell v={c.open_rate} /></td>
-                  <td style={{ ...TD, textAlign: 'right' }}><TrackedCell v={c.ctr} /></td>
-                  <td style={{ ...TD, textAlign: 'right' }}><TrackedCell v={c.click_throughs} /></td>
+                  <td style={{ ...TD, textAlign: 'right' }}>{UNTRACKED}</td>
+                  <td style={{ ...TD, textAlign: 'right' }}>{UNTRACKED}</td>
+                  <td style={{ ...TD, textAlign: 'right' }}>{UNTRACKED}</td>
                 </tr>
               );
             })}

@@ -52,18 +52,20 @@ export default function QuickStats() {
   const status  = useAppSelector(selectDashboardStatus);
   const loading = status.summary === 'loading';
   const qs      = summary?.quick_stats;
+  const optin   = summary?.channel_optin;
+  const health  = summary?.player_health;
 
   const cards = [
-    { label: 'Total Players',      value: fmt(qs?.total_players),             change: null },
-    { label: 'Active Players',     value: fmt(qs?.active_players_7d?.value),  change: qs?.active_players_7d?.pct_change },
-    { label: 'New Players',        value: fmt(qs?.new_players_7d?.value),     change: qs?.new_players_7d?.pct_change },
-    { label: 'Total Revenue',      value: qs?.total_revenue?.value != null ? `$${fmt(qs.total_revenue.value)}` : '—', change: qs?.total_revenue?.pct_change },
-    { label: 'Campaigns Sent',     value: fmt(qs?.campaigns_sent),            change: null },
-    { label: 'Msgs Delivered',     value: fmt(qs?.messages_delivered),        change: null },
-    { label: 'Delivery Rate',      value: qs?.delivery_rate?.value != null ? `${qs.delivery_rate.value.toFixed(1)}%` : '—', change: qs?.delivery_rate?.pct_change },
-    { label: 'Opted-in (Push)',    value: fmt(qs?.opted_in_push),             change: null },
-    { label: 'At-Risk Players',    value: fmt(qs?.at_risk_count),             change: null },
-    { label: 'Churned Players',    value: fmt(qs?.churned_count),             change: null },
+    { label: 'Reachable Players', value: fmt(qs?.reachable_players?.value),                                                                       change: qs?.reachable_players?.change_pct ?? null },
+    { label: 'Active This Week',  value: fmt(qs?.active_this_week?.value),                                                                        change: qs?.active_this_week?.change_pct ?? null },
+    { label: 'Live Campaigns',    value: fmt(qs?.live_campaigns?.value),                                                                          change: null },
+    { label: 'Active Segments',   value: fmt(qs?.active_segments?.value),                                                                         change: null },
+    { label: 'Unsubscribe Rate',  value: '—',                                                                                                     change: null },
+    { label: 'Messages Sent',     value: fmt(qs?.messages_sent?.value),                                                                           change: qs?.messages_sent?.change_pct ?? null },
+    { label: 'Delivery Rate',     value: qs?.delivery_rate?.value != null ? `${(qs.delivery_rate.value * 100).toFixed(1)}%` : '—',                change: null },
+    { label: 'Opted-in (Push)',   value: fmt(optin?.push?.count),                                                                                 change: null },
+    { label: 'At-Risk Players',   value: fmt(health?.at_risk?.count),                                                                             change: null },
+    { label: 'Churned Players',   value: fmt(health?.churned?.count),                                                                             change: null },
   ];
 
   return (
