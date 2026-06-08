@@ -11,6 +11,7 @@ EXTERNAL_JWT_ALGORITHM = "HS256"
 # Temporary mapping: external program id → PAM project_id. Remove once Wynta sends project_id directly.
 _PROGRAM_ID_TO_PROJECT_ID: dict[int, str] = {
     233: "proj_demo",
+    92: "Demo_Affiliates",
 }
 
 
