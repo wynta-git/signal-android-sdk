@@ -102,16 +102,9 @@ const usersSlice = createSlice({
         }
       })
       .addCase(authenticateWithBridgeToken.rejected,  (state, action) => {
-        // exchange_token failed — fall back to bridge token if we have one
-        if (state.bridgeToken) {
-          state.authStatus = 'succeeded';
-          state.authError  = null;
-          // Bridge token already registered by setBridgeData; leave registry as-is
-        } else {
-          state.authStatus = 'failed';
-          state.authError  = action.error.message ?? null;
-          state.authToken  = null;
-        }
+        state.authStatus = 'failed';
+        state.authError  = action.error.message ?? null;
+        state.authToken  = null;
       });
   },
 });
