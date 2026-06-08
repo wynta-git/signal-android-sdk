@@ -1537,3 +1537,7 @@ html, body {
   100% { opacity:1; }
 }
 
+
+@keyframes crm-spin {
+  to { transform: rotate(360deg); }
+}

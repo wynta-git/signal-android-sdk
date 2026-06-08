@@ -91,14 +91,29 @@ const usersSlice = createSlice({
         state.authError  = null;
       })
       .addCase(authenticateWithBridgeToken.fulfilled, (state, action) => {
+        // Extract portal token defensively — shape is { data: { token, refresh_interval } }
+        const portalToken = action.payload?.data?.token ?? null;
         state.authStatus = 'succeeded';
-        state.authToken  = action.payload.data.token;
-        setRegisteredToken(action.payload.data.token);
+        state.authError  = null;
+        if (portalToken) {
+          state.authToken = portalToken;
+          // Replace bridge token in registry with the portal token — all subsequent
+          // API calls (dashboard, segments, campaigns, events) use getToken() which
+          // now returns this portal token.
+          setRegisteredToken(portalToken);
+        }
       })
       .addCase(authenticateWithBridgeToken.rejected,  (state, action) => {
-        state.authStatus = 'failed';
-        state.authError  = action.error.message ?? null;
-        state.authToken  = null;
+        // exchange_token failed — fall back to bridge token if we have one
+        if (state.bridgeToken) {
+          state.authStatus = 'succeeded';
+          state.authError  = null;
+          // Bridge token already registered by setBridgeData; leave registry as-is
+        } else {
+          state.authStatus = 'failed';
+          state.authError  = action.error.message ?? null;
+          state.authToken  = null;
+        }
       });
   },
 });
