@@ -9,7 +9,7 @@ from app.dependencies import SystemAuthDep
 from app.dsl.validator import SegmentRule
 from app.refresh.engine import evaluate_segment
 
-router = APIRouter(prefix="/api/v1/segments/admin/projects/{project_id}", tags=["admin"])
+router = APIRouter(prefix="/admin/projects/{project_id}", tags=["admin"])
 
 
 class DerivedRuleParameter(BaseModel):

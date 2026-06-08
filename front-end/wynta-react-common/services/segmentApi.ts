@@ -2,13 +2,14 @@ import type {
   Segment, SegmentRule,
   TraitOperatorsResponse, DerivedRuleConfig, ParameterOperatorsResponse,
 } from "../types";
+import { getToken } from './tokenRegistry';
 
 const BASE = process.env.NEXT_PUBLIC_SEG_API_URL || "http://localhost:8003";
-const SEG_API = `${BASE}/api/v1/segments`;
+const SEG_API = `${BASE}/api/v1/segment`;
 
 const authHeader = () => ({
   "Content-Type": "application/json",
-  Authorization: `Bearer ${process.env.NEXT_PUBLIC_SEG_TOKEN ?? ""}`,
+  Authorization: `Bearer ${getToken()}`,
 });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -222,7 +223,7 @@ export async function previewEvaluate(payload: {
 // ── Segment CRUD ──────────────────────────────────────────────────────────────
 
 export async function fetchSegments(): Promise<Segment[]> {
-  const res = await fetch(SEG_API, { headers: authHeader() });
+  const res = await fetch(`${SEG_API}/segments`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchSegments failed: ${res.status}`);
   const data = await res.json();
   return data.map(toSegment);
@@ -250,10 +251,10 @@ export async function createSegment(payload: {
     if (payload.scheduled_cron)    form.append("scheduled_cron", payload.scheduled_cron);
     form.append("file", payload.csvFile);
 
-    const res = await fetch(SEG_API, {
+    const res = await fetch(`${SEG_API}/segments`, {
       method: "POST",
       // Do NOT set Content-Type — browser sets it automatically with boundary
-      headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_SEG_TOKEN ?? ""}` },
+      headers: { Authorization: `Bearer ${getToken()}` },
       body: form,
     });
     if (!res.ok) throw new Error(`createSegment (csv) failed: ${res.status}`);
@@ -270,7 +271,7 @@ export async function createSegment(payload: {
   };
   if (payload.scheduled_cron) body.scheduled_cron = payload.scheduled_cron;
 
-  const res = await fetch(SEG_API, {
+  const res = await fetch(`${SEG_API}/segments`, {
     method: "POST",
     headers: authHeader(),
     body: JSON.stringify(body),
@@ -280,7 +281,7 @@ export async function createSegment(payload: {
 }
 
 export async function getSegment(segmentId: string): Promise<Segment> {
-  const res = await fetch(`${SEG_API}/${segmentId}`, { headers: authHeader() });
+  const res = await fetch(`${SEG_API}/segments/${segmentId}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`getSegment failed: ${res.status}`);
   return toSegment(await res.json());
 }
@@ -302,7 +303,7 @@ export async function updateSegment(
   if (payload.rules !== undefined && payload.combinator !== undefined) {
     body.rule = buildDSL({ combinator: payload.combinator, rules: payload.rules });
   }
-  const res = await fetch(`${SEG_API}/${segmentId}`, {
+  const res = await fetch(`${SEG_API}/segments/${segmentId}`, {
     method: "PUT",
     headers: authHeader(),
     body: JSON.stringify(body),
@@ -312,7 +313,7 @@ export async function updateSegment(
 }
 
 export async function deleteSegment(segmentId: string): Promise<void> {
-  const res = await fetch(`${SEG_API}/${segmentId}`, {
+  const res = await fetch(`${SEG_API}/segments/${segmentId}`, {
     method: "DELETE",
     headers: authHeader(),
   });
@@ -328,7 +329,7 @@ export async function fetchSegmentMembers(
 ): Promise<MemberPage> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor) params.set("cursor", cursor);
-  const res = await fetch(`${SEG_API}/${segmentId}/members?${params}`, {
+  const res = await fetch(`${SEG_API}/segments/${segmentId}/members?${params}`, {
     headers: authHeader(),
   });
   if (!res.ok) throw new Error(`fetchSegmentMembers failed: ${res.status}`);
@@ -339,7 +340,7 @@ export async function checkMembership(
   segmentId: string,
   userId: string
 ): Promise<MembershipCheck> {
-  const res = await fetch(`${SEG_API}/${segmentId}/members/${encodeURIComponent(userId)}`, {
+  const res = await fetch(`${SEG_API}/segments/${segmentId}/members/${encodeURIComponent(userId)}`, {
     headers: authHeader(),
   });
   if (!res.ok) throw new Error(`checkMembership failed: ${res.status}`);
@@ -349,7 +350,7 @@ export async function checkMembership(
 // ── Evaluate ──────────────────────────────────────────────────────────────────
 
 export async function evaluateSegment(segmentId: string): Promise<EvaluateResult> {
-  const res = await fetch(`${SEG_API}/${segmentId}/evaluate`, {
+  const res = await fetch(`${SEG_API}/segments/${segmentId}/evaluate`, {
     method: "POST",
     headers: authHeader(),
   });

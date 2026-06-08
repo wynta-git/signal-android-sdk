@@ -11,8 +11,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <DjHeaderSlot />
-        <Providers>{children}</Providers>
+        <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+        <Providers>
+          <DjHeaderSlot />
+          {children}
+        </Providers>
       </body>
     </html>
   );

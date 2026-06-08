@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'wynta-react-common/components/Icon';
 import { useCommonSelector } from 'wynta-react-common/store/hooks';
 import {
@@ -47,6 +47,10 @@ interface Step1State {
   estimated_reach:    number;
   global_control:     boolean;
   campaign_control:   boolean;
+  bonus_offer_enabled:     boolean;
+  bonus_selected:          string;
+  bonus_engine_integrated: boolean;
+  bonus_section_enabled:   boolean;
 }
 
 const DEFAULT_S1: Step1State = {
@@ -56,6 +60,8 @@ const DEFAULT_S1: Step1State = {
   segment_id: '', segment_name: '', segment_conditions: null,
   estimated_reach: 0,
   global_control: true, campaign_control: false,
+  bonus_offer_enabled: true, bonus_selected: '',
+  bonus_engine_integrated: true, bonus_section_enabled: true,
 };
 
 /* ------------------------------------------------------------------ */
@@ -162,6 +168,10 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     estimated_reach:    0,
     global_control:     false,   // off until API confirms it
     campaign_control:   false,
+    bonus_offer_enabled:     false,
+    bonus_selected:          '',
+    bonus_engine_integrated: false,
+    bonus_section_enabled:   false,
   } : DEFAULT_S1);
 
   const [s2, setS2] = useState<Step2State>(() => ({
@@ -649,6 +659,26 @@ function Step1({ s, onChange, channel }: Step1Props) {
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewing, setPreviewing]     = useState(false);
 
+  /* Bonus heads — read from shared Redux store (loaded by bonus app), fall back to direct fetch */
+  const reduxBonusHeads = useSelector((state: any) => {
+    const h = state.heads;
+    if (!h?.ids?.length) return null;
+    return (h.ids as number[]).map((id: number) => h.entities[id]).filter(Boolean) as Array<{ id: number; name: string }>;
+  });
+  const selectedBrand = useSelector((state: any) => (state.ui?.selectedBrand ?? 1) as number);
+  const [fetchedBonusHeads, setFetchedBonusHeads] = useState<Array<{ id: number; name: string }> | null>(null);
+
+  useEffect(() => {
+    if (reduxBonusHeads) return; // already in store
+    const base = (process.env.NEXT_PUBLIC_BONUS_API_URL ?? 'http://localhost:8010') + '/api/v1/bonus';
+    fetch(`${base}/bonus-heads?site_id=${selectedBrand}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((data: unknown) => { if (Array.isArray(data)) setFetchedBonusHeads(data as Array<{ id: number; name: string }>); })
+      .catch(() => {});
+  }, [reduxBonusHeads, selectedBrand]);
+
+  const bonusHeads = reduxBonusHeads ?? fetchedBonusHeads ?? [];
+
   const handlePreview = async () => {
     if (!s.segment_id) return;
     setPreviewing(true);
@@ -808,6 +838,86 @@ function Step1({ s, onChange, channel }: Step1Props) {
           </label>
         </div>
       </div>}
+
+      {/* Bonus offer + Preview states */}
+      <div className="cwiz-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Preview states */}
+        <div className="cwiz-checkboxes" style={{border: '1px solid #d1d5db', borderRadius: '10px',padding: '15px 15px',}}>
+          <span className="cwiz-card-title" style={{ marginRight: 4, marginBottom: 0 }}>Preview states:</span>
+          <label className="cwiz-checkbox-label">
+            <input
+              type="checkbox"
+              checked={s.bonus_engine_integrated}
+              onChange={e => set({ bonus_engine_integrated: e.target.checked })}
+            />
+            Bonus Engine integrated
+          </label>
+          <label className="cwiz-checkbox-label">
+            <input
+              type="checkbox"
+              checked={s.bonus_section_enabled}
+              onChange={e => set({ bonus_section_enabled: e.target.checked })}
+            />
+            Section enabled
+          </label>
+        </div>
+
+        {/* Bonus container — dashed blue border */}
+        <div className="cwiz-bonus-section"  style={{border: '1px dashed #0082c9', borderRadius: '10px',padding: '15px 15px', backgroundColor: '#F5FBFF'}}>
+          <div className="cwiz-bonus-head">
+            <div className="cwiz-bonus-head-box">
+              <button type="button" className="asm-btn asm-btn--primary">
+                <span className="cwiz-bonus-badge-icon">
+                  <Icon name="square" size={13} strokeWidth={2} />
+                </span>
+                Bonus offer
+              </button>
+              <span style={{ marginLeft: '25px' }} className="cwiz-bonus-desc">Attach a bonus to this campaign</span>
+              <span style={{ marginLeft: '42%' }}>
+                <Toggle
+                  checked={s.bonus_offer_enabled}
+                  onChange={v => set({ bonus_offer_enabled: v })}
+                />
+              </span>
+            </div>
+          </div>
+          <br/>
+
+          <div className={'cwiz-bonus-body' + (!s.bonus_offer_enabled ? ' disabled' : '')}>
+            <span className="cwiz-label">Select existing bonus</span>
+            <div className="cwiz-seg-row">
+              <select
+                className="cwiz-seg-trigger"
+                style={{ fontFamily: 'inherit', fontSize: 13, color: s.bonus_selected ? 'var(--crm-fg1,#1F2430)' : 'var(--crm-fg4,#9AA0A6)' }}
+                value={s.bonus_selected}
+                onChange={e => set({ bonus_selected: e.target.value })}
+                disabled={!s.bonus_offer_enabled}
+              >
+                <option value="">— Choose a bonus —</option>
+                {bonusHeads.length > 0 ? bonusHeads.map(h => (
+                  <option key={h.id} value={String(h.id)}>{h.name}</option>
+                )) : (
+                  <>
+                    <option value="welcome_bonus">Welcome Bonus</option>
+                    <option value="login_bonus">Login Bonus</option>
+                    <option value="new_year_bonus">New Year Bonus</option>
+                    <option value="christmas_bonus">Christmas Bonus</option>
+                    <option value="weekly_bonus">Weekly Bonus</option>
+                    <option value="cashback_bonus">Cashback Bonus</option>
+                    <option value="loyalty_bonus">Loyalty Bonus</option>
+                    <option value="referral_bonus">Referral Bonus</option>
+                  </>
+                )}
+              </select>
+              <button type="button" className="cwiz-seg-add-btn" disabled={!s.bonus_offer_enabled}>
+                <Icon name="plus" size={13} /> Create bonus
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }

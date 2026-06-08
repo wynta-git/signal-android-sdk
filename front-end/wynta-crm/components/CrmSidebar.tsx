@@ -25,8 +25,9 @@ const CRM_NAV_SECTIONS: NavSection[] = [
     heading: 'CRM',
     items: [
       { id: 'dashboard',     label: 'Dashboard',    icon: 'home'         },
-      { id: 'segments',      label: 'Segments',     icon: 'users-round'  },
       { id: 'campaigns',     label: 'Campaigns',    icon: 'send'         },
+      { id: 'segments',      label: 'Segments',     icon: 'users-round'  },
+      { id: 'events',        label: 'Events',       icon: 'zap'          },
       { id: 'flows',         label: 'Flows',        icon: 'git-branch'   },
       {
         id: 'reports', label: 'Reports', icon: 'bar-chart-2',

@@ -101,11 +101,12 @@ async def body_size_limit(request: Request, call_next: object) -> Response:
     return await call_next(request)  # type: ignore[operator]
 
 
-app.include_router(admin_router)
-app.include_router(track_router)
-app.include_router(identify_router)
-app.include_router(alias_router)
-app.include_router(ready_router)
+route_prefix = "/api/v1/events"
+app.include_router(admin_router, prefix=route_prefix)
+app.include_router(track_router, prefix=route_prefix)
+app.include_router(identify_router, prefix=route_prefix)
+app.include_router(alias_router, prefix=route_prefix)
+app.include_router(ready_router, prefix=route_prefix)
 
 
 @app.get("/api/v1/events/health", include_in_schema=False)

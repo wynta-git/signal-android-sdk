@@ -14,6 +14,7 @@ from app.triggers.event import run_consumer
 from shared.clients.kafka import make_kafka_producer
 from shared.clients.mongo import create_campaign_indexes, make_mongo_client
 from shared.clients.redis import make_redis_client
+from shared.cors import CORS_ORIGINS
 from shared.logging_config import configure_logging
 
 configure_logging(debug=settings.debug)
@@ -65,15 +66,16 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(admin_router)
-app.include_router(templates_router)
-app.include_router(campaigns_router)
-app.include_router(dashboard_router)
+route_prefix = "/api/v1/campaign"
+app.include_router(admin_router, prefix=route_prefix)
+app.include_router(templates_router, prefix=route_prefix)
+app.include_router(campaigns_router, prefix=route_prefix)
+app.include_router(dashboard_router, prefix=route_prefix)
 
 
 @app.get("/health", include_in_schema=False)

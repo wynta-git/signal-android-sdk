@@ -16,7 +16,7 @@ from shared.clients.mongo import (
 log = structlog.get_logger()
 
 router = APIRouter(
-    prefix="/api/v1/campaign/projects/{project_id}/dashboard",
+    prefix="/projects/{project_id}/dashboard",
     tags=["dashboard"],
 )
 

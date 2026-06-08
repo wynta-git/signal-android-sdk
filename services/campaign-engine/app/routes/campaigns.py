@@ -23,7 +23,7 @@ from shared.clients.mongo import (
 )
 
 log = structlog.get_logger()
-router = APIRouter(prefix="/api/v1/campaign/projects/{project_id}", tags=["campaigns"])
+router = APIRouter(prefix="/projects/{project_id}", tags=["campaigns"])
 
 
 def _to_api_format(doc: dict) -> dict:
