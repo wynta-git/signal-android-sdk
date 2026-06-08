@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import {
   fetchDashboardSummary,
@@ -27,9 +28,9 @@ const WINDOW_OPTIONS = [
 ];
 
 export default function DashboardPage() {
-  const dispatch    = useAppDispatch();
-  const windowDays  = useAppSelector(selectDashboardWindowDays);
-  const initialized = useRef(false);
+  const dispatch   = useAppDispatch();
+  const windowDays = useAppSelector(selectDashboardWindowDays);
+  const pathname   = usePathname();
 
   function loadAll(w: number) {
     dispatch(fetchDashboardSummary({ windowDays: w }));
@@ -40,28 +41,21 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    if (initialized.current) return;
-
-    // Fire immediately if token is already set (e.g. navigating back to dashboard)
     if (getToken()) {
-      initialized.current = true;
       loadAll(windowDays);
       return;
     }
-
-    // Token set by DjHeaderSlot asynchronously — poll tokenRegistry directly
-    // (Redux store bridgeToken is unreliable since DjHeaderSlot may be outside our Provider)
+    // Token not ready yet (first load race) — poll until available
     const interval = setInterval(() => {
-      if (getToken() && !initialized.current) {
-        initialized.current = true;
-        loadAll(windowDays);
+      if (getToken()) {
         clearInterval(interval);
+        loadAll(windowDays);
       }
     }, 300);
-
     return () => clearInterval(interval);
+  // pathname in deps means this re-runs every time user navigates back to dashboard
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pathname]);
 
   function handleWindowChange(w: number) {
     dispatch(setWindowDays(w));
