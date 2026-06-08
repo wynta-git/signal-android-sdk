@@ -332,6 +332,12 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
     <>
       <div className="modal-body seg-builder-body">
 
+        {/* Segment name */}
+        <div className="field-group">
+          <label>Segment name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
+        </div>
+
         {/* Info banner */}
         <div className="asm-banner">
           <Icon name="refresh-cw" size={13} color="#0073B2" />
@@ -545,11 +551,6 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
           </div>
         )}
 
-        {/* Segment name */}
-        <div className="field-group" style={{ marginBottom: 0 }}>
-          <label>Segment name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
-        </div>
       </div>
 
       <div className="modal-footer-row builder-footer">

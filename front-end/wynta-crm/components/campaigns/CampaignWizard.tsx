@@ -874,7 +874,7 @@ function Step1({ s, onChange, channel }: Step1Props) {
                 Bonus offer
               </button>
               <span style={{ marginLeft: '25px' }} className="cwiz-bonus-desc">Attach a bonus to this campaign</span>
-              <span style={{ marginLeft: '42%' }}>
+              <span style={{ marginLeft: '32%' }}>
                 <Toggle
                   checked={s.bonus_offer_enabled}
                   onChange={v => set({ bonus_offer_enabled: v })}
