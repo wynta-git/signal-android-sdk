@@ -179,7 +179,7 @@ export default function EventsPage() {
       {evError && (
         <div className="ev-error-banner">
           <Icon name="alert-circle" size={14} />
-          Unable to load events: {evError}
+          Unable to load events. Check your connection and try again.
         </div>
       )}
 

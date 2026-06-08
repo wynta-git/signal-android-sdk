@@ -303,7 +303,7 @@ export default function CampaignsPage() {
               {status === 'loading' ? (
                 <tr><td colSpan={9} className="cp-table-empty">Loading campaigns…</td></tr>
               ) : status === 'failed' ? (
-                <tr><td colSpan={9} className="cp-table-empty">Failed to load campaigns. Check your connection and try again.</td></tr>
+                <tr><td colSpan={9} className="cp-table-empty" style={{ color: 'var(--crm-negative, #D64545)' }}>Unable to load campaigns. Check your connection and try again.</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={9} className="cp-table-empty">
                   {rows.length === 0 ? 'No campaigns yet. Click + Add Campaign to create one.' : 'No campaigns match your filters.'}

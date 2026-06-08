@@ -341,6 +341,12 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
           </span>
         </div>
 
+        {/* Segment name */}
+        <div className="field-group">
+          <label>Segment name</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
+        </div>
+
         {/* Segment type toggle — only for create mode */}
         {mode === 'create' && (
           <div className="seg-type-toggle">
@@ -545,11 +551,6 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
           </div>
         )}
 
-        {/* Segment name */}
-        <div className="field-group" style={{ marginBottom: 0 }}>
-          <label>Segment name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
-        </div>
       </div>
 
       <div className="modal-footer-row builder-footer">
