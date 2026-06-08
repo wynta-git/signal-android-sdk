@@ -5,9 +5,10 @@ import dynamic       from 'next/dynamic';
 import { store }     from '../store';
 import CrmSidebar    from './CrmSidebar';
 
-const SegmentsPage  = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
-const CampaignsPage = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
-const EventsPage    = dynamic(() => import('./events/EventsPage'), { ssr: false });
+const SegmentsPage       = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
+const CampaignsPage      = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
+const EventsPage         = dynamic(() => import('./events/EventsPage'), { ssr: false });
+const IntegrationsPage   = dynamic(() => import('./integrations/IntegrationsPage'), { ssr: false });
 
 /**
  * CrmApp wraps itself in the wynta-crm store Provider.
@@ -32,9 +33,10 @@ function CrmShell() {
 
       <main className="crm-main">
         <div className="crm-content">
-          {activeNav === 'segments'  ? <SegmentsPage  /> :
-           activeNav === 'campaigns' ? <CampaignsPage /> :
-           activeNav === 'events'    ? <EventsPage    /> : (
+          {activeNav === 'segments'     ? <SegmentsPage     /> :
+           activeNav === 'campaigns'    ? <CampaignsPage    /> :
+           activeNav === 'events'       ? <EventsPage       /> :
+           activeNav === 'integrations' ? <IntegrationsPage /> : (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'60vh', color:'var(--crm-fg4)', fontSize:14 }} />
           )}
         </div>
