@@ -58,10 +58,8 @@ const usersSlice = createSlice({
     setBridgeData(state, action: { payload: WyntaBridge }) {
       state.bridgeToken = action.payload.token ?? null;
       state.bridgeData  = action.payload as Record<string, unknown>;
-      // Register bridge token immediately so API calls don't wait for exchange_token round-trip
-      if (action.payload.token) {
-        setRegisteredToken(action.payload.token);
-      }
+      // Bridge token is only valid for exchange_token — do NOT register it here.
+      // The real auth token is registered in authenticateWithBridgeToken.fulfilled.
     },
     /** Clear all auth state on logout */
     logout(state) {
