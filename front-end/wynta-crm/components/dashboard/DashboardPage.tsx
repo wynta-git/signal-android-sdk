@@ -112,7 +112,7 @@ export default function DashboardPage() {
       {/* Row 4: Live campaigns table */}
       <CampaignsTable />
 
-      {/* Row 5: Analytics chart + MTD panel */}
+      {/* Row 5: Analytics chart */}
       <AnalyticsChart />
 
       {/* Row 6: Player health + Segments breakdown */}
