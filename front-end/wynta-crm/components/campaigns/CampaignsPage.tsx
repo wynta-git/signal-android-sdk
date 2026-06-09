@@ -112,6 +112,8 @@ export default function CampaignsPage() {
   const [search,    setSearch]    = useState('');
   const [objective, setObjective] = useState('');
   const [channel,   setChannel]   = useState('');
+  const [page,      setPage]      = useState(1);
+  const PAGE_SIZE = 10;
 
   const filtered = useMemo(() => rows
     .filter(r => {
@@ -125,6 +127,21 @@ export default function CampaignsPage() {
       const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
       return tb - ta;
     }), [rows, search, objective, channel]);
+
+  useEffect(() => { setPage(1); }, [search, objective, channel]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function pageNumbers(): (number | '…')[] {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '…')[] = [1];
+    if (page > 3) pages.push('…');
+    for (let p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) pages.push(p);
+    if (page < totalPages - 2) pages.push('…');
+    pages.push(totalPages);
+    return pages;
+  }
 
   const objectives = useMemo(() => [...new Set(rows.map(r => r.objective).filter(Boolean))], [rows]);
   const channels   = useMemo(() => [...new Set(rows.map(r => r.channel))], [rows]);
@@ -308,7 +325,7 @@ export default function CampaignsPage() {
                 <tr><td colSpan={9} className="cp-table-empty">
                   {rows.length === 0 ? 'No campaigns yet. Click + Add Campaign to create one.' : 'No campaigns match your filters.'}
                 </td></tr>
-              ) : filtered.map(c => {
+              ) : paginated.map(c => {
                 const badge = STATUS_CFG[c.status] ?? { label: c.status, cls: 'cp-badge cp-badge--draft' };
                 return (
                   <tr key={c.id}>
@@ -387,6 +404,24 @@ export default function CampaignsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* ── Pagination ── */}
+        {filtered.length > PAGE_SIZE && (
+          <div className="seg-players-pager">
+            <span className="pager-info">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="pager-controls">
+              <button className="pager-btn" onClick={() => setPage(p => p - 1)} disabled={page === 1}>‹</button>
+              {pageNumbers().map((n, i) =>
+                n === '…'
+                  ? <span key={`e${i}`} className="pager-ellipsis">…</span>
+                  : <button key={n} className={'pager-btn' + (page === n ? ' active' : '')} onClick={() => setPage(n as number)}>{n}</button>
+              )}
+              <button className="pager-btn" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>›</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Modals ── */}

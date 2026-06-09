@@ -94,6 +94,8 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
 
   const [search, setSearch]   = useState('');
   const [typeFilter, setType] = useState<'all' | 'static' | 'dynamic'>('all');
+  const [page, setPage]       = useState(1);
+  const PAGE_SIZE = 10;
 
   type ModalConfig = { mode: 'create' | 'edit'; segmentId?: string } | null;
   const [modalConfig, setModalConfig] = useState<ModalConfig>(null);
@@ -114,6 +116,23 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
       return matchSearch && matchType;
     });
   }, [rows, search, typeFilter]);
+
+  // Reset to page 1 whenever filter/search changes
+  useEffect(() => { setPage(1); }, [search, typeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Build visible page numbers with ellipsis
+  function pageNumbers(): (number | '…')[] {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '…')[] = [1];
+    if (page > 3)  pages.push('…');
+    for (let p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) pages.push(p);
+    if (page < totalPages - 2) pages.push('…');
+    pages.push(totalPages);
+    return pages;
+  }
 
   /* ── Export current filtered rows as CSV ── */
   function handleExport() {
@@ -261,7 +280,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                   </td>
                 </tr>
               ) : (
-                filtered.map(row => (
+                paginated.map(row => (
                   <tr key={row.id}>
                     <td>
                       <div className="seg-row-name">{row.name}</div>
@@ -328,6 +347,24 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
             </tbody>
           </table>
         </div>
+
+        {/* ── Pagination ── */}
+        {filtered.length > PAGE_SIZE && (
+          <div className="seg-players-pager">
+            <span className="pager-info">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="pager-controls">
+              <button className="pager-btn" onClick={() => setPage(p => p - 1)} disabled={page === 1}>‹</button>
+              {pageNumbers().map((n, i) =>
+                n === '…'
+                  ? <span key={`e${i}`} className="pager-ellipsis">…</span>
+                  : <button key={n} className={'pager-btn' + (page === n ? ' active' : '')} onClick={() => setPage(n as number)}>{n}</button>
+              )}
+              <button className="pager-btn" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>›</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Delete confirmation modal */}
