@@ -57,7 +57,24 @@ async def list_segments(
     if brand_id is not None:
         query["brand_id"] = brand_id
     cursor = db[SEGMENTS_COL].find(query, {"_id": 0})
-    return await cursor.to_list(length=None)
+    segments = await cursor.to_list(length=None)
+
+    if segments:
+        segment_ids = [s["segment_id"] for s in segments]
+        campaign_cursor = db["campaigns"].find(
+            {"project_id": project_id, "audience.segment_id": {"$in": segment_ids}},
+            {"_id": 0, "name": 1, "audience.segment_id": 1},
+        )
+        campaigns = await campaign_cursor.to_list(length=None)
+        usage: dict[str, list[str]] = {}
+        for c in campaigns:
+            seg_id = (c.get("audience") or {}).get("segment_id")
+            if seg_id:
+                usage.setdefault(seg_id, []).append(c["name"])
+        for seg in segments:
+            seg["used_by_campaigns"] = usage.get(seg["segment_id"], [])
+
+    return segments
 
 
 async def update_segment(
