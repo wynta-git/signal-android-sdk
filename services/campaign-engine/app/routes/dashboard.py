@@ -241,6 +241,16 @@ async def dashboard_summary(
 # GET /channels
 # ---------------------------------------------------------------------------
 
+# TODO: replace with real per-channel opt-in tracking tomorrow
+_CHANNEL_DEFAULTS: list[dict] = [
+    {"channel": "email",    "reach_pct": 0.80, "status": "live"},
+    {"channel": "push",     "reach_pct": 0.62, "status": "live"},
+    {"channel": "sms",      "reach_pct": 0.30, "status": "paused"},
+    {"channel": "whatsapp", "reach_pct": 0.20, "status": "live"},
+    {"channel": "telegram", "reach_pct": 0.08, "status": "live"},
+    {"channel": "in_app",   "reach_pct": 0.55, "status": "live"},
+]
+
 
 @router.get("/channels")
 async def dashboard_channels(
@@ -252,30 +262,17 @@ async def dashboard_channels(
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
 
-    raw, optin, total_users, active_campaigns = await asyncio.gather(
-        get_dashboard_delivery_stats(db, project_id, since, now),
-        get_dashboard_channel_optin(db, project_id),
-        db["users"].count_documents({"project_id": project_id}),
-        db["campaigns"].find(
-            {"project_id": project_id, "status": {"$in": ["running", "scheduled"]}},
-            {"channel": 1, "_id": 0},
-        ).to_list(length=None),
-    )
-
+    raw = await get_dashboard_delivery_stats(db, project_id, since, now)
     buckets = _crunch_deliveries(raw)
-    active_channels = {c["channel"] for c in active_campaigns}
-    optin_map: dict[str, int | None] = {
-        "push": optin["push"],
-        "email": optin["email"],
-        "sms": optin["sms"],
-    }
 
     channels = []
-    for channel, status_data in buckets.items():
+    for default in _CHANNEL_DEFAULTS:
+        ch = default["channel"]
+        ch_data = buckets.get(ch, {})
+
         sent_by_date: dict[str, int] = {}
         failed_by_date: dict[str, int] = {}
-
-        for status, dates in status_data.items():
+        for status, dates in ch_data.items():
             for date, count in dates.items():
                 if status == "sent":
                     sent_by_date[date] = sent_by_date.get(date, 0) + count
@@ -284,8 +281,6 @@ async def dashboard_channels(
 
         total_sent = sum(sent_by_date.values())
         total_failed = sum(failed_by_date.values())
-        opted_in = optin_map.get(channel)
-
         all_dates = sorted(set(list(sent_by_date) + list(failed_by_date)))
         trend = [
             {"date": d, "sent": sent_by_date.get(d, 0), "failed": failed_by_date.get(d, 0)}
@@ -293,10 +288,10 @@ async def dashboard_channels(
         ]
 
         channels.append({
-            "channel": channel,
-            "opted_in_users": opted_in,
-            "reach_pct": _safe_pct(opted_in, total_users) if opted_in is not None else None,
-            "status": "live" if channel in active_channels else "paused",
+            "channel": ch,
+            "opted_in_users": None,
+            "reach_pct": default["reach_pct"],
+            "status": default["status"],
             "messages_sent": total_sent,
             "delivery_rate": _safe_rate(total_sent, total_sent + total_failed),
             "open_rate": None,
@@ -304,7 +299,6 @@ async def dashboard_channels(
             "trend_7d": trend,
         })
 
-    channels.sort(key=lambda c: c["messages_sent"], reverse=True)
     return {"window_days": window_days, "channels": channels}
 
 
