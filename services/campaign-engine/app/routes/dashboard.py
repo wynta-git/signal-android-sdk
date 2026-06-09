@@ -78,6 +78,7 @@ _BOOSTABLE_FIELDS: frozenset[str] = frozenset({
     "channel_optin.push",
     "channel_optin.email",
     "channel_optin.sms",
+    "quick_stats.opt_outs",
 })
 
 
@@ -215,7 +216,7 @@ async def dashboard_summary(
             },
             "open_rate": _UNTRACKED,
             "ctr": _UNTRACKED,
-            "opt_outs": _UNTRACKED,
+            "opt_outs": {"value": _b(boosts, "quick_stats.opt_outs") or None, "tracked": _b(boosts, "quick_stats.opt_outs") > 0},
             "player_responses": _UNTRACKED,
         },
         "player_health": {
