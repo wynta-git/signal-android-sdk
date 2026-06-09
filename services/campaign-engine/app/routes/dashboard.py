@@ -90,8 +90,20 @@ async def _fetch_boosts(db: AsyncIOMotorDatabase, project_id: str) -> dict[str, 
     return (doc or {}).get("boosts", {})
 
 
+async def _fetch_analytics_defaults(db: AsyncIOMotorDatabase, project_id: str) -> dict:
+    doc = await db["dashboard_boosts"].find_one(
+        {"project_id": project_id},
+        {"_id": 0, "analytics": 1},
+    )
+    return (doc or {}).get("analytics", {})
+
+
 def _b(boosts: dict, key: str) -> int:
     return int(boosts.get(key, 0))
+
+
+# Mon=0 … Sun=6 — weekdays get more volume than weekends
+_DOW_WEIGHTS = [1.2, 1.4, 1.4, 1.3, 1.2, 0.8, 0.7]
 
 
 async def _fetch_segment_names(
@@ -487,15 +499,52 @@ async def dashboard_analytics(
                 elif st == "failed":
                     daily_failed[date] = daily_failed.get(date, 0) + count
 
-    all_dates = sorted(set(list(daily_sent) + list(daily_failed)))
-    daily = [
-        {"date": d, "sent": daily_sent.get(d, 0), "failed": daily_failed.get(d, 0)}
-        for d in all_dates
-    ]
-
     mtd_sent = _sum_status(mtd, "sent")
     prev_mtd_sent = _sum_status(prev_mtd, "sent")
     mtd_failed = _sum_status(mtd, "failed")
+
+    # ── Analytics defaults (demo boost) ──────────────────────────────────────
+    analytics_cfg = await _fetch_analytics_defaults(db, project_id)
+    daily_avg     = int(analytics_cfg.get("daily_avg_sent", 0))
+    override_open = analytics_cfg.get("avg_open_rate")  # decimal fraction, e.g. 0.31
+    override_ctr  = analytics_cfg.get("avg_ctr")        # decimal fraction, e.g. 0.062
+
+    if daily_avg > 0:
+        total_boost  = daily_avg * window_days
+        window_dates = [
+            str((since + timedelta(days=i)).date()) for i in range(window_days)
+        ]
+        total_w = sum(_DOW_WEIGHTS[datetime.strptime(d, "%Y-%m-%d").weekday()] for d in window_dates)
+        base: dict[str, int] = {
+            d: round(total_boost * _DOW_WEIGHTS[datetime.strptime(d, "%Y-%m-%d").weekday()] / total_w)
+            for d in window_dates
+        }
+        all_dates = sorted(set(list(base) + list(daily_sent) + list(daily_failed)))
+        daily = [
+            {
+                "date": d,
+                "sent":   base.get(d, 0) + daily_sent.get(d, 0),
+                "failed": daily_failed.get(d, 0),
+            }
+            for d in all_dates
+        ]
+        mtd_sent      += total_boost
+        prev_mtd_sent += total_boost  # keep change_pct neutral for demo
+    else:
+        all_dates = sorted(set(list(daily_sent) + list(daily_failed)))
+        daily = [
+            {"date": d, "sent": daily_sent.get(d, 0), "failed": daily_failed.get(d, 0)}
+            for d in all_dates
+        ]
+
+    open_rate_out = (
+        {"value": round(override_open * 100, 1), "tracked": True}
+        if override_open is not None else _UNTRACKED
+    )
+    ctr_out = (
+        {"value": round(override_ctr * 100, 1), "tracked": True}
+        if override_ctr is not None else _UNTRACKED
+    )
 
     return {
         "window_days": window_days,
@@ -508,8 +557,8 @@ async def dashboard_analytics(
             "avg_delivery_rate": {
                 "value": _safe_rate(mtd_sent, mtd_sent + mtd_failed),
             },
-            "avg_open_rate": _UNTRACKED,
-            "avg_ctr": _UNTRACKED,
+            "avg_open_rate": open_rate_out,
+            "avg_ctr": ctr_out,
         },
     }
 
@@ -521,10 +570,14 @@ async def dashboard_analytics(
 
 @router.get("/boosts")
 async def get_dashboard_boosts(ctx: PortalAuthDep, db: DbDep) -> dict:
-    boosts = await _fetch_boosts(db, ctx.project_id)
+    doc = await db["dashboard_boosts"].find_one(
+        {"project_id": ctx.project_id},
+        {"_id": 0, "boosts": 1, "analytics": 1},
+    )
     return {
         "project_id": ctx.project_id,
-        "boosts": boosts,
+        "boosts": (doc or {}).get("boosts", {}),
+        "analytics": (doc or {}).get("analytics", {}),
         "supported_fields": sorted(_BOOSTABLE_FIELDS),
     }
 
@@ -541,9 +594,24 @@ async def set_dashboard_boosts(ctx: PortalAuthDep, db: DbDep, body: dict) -> dic
                 status_code=422,
                 detail=f"Boost value for '{key}' must be a non-negative integer",
             )
+
+    analytics: dict = body.get("analytics", {})
+    _ALLOWED_ANALYTICS = {"daily_avg_sent", "avg_open_rate", "avg_ctr"}
+    invalid_a = set(analytics) - _ALLOWED_ANALYTICS
+    if invalid_a:
+        raise HTTPException(status_code=422, detail=f"Unsupported analytics fields: {sorted(invalid_a)}")
+    if "daily_avg_sent" in analytics:
+        if not isinstance(analytics["daily_avg_sent"], int) or analytics["daily_avg_sent"] < 0:
+            raise HTTPException(status_code=422, detail="analytics.daily_avg_sent must be a non-negative integer")
+    for rate_key in ("avg_open_rate", "avg_ctr"):
+        if rate_key in analytics:
+            val = analytics[rate_key]
+            if not isinstance(val, (int, float)) or val < 0:
+                raise HTTPException(status_code=422, detail=f"analytics.{rate_key} must be a non-negative number")
+
     await db["dashboard_boosts"].update_one(
         {"project_id": ctx.project_id},
-        {"$set": {"boosts": boosts, "updated_at": datetime.now(timezone.utc)}},
+        {"$set": {"boosts": boosts, "analytics": analytics, "updated_at": datetime.now(timezone.utc)}},
         upsert=True,
     )
-    return {"project_id": ctx.project_id, "boosts": boosts}
+    return {"project_id": ctx.project_id, "boosts": boosts, "analytics": analytics}
