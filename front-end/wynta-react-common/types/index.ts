@@ -46,6 +46,7 @@ export interface Segment {
   rule?: unknown;
   refresh_strategy?: string;
   scheduled_cron?: string;
+  used_by_campaigns?: string[];
 }
 
 export interface Player {

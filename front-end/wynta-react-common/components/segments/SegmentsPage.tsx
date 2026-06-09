@@ -38,7 +38,7 @@ function toRow(s: Segment): SegmentRow {
     reach:     s.count ? s.count.toLocaleString('en-IN') + ' players' : '—',
     created:   formatRelative(s.last_used_at),
     createdBy: (s as any).owner ?? s.owner ?? 'System',
-    usedIn:    (s as any).used_in ?? [],
+    usedIn:    s.used_by_campaigns ?? (s as any).used_in ?? [],
   };
 }
 
@@ -215,7 +215,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                 <th>Est. Reach</th>
                 <th>Created</th>
                 <th>Created By</th>
-                <th>Used In</th>
+                <th style={{ width: 180 }}>Used In</th>
                 <th></th>
               </tr>
             </thead>
@@ -271,13 +271,19 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                     <td>
                       <div className="seg-creator">{row.createdBy}</div>
                     </td>
-                    <td>
+                    <td style={{ width: 180, maxWidth: 180 }}>
                       {row.usedIn.length > 0 ? (
-                        <div className="seg-used-in">
-                          {row.usedIn.map((u, i) => (
-                            <span key={i} className="seg-campaign-pill">{u}</span>
-                          ))}
-                        </div>
+                        <span
+                          title={row.usedIn.join('\n')}
+                          style={{ fontSize: 12.5, color: 'var(--crm-fg2)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
+                        >
+                          {row.usedIn.slice(0, 3).join(', ')}
+                          {row.usedIn.length > 3 && (
+                            <span style={{ color: 'var(--crm-blue)', fontWeight: 500, marginLeft: 4 }}>
+                              +{row.usedIn.length - 3} more
+                            </span>
+                          )}
+                        </span>
                       ) : (
                         <span style={{ color: 'var(--crm-fg4)', fontSize: 12 }}>—</span>
                       )}
