@@ -32,7 +32,7 @@ function yTicks(max: number): number[] {
 }
 
 function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
-  const W = 800, H = 220, PAD = { top: 14, right: 16, bottom: 36, left: 44 };
+  const W = 800, H = 240, PAD = { top: 14, right: 16, bottom: 52, left: 58 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const max = Math.max(...data.flatMap(d => [d.sent, d.opens, d.conversions]), 1);
@@ -45,13 +45,25 @@ function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
+      {/* Y-axis label */}
+      <text
+        x={12} y={PAD.top + innerH / 2}
+        fontSize={10} fill="#111827" textAnchor="middle"
+        transform={`rotate(-90, 12, ${PAD.top + innerH / 2})`}
+      >
+        Count
+      </text>
+      {/* X-axis label */}
+      <text x={PAD.left + innerW / 2} y={H - 4} fontSize={10} fill="#111827" textAnchor="middle">
+        Date
+      </text>
       {ticks.map(t => {
         const y = PAD.top + innerH * (1 - t / tickMax);
         return (
           <g key={t}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
               stroke="#e5e7eb" strokeWidth={t === 0 ? 1 : 0.5} strokeDasharray={t === 0 ? undefined : '4,3'} />
-            <text x={PAD.left - 6} y={y + 4} fontSize={9} fill="#9ca3af" textAnchor="end">
+            <text x={PAD.left - 6} y={y + 4} fontSize={9} fill="#111827" textAnchor="end">
               {fmt(t)}
             </text>
           </g>
@@ -68,7 +80,7 @@ function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
               const y = PAD.top + innerH - h;
               return <rect key={si} x={x} y={y} width={barW} height={h} rx={2} fill={color} />;
             })}
-            <text x={gx + groupW / 2} y={H - PAD.bottom + 14} fontSize={9} fill="#9ca3af" textAnchor="middle">
+            <text x={gx + groupW / 2} y={H - PAD.bottom + 14} fontSize={9} fill="#111827" textAnchor="middle">
               {d.date.slice(5)}
             </text>
           </g>
@@ -79,7 +91,7 @@ function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
 }
 
 function MultiLineChart({ data }: { data: EnrichedDay[] }) {
-  const W = 800, H = 220, PAD = { top: 14, right: 16, bottom: 36, left: 44 };
+  const W = 800, H = 240, PAD = { top: 14, right: 16, bottom: 52, left: 58 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const max = Math.max(...data.flatMap(d => [d.sent, d.opens, d.conversions]), 1);
@@ -96,13 +108,25 @@ function MultiLineChart({ data }: { data: EnrichedDay[] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
+      {/* Y-axis label */}
+      <text
+        x={12} y={PAD.top + innerH / 2}
+        fontSize={10} fill="#111827" textAnchor="middle"
+        transform={`rotate(-90, 12, ${PAD.top + innerH / 2})`}
+      >
+        Count
+      </text>
+      {/* X-axis label */}
+      <text x={PAD.left + innerW / 2} y={H - 4} fontSize={10} fill="#111827" textAnchor="middle">
+        Date
+      </text>
       {ticks.map(t => {
         const y = PAD.top + innerH * (1 - t / tickMax);
         return (
           <g key={t}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
               stroke="#e5e7eb" strokeWidth={0.5} strokeDasharray="4,3" />
-            <text x={PAD.left - 6} y={y + 4} fontSize={9} fill="#9ca3af" textAnchor="end">
+            <text x={PAD.left - 6} y={y + 4} fontSize={9} fill="#111827" textAnchor="end">
               {fmt(t)}
             </text>
           </g>
@@ -115,7 +139,7 @@ function MultiLineChart({ data }: { data: EnrichedDay[] }) {
       {data.map((d, i) => {
         const x = PAD.left + (i / Math.max(n - 1, 1)) * innerW;
         return (
-          <text key={d.date} x={x} y={H - PAD.bottom + 14} fontSize={9} fill="#9ca3af" textAnchor="middle">
+          <text key={d.date} x={x} y={H - PAD.bottom + 14} fontSize={9} fill="#111827" textAnchor="middle">
             {d.date.slice(5)}
           </text>
         );
@@ -213,7 +237,7 @@ export default function AnalyticsChart() {
           </h2>
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ cursor: 'help' }}>
             <circle cx="7" cy="7" r="6" stroke="#d1d5db" strokeWidth="1.2" />
-            <text x="7" y="11" fontSize="8" fill="#9ca3af" textAnchor="middle">i</text>
+            <text x="7" y="11" fontSize="8" fill="#111827" textAnchor="middle">i</text>
           </svg>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>

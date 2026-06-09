@@ -2,8 +2,8 @@
 import { useAppSelector } from '../../store/hooks';
 import { selectDashboardSummary, selectDashboardStatus } from '../../store/slices/dashboardSlice';
 
-const DONUT_COLORS = ['#0091e0', '#10b981', '#f59e0b', '#ef4444'];
-const DONUT_LABELS = ['New', 'Healthy', 'At Risk', 'Churned'];
+const SEGMENT_COLORS  = ['#10b981', '#f59e0b', '#ef4444', '#0091e0'];
+const SEGMENT_LABELS  = ['Healthy', 'At-Risk', 'Churned', 'New'];
 
 function fmt(n: number | undefined | null): string {
   if (n == null) return '—';
@@ -12,47 +12,45 @@ function fmt(n: number | undefined | null): string {
   return n.toLocaleString();
 }
 
-function DonutChart({ values, colors, totalUsers, size = 140, stroke = 26 }: {
+function DonutChart({ values, colors, totalUsers, size = 180, stroke = 30 }: {
   values: number[];
   colors: string[];
   totalUsers: number;
   size?: number;
   stroke?: number;
 }) {
-  const total = totalUsers || 1;
-  if (values.every(v => v === 0)) return <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--g100)' }} />;
+  const sum = values.reduce((a, b) => a + b, 0);
+  if (sum === 0) return <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--g100)' }} />;
 
-  const r = (size - stroke) / 2;
-  const cx = size / 2;
-  const cy = size / 2;
+  const r    = (size - stroke) / 2;
+  const cx   = size / 2;
+  const cy   = size / 2;
   const circ = 2 * Math.PI * r;
 
-  let offset = 0;
+  let cumulative = 0;
   const slices = values.map((v, i) => {
-    const pct = v / total;
-    const dash = pct * circ;
-    const gap  = circ - dash;
-    const slice = (
+    if (v === 0) { cumulative += v; return null; }
+    const arcLen     = (v / sum) * circ;
+    const startAngle = (cumulative / sum) * 360 - 90;
+    cumulative += v;
+    return (
       <circle
         key={i}
         cx={cx} cy={cy} r={r}
         fill="none"
         stroke={colors[i]}
         strokeWidth={stroke}
-        strokeDasharray={`${dash} ${gap}`}
-        strokeDashoffset={-offset / total * circ}
-        style={{ transform: `rotate(${offset / total * 360 - 90}deg)`, transformOrigin: `${cx}px ${cy}px` }}
+        strokeDasharray={`${arcLen} ${circ - arcLen}`}
+        style={{ transform: `rotate(${startAngle}deg)`, transformOrigin: `${cx}px ${cy}px` }}
       />
     );
-    offset += v;
-    return slice;
   });
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
       {slices}
-      <text x={cx} y={cy - 4} textAnchor="middle" fontSize={11} fill="var(--crm-fg4)">Total</text>
-      <text x={cx} y={cy + 12} textAnchor="middle" fontSize={14} fontWeight={700} fill="var(--crm-fg1)">
+      <text x={cx} y={cy - 6} textAnchor="middle" fontSize={11} fill="var(--crm-fg4)">Total</text>
+      <text x={cx} y={cy + 12} textAnchor="middle" fontSize={16} fontWeight={700} fill="var(--crm-fg1)">
         {fmt(totalUsers)}
       </text>
     </svg>
@@ -66,49 +64,63 @@ export default function SegmentsBreakdown() {
   const health  = summary?.player_health;
   const optin   = summary?.channel_optin;
 
+  // Order matches SEGMENT_LABELS: Healthy, At-Risk, Churned, New
   const values = health
-    ? [health.new.count, health.healthy.count, health.at_risk.count, health.churned.count]
+    ? [health.healthy.count, health.at_risk.count, health.churned.count, health.new.count]
     : [];
+
+  const sum = values.reduce((a, b) => a + b, 0);
+
+  const optinCards = optin ? [
+    { label: 'Opted-in to Push',  value: optin.push.count  },
+    { label: 'Opted-in to Email', value: optin.email.count },
+    { label: 'Opted-in to SMS',   value: optin.sms.count   },
+  ] : [];
 
   return (
     <div style={{
       background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
-      borderRadius: 6, padding: '16px 20px',
+      borderRadius: 6, overflow: 'hidden',
     }}>
-      <div style={{ marginBottom: 16 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--crm-fg1)' }}>Segments Breakdown</h2>
+      {/* Header */}
+      <div style={{ padding: '14px 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+          <path d="M22 12A10 10 0 0 0 12 2v10z" />
+        </svg>
+        <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)', margin: 0 }}>
+          Player Segments Breakdown
+        </h2>
       </div>
 
+      {/* Chart + legend */}
       {loading && (
-        <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
-          <div style={{ width: 140, height: 140, borderRadius: '50%', background: 'var(--g100)' }} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} style={{ height: 20, background: 'var(--g100)', borderRadius: 4 }} />
-            ))}
-          </div>
+        <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 180, height: 180, borderRadius: '50%', background: 'var(--g100)' }} />
+          <div style={{ width: 200, height: 14, background: 'var(--g100)', borderRadius: 4 }} />
         </div>
       )}
 
       {!loading && !health && (
-        <p style={{ fontSize: 12, color: 'var(--crm-fg4)', textAlign: 'center', padding: '20px 0' }}>
+        <p style={{ fontSize: 12, color: 'var(--crm-fg4)', textAlign: 'center', padding: '40px 0' }}>
           No breakdown data available
         </p>
       )}
 
       {!loading && health && (
-        <div style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-          <DonutChart values={values} colors={DONUT_COLORS} totalUsers={health.total_users} />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {DONUT_LABELS.map((label, i) => {
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 20px 12px' }}>
+          <DonutChart values={values} colors={SEGMENT_COLORS} totalUsers={health.total_users} />
+          {/* Legend */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', justifyContent: 'center', marginTop: 16 }}>
+            {SEGMENT_LABELS.map((label, i) => {
               const count = values[i];
-              const pct = health.total_users > 0 ? (count / health.total_users * 100).toFixed(1) : '0.0';
+              const pct = sum > 0 ? (count / sum * 100).toFixed(0) : '0';
               return (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: 2, background: DONUT_COLORS[i], flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: 'var(--crm-fg3)', flex: 1 }}>{label}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--crm-fg1)' }}>{fmt(count)}</span>
-                  <span style={{ fontSize: 11, color: 'var(--crm-fg4)', minWidth: 36, textAlign: 'right' }}>{pct}%</span>
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: SEGMENT_COLORS[i], flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: 'var(--crm-fg3)' }}>
+                    {label} ({pct}%)
+                  </span>
                 </div>
               );
             })}
@@ -116,22 +128,18 @@ export default function SegmentsBreakdown() {
         </div>
       )}
 
-      {/* Channel opt-in counts */}
-      {!loading && optin && (
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--crm-border)' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--crm-fg4)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Channel Opt-ins
-          </div>
-          <div style={{ display: 'flex', gap: 16 }}>
-            {(Object.entries(optin) as [string, { count: number }][]).map(([ch, v]) => {
-              return (
-                <div key={ch} style={{ flex: 1, textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--crm-fg1)' }}>{fmt(v.count)}</div>
-                  <div style={{ fontSize: 10, color: 'var(--crm-fg4)', marginTop: 1 }}>{ch.toUpperCase()}</div>
-                </div>
-              );
-            })}
-          </div>
+      {/* Divider */}
+      <div style={{ height: 1, background: 'var(--crm-border)' }} />
+
+      {/* Opt-in cards */}
+      {!loading && optinCards.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--crm-border)' }}>
+          {optinCards.map(card => (
+            <div key={card.label} style={{ background: 'var(--g50, #f9fafb)', padding: '12px 16px' }}>
+              <div style={{ fontSize: 11, color: 'var(--crm-fg4)', marginBottom: 4 }}>{card.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--crm-fg1)' }}>{fmt(card.value)}</div>
+            </div>
+          ))}
         </div>
       )}
     </div>
