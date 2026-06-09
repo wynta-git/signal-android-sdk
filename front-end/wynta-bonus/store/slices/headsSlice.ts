@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import { api } from '../../services/api';
+import { updateBudget } from './budgetsSlice';
 import type { BonusHead, NormalizedState } from '../../types';
 
 type HeadsState = NormalizedState<BonusHead>;
@@ -52,6 +53,15 @@ const headsSlice = createSlice({
       .addCase(updateHead.fulfilled, (state, action) => {
         const h = action.payload;
         state.entities[h.id] = { ...state.entities[h.id], ...h };
+      })
+      .addCase(updateBudget.fulfilled, (state, action) => {
+        const [scope, idStr] = action.payload.key.split(':');
+        if (scope === 'head') {
+          const id = Number(idStr);
+          if (state.entities[id]) {
+            state.entities[id] = { ...state.entities[id]!, budget: action.payload.periods };
+          }
+        }
       });
   },
 });

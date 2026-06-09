@@ -3,7 +3,11 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { closeDrawer } from '../../store/slices/uiSlice';
-import { createHead, updateHead } from '../../store/slices/headsSlice';
+import { createHead, updateHead, fetchHead } from '../../store/slices/headsSlice';
+import { createSubhead, updateSubhead, fetchSubhead } from '../../store/slices/subheadsSlice';
+import { createConfigure, updateConfigure } from '../../store/slices/configuresSlice';
+import { updateBudget } from '../../store/slices/budgetsSlice';
+import type { BudgetPeriod } from '../../types';
 import Icon from 'wynta-react-common/components/Icon';
 import DrawerForm from './DrawerForm';
 import type { DrawerType } from '../../types';
@@ -32,6 +36,8 @@ export default function SlideDrawer() {
   const dispatch = useAppDispatch();
   const drawerState = useAppSelector(s => s.ui.drawerState);
   const selectedBrand = useAppSelector(s => s.ui.selectedBrand);
+  const bridgeData = useAppSelector(s => s.users.bridgeData);
+  const currentUser: string = (bridgeData?.user as { username?: string } | null)?.username ?? 'system';
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -66,6 +72,59 @@ export default function SlideDrawer() {
           id: drawerState.id,
           patch: { ...data, owner: ownerIdent, updated_by: actor } as unknown as Partial<import('../../types').BonusHead>,
         })).unwrap();
+      } else if (drawerState?.type === 'NEW_SUBHEAD' && drawerState.parentId != null) {
+        await dispatch(createSubhead({
+          parentId: drawerState.parentId,
+          payload: {
+            site_id: selectedBrand,
+            name: data.name,
+            description: data.description,
+            active: data.active,
+            owner: ownerIdent,
+            created_by: actor,
+          },
+        })).unwrap();
+        // Refresh parent head so its subheads list includes the new entry
+        dispatch(fetchHead(drawerState.parentId));
+      } else if (drawerState?.type === 'EDIT_SUBHEAD' && drawerState.id != null) {
+        const updated = await dispatch(updateSubhead({
+          id: drawerState.id,
+          patch: {
+            name: data.name,
+            description: data.description,
+            active: data.active,
+            owner: ownerIdent,
+            updated_by: actor,
+          } as unknown as import('../../types').BonusSubhead,
+        })).unwrap();
+        // Refresh parent head so the tree shows the updated subhead name/status
+        if (updated?.head_id) dispatch(fetchHead(updated.head_id));
+        dispatch(closeDrawer());
+      } else if (drawerState?.type === 'NEW_CONFIGURE' && drawerState.parentId != null) {
+        await dispatch(createConfigure({
+          parentId: drawerState.parentId,
+          payload: {
+            ...data,
+            site_id: selectedBrand,
+            created_by: currentUser,
+          },
+        })).unwrap();
+      } else if (drawerState?.type === 'EDIT_CONFIGURE' && drawerState.id != null) {
+        await dispatch(updateConfigure({
+          id: drawerState.id,
+          patch: { ...data, updated_by: currentUser } as unknown as import('../../types').BonusConfigure,
+        })).unwrap();
+        dispatch(closeDrawer());
+      } else if (drawerState?.type === 'EDIT_BUDGET' && drawerState.id != null) {
+        const scope = drawerState.scope ?? 'head';
+        await dispatch(updateBudget({
+          scope,
+          id: drawerState.id,
+          periods: data.periods as BudgetPeriod[],
+          updatedBy: currentUser,
+        })).unwrap();
+        if (scope === 'head') dispatch(fetchHead(drawerState.id));
+        if (scope === 'subhead') dispatch(fetchSubhead(drawerState.id));
       }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong');

@@ -31,10 +31,15 @@ const historySlice = createSlice({
   initialState,
   reducers: {},
   extraReducers(builder) {
-    builder.addCase(fetchHistory.fulfilled, (state, action) => {
-      const { type, id, events } = action.payload;
-      state[type][id] = events;
-    });
+    builder
+      .addCase(fetchHistory.fulfilled, (state, action) => {
+        const { type, id, events } = action.payload;
+        state[type][id] = events;
+      })
+      .addCase(fetchHistory.rejected, (state, action) => {
+        const { type, id } = action.meta.arg;
+        state[type][id] = [];
+      });
   },
 });
 

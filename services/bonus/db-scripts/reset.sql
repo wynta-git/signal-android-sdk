@@ -4,7 +4,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 -- Drop all tables (reverse dependency order)
 -- 5. Log
-DROP TABLE IF EXISTS `bonus_audit_log`;
+DROP TABLE IF EXISTS `bonus_change_log`;
 -- 4. Reporting
 DROP TABLE IF EXISTS `bonus_spend_monthly`;
 DROP TABLE IF EXISTS `bonus_spend_weekly`;
@@ -782,14 +782,13 @@ CREATE TABLE `bonus_spend_monthly` (
 -- 5. LOG TABLES
 -- =============================================================================
 
--- bonus_audit_log
-CREATE TABLE `bonus_audit_log` (
+-- bonus_change_log
+CREATE TABLE `bonus_change_log` (
     `id`          BIGINT        NOT NULL AUTO_INCREMENT,
     `table_name`  VARCHAR(50)   NOT NULL,
     `action`      VARCHAR(10)   NOT NULL,
     -- INSERT | UPDATE
     `entity_id`   INT           NOT NULL,
-    -- bonus_head.id (or parent head id for owners / limits)
     `site_id`     INT           NOT NULL,
     `changed_by`  VARCHAR(100)  NOT NULL,
     `changed_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -26,6 +26,7 @@ from app.services.bonus_head_service import (
     upsert_limits,
     upsert_owners,
 )
+from app.services.history_service import get_head_history
 
 router = APIRouter(prefix="/bonus-heads", tags=["bonus-heads"])
 
@@ -81,6 +82,12 @@ async def put_bonus_head_limits(
     Returns all budget periods (with current usage) after the operation.
     """
     return await upsert_limits(head_id, payload)
+
+
+@router.get("/{head_id}/history")
+async def get_bonus_head_history(head_id: int) -> list[dict]:
+    """Return the change history for a bonus head, including budget updates."""
+    return await get_head_history(head_id)
 
 
 @router.post("", response_model=BonusHeadResponse, status_code=201)

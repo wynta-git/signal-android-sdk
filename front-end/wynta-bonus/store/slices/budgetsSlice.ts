@@ -22,6 +22,7 @@ interface UpdateBudgetArg {
   scope: string;
   id: number;
   periods: BudgetPeriod[];
+  updatedBy?: string;
 }
 
 interface UpdateBudgetResult {
@@ -39,8 +40,8 @@ export const fetchBudget = createAsyncThunk<FetchBudgetResult, FetchBudgetArg>(
 
 export const updateBudget = createAsyncThunk<UpdateBudgetResult, UpdateBudgetArg>(
   'budgets/update',
-  ({ scope, id, periods }) =>
-    api.updateBudget(scope, id, periods).then((p) => ({ key: `${scope}:${id}`, periods: p }))
+  ({ scope, id, periods, updatedBy }) =>
+    api.updateBudget(scope, id, periods, updatedBy).then((p) => ({ key: `${scope}:${id}`, periods: p }))
 );
 
 const budgetsSlice = createSlice({

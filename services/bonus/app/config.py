@@ -6,10 +6,10 @@ class Settings(BaseSettings):
     # Set via env: BONUS_S2S_CLIENTS='{"game_server":"secret1","admin":"secret2"}'
     s2s_clients: dict[str, str] = {}
 
-    db_host: str = "localhost"
+    db_host: str = "43.204.90.164"
     db_port: int = 3306
-    db_user: str = "root"
-    db_password: str = "password"
+    db_user: str = "wynta_bonus"
+    db_password: str = "wynta_bonus@1234"
     db_name: str = "wynta_bonus"
     db_pool_minsize: int = 2
     db_pool_maxsize: int = 10

@@ -1,3 +1,5 @@
+import json
+
 import aiomysql
 import structlog
 
@@ -77,23 +79,21 @@ _EXISTS_CONFIGURE_SQL = (
     "SELECT 1 FROM bonus_configure WHERE subhead_id = %s AND name = %s LIMIT 1"
 )
 
-# ---------------------------------------------------------------------------
-# SQL — default bonus_configure_code entry
-# ---------------------------------------------------------------------------
-
-_INSERT_CODE_SQL = """
-    INSERT INTO bonus_configure_code
-        (configure_id, site_id, code, max_amount, valid_from, valid_to,
-         active, created_by, updated_by, row_hash)
-    VALUES
-        (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-"""
-
 _SELECT_CODES_SQL = """
     SELECT id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active
     FROM bonus_configure_code
     WHERE configure_id = %s
     ORDER BY display_order
+"""
+
+# ---------------------------------------------------------------------------
+# SQL — audit log
+# ---------------------------------------------------------------------------
+
+_AUDIT_INSERT_SQL = """
+    INSERT INTO bonus_change_log
+        (table_name, action, entity_id, site_id, changed_by, old_values, new_values)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
 """
 
 # ---------------------------------------------------------------------------
@@ -126,6 +126,24 @@ _PATCHABLE: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+async def _write_audit(
+    table_name: str, action: str, entity_id: int, site_id: int,
+    changed_by: str, old_values: dict | None, new_values: dict | None,
+) -> None:
+    """Best-effort audit entry — never raises."""
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_AUDIT_INSERT_SQL, (
+                    table_name, action, entity_id, site_id, changed_by,
+                    json.dumps(old_values) if old_values is not None else None,
+                    json.dumps(new_values, default=str) if new_values is not None else None,
+                ))
+                await conn.commit()
+    except Exception as exc:
+        log.warning("audit_write.failed", table=table_name, entity_id=entity_id, error=str(exc))
 
 
 def _row_to_response(row: tuple) -> BonusConfigureResponse:
@@ -263,24 +281,14 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
 
-                # Insert default promo code entry, inheriting amount cap and validity from configure.
-                default_code = f"AUTO-{new_id}"
-                code_hash = _code_row_hash(
-                    new_id, data.site_id, default_code, data.created_by,
-                    max_amount=data.bonus_amount_max,
-                    valid_from=data.start_date,
-                    valid_to=data.end_date,
-                )
-                await cur.execute(
-                    _INSERT_CODE_SQL,
-                    (
-                        new_id, data.site_id, default_code,
-                        data.bonus_amount_max, data.start_date, data.end_date,
-                        1, data.created_by, data.created_by, code_hash,
-                    ),
-                )
-
                 await conn.commit()
+                await _write_audit(
+                    "bonus_configure", "INSERT", new_id, data.site_id, data.created_by,
+                    None,
+                    {"subhead_id": data.subhead_id, "name": data.name,
+                     "description": data.description, "active": int(data.active),
+                     "applicability_frequency": data.applicability_frequency},
+                )
 
                 await cur.execute(_SELECT_SQL, (new_id,))
                 row = await cur.fetchone()
@@ -426,6 +434,26 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
                     f"UPDATE bonus_configure SET {set_clause} WHERE id = %s", params
                 )
                 await conn.commit()
+
+                _audit_col_idx = {
+                    "name": 3, "description": 4, "applicability_frequency": 7,
+                    "active": 22, "wager_multiplier": 8, "no_of_chunks": 9,
+                    "bonus_amount_fixed": 15, "bonus_amount_percent": 16, "bonus_amount_max": 17,
+                    "priority": 21,
+                }
+                old_audit: dict = {}
+                for col, idx in _audit_col_idx.items():
+                    if col in updates:
+                        old_v = row[idx]
+                        new_v = updates[col]
+                        changed = (int(old_v) != int(new_v)) if col == "active" else (str(old_v) != str(new_v))
+                        if changed:
+                            old_audit[col] = int(old_v) if col == "active" else old_v
+                await _write_audit(
+                    "bonus_configure", "UPDATE", configure_id, site_id, data.updated_by,
+                    old_audit if old_audit else None,
+                    {"name": new_values_cl["name"], "active": new_values_cl["active"]},
+                )
 
                 await cur.execute(_SELECT_SQL, (configure_id,))
                 updated_row = await cur.fetchone()

@@ -14,7 +14,7 @@ import type { BonusHead } from '../../types';
 
 interface HeadDetailPanelProps {
   head: BonusHead;
-  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string }) => void;
+  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string; nodeType?: string }) => void;
 }
 
 export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps) {
@@ -46,7 +46,7 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
             <button
               className="btn btn-secondary btn-sm btn-icon-only"
               title="View change history"
-              onClick={() => onAction({ type: 'OPEN_HISTORY', id: head.id })}
+              onClick={() => onAction({ type: 'OPEN_HISTORY', id: head.id, nodeType: 'head' })}
             >
               <Icon name="history" size={14}/>
             </button>

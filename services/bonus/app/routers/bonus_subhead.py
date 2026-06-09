@@ -22,6 +22,7 @@ from app.services.bonus_subhead_service import (
     upsert_limits,
     upsert_owners,
 )
+from app.services.history_service import get_subhead_history
 
 router = APIRouter(prefix="/bonus-subheads", tags=["bonus-subheads"])
 
@@ -69,6 +70,12 @@ async def put_bonus_subhead_owners(
     Each entry is upserted on username. Returns all current owners after the operation.
     """
     return await upsert_owners(subhead_id, payload)
+
+
+@router.get("/{subhead_id}/history")
+async def get_bonus_subhead_history(subhead_id: int) -> list[dict]:
+    """Return the change history for a bonus subhead, including budget updates."""
+    return await get_subhead_history(subhead_id)
 
 
 @router.put("/{subhead_id}/limits", response_model=list[BudgetPeriod])

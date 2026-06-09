@@ -1,9 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '../../../store/hooks';
-import { createSubhead, updateSubhead } from '../../../store/slices/subheadsSlice';
-import { MOCK_HEADS } from '../../../services/mocks/heads';
-import { MOCK_SUBHEADS } from '../../../services/mocks/subheads';
+import { useAppSelector } from '../../../store/hooks';
+import { selectHeadById } from '../../../store/slices/headsSlice';
+import { selectSubheadById } from '../../../store/slices/subheadsSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '../../../components/drawers/DrawerFooter';
@@ -18,24 +17,24 @@ interface SubheadFormProps {
 }
 
 export default function SubheadForm({ mode, state, submitting, onCancel, onSubmit }: SubheadFormProps) {
-  const dispatch = useAppDispatch();
-  const sub = mode === 'edit' && state.id != null ? MOCK_SUBHEADS[state.id] : null;
-  const parentHeadId = state.parentId ?? sub?.parent_head_id;
-  const parentHead = parentHeadId != null ? MOCK_HEADS[parentHeadId] : null;
-  const [name, setName] = useState(sub?.name || '');
-  const [description, setDescription] = useState(sub?.description || '');
-  const [owner, setOwner] = useState(sub?.owner || 'vanessa@wynta.com');
-  const [active, setActive] = useState(sub ? sub.active : true);
+  const subFromStore = useAppSelector(
+    state.id != null ? selectSubheadById(state.id) : () => undefined
+  );
+  const sub = mode === 'edit' ? subFromStore : undefined;
+
+  const parentHeadId = state.parentId ?? sub?.head_id ?? sub?.parent_head_id;
+  const parentHead = useAppSelector(
+    parentHeadId != null ? selectHeadById(parentHeadId) : () => undefined
+  );
+
+  const [name, setName] = useState(sub?.name ?? '');
+  const [description, setDescription] = useState(sub?.description ?? '');
+  const [owner, setOwner] = useState(sub?.owner ?? 'vanessa@wynta.com');
+  const [active, setActive] = useState(sub?.active ?? true);
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { name, description, owner, active };
-    if (mode === 'new' && state.parentId != null) {
-      dispatch(createSubhead({ parentId: state.parentId, payload }));
-    } else if (state.id != null) {
-      dispatch(updateSubhead({ id: state.id, patch: payload }));
-    }
-    onSubmit({ type: state.type, ...payload });
+    onSubmit({ name, description, owner, active });
   };
 
   return (

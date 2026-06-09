@@ -185,4 +185,5 @@ export const HISTORY_KIND_META: Record<string, { icon: string; color: string; la
   ADDED_CODE:        { icon: 'ticket',        color: 'var(--blue)', label: 'Code added' },
   ADDED_ELIGIBILITY: { icon: 'filter',        color: 'var(--blue)', label: 'Eligibility added' },
   ADDED_TRIGGER:     { icon: 'zap',           color: 'var(--blue)', label: 'Trigger added' },
+  BUDGET_UPDATED:    { icon: 'wallet',        color: 'var(--blue)', label: 'Budget updated' },
 };

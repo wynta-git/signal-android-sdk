@@ -1,13 +1,12 @@
 -- =============================================================================
--- TABLE: bonus_audit_log
+-- TABLE: bonus_change_log
 -- =============================================================================
 --
 -- DESCRIPTION
 -- ───────────
--- Append-only audit trail. Every INSERT or UPDATE on the three mutable bonus
--- config tables (bonus_head, bonus_owners, bonus_budget_limit) writes one row
--- here within the same database transaction as the change itself, guaranteeing
--- that the audit log is always consistent with the live tables.
+-- Append-only audit trail. Every INSERT or UPDATE on the mutable bonus
+-- config tables writes one row here, guaranteeing that the audit log is
+-- always consistent with the live tables.
 --
 -- USAGE
 -- ─────
@@ -20,19 +19,20 @@
 --
 -- ENTITY TYPES (table_name values)
 -- ─────────────────────────────────
--- bonus_head          → entity_id = bonus_head.id
--- bonus_owners        → entity_id = parent bonus_head.id
--- bonus_budget_limit  → entity_id = parent bonus_head.id
+-- bonus_head            → entity_id = bonus_head.id
+-- bonus_head_budget     → entity_id = bonus_head.id
+-- bonus_subhead         → entity_id = bonus_subhead.id
+-- bonus_subhead_budget  → entity_id = bonus_subhead.id
+-- bonus_configure       → entity_id = bonus_configure.id
 --
 -- =============================================================================
 
-CREATE TABLE `bonus_audit_log` (
+CREATE TABLE `bonus_change_log` (
     `id`          BIGINT        NOT NULL AUTO_INCREMENT,
     `table_name`  VARCHAR(50)   NOT NULL,
     `action`      VARCHAR(10)   NOT NULL,
     -- INSERT | UPDATE
     `entity_id`   INT           NOT NULL,
-    -- bonus_head.id (or parent head id for owners / limits)
     `site_id`     INT           NOT NULL,
     `changed_by`  VARCHAR(100)  NOT NULL,
     `changed_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,

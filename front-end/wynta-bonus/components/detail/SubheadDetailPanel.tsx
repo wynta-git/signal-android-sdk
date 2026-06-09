@@ -1,6 +1,8 @@
 'use client';
-import { MOCK_CONFIGURES } from '../../services/mocks/configures';
-import { getUsage, getBudget, formatINRCompact, formatRelative } from '../../services/mocks/utils';
+import { useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchConfiguresBySubhead, selectConfiguresBySubhead } from '../../store/slices/configuresSlice';
+import { getUsage, formatINRCompact, formatRelative } from '../../services/mocks/utils';
 import Badge from 'wynta-react-common/components/Badge';
 import Icon from 'wynta-react-common/components/Icon';
 import BudgetGrid from '../../components/primitives/BudgetGrid';
@@ -13,12 +15,17 @@ import type { BonusSubhead, SelectedNode } from '../../types';
 interface SubheadDetailPanelProps {
   subhead: BonusSubhead;
   onSelect?: (node: SelectedNode) => void;
-  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string }) => void;
+  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string; nodeType?: string }) => void;
 }
 
 export default function SubheadDetailPanel({ subhead, onSelect, onAction }: SubheadDetailPanelProps) {
-  const configureIds = subhead.configures.map(c => (typeof c === 'number' ? c : c.id));
-  const configures = configureIds.map(id => MOCK_CONFIGURES[id]).filter(Boolean);
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    dispatch(fetchConfiguresBySubhead(subhead.id));
+  }, [subhead.id, dispatch]);
+
+  const configures = useAppSelector(selectConfiguresBySubhead(subhead.id));
 
   return (
     <div className="detail-content" key={`sub-${subhead.id}`}>
@@ -43,7 +50,7 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
             </div>
           </div>
           <div className="header-actions">
-            <button className="btn btn-secondary btn-sm btn-icon-only" title="View change history" onClick={() => onAction({ type: 'OPEN_HISTORY', id: subhead.id })}>
+            <button className="btn btn-secondary btn-sm btn-icon-only" title="View change history" onClick={() => onAction({ type: 'OPEN_HISTORY', id: subhead.id, nodeType: 'subhead' })}>
               <Icon name="history" size={14}/>
             </button>
             <button className="btn btn-secondary btn-sm" onClick={() => onAction({ type: 'EDIT_SUBHEAD', id: subhead.id })}>
@@ -54,7 +61,7 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
       </div>
 
       <div className="section-row"><div className="section-label">Budget Utilization</div><div className="right"><strong>Daily · Weekly · Monthly</strong></div></div>
-      <BudgetGrid budget={getBudget('subhead', subhead.id)} />
+      <BudgetGrid budget={subhead.budget ?? []} />
 
       <div className="section-row" style={{ marginTop: 28 }}>
         <div className="section-label">Usage Breakdown</div>
@@ -85,11 +92,11 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--g500)', marginBottom: 8, lineHeight: 1.45 }}>{cfg.description}</div>
               <div className="flex items-center gap-3" style={{ fontSize: 11, color: 'var(--g500)' }}>
-                <span><strong style={{ color: 'var(--g700)' }}>×{cfg.wager_multiplier}</strong> wager</span>
+                <span><strong style={{ color: 'var(--g700)' }}>×{Number(cfg.wager_multiplier)}</strong> wager</span>
                 <span className="dot" style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--g300)' }}/>
                 <span>{cfg.no_of_chunks} chunks</span>
                 <span className="dot" style={{ width: 3, height: 3, borderRadius: '50%', background: 'var(--g300)' }}/>
-                <span>max {cfg.bonus_amount_max === undefined ? '∞' : formatINRCompact(Number(cfg.bonus_amount_max))}</span>
+                <span>max {cfg.bonus_amount_max == null ? '∞' : formatINRCompact(Number(cfg.bonus_amount_max))}</span>
               </div>
             </div>
           ))}

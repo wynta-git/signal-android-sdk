@@ -1,9 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '../../../store/hooks';
-import { createConfigure, updateConfigure } from '../../../store/slices/configuresSlice';
-import { MOCK_SUBHEADS } from '../../../services/mocks/subheads';
-import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
+import { useAppSelector } from '../../../store/hooks';
+import { selectSubheadById } from '../../../store/slices/subheadsSlice';
+import { selectConfigureById } from '../../../store/slices/configuresSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '../../../components/drawers/DrawerFooter';
@@ -20,40 +19,66 @@ interface ConfigureFormProps {
 }
 
 export default function ConfigureForm({ mode, state, submitting, onCancel, onSubmit }: ConfigureFormProps) {
-  const dispatch = useAppDispatch();
-  const cfg = mode === 'edit' && state.id != null ? MOCK_CONFIGURES[state.id] : null;
-  const parentSubId = state.parentId ?? cfg?.subhead_id;
-  const parentSub = parentSubId != null ? MOCK_SUBHEADS[parentSubId] : null;
+  const cfgFromStore = useAppSelector(
+    mode === 'edit' && state.id != null ? selectConfigureById(state.id) : () => undefined
+  );
+  const parentSubId = state.parentId ?? cfgFromStore?.subhead_id;
+  const parentSub = useAppSelector(
+    parentSubId != null ? selectSubheadById(parentSubId) : () => undefined
+  );
+
+  const today = new Date().toISOString().slice(0, 10);
+  const cfg = cfgFromStore;
 
   const [name, setName] = useState(cfg?.name || '');
   const [description, setDescription] = useState(cfg?.description || '');
-  const [freq, setFreq] = useState(cfg?.applicability_frequency || 'ONCE');
-  const [startDate, setStartDate] = useState((cfg?.start_date || new Date().toISOString()).slice(0, 10));
-  const [endDate, setEndDate]   = useState((cfg?.end_date   || new Date().toISOString()).slice(0, 10));
+  const [freq, setFreq] = useState<string>(cfg?.applicability_frequency || 'ONCE');
+  const [startDate, setStartDate] = useState(
+    cfg?.start_date ? String(cfg.start_date).slice(0, 10) : today
+  );
+  const [endDate, setEndDate] = useState(
+    cfg?.end_date ? String(cfg.end_date).slice(0, 10) : today
+  );
   const [priority, setPriority] = useState(cfg?.priority ?? 1);
-  const [active, setActive]     = useState(cfg ? cfg.active : true);
-  const [wagerMult, setWagerMult] = useState(cfg?.wager_multiplier ?? 20);
+  const [active, setActive] = useState(cfg ? cfg.active : true);
+  const [wagerMult, setWagerMult] = useState(cfg?.wager_multiplier != null ? Number(cfg.wager_multiplier) : 20);
   const [chunks, setChunks] = useState(cfg?.no_of_chunks ?? 1);
-  const [fixed, setFixed]   = useState<string>(cfg?.bonus_amount_fixed != null ? String(cfg.bonus_amount_fixed) : '');
-  const [pct, setPct]       = useState<string>(cfg?.bonus_amount_percent != null ? String(cfg.bonus_amount_percent) : '');
-  const [max, setMax]       = useState<string>(cfg?.bonus_amount_max != null ? String(cfg.bonus_amount_max) : '');
+  const [fixed, setFixed] = useState<string>(cfg?.bonus_amount_fixed != null ? String(cfg.bonus_amount_fixed) : '');
+  const [pct, setPct] = useState<string>(cfg?.bonus_amount_percent != null ? String(cfg.bonus_amount_percent) : '');
+  const [max, setMax] = useState<string>(cfg?.bonus_amount_max != null ? String(cfg.bonus_amount_max) : '');
   const [cbFixed, setCbFixed] = useState<string>(cfg?.cashback_bonus_amount_fixed != null ? String(cfg.cashback_bonus_amount_fixed) : '');
-  const [cbPct, setCbPct]   = useState<string>(cfg?.cashback_bonus_amount_percent != null ? String(cfg.cashback_bonus_amount_percent) : '');
-  const [cbMax, setCbMax]   = useState<string>(cfg?.cashback_bonus_amount_max != null ? String(cfg.cashback_bonus_amount_max) : '');
-  const [wagerChip, setWagerChip]   = useState(cfg?.wager_chip_type || 'BONUS');
-  const [creditChip, setCreditChip] = useState(cfg?.credit_chip_type || 'BONUS');
-  const [chunkExp, setChunkExp]     = useState(cfg?.chunk_expiry_days ?? 7);
-  const [bonusExp, setBonusExp]     = useState(cfg?.bonus_expiry_days ?? 30);
+  const [cbPct, setCbPct] = useState<string>(cfg?.cashback_bonus_amount_percent != null ? String(cfg.cashback_bonus_amount_percent) : '');
+  const [cbMax, setCbMax] = useState<string>(cfg?.cashback_bonus_amount_max != null ? String(cfg.cashback_bonus_amount_max) : '');
+  const [wagerChip, setWagerChip] = useState(cfg?.wager_chip_type || 'CASH');
+  const [creditChip, setCreditChip] = useState(cfg?.credit_chip_type || 'CASH');
+  const [chunkExp, setChunkExp] = useState(cfg?.chunk_expiry_days ?? 7);
+  const [bonusExp, setBonusExp] = useState(cfg?.bonus_expiry_days ?? 30);
+
+  const toNum = (v: string) => v.trim() !== '' ? Number(v) : null;
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { name, description, freq, startDate, endDate, priority, active, wagerMult, chunks, fixed, pct, max, cbFixed, cbPct, cbMax, wagerChip, creditChip, chunkExp, bonusExp };
-    if (mode === 'new' && state.parentId != null) {
-      dispatch(createConfigure({ parentId: state.parentId, payload }));
-    } else if (state.id != null) {
-      dispatch(updateConfigure({ id: state.id, patch: payload }));
-    }
-    onSubmit({ type: state.type, ...payload });
+    onSubmit({
+      name,
+      description: description || null,
+      applicability_frequency: freq,
+      start_date: startDate + 'T00:00:00',
+      end_date: endDate + 'T00:00:00',
+      priority,
+      active,
+      wager_multiplier: wagerMult,
+      no_of_chunks: chunks,
+      bonus_amount_fixed: toNum(fixed),
+      bonus_amount_percent: toNum(pct),
+      bonus_amount_max: toNum(max),
+      cashback_bonus_amount_fixed: toNum(cbFixed),
+      cashback_bonus_amount_percent: toNum(cbPct),
+      cashback_bonus_amount_max: toNum(cbMax),
+      wager_chip_type: wagerChip,
+      credit_chip_type: creditChip,
+      chunk_expiry_days: chunkExp,
+      bonus_expiry_days: bonusExp,
+    });
   };
 
   return (
@@ -65,7 +90,7 @@ export default function ConfigureForm({ mode, state, submitting, onCancel, onSub
           <div className="field-group">
             <label>Parent Subhead</label>
             <span className="parent-chip">
-              <Icon name="folder" size={11}/> {parentSub.parent_head_name} <Icon name="chevron-right" size={10}/> {parentSub.name}
+              <Icon name="folder" size={11}/> {parentSub.name}
             </span>
           </div>
         )}
@@ -181,7 +206,7 @@ export default function ConfigureForm({ mode, state, submitting, onCancel, onSub
             <div>
               <label>Wager chip type</label>
               <select value={wagerChip} onChange={(e) => setWagerChip(e.target.value)}>
-                <option>BONUS</option><option>BONUS+REAL</option><option>REAL</option>
+                <option>BONUS</option><option>BONUS+REAL</option><option>REAL</option><option>CASH</option>
               </select>
             </div>
             <div>

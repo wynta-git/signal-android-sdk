@@ -77,7 +77,7 @@ interface ExtendedConfigure {
 
 interface ConfigureDetailPanelProps {
   configure: ExtendedConfigure;
-  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string; code?: ManualCode }) => void;
+  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string; nodeType?: string; code?: ManualCode }) => void;
 }
 
 export default function ConfigureDetailPanel({ configure, onAction }: ConfigureDetailPanelProps) {
@@ -130,7 +130,7 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
             </div>
           </div>
           <div className="header-actions">
-            <button className="btn btn-secondary btn-sm btn-icon-only" title="View change history" onClick={() => onAction({ type: 'OPEN_HISTORY', id: cfg.id })}>
+            <button className="btn btn-secondary btn-sm btn-icon-only" title="View change history" onClick={() => onAction({ type: 'OPEN_HISTORY', id: cfg.id, nodeType: 'configure' })}>
               <Icon name="history" size={14}/>
             </button>
             <button className="btn btn-secondary btn-sm" onClick={() => onAction({ type: 'EDIT_CONFIGURE', id: cfg.id })}>

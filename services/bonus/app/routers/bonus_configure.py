@@ -20,6 +20,7 @@ from app.services.bonus_configure_service import (
     list_bonus_configures_by_subhead,
     update_bonus_configure,
 )
+from app.services.history_service import get_configure_history
 
 router = APIRouter(prefix="/bonus-configures", tags=["bonus-configures"])
 
@@ -67,6 +68,12 @@ async def patch_bonus_configure(
     required. Send ``"description": null`` to explicitly clear the description.
     """
     return await update_bonus_configure(configure_id, payload)
+
+
+@router.get("/{configure_id}/history")
+async def get_bonus_configure_history(configure_id: int) -> list[dict]:
+    """Return the change history for a bonus configure."""
+    return await get_configure_history(configure_id)
 
 
 # ---------------------------------------------------------------------------

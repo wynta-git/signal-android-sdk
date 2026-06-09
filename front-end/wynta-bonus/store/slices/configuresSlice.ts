@@ -6,9 +6,10 @@ type ConfiguresState = NormalizedState<BonusConfigure>;
 
 const initialState: ConfiguresState = { ids: [], entities: {}, status: 'idle', error: null };
 
-export const fetchConfigure   = createAsyncThunk<BonusConfigure, number>('configures/fetchOne', (id) => api.fetchConfigure(id));
+export const fetchConfigure          = createAsyncThunk<BonusConfigure, number>('configures/fetchOne', (id) => api.fetchConfigure(id));
+export const fetchConfiguresBySubhead = createAsyncThunk<BonusConfigure[], number>('configures/fetchBySubhead', (subheadId) => api.fetchConfigures(subheadId));
 export const createConfigure  = createAsyncThunk<BonusConfigure, { parentId: number; payload: Record<string, unknown> }>('configures/create', ({ parentId, payload }) => api.createConfigure(parentId, payload));
-export const updateConfigure  = createAsyncThunk<BonusConfigure, { id: number; patch: Partial<BonusConfigure> }>('configures/update', ({ id, patch }) => api.updateConfigure(id, patch));
+export const updateConfigure  = createAsyncThunk<BonusConfigure, { id: number; patch: Partial<BonusConfigure> }>('configures/update', ({ id, patch }) => api.updateConfigure(id, patch as Record<string, unknown>));
 export const createPromoCode  = createAsyncThunk<PromoCode, { configureId: number; payload: Record<string, unknown> }>('configures/createPromoCode', ({ configureId, payload }) => api.createPromoCode(configureId, payload));
 export const createTrigger    = createAsyncThunk<Trigger, { configureId: number; payload: Record<string, unknown> }>('configures/createTrigger', ({ configureId, payload }) => api.createTrigger(configureId, payload));
 export const createEligibility = createAsyncThunk<EligibilityRule, { configureId: number; payload: Record<string, unknown> }>('configures/createEligibility', ({ configureId, payload }) => api.createEligibility(configureId, payload));
@@ -24,6 +25,12 @@ const configuresSlice = createSlice({
         if (!state.ids.includes(c.id)) state.ids.push(c.id);
         state.entities[c.id] = c;
         state.status = 'succeeded';
+      })
+      .addCase(fetchConfiguresBySubhead.fulfilled, (state, action) => {
+        for (const c of action.payload) {
+          if (!state.ids.includes(c.id)) state.ids.push(c.id);
+          state.entities[c.id] = c;
+        }
       })
       .addCase(fetchConfigure.rejected, (state, action) => {
         state.status = 'failed';
@@ -57,4 +64,6 @@ const configuresSlice = createSlice({
 });
 
 export const selectConfigureById = (id: number) => (state: { configures: ConfiguresState }) => state.configures.entities[id];
+export const selectConfiguresBySubhead = (subheadId: number) => (state: { configures: ConfiguresState }) =>
+  state.configures.ids.map(id => state.configures.entities[id]).filter(c => c?.subhead_id === subheadId) as BonusConfigure[];
 export default configuresSlice.reducer;
