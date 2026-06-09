@@ -191,15 +191,16 @@ async def dashboard_summary(
     reachable = min(reachable_count + optin["push"], total_users)
     prev_reachable = min(prev_reachable_count + optin["push"], total_users)
 
-    # Apply boosts — same offset added to both current and previous so change_pct stays consistent
+    # Apply boosts — snapshot fields: fixed offset; time-dependent fields: scale by window_days/30
+    win_scale        = window_days / 30
     b_reachable      = reachable + _b(boosts, "quick_stats.reachable_players")
     b_prev_reachable = prev_reachable + _b(boosts, "quick_stats.reachable_players")
     b_active         = active_this_week + _b(boosts, "quick_stats.active_this_week")
     b_prev_active    = prev_active_this_week + _b(boosts, "quick_stats.active_this_week")
-    b_curr_sent      = curr_sent + _b(boosts, "quick_stats.messages_sent")
-    b_prev_sent      = prev_sent + _b(boosts, "quick_stats.messages_sent")
+    b_curr_sent      = curr_sent + round(_b(boosts, "quick_stats.messages_sent") * win_scale)
+    b_prev_sent      = prev_sent + round(_b(boosts, "quick_stats.messages_sent") * win_scale)
     b_total_users    = health["total_users"] + _b(boosts, "player_health.total_users")
-    b_new            = health["new"] + _b(boosts, "player_health.new")
+    b_new            = health["new"] + round(_b(boosts, "player_health.new") * win_scale)
     b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
     b_at_risk        = health["at_risk"] + _b(boosts, "player_health.at_risk")
     b_churned        = health["churned"] + _b(boosts, "player_health.churned")
@@ -256,12 +257,12 @@ async def dashboard_summary(
 
 # TODO: replace with real per-channel opt-in tracking tomorrow
 _CHANNEL_DEFAULTS: list[dict] = [
-    {"channel": "email",    "reach_pct": 0.80, "status": "live",   "messages_sent": 28500, "delivery_rate": 0.942, "open_rate": 0.243, "ctr": 0.038},
-    {"channel": "push",     "reach_pct": 0.62, "status": "live",   "messages_sent": 18200, "delivery_rate": 0.918, "open_rate": 0.187, "ctr": 0.052},
-    {"channel": "sms",      "reach_pct": 0.30, "status": "paused", "messages_sent":  9400, "delivery_rate": 0.971, "open_rate": 0.312, "ctr": 0.041},
-    {"channel": "whatsapp", "reach_pct": 0.20, "status": "live",   "messages_sent":  6800, "delivery_rate": 0.964, "open_rate": 0.425, "ctr": 0.083},
-    {"channel": "telegram", "reach_pct": 0.08, "status": "live",   "messages_sent":  2100, "delivery_rate": 0.982, "open_rate": 0.381, "ctr": 0.067},
-    {"channel": "in_app",   "reach_pct": 0.55, "status": "live",   "messages_sent": 14600, "delivery_rate": 0.991, "open_rate": 0.614, "ctr": 0.129},
+    {"channel": "email",    "reach_pct": 0.80, "status": "live",   "messages_sent": 1100000, "delivery_rate": 0.942, "open_rate": 0.243, "ctr": 0.038},
+    {"channel": "push",     "reach_pct": 0.62, "status": "live",   "messages_sent":  750000, "delivery_rate": 0.918, "open_rate": 0.187, "ctr": 0.052},
+    {"channel": "sms",      "reach_pct": 0.30, "status": "paused", "messages_sent":  380000, "delivery_rate": 0.971, "open_rate": 0.312, "ctr": 0.041},
+    {"channel": "whatsapp", "reach_pct": 0.20, "status": "live",   "messages_sent":  270000, "delivery_rate": 0.964, "open_rate": 0.425, "ctr": 0.083},
+    {"channel": "telegram", "reach_pct": 0.08, "status": "live",   "messages_sent":   85000, "delivery_rate": 0.982, "open_rate": 0.381, "ctr": 0.067},
+    {"channel": "in_app",   "reach_pct": 0.55, "status": "live",   "messages_sent":  580000, "delivery_rate": 0.991, "open_rate": 0.614, "ctr": 0.129},
 ]
 
 _DAILY_WEIGHTS = [0.12, 0.15, 0.16, 0.14, 0.18, 0.13, 0.12]
