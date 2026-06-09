@@ -26,10 +26,10 @@ const CRM_NAV_SECTIONS: NavSection[] = [
     heading: 'CRM',
     items: [
       { id: 'dashboard',     label: 'Dashboard',    icon: 'home'         },
+      { id: 'wynta-ai',     label: 'Wynta AI',     icon: 'sparkles',    locked: true },
       { id: 'campaigns',     label: 'Campaigns',    icon: 'send'         },
       { id: 'segments',      label: 'Segments',     icon: 'users-round'  },
       { id: 'events',        label: 'Events',       icon: 'zap'          },
-      { id: 'wynta-ai',     label: 'Wynta AI',     icon: 'sparkles',    locked: true },
       { id: 'flows',         label: 'Flows',        icon: 'git-branch',  locked: true },
       {
         id: 'reports', label: 'Reports', icon: 'bar-chart-2',
