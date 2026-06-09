@@ -180,6 +180,11 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
           <div className="seg-stat-value">{activeCampaigns}</div>
           <div className="seg-stat-sub">segments in use</div>
         </div>
+        <div className="seg-stat-card">
+          <div className="seg-stat-label">Estimated Reach</div>
+          <div className="seg-stat-value">0</div>
+          <div className="seg-stat-sub">estimated users</div>
+        </div>
       </div>
 
       {/* ── Table section ── */}
