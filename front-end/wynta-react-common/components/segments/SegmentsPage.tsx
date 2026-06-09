@@ -16,7 +16,7 @@ import { formatConditions, formatRelative } from '../../utils';
 import { getToken } from '../../services/tokenRegistry';
 import type { Segment } from '../../types';
 
-const SEG_BASE = process.env.NEXT_PUBLIC_SEG_API_URL ?? 'http://localhost:8003';
+const SEG_BASE = process.env.NEXT_PUBLIC_SEG_API_URL ?? 'http://3.7.48.14:8003';
 
 interface SegmentStats {
   total_segments:        number;

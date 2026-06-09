@@ -4,7 +4,7 @@ import type {
 } from "../types";
 import { getToken } from './tokenRegistry';
 
-const BASE = process.env.NEXT_PUBLIC_SEG_API_URL || "http://localhost:8003";
+const BASE = process.env.NEXT_PUBLIC_SEG_API_URL || "http://3.7.48.14:8003";
 const SEG_API = `${BASE}/api/v1/segment`;
 
 const authHeader = () => ({
