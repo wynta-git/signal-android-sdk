@@ -5,6 +5,15 @@ import type { ChannelData } from '../../services/dashboardApi';
 
 const UNTRACKED = <span title="Not yet tracked — requires provider delivery callbacks" style={{ color: 'var(--crm-fg4)' }}>—</span>;
 
+const CHANNEL_LABEL: Record<string, string> = {
+  email:    'Email',
+  push:     'Push',
+  sms:      'SMS',
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
+  in_app:   'In-App',
+};
+
 function Sparkline({ data }: { data: ChannelData['trend_7d'] }) {
   if (!data || data.length < 2) return <span style={{ color: 'var(--crm-fg4)' }}>—</span>;
   const vals = data.map(t => t.sent);
@@ -86,7 +95,7 @@ export default function ChannelsTable() {
               <tr key={ch.channel}>
                 <td style={TD}>
                   <span style={{ fontWeight: 500, color: 'var(--crm-fg1)' }}>
-                    {ch.channel.charAt(0).toUpperCase() + ch.channel.slice(1)}
+                    {CHANNEL_LABEL[ch.channel] ?? ch.channel}
                   </span>
                 </td>
                 <td style={TD}>
