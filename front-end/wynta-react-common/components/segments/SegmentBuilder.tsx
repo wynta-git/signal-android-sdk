@@ -562,7 +562,7 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
         <div style={{ flex: 1 }}/>
         <button className="btn btn-secondary btn-sm" type="button" onClick={onCancel}>Cancel</button>
         <button className="btn btn-primary btn-sm" type="button" disabled={!canSave} onClick={handleSave}>
-          <Icon name="check" size={12}/> {mode === 'edit' ? 'Update segment' : 'Save segment'}
+          <Icon name="check" size={12}/> {mode === 'edit' ? 'Update' : 'Submit'}
         </button>
       </div>
     </>

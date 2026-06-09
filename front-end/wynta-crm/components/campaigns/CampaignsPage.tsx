@@ -240,7 +240,7 @@ export default function CampaignsPage() {
         </div>
         <div className="cp-page-actions">
           <button className="seg-btn-secondary" type="button" onClick={handleExport}>
-            <Icon name="download" size={14} /> Export CSV
+            <Icon name="download" size={14} /> Export
           </button>
           <button className="seg-btn-primary" type="button" onClick={() => setShowChannelModal(true)}>
             <Icon name="plus" size={14} /> Add Campaign

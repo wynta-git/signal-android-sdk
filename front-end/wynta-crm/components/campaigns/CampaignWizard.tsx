@@ -30,7 +30,55 @@ function channelLabel(ch: string) {
 }
 
 const OBJECTIVES = ['Retention', 'Acquisition', 'Promotion', 'Re-engagement', 'Onboarding', 'Monetisation'];
-const TIMEZONES  = ['UTC', 'Asia/Kolkata', 'America/New_York', 'Europe/London', 'Asia/Singapore'];
+const TIMEZONES  = [
+  'UTC',
+  // Americas
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Toronto',
+  'America/Vancouver',
+  'America/Sao_Paulo',
+  'America/Mexico_City',
+  'America/Buenos_Aires',
+  // Europe
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Europe/Madrid',
+  'Europe/Rome',
+  'Europe/Amsterdam',
+  'Europe/Moscow',
+  'Europe/Istanbul',
+  // Africa
+  'Africa/Cairo',
+  'Africa/Johannesburg',
+  'Africa/Lagos',
+  // Middle East
+  'Asia/Dubai',
+  'Asia/Riyadh',
+  // Asia
+  'Asia/Kolkata',
+  'Asia/Karachi',
+  'Asia/Dhaka',
+  'Asia/Colombo',
+  'Asia/Kathmandu',
+  'Asia/Bangkok',
+  'Asia/Jakarta',
+  'Asia/Singapore',
+  'Asia/Kuala_Lumpur',
+  'Asia/Hong_Kong',
+  'Asia/Shanghai',
+  'Asia/Taipei',
+  'Asia/Seoul',
+  'Asia/Tokyo',
+  // Oceania
+  'Australia/Sydney',
+  'Australia/Melbourne',
+  'Australia/Perth',
+  'Pacific/Auckland',
+];
 
 /* ------------------------------------------------------------------ */
 /* Step-1 state type                                                    */
@@ -868,13 +916,11 @@ function Step1({ s, onChange, channel }: Step1Props) {
           <div className="cwiz-bonus-head">
             <div className="cwiz-bonus-head-box">
               <button type="button" className="asm-btn asm-btn--primary">
-                <span className="cwiz-bonus-badge-icon">
-                  <Icon name="square" size={13} strokeWidth={2} />
-                </span>
+                <Icon name="gift" size={13} strokeWidth={2} />
                 Bonus offer
               </button>
               <span style={{ marginLeft: '25px' }} className="cwiz-bonus-desc">Attach a bonus to this campaign</span>
-              <span style={{ marginLeft: '32%' }}>
+              <span style={{ marginLeft: '25%' }}>
                 <Toggle
                   checked={s.bonus_offer_enabled}
                   onChange={v => set({ bonus_offer_enabled: v })}
@@ -1220,7 +1266,7 @@ function Step3({ s, onChange, channel }: Step3Props) {
                 <input type="radio" name="one_time_type" value="asap"
                   checked={s.one_time_type === 'asap'}
                   onChange={() => set({ one_time_type: 'asap', datetime: '' })} />
-                As soon as possible
+                Immediately
               </label>
               <label className="cwiz-radio-label">
                 <input type="radio" name="one_time_type" value="specific_datetime"
@@ -1356,6 +1402,7 @@ function Step3({ s, onChange, channel }: Step3Props) {
             <Toggle checked={s.enable_rate_limit} onChange={v => set({ enable_rate_limit: v, ...(!v && { max_frequency: '0' }) })} />
             <span className="cwiz-delivery-text">Limit the maximum number of times a user can see messages from this campaign to</span>
             <input className="cwiz-delivery-num" type="number" min="1" value={s.max_frequency} disabled={!s.enable_rate_limit} onChange={e => set({ max_frequency: e.target.value })} />
+            <span style={{ fontSize: 12, color: 'var(--g500)', paddingLeft: 15 }}>times</span>
           </div>
           {/* Row 2 — hidden for Push */}
           {!isPush && <div className="cwiz-delivery-row">
@@ -1374,7 +1421,7 @@ function Step3({ s, onChange, channel }: Step3Props) {
           {/* Row 4 — always visible */}
           <div className="cwiz-delivery-row">
             <Toggle checked={s.enable_auto_dismiss} onChange={v => set({ enable_auto_dismiss: v, ...(!v && { auto_dismiss_after: '0' }) })} />
-            <span className="cwiz-delivery-text">Auto dismiss message after</span>
+            <span className="cwiz-delivery-text">Number of seconds before auto dismiss message</span>
             <input className="cwiz-delivery-num" type="number" min="1" value={s.auto_dismiss_after} disabled={!s.enable_auto_dismiss} onChange={e => set({ auto_dismiss_after: e.target.value })} />
             <span style={{ fontSize: 12, color: 'var(--g500)' }}>seconds</span>
           </div>
