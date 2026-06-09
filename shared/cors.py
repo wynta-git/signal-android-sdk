@@ -7,4 +7,6 @@ CORS_ORIGINS: list[str] = [
     "http://127.0.0.1:8000",
     "http://localhost:8000",
     "https://staging.wynta.com",
+    "https://affiliates.fozilpartners.com",
+    "http://demo.wynta.com",
 ]
