@@ -29,7 +29,8 @@ const CRM_NAV_SECTIONS: NavSection[] = [
       { id: 'campaigns',     label: 'Campaigns',    icon: 'send'         },
       { id: 'segments',      label: 'Segments',     icon: 'users-round'  },
       { id: 'events',        label: 'Events',       icon: 'zap'          },
-      { id: 'flows',         label: 'Flows',        icon: 'git-branch'   },
+      { id: 'wynta-ai',     label: 'Wynta AI',     icon: 'sparkles',    locked: true },
+      { id: 'flows',         label: 'Flows',        icon: 'git-branch',  locked: true },
       {
         id: 'reports', label: 'Reports', icon: 'bar-chart-2',
         children: [
@@ -86,6 +87,7 @@ export default function CrmSidebar({ activeNav, onNavChange }: CrmSidebarProps) 
                     role="button"
                     tabIndex={0}
                     onClick={() => {
+                      if (item.locked) return;
                       if (item.href) { window.location.href = item.href; return; }
                       if (isGroup)   { toggleGroup(item.id); }
                       else           { onNavChange(item.id); }
@@ -93,6 +95,7 @@ export default function CrmSidebar({ activeNav, onNavChange }: CrmSidebarProps) 
                     onKeyDown={e => {
                       if (e.key !== 'Enter' && e.key !== ' ') return;
                       e.preventDefault();
+                      if (item.locked) return;
                       if (isGroup) toggleGroup(item.id);
                       else onNavChange(item.id);
                     }}

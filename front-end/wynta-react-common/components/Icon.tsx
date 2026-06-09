@@ -100,6 +100,8 @@ const ALIASES: Record<string, string> = {
   'globe': 'Globe',
   'wifi': 'Wifi',
   'cpu': 'Cpu',
+  'sparkles': 'Sparkles',
+  'bot': 'Bot',
   'database': 'Database',
   'server': 'Server',
   'smartphone': 'Smartphone',
