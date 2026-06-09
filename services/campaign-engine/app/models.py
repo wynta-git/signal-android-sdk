@@ -239,3 +239,20 @@ class CreateTemplateRequest(BaseModel):
 class UpdateTemplateRequest(BaseModel):
     name: str | None = None
     body: dict[str, Any] | None = None
+
+
+class FcmSettingsRequest(BaseModel):
+    server_key: str = ""
+    sender_id: str = ""
+    service_account_json: dict[str, Any]
+
+    @field_validator("service_account_json")
+    @classmethod
+    def validate_sa_json(cls, v: dict[str, Any]) -> dict[str, Any]:
+        required = {"type", "project_id", "private_key_id", "private_key", "client_email"}
+        missing = required - v.keys()
+        if missing:
+            raise ValueError(f"service_account_json missing required fields: {sorted(missing)}")
+        if v.get("type") != "service_account":
+            raise ValueError("service_account_json.type must be 'service_account'")
+        return v
