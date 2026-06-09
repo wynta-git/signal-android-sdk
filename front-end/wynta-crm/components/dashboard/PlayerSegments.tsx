@@ -23,17 +23,30 @@ export default function PlayerSegments() {
   return (
     <div style={{
       background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
-      borderRadius: 6, padding: '16px 20px',
+      borderRadius: 6, overflow: 'hidden',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--crm-fg1)' }}>Player Segments</h2>
-        {segments && (
-          <span style={{ fontSize: 11, color: 'var(--crm-fg4)' }}>
-            {segments.total} total
-          </span>
-        )}
+      <div style={{
+        background: 'var(--crm-bg)', padding: '12px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderBottom: '1px solid var(--crm-border)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)', margin: 0 }}>Player Segments</h2>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ cursor: 'help' }}>
+            <circle cx="7" cy="7" r="6" stroke="#d1d5db" strokeWidth="1.2" />
+            <text x="7" y="11" fontSize="8" fill="#9ca3af" textAnchor="middle">i</text>
+          </svg>
+        </div>
+        {/* <a href="/segments" style={{ fontSize: 12, color: 'var(--crm-blue)', textDecoration: 'none', fontWeight: 500 }}>
+          Manage →
+        </a> */}
       </div>
 
+      <div style={{ padding: '16px 20px' }}>
       {loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[1, 2, 3, 4].map(i => (
@@ -50,7 +63,7 @@ export default function PlayerSegments() {
 
       {!loading && items.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {items.map((seg, i) => (
+          {items.slice(0, 8).map((seg, i) => (
             <div key={seg.id ?? i}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{
@@ -79,6 +92,7 @@ export default function PlayerSegments() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

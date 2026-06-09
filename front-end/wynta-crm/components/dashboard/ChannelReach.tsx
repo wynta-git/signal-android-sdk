@@ -19,13 +19,28 @@ export default function ChannelReach() {
   return (
     <div style={{
       background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
-      borderRadius: 6, padding: '16px 20px',
+      borderRadius: 6, overflow: 'hidden',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--crm-fg1)' }}>Channel Reach</h2>
+      <div style={{
+        background: 'var(--crm-bg)', padding: '12px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        borderBottom: '1px solid var(--crm-border)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="2" />
+            <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14" />
+          </svg>
+          <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)', margin: 0 }}>Channel Reach</h2>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ cursor: 'help' }}>
+            <circle cx="7" cy="7" r="6" stroke="#d1d5db" strokeWidth="1.2" />
+            <text x="7" y="11" fontSize="8" fill="#9ca3af" textAnchor="middle">i</text>
+          </svg>
+        </div>
         <span style={{ fontSize: 12, color: 'var(--crm-fg4)' }}>7-day window</span>
       </div>
 
+      <div style={{ padding: '16px 20px' }}>
       {loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[1, 2, 3].map(i => (
@@ -106,6 +121,7 @@ export default function ChannelReach() {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }

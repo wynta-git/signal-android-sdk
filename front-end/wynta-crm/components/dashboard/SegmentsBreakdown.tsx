@@ -84,7 +84,7 @@ export default function SegmentsBreakdown() {
       borderRadius: 6, overflow: 'hidden',
     }}>
       {/* Header */}
-      <div style={{ padding: '14px 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ background: 'var(--crm-bg)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--crm-border)' }}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
           <path d="M22 12A10 10 0 0 0 12 2v10z" />

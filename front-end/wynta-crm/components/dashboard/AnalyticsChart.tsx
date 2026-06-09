@@ -223,8 +223,8 @@ export default function AnalyticsChart() {
     }}>
       {/* Header bar */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 20px 0',
+        background: 'var(--crm-bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 20px', borderBottom: '1px solid var(--crm-border)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <svg width="16" height="16" viewBox="0 0 15 15" fill="none">

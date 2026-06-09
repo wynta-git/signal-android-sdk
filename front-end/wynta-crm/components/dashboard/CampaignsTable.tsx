@@ -24,10 +24,6 @@ const STATUS_STYLE: Record<string, { bg: string; fg: string }> = {
   cancelled: { bg: 'var(--crm-negative-bg)', fg: 'var(--crm-negative)' },
 };
 
-const CHANNEL_ICON: Record<string, string> = {
-  push: '🔔', email: '✉️', sms: '💬', in_app: '📱',
-  on_site: '🌐', whatsapp: '💚', telegram: '✈️', rcs: '📨',
-};
 
 const TH: React.CSSProperties = {
   fontSize: 10.5, fontWeight: 700, color: 'var(--crm-fg4)', textAlign: 'left',
@@ -60,7 +56,7 @@ export default function CampaignsTable() {
       background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
       borderRadius: 6, overflow: 'hidden',
     }}>
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--crm-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ background: 'var(--crm-bg)', padding: '12px 20px', borderBottom: '1px solid var(--crm-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)' }}>Live Campaigns</h2>
         {total > 0 && (
           <span style={{ fontSize: 11, color: 'var(--crm-fg4)' }}>{total} total</span>
@@ -104,7 +100,7 @@ export default function CampaignsTable() {
                     <span style={{ fontWeight: 500, color: 'var(--crm-fg1)' }}>{c.name}</span>
                   </td>
                   <td style={TD}>
-                    <span>{CHANNEL_ICON[c.channel] ?? '📡'} {c.channel}</span>
+                    <span>{c.channel}</span>
                   </td>
                   <td style={TD}>
                     <span style={{

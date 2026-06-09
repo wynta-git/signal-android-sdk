@@ -59,7 +59,7 @@ export default function ChannelsTable() {
       background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
       borderRadius: 6, overflow: 'hidden',
     }}>
-      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--crm-border)' }}>
+      <div style={{ background: 'var(--crm-bg)', padding: '12px 20px', borderBottom: '1px solid var(--crm-border)' }}>
         <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)' }}>All Channels — Performance</h2>
       </div>
 
