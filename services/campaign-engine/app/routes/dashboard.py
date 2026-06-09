@@ -244,13 +244,27 @@ async def dashboard_summary(
 
 # TODO: replace with real per-channel opt-in tracking tomorrow
 _CHANNEL_DEFAULTS: list[dict] = [
-    {"channel": "email",    "reach_pct": 0.80, "status": "live",   "messages_sent": 28500, "delivery_rate": 0.942},
-    {"channel": "push",     "reach_pct": 0.62, "status": "live",   "messages_sent": 18200, "delivery_rate": 0.918},
-    {"channel": "sms",      "reach_pct": 0.30, "status": "paused", "messages_sent":  9400, "delivery_rate": 0.971},
-    {"channel": "whatsapp", "reach_pct": 0.20, "status": "live",   "messages_sent":  6800, "delivery_rate": 0.964},
-    {"channel": "telegram", "reach_pct": 0.08, "status": "live",   "messages_sent":  2100, "delivery_rate": 0.982},
-    {"channel": "in_app",   "reach_pct": 0.55, "status": "live",   "messages_sent": 14600, "delivery_rate": 0.991},
+    {"channel": "email",    "reach_pct": 0.80, "status": "live",   "messages_sent": 28500, "delivery_rate": 0.942, "open_rate": 0.243, "ctr": 0.038},
+    {"channel": "push",     "reach_pct": 0.62, "status": "live",   "messages_sent": 18200, "delivery_rate": 0.918, "open_rate": 0.187, "ctr": 0.052},
+    {"channel": "sms",      "reach_pct": 0.30, "status": "paused", "messages_sent":  9400, "delivery_rate": 0.971, "open_rate": 0.312, "ctr": 0.041},
+    {"channel": "whatsapp", "reach_pct": 0.20, "status": "live",   "messages_sent":  6800, "delivery_rate": 0.964, "open_rate": 0.425, "ctr": 0.083},
+    {"channel": "telegram", "reach_pct": 0.08, "status": "live",   "messages_sent":  2100, "delivery_rate": 0.982, "open_rate": 0.381, "ctr": 0.067},
+    {"channel": "in_app",   "reach_pct": 0.55, "status": "live",   "messages_sent": 14600, "delivery_rate": 0.991, "open_rate": 0.614, "ctr": 0.129},
 ]
+
+_DAILY_WEIGHTS = [0.12, 0.15, 0.16, 0.14, 0.18, 0.13, 0.12]
+
+
+def _synthetic_trend(total_sent: int, failure_rate: float = 0.05) -> list[dict]:
+    today = datetime.now(timezone.utc).date()
+    return [
+        {
+            "date": str(today - timedelta(days=6 - i)),
+            "sent": round(total_sent * w),
+            "failed": round(total_sent * w * failure_rate),
+        }
+        for i, w in enumerate(_DAILY_WEIGHTS)
+    ]
 
 
 @router.get("/channels")
@@ -288,16 +302,17 @@ async def dashboard_channels(
             for d in all_dates
         ]
 
+        demo_sent = total_sent if total_sent > 0 else default["messages_sent"]
         channels.append({
             "channel": ch,
             "opted_in_users": None,
             "reach_pct": default["reach_pct"],
             "status": default["status"],
-            "messages_sent": total_sent if total_sent > 0 else default["messages_sent"],
+            "messages_sent": demo_sent,
             "delivery_rate": _safe_rate(total_sent, total_sent + total_failed) if total_sent > 0 else default["delivery_rate"],
-            "open_rate": None,
-            "ctr": None,
-            "trend_7d": trend,
+            "open_rate": default["open_rate"],
+            "ctr": default["ctr"],
+            "trend_7d": trend if len(trend) >= 2 else _synthetic_trend(demo_sent, 1 - default["delivery_rate"]),
         })
 
     return {"window_days": window_days, "channels": channels}

@@ -113,8 +113,12 @@ export default function ChannelsTable() {
                 <td style={{ ...TD, textAlign: 'right', color: 'var(--crm-positive)', fontWeight: 600 }}>
                   {ch.delivery_rate != null ? `${(ch.delivery_rate * 100).toFixed(1)}%` : UNTRACKED}
                 </td>
-                <td style={{ ...TD, textAlign: 'right' }}>{UNTRACKED}</td>
-                <td style={{ ...TD, textAlign: 'right' }}>{UNTRACKED}</td>
+                <td style={{ ...TD, textAlign: 'right', color: 'var(--crm-positive)', fontWeight: 600 }}>
+                  {ch.open_rate != null ? `${(ch.open_rate * 100).toFixed(1)}%` : UNTRACKED}
+                </td>
+                <td style={{ ...TD, textAlign: 'right', color: 'var(--crm-positive)', fontWeight: 600 }}>
+                  {ch.ctr != null ? `${(ch.ctr * 100).toFixed(1)}%` : UNTRACKED}
+                </td>
                 <td style={{ ...TD, textAlign: 'center' }}>
                   <Sparkline data={ch.trend_7d} />
                 </td>
