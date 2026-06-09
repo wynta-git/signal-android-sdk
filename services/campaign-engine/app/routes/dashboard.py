@@ -315,7 +315,7 @@ async def dashboard_channels(
             for d in all_dates
         ]
 
-        demo_sent = total_sent if total_sent > 0 else default["messages_sent"]
+        demo_sent = default["messages_sent"] + total_sent
         channels.append({
             "channel": ch,
             "opted_in_users": None,
