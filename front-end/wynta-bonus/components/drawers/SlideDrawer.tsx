@@ -3,9 +3,9 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { closeDrawer } from '../../store/slices/uiSlice';
-import { createHead, updateHead, fetchHead } from '../../store/slices/headsSlice';
-import { createSubhead, updateSubhead, fetchSubhead } from '../../store/slices/subheadsSlice';
-import { createConfigure, updateConfigure, fetchConfiguresBySubhead } from '../../store/slices/configuresSlice';
+import { createHead, updateHead, fetchHead, selectAllHeads } from '../../store/slices/headsSlice';
+import { createSubhead, updateSubhead, fetchSubhead, selectSubheadById } from '../../store/slices/subheadsSlice';
+import { createConfigure, updateConfigure, fetchConfiguresBySubhead, createTrigger, createPromoCode } from '../../store/slices/configuresSlice';
 import { updateBudget } from '../../store/slices/budgetsSlice';
 import type { BudgetPeriod } from '../../types';
 import Icon from 'wynta-react-common/components/Icon';
@@ -22,7 +22,7 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   EDIT_HEAD:      { title: 'Edit Bonus Head',               icon: 'pencil' },
   NEW_SUBHEAD:    { title: 'Add Subhead',                   icon: 'plus-circle' },
   EDIT_SUBHEAD:   { title: 'Edit Subhead',                  icon: 'pencil' },
-  NEW_CONFIGURE:  { title: 'Add Configure',                 icon: 'settings-2' },
+  NEW_CONFIGURE:  { title: 'Add Bonus Configure',            icon: 'settings-2' },
   EDIT_CONFIGURE: { title: 'Edit Configure',                icon: 'pencil' },
   NEW_PROMOCODE:  { title: 'Add Promo Code',                icon: 'ticket' },
   NEW_ELIGIBILITY:{ title: 'Add Eligibility Criterion',     icon: 'filter' },
@@ -45,6 +45,24 @@ export default function SlideDrawer() {
 
   const open = !!drawerState;
   const cfg = drawerState && DRAWER_TITLES[drawerState.type];
+  const allHeads = useAppSelector(selectAllHeads);
+  // Try the full subhead entity first; fall back to the summary embedded in the head
+  const parentSubhead = useAppSelector(
+    drawerState?.type === 'NEW_CONFIGURE' && drawerState.parentId != null
+      ? selectSubheadById(drawerState.parentId)
+      : () => undefined,
+  );
+  const parentHead = (() => {
+    if (drawerState?.type !== 'NEW_CONFIGURE' || drawerState.parentId == null) return undefined;
+    // If we have the full entity, use its parent_head_id
+    if (parentSubhead?.parent_head_id != null) {
+      return allHeads.find(h => h.id === parentSubhead.parent_head_id);
+    }
+    // Otherwise scan head.subheads summaries
+    return allHeads.find(h => h.subheads?.some(s => s.id === drawerState.parentId));
+  })();
+  const breadcrumbSubName = parentSubhead?.name
+    ?? allHeads.flatMap(h => h.subheads ?? []).find(s => s.id === drawerState?.parentId)?.name;
 
   useEffect(() => { setSubmitting(false); setSubmitError(null); }, [drawerState]);
 
@@ -101,14 +119,25 @@ export default function SlideDrawer() {
         if (updated?.head_id) dispatch(fetchHead(updated.head_id));
         dispatch(closeDrawer());
       } else if (drawerState?.type === 'NEW_CONFIGURE' && drawerState.parentId != null) {
-        await dispatch(createConfigure({
+        const { _budget, _trigger, _code, _segment_id, ...configureFields } = data;
+        const newCfg = await dispatch(createConfigure({
           parentId: drawerState.parentId,
-          payload: {
-            ...data,
-            site_id: selectedBrand,
-            created_by: currentUser,
-          },
+          payload: { ...configureFields, site_id: selectedBrand, created_by: currentUser },
         })).unwrap();
+        if (Array.isArray(_budget) && (_budget as BudgetPeriod[]).length > 0 && newCfg?.id) {
+          await dispatch(updateBudget({
+            scope: 'configure',
+            id: newCfg.id,
+            periods: _budget as BudgetPeriod[],
+            updatedBy: currentUser,
+          })).unwrap().catch(() => null);
+        }
+        if (_trigger && newCfg?.id) {
+          await dispatch(createTrigger({ configureId: newCfg.id, payload: _trigger as Record<string, unknown> })).unwrap().catch(() => null);
+        }
+        if (_code && newCfg?.id) {
+          await dispatch(createPromoCode({ configureId: newCfg.id, payload: _code as Record<string, unknown> })).unwrap().catch(() => null);
+        }
         dispatch(fetchConfiguresBySubhead(drawerState.parentId));
         dispatch(closeDrawer());
       } else if (drawerState?.type === 'EDIT_CONFIGURE' && drawerState.id != null) {
@@ -135,15 +164,17 @@ export default function SlideDrawer() {
     }
   };
 
+  const isDialog = drawerState?.type === 'NEW_CONFIGURE';
+
   const content = (
     <>
       <div
         className={'drawer-overlay' + (open ? ' open' : '')}
-        onClick={onClose}
+        onClick={isDialog ? undefined : onClose}
         aria-hidden={!open}
       />
       <div
-        className={'drawer' + (open ? ' open' : '')}
+        className={isDialog ? ('cfg-dialog' + (open ? ' open' : '')) : ('drawer' + (open ? ' open' : ''))}
         role="dialog"
         aria-modal="true"
         aria-label={cfg ? cfg.title : ''}
@@ -152,8 +183,30 @@ export default function SlideDrawer() {
           <>
             <div className="drawer-header">
               <span className="icon"><Icon name={cfg.icon} size={16}/></span>
-              <span className="title">{cfg.title}</span>
-              <button className="close" onClick={onClose} aria-label="Close drawer">
+              {breadcrumbSubName ? (
+                <div className="title-block">
+                  <span className="title">{cfg.title}</span>
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    marginTop: 3,
+                    background: 'var(--g100)', border: '1px solid var(--g200)',
+                    borderRadius: 'var(--r)', padding: '1px 8px',
+                    fontSize: 10.5, fontWeight: 600, color: 'var(--g600)',
+                    letterSpacing: '0.02em', width: 'fit-content',
+                  }}>
+                    {parentHead && (
+                      <>
+                        <span style={{ color: 'var(--g500)', fontWeight: 500 }}>{parentHead.name}</span>
+                        <span style={{ color: 'var(--g400)' }}>→</span>
+                      </>
+                    )}
+                    <span>{breadcrumbSubName}</span>
+                  </span>
+                </div>
+              ) : (
+                <span className="title">{cfg.title}</span>
+              )}
+              <button className="close" onClick={onClose} aria-label="Close dialog">
                 <Icon name="x" size={18}/>
               </button>
             </div>

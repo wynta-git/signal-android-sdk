@@ -237,32 +237,21 @@ CREATE TABLE `bonus_eligibility` (
 
 -- bonus_release_trigger
 CREATE TABLE `bonus_release_trigger` (
-    `id`                  INT            NOT NULL AUTO_INCREMENT,
-    `configure_id`        INT            NOT NULL,
+    `id`             INT            NOT NULL AUTO_INCREMENT,
+    `configure_id`   INT            NOT NULL,
     -- references bonus_configure.id
-    `site_id`             INT            NOT NULL,
-    `trigger_type`        VARCHAR(50)    NOT NULL,
-    -- LOGIN | REGISTRATION | APP_VISIT | DEPOSIT | BET_PLACED | LEADERBOARD_WON | TOURNAMENT_WON | FRIEND_SIGNUP
-    `description`         VARCHAR(500)   DEFAULT NULL,
-    -- human-readable summary of this trigger and its conditions
-    `min_trigger_amount`  DECIMAL(18,2)  DEFAULT NULL,
-    -- minimum qualifying event amount; NULL = no minimum
-    `max_trigger_amount`  DECIMAL(18,2)  DEFAULT NULL,
-    -- maximum qualifying event amount; NULL = no cap
-    `payment_method`      VARCHAR(50)    DEFAULT NULL,
-    -- restrict to a payment method (UPI | NETBANKING | CARD | WALLET); NULL = all
-    `product`             VARCHAR(50)    DEFAULT NULL,
-    -- restrict to a product (POKER | CASINO | RUMMY); NULL = all products
-    `occurrence`          INT            NOT NULL DEFAULT 0,
-    -- 0 = every occurrence; 1 = first only; N = Nth occurrence
-    `active`              TINYINT(1)     NOT NULL DEFAULT 1,
-    `created_by`          VARCHAR(100)   NOT NULL,
-    `updated_by`          VARCHAR(100)   NOT NULL,
-    `created_at`          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at`          DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                         ON UPDATE CURRENT_TIMESTAMP,
-    `row_hash`            CHAR(64)       DEFAULT NULL,
-    -- SHA-256 of mutable fields; recompute to detect tampering
+    `site_id`        INT            NOT NULL,
+    `trigger_type`   VARCHAR(50)    NOT NULL,
+    -- DEPOSIT | REGISTRATION | MANUAL | REFERRAL | PROMO_CODE | MILESTONE | …
+    `trigger_config` JSON           DEFAULT NULL,
+    -- free-form key-value qualifying conditions
+    `active`         TINYINT(1)     NOT NULL DEFAULT 1,
+    `created_by`     VARCHAR(100)   NOT NULL,
+    `updated_by`     VARCHAR(100)   NOT NULL,
+    `created_at`     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                    ON UPDATE CURRENT_TIMESTAMP,
+    `row_hash`       CHAR(64)       DEFAULT NULL,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bonus_release_trigger`              (`configure_id`, `trigger_type`),
     KEY `idx_bonus_release_trigger_configure_id`       (`configure_id`),

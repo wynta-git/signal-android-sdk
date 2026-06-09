@@ -66,13 +66,9 @@ export interface Trigger {
   id: number;
   configure_id?: number;
   trigger_type: string;
-  description?: string | null;
-  min_trigger_amount?: string | number | null;
-  max_trigger_amount?: string | number | null;
-  payment_method?: string | null;
-  product?: string | null;
-  occurrence?: number;
+  trigger_config?: Record<string, unknown> | null;
   active?: boolean;
+  [key: string]: unknown;
 }
 
 export interface EligibilityRule {
