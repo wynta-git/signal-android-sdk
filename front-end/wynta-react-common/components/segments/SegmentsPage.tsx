@@ -13,7 +13,16 @@ import {
 import AddSegmentModal     from './AddSegmentModal';
 import DeleteSegmentModal  from './DeleteSegmentModal';
 import { formatConditions, formatRelative } from '../../utils';
+import { getToken } from '../../services/tokenRegistry';
 import type { Segment } from '../../types';
+
+const SEG_BASE = process.env.NEXT_PUBLIC_SEG_API_URL ?? 'http://localhost:8003';
+
+interface SegmentStats {
+  total_segments:        number;
+  active_campaigns_using: number;
+  estimated_reach:       number;
+}
 
 
 interface SegmentRow {
@@ -38,7 +47,7 @@ function toRow(s: Segment): SegmentRow {
     reach:     s.count ? s.count.toLocaleString('en-IN') + ' players' : '—',
     created:   formatRelative(s.last_used_at),
     createdBy: (s as any).owner ?? s.owner ?? 'System',
-    usedIn:    (s as any).used_in ?? [],
+    usedIn:    s.used_by_campaigns ?? (s as any).used_in ?? [],
   };
 }
 
@@ -53,11 +62,18 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
   const apiSegments = useCommonSelector(selectAllSegments);
   const status      = useCommonSelector(selectSegmentsStatus);
   const didFetch    = useRef(false);
+  const [stats, setStats] = useState<SegmentStats | null>(null);
 
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
     dispatch(fetchSegments());
+    fetch(`${SEG_BASE}/api/v1/segment/segments/stats`, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: SegmentStats | null) => { if (data) setStats(data); })
+      .catch(() => {});
   }, [dispatch]);
 
   /* Use only real API data — no sample / fallback rows */
@@ -78,6 +94,8 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
 
   const [search, setSearch]   = useState('');
   const [typeFilter, setType] = useState<'all' | 'static' | 'dynamic'>('all');
+  const [page, setPage]       = useState(1);
+  const PAGE_SIZE = 10;
 
   type ModalConfig = { mode: 'create' | 'edit'; segmentId?: string } | null;
   const [modalConfig, setModalConfig] = useState<ModalConfig>(null);
@@ -98,6 +116,23 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
       return matchSearch && matchType;
     });
   }, [rows, search, typeFilter]);
+
+  // Reset to page 1 whenever filter/search changes
+  useEffect(() => { setPage(1); }, [search, typeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Build visible page numbers with ellipsis
+  function pageNumbers(): (number | '…')[] {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '…')[] = [1];
+    if (page > 3)  pages.push('…');
+    for (let p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) pages.push(p);
+    if (page < totalPages - 2) pages.push('…');
+    pages.push(totalPages);
+    return pages;
+  }
 
   /* ── Export current filtered rows as CSV ── */
   function handleExport() {
@@ -172,17 +207,17 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
       <div className="seg-stats-row">
         <div className="seg-stat-card">
           <div className="seg-stat-label">Total Segments</div>
-          <div className="seg-stat-value">{totalCount}</div>
+          <div className="seg-stat-value">{stats ? stats.total_segments.toLocaleString('en-IN') : totalCount}</div>
           <div className="seg-stat-sub">across all types</div>
         </div>
         <div className="seg-stat-card">
           <div className="seg-stat-label">Active Campaigns Using</div>
-          <div className="seg-stat-value">{activeCampaigns}</div>
+          <div className="seg-stat-value">{stats ? stats.active_campaigns_using.toLocaleString('en-IN') : activeCampaigns}</div>
           <div className="seg-stat-sub">segments in use</div>
         </div>
         <div className="seg-stat-card">
           <div className="seg-stat-label">Estimated Reach</div>
-          <div className="seg-stat-value">0</div>
+          <div className="seg-stat-value">{stats ? stats.estimated_reach.toLocaleString('en-IN') : '0'}</div>
           <div className="seg-stat-sub">estimated users</div>
         </div>
       </div>
@@ -215,7 +250,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                 <th>Est. Reach</th>
                 <th>Created</th>
                 <th>Created By</th>
-                <th>Used In</th>
+                <th style={{ width: 180 }}>Used In</th>
                 <th></th>
               </tr>
             </thead>
@@ -245,7 +280,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                   </td>
                 </tr>
               ) : (
-                filtered.map(row => (
+                paginated.map(row => (
                   <tr key={row.id}>
                     <td>
                       <div className="seg-row-name">{row.name}</div>
@@ -271,13 +306,19 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                     <td>
                       <div className="seg-creator">{row.createdBy}</div>
                     </td>
-                    <td>
+                    <td style={{ width: 180, maxWidth: 180 }}>
                       {row.usedIn.length > 0 ? (
-                        <div className="seg-used-in">
-                          {row.usedIn.map((u, i) => (
-                            <span key={i} className="seg-campaign-pill">{u}</span>
-                          ))}
-                        </div>
+                        <span
+                          title={row.usedIn.join('\n')}
+                          style={{ fontSize: 12.5, color: 'var(--crm-fg2)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
+                        >
+                          {row.usedIn.slice(0, 3).join(', ')}
+                          {row.usedIn.length > 3 && (
+                            <span style={{ color: 'var(--crm-blue)', fontWeight: 500, marginLeft: 4 }}>
+                              +{row.usedIn.length - 3} more
+                            </span>
+                          )}
+                        </span>
                       ) : (
                         <span style={{ color: 'var(--crm-fg4)', fontSize: 12 }}>—</span>
                       )}
@@ -306,6 +347,24 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
             </tbody>
           </table>
         </div>
+
+        {/* ── Pagination ── */}
+        {filtered.length > PAGE_SIZE && (
+          <div className="seg-players-pager">
+            <span className="pager-info">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="pager-controls">
+              <button className="pager-btn" onClick={() => setPage(p => p - 1)} disabled={page === 1}>‹</button>
+              {pageNumbers().map((n, i) =>
+                n === '…'
+                  ? <span key={`e${i}`} className="pager-ellipsis">…</span>
+                  : <button key={n} className={'pager-btn' + (page === n ? ' active' : '')} onClick={() => setPage(n as number)}>{n}</button>
+              )}
+              <button className="pager-btn" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>›</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Delete confirmation modal */}
