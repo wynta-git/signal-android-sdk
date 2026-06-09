@@ -84,7 +84,7 @@ export default function SegmentsBreakdown() {
       borderRadius: 6, overflow: 'hidden',
     }}>
       {/* Header */}
-      <div style={{ background: 'var(--crm-bg)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--crm-border)' }}>
+      <div style={{ background: 'var(--crm-bg)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--crm-border)' }}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
           <path d="M22 12A10 10 0 0 0 12 2v10z" />
@@ -129,16 +129,17 @@ export default function SegmentsBreakdown() {
         </div>
       )}
 
-      {/* Divider */}
-      <div style={{ height: 1, background: 'var(--crm-border)' }} />
-
       {/* Opt-in cards */}
       {!loading && optinCards.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--crm-border)' }}>
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+          margin: '0 14px 14px', paddingTop: 10,
+          borderTop: '1px solid var(--crm-border)',
+        }}>
           {optinCards.map(card => (
-            <div key={card.label} style={{ background: 'var(--g50, #f9fafb)', padding: '12px 16px' }}>
-              <div style={{ fontSize: 11, color: 'var(--crm-fg4)', marginBottom: 4 }}>{card.label}</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--crm-fg1)' }}>{fmt(card.value)}</div>
+            <div key={card.label} style={{ background: 'var(--crm-bg)', borderRadius: 4, padding: '8px 10px' }}>
+              <div style={{ fontSize: 10, color: 'var(--crm-fg3)', marginBottom: 2 }}>{card.label}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--crm-fg1)' }}>{fmt(card.value)}</div>
             </div>
           ))}
         </div>

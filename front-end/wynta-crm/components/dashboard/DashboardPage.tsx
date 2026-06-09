@@ -27,7 +27,7 @@ const WINDOW_OPTIONS = [
   { label: 'Last 30 days', value: 30 },
 ];
 
-export default function DashboardPage() {
+export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: string) => void }) {
   const dispatch   = useAppDispatch();
   const windowDays = useAppSelector(selectDashboardWindowDays);
   const pathname   = usePathname();
@@ -103,20 +103,20 @@ export default function DashboardPage() {
       {/* Row 2: Channel reach + Player segments */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <ChannelReach />
-        <PlayerSegments />
+        <PlayerSegments onNavigate={onNavChange} />
       </div>
 
       {/* Row 3: All-channels performance table */}
-      <ChannelsTable />
+      <ChannelsTable onNavigate={onNavChange} />
 
       {/* Row 4: Live campaigns table */}
-      <CampaignsTable />
+      <CampaignsTable onNavigate={onNavChange} />
 
       {/* Row 5: Analytics chart */}
       <AnalyticsChart />
 
       {/* Row 6: Player health + Segments breakdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
         <PlayerHealth />
         <SegmentsBreakdown />
       </div>

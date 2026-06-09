@@ -93,7 +93,7 @@ function formatRevenue(n?: number) {
 /* ------------------------------------------------------------------ */
 /* Component                                                            */
 /* ------------------------------------------------------------------ */
-export default function CampaignsPage() {
+export default function CampaignsPage({ autoOpenAdd }: { autoOpenAdd?: boolean }) {
   const dispatch     = useDispatch<any>();
   const apiCampaigns = useAppSelector(selectAllCampaigns);
   const status       = useAppSelector(selectCampaignsStatus);
@@ -148,6 +148,7 @@ export default function CampaignsPage() {
 
   /* Modals */
   const [showChannelModal, setShowChannelModal] = useState(false);
+  useEffect(() => { if (autoOpenAdd) setShowChannelModal(true); }, [autoOpenAdd]);
   const [wizardChannel,    setWizardChannel]    = useState<string | null>(null);
   const [editCampaign,     setEditCampaign]     = useState<Campaign | null>(null);
   const [wizardViewMode,   setWizardViewMode]   = useState(false);

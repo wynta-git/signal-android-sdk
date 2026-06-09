@@ -14,7 +14,7 @@ const BAR_COLORS = [
   '#06b6d4', '#84cc16', '#f97316', '#ec4899', '#6366f1',
 ];
 
-export default function PlayerSegments() {
+export default function PlayerSegments({ onNavigate }: { onNavigate?: (nav: string) => void }) {
   const segments = useAppSelector(selectDashboardSegments);
   const status   = useAppSelector(selectDashboardStatus);
   const loading  = status.segments === 'loading';
@@ -26,7 +26,7 @@ export default function PlayerSegments() {
       borderRadius: 6, overflow: 'hidden',
     }}>
       <div style={{
-        background: 'var(--crm-bg)', padding: '12px 20px',
+        background: 'var(--crm-bg)', padding: '10px 14px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         borderBottom: '1px solid var(--crm-border)',
       }}>
@@ -41,9 +41,13 @@ export default function PlayerSegments() {
             <text x="7" y="11" fontSize="8" fill="#9ca3af" textAnchor="middle">i</text>
           </svg>
         </div>
-        {/* <a href="/segments" style={{ fontSize: 12, color: 'var(--crm-blue)', textDecoration: 'none', fontWeight: 500 }}>
+        <a
+          href="#"
+          onClick={e => { e.preventDefault(); onNavigate?.('segments'); }}
+          style={{ fontSize: 12, color: 'var(--crm-blue)', textDecoration: 'none', fontWeight: 500 }}
+        >
           Manage →
-        </a> */}
+        </a>
       </div>
 
       <div style={{ padding: '16px 20px' }}>
@@ -62,32 +66,32 @@ export default function PlayerSegments() {
       )}
 
       {!loading && items.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {items.slice(0, 8).map((seg, i) => (
-            <div key={seg.id ?? i}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{
-                  fontSize: 12, fontWeight: 500, color: 'var(--crm-fg2)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%',
-                }}>
-                  {seg.name}
-                </span>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--crm-fg1)' }}>
-                    {fmt(seg.members_count)}
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--crm-fg4)', minWidth: 36, textAlign: 'right' }}>
-                    {seg.pct.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-              <div style={{ height: 6, background: 'var(--g100)', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {items.slice(0, 7).map((seg, i, arr) => (
+            <div key={seg.id ?? i} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '7px 0',
+              borderBottom: i < arr.length - 1 ? '1px solid var(--crm-border)' : 'none',
+            }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: BAR_COLORS[i % BAR_COLORS.length], flexShrink: 0,
+              }} />
+              <span style={{ fontSize: 12, color: 'var(--fg2)', flex: 1 }}>
+                {seg.name}
+              </span>
+              <div style={{ width: 80, background: 'var(--wynta-grey-100)', borderRadius: 3, height: 6, overflow: 'hidden', flexShrink: 0 }}>
                 <div style={{
-                  height: '100%', width: `${Math.min(seg.pct, 100)}%`,
-                  background: BAR_COLORS[i % BAR_COLORS.length],
-                  borderRadius: 4, transition: 'width 0.4s ease',
+                  width: `${Math.min(seg.pct, 100)}%`, background: BAR_COLORS[i % BAR_COLORS.length],
+                  height: 6, borderRadius: 3, opacity: 0.8,
                 }} />
               </div>
+              <span style={{ fontSize: 11, color: 'var(--fg3)', width: 30, textAlign: 'right', flexShrink: 0 }}>
+                {seg.pct.toFixed(0)}%
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg1)', width: 40, textAlign: 'right', flexShrink: 0 }}>
+                {fmt(seg.members_count)}
+              </span>
             </div>
           ))}
         </div>

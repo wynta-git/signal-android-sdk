@@ -32,10 +32,10 @@ export default function PlayerHealth() {
   return (
     <div style={{
       background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
-      borderRadius: 6, overflow: 'hidden',
+      borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column',
     }}>
       {/* Header */}
-      <div style={{ background: 'var(--crm-bg)', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--crm-border)' }}>
+      <div style={{ background: 'var(--crm-bg)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, borderBottom: '1px solid var(--crm-border)' }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
         </svg>
@@ -46,12 +46,12 @@ export default function PlayerHealth() {
         </svg>
       </div>
 
-      {/* Bucket cards */}
-      <div style={{ padding: '16px 20px 20px' }}>
+      {/* Content */}
+      <div style={{ padding: '14px 14px 16px', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
         {loading && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
             {[1, 2, 3, 4].map(i => (
-              <div key={i} style={{ height: 100, background: 'var(--g100)', borderRadius: 12 }} />
+              <div key={i} style={{ height: 80, background: 'var(--g100)', borderRadius: 8 }} />
             ))}
           </div>
         )}
@@ -64,36 +64,33 @@ export default function PlayerHealth() {
 
         {!loading && health && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+            {/* Bucket cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, alignItems: 'start' }}>
               {BUCKETS.map(b => {
                 const count = health[b.key].count;
                 const pct   = ((health[b.key].pct ?? 0) * 100).toFixed(0);
                 return (
                   <div key={b.key} style={{
-                    background: b.bg, borderRadius: 12, padding: '16px 12px',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    background: b.bg, borderRadius: 8, padding: '8px 10px', textAlign: 'center',
                   }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: b.color }}>{b.label}</span>
-                    <span style={{ fontSize: 28, fontWeight: 800, color: b.color, lineHeight: 1 }}>{fmt(count)}</span>
-                    <span style={{ fontSize: 12, color: b.color, opacity: 0.75 }}>{pct}%</span>
+                    <div style={{ fontSize: 10, color: b.color, fontWeight: 600, marginBottom: 2 }}>{b.label}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: b.color }}>{fmt(count)}</div>
+                    <div style={{ fontSize: 10, color: b.color, opacity: 0.7 }}>{pct}%</div>
                   </div>
                 );
               })}
             </div>
 
             {/* Progress metrics */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {PROGRESS_METRICS.map(m => (
                 <div key={m.label}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                     <span style={{ fontSize: 12, color: 'var(--crm-fg2)' }}>{m.label}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--crm-fg1)' }}>{m.pct}%</span>
                   </div>
-                  <div style={{ height: 6, background: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', width: `${m.pct}%`,
-                      background: m.color, borderRadius: 4,
-                    }} />
+                  <div style={{ height: 5, background: 'var(--crm-border)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${m.pct}%`, background: m.color, borderRadius: 4 }} />
                   </div>
                 </div>
               ))}

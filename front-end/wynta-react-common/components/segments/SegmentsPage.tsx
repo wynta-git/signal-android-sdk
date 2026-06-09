@@ -219,7 +219,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
         <div className="seg-stat-card">
           <div className="seg-stat-label">Estimated Reach</div>
           <div className="seg-stat-value">{estimatedReach.toLocaleString('en-IN')}</div>
-          <div className="seg-stat-sub">estimated users</div>
+          <div className="seg-stat-sub">players</div>
         </div>
       </div>
 

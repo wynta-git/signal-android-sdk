@@ -22,7 +22,7 @@ export default function ChannelReach() {
       borderRadius: 6, overflow: 'hidden',
     }}>
       <div style={{
-        background: 'var(--crm-bg)', padding: '12px 20px',
+        background: 'var(--crm-bg)', padding: '10px 14px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         borderBottom: '1px solid var(--crm-border)',
       }}>
@@ -57,64 +57,36 @@ export default function ChannelReach() {
 
       {!loading && channels && channels.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {channels.map((ch, idx) => {
+          {channels.map((ch, idx, arr) => {
             const config = CHANNEL_CONFIG[ch.channel] ?? { label: ch.channel, color: '#9E9E9E' };
             const pct = ch.reach_pct != null ? Math.round(ch.reach_pct * 100) : null;
-            const barColor = ch.status === 'live' ? config.color : '#D1D5DB';
             const isLive = ch.status === 'live';
 
             return (
-              <div key={ch.channel}>
-                {idx > 0 && (
-                  <div style={{ height: 1, background: 'var(--crm-border)' }} />
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0' }}>
-
-                  {/* dot + name */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 130, flexShrink: 0 }}>
-                    <div style={{
-                      width: 10, height: 10, borderRadius: '50%',
-                      background: config.color, flexShrink: 0,
-                    }} />
-                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--crm-fg2)' }}>
-                      {config.label}
-                    </span>
-                  </div>
-
-                  {/* progress bar */}
-                  <div style={{ flex: 1, height: 8, background: 'var(--g100)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${Math.min(pct ?? 0, 100)}%`,
-                      background: barColor,
-                      borderRadius: 4,
-                      transition: 'width 0.4s ease',
-                    }} />
-                  </div>
-
-                  {/* percentage */}
-                  <span style={{
-                    fontSize: 13, fontWeight: 700, color: 'var(--crm-fg1)',
-                    width: 38, textAlign: 'right', flexShrink: 0,
-                  }}>
-                    {pct != null ? `${pct}%` : '—'}
-                  </span>
-
-                  {/* status badge */}
+              <div key={ch.channel} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0',
+                borderBottom: idx < arr.length - 1 ? '1px solid var(--crm-border)' : 'none',
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: config.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, color: 'var(--fg2)', flex: 1 }}>{config.label}</span>
+                <div style={{ width: 80, background: 'var(--wynta-grey-100)', borderRadius: 3, height: 6, overflow: 'hidden', flexShrink: 0 }}>
                   <div style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
-                    background: isLive ? 'var(--crm-positive-bg)' : '#FEF3C7',
-                    color: isLive ? 'var(--crm-positive)' : '#D97706',
-                    flexShrink: 0,
-                  }}>
-                    <div style={{
-                      width: 6, height: 6, borderRadius: '50%',
-                      background: isLive ? 'var(--crm-positive)' : '#D97706',
-                    }} />
-                    {isLive ? 'Live' : 'Paused'}
-                  </div>
-
+                    width: `${Math.min(pct ?? 0, 100)}%`, background: config.color,
+                    height: 6, borderRadius: 3, opacity: 0.8,
+                  }} />
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--fg3)', width: 30, textAlign: 'right', flexShrink: 0 }}>
+                  {pct != null ? `${pct}%` : '—'}
+                </span>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                  background: isLive ? 'var(--crm-positive-bg)' : '#FEF3C7',
+                  color: isLive ? 'var(--crm-positive)' : '#D97706',
+                  flexShrink: 0,
+                }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: isLive ? 'var(--crm-positive)' : '#D97706' }} />
+                  {isLive ? 'Live' : 'Paused'}
                 </div>
               </div>
             );
