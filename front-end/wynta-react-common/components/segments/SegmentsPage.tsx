@@ -13,7 +13,16 @@ import {
 import AddSegmentModal     from './AddSegmentModal';
 import DeleteSegmentModal  from './DeleteSegmentModal';
 import { formatConditions, formatRelative } from '../../utils';
+import { getToken } from '../../services/tokenRegistry';
 import type { Segment } from '../../types';
+
+const SEG_BASE = process.env.NEXT_PUBLIC_SEG_API_URL ?? 'http://localhost:8003';
+
+interface SegmentStats {
+  total_segments:        number;
+  active_campaigns_using: number;
+  estimated_reach:       number;
+}
 
 
 interface SegmentRow {
@@ -53,11 +62,18 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
   const apiSegments = useCommonSelector(selectAllSegments);
   const status      = useCommonSelector(selectSegmentsStatus);
   const didFetch    = useRef(false);
+  const [stats, setStats] = useState<SegmentStats | null>(null);
 
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
     dispatch(fetchSegments());
+    fetch(`${SEG_BASE}/api/v1/segment/segments/stats`, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: SegmentStats | null) => { if (data) setStats(data); })
+      .catch(() => {});
   }, [dispatch]);
 
   /* Use only real API data — no sample / fallback rows */
@@ -172,17 +188,17 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
       <div className="seg-stats-row">
         <div className="seg-stat-card">
           <div className="seg-stat-label">Total Segments</div>
-          <div className="seg-stat-value">{totalCount}</div>
+          <div className="seg-stat-value">{stats ? stats.total_segments.toLocaleString('en-IN') : totalCount}</div>
           <div className="seg-stat-sub">across all types</div>
         </div>
         <div className="seg-stat-card">
           <div className="seg-stat-label">Active Campaigns Using</div>
-          <div className="seg-stat-value">{activeCampaigns}</div>
+          <div className="seg-stat-value">{stats ? stats.active_campaigns_using.toLocaleString('en-IN') : activeCampaigns}</div>
           <div className="seg-stat-sub">segments in use</div>
         </div>
         <div className="seg-stat-card">
           <div className="seg-stat-label">Estimated Reach</div>
-          <div className="seg-stat-value">0</div>
+          <div className="seg-stat-value">{stats ? stats.estimated_reach.toLocaleString('en-IN') : '0'}</div>
           <div className="seg-stat-sub">estimated users</div>
         </div>
       </div>
