@@ -37,7 +37,7 @@ export default function DashboardPage() {
     dispatch(fetchDashboardChannels({ windowDays: w }));
     dispatch(fetchDashboardSegments({}));
     dispatch(fetchDashboardCampaigns({}));
-    dispatch(fetchDashboardAnalytics({ windowDays: 30 }));
+    dispatch(fetchDashboardAnalytics({ windowDays: 7 }));
   }
 
   useEffect(() => {
