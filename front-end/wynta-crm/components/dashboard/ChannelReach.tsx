@@ -2,15 +2,13 @@
 import { useAppSelector } from '../../store/hooks';
 import { selectDashboardChannels, selectDashboardStatus } from '../../store/slices/dashboardSlice';
 
-const CHANNEL_ICON: Record<string, string> = {
-  push:      '🔔',
-  email:     '✉️',
-  sms:       '💬',
-  in_app:    '📱',
-  on_site:   '🌐',
-  whatsapp:  '💚',
-  telegram:  '✈️',
-  rcs:       '📨',
+const CHANNEL_CONFIG: Record<string, { label: string; color: string }> = {
+  email:    { label: 'Email',    color: '#2196F3' },
+  push:     { label: 'Push',     color: '#4CAF50' },
+  sms:      { label: 'SMS',      color: '#FF9800' },
+  whatsapp: { label: 'WhatsApp', color: '#9C27B0' },
+  telegram: { label: 'Telegram', color: '#9E9E9E' },
+  in_app:   { label: 'In-App',  color: '#F48FB1' },
 };
 
 export default function ChannelReach() {
@@ -24,7 +22,11 @@ export default function ChannelReach() {
       borderRadius: 6, padding: '16px 20px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--crm-fg1)' }}>Channel Reach</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 15 }}>📡</span>
+          <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--crm-fg1)' }}>Channel Reach</h2>
+        </div>
+        <span style={{ fontSize: 12, color: 'var(--crm-fg4)' }}>7-day window</span>
       </div>
 
       {loading && (
@@ -42,36 +44,69 @@ export default function ChannelReach() {
       )}
 
       {!loading && channels && channels.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {channels.map(ch => (
-            <div key={ch.channel}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <span style={{ fontSize: 14 }}>{CHANNEL_ICON[ch.channel] ?? '📡'}</span>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--crm-fg2)' }}>
-                    {ch.channel.charAt(0).toUpperCase() + ch.channel.slice(1)}
-                  </span>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {channels.map((ch, idx) => {
+            const config = CHANNEL_CONFIG[ch.channel] ?? { label: ch.channel, color: '#9E9E9E' };
+            const pct = ch.reach_pct != null ? Math.round(ch.reach_pct * 100) : null;
+            const barColor = ch.status === 'live' ? config.color : '#D1D5DB';
+            const isLive = ch.status === 'live';
+
+            return (
+              <div key={ch.channel}>
+                {idx > 0 && (
+                  <div style={{ height: 1, background: 'var(--crm-border)' }} />
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0' }}>
+
+                  {/* dot + name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 130, flexShrink: 0 }}>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: config.color, flexShrink: 0,
+                    }} />
+                    <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--crm-fg2)' }}>
+                      {config.label}
+                    </span>
+                  </div>
+
+                  {/* progress bar */}
+                  <div style={{ flex: 1, height: 8, background: 'var(--g100)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${Math.min(pct ?? 0, 100)}%`,
+                      background: barColor,
+                      borderRadius: 4,
+                      transition: 'width 0.4s ease',
+                    }} />
+                  </div>
+
+                  {/* percentage */}
                   <span style={{
-                    fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 20,
-                    background: ch.status === 'live' ? 'var(--crm-positive-bg)' : 'var(--g100)',
-                    color: ch.status === 'live' ? 'var(--crm-positive)' : 'var(--crm-fg4)',
+                    fontSize: 13, fontWeight: 700, color: 'var(--crm-fg1)',
+                    width: 38, textAlign: 'right', flexShrink: 0,
                   }}>
-                    {ch.status === 'live' ? 'Live' : 'Paused'}
+                    {pct != null ? `${pct}%` : '—'}
                   </span>
+
+                  {/* status badge */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+                    background: isLive ? 'var(--crm-positive-bg)' : '#FEF3C7',
+                    color: isLive ? 'var(--crm-positive)' : '#D97706',
+                    flexShrink: 0,
+                  }}>
+                    <div style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: isLive ? 'var(--crm-positive)' : '#D97706',
+                    }} />
+                    {isLive ? 'Live' : 'Paused'}
+                  </div>
+
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--crm-fg1)' }}>
-                  {ch.reach_pct != null ? `${Math.round(ch.reach_pct * 100)}%` : '—'}
-                </span>
               </div>
-              <div style={{ height: 6, background: 'var(--g100)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', width: `${Math.min((ch.reach_pct ?? 0) * 100, 100)}%`,
-                  background: ch.status === 'live' ? 'var(--crm-blue)' : 'var(--g300)',
-                  borderRadius: 4, transition: 'width 0.4s ease',
-                }} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
