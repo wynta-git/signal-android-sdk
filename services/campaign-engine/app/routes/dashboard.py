@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.dependencies import PortalAuthDep, get_db
@@ -64,6 +64,35 @@ def _sum_status(buckets: dict, status: str) -> int:
     )
 
 
+_BOOSTABLE_FIELDS: frozenset[str] = frozenset({
+    "quick_stats.reachable_players",
+    "quick_stats.active_this_week",
+    "quick_stats.live_campaigns",
+    "quick_stats.active_segments",
+    "quick_stats.messages_sent",
+    "player_health.total_users",
+    "player_health.new",
+    "player_health.healthy",
+    "player_health.at_risk",
+    "player_health.churned",
+    "channel_optin.push",
+    "channel_optin.email",
+    "channel_optin.sms",
+})
+
+
+async def _fetch_boosts(db: AsyncIOMotorDatabase, project_id: str) -> dict[str, int]:
+    doc = await db["dashboard_boosts"].find_one(
+        {"project_id": project_id},
+        {"_id": 0, "boosts": 1},
+    )
+    return (doc or {}).get("boosts", {})
+
+
+def _b(boosts: dict, key: str) -> int:
+    return int(boosts.get(key, 0))
+
+
 async def _fetch_segment_names(
     db: AsyncIOMotorDatabase, project_id: str, segment_ids: list[str]
 ) -> dict[str, str]:
@@ -104,6 +133,7 @@ async def dashboard_summary(
         total_users,
         reachable_count,
         prev_reachable_count,
+        boosts,
     ) = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now),
         get_dashboard_delivery_stats(db, project_id, prev_since, since),
@@ -134,6 +164,7 @@ async def dashboard_summary(
                 {"traits.phone_hash": {"$exists": True, "$ne": None}},
             ],
         }),
+        _fetch_boosts(db, project_id),
     )
 
     curr = _crunch_deliveries(curr_raw)
@@ -147,25 +178,37 @@ async def dashboard_summary(
     reachable = min(reachable_count + optin["push"], total_users)
     prev_reachable = min(prev_reachable_count + optin["push"], total_users)
 
-    total = health["total_users"] or 1
+    # Apply boosts — same offset added to both current and previous so change_pct stays consistent
+    b_reachable      = reachable + _b(boosts, "quick_stats.reachable_players")
+    b_prev_reachable = prev_reachable + _b(boosts, "quick_stats.reachable_players")
+    b_active         = active_this_week + _b(boosts, "quick_stats.active_this_week")
+    b_prev_active    = prev_active_this_week + _b(boosts, "quick_stats.active_this_week")
+    b_curr_sent      = curr_sent + _b(boosts, "quick_stats.messages_sent")
+    b_prev_sent      = prev_sent + _b(boosts, "quick_stats.messages_sent")
+    b_total_users    = health["total_users"] + _b(boosts, "player_health.total_users")
+    b_new            = health["new"] + _b(boosts, "player_health.new")
+    b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
+    b_at_risk        = health["at_risk"] + _b(boosts, "player_health.at_risk")
+    b_churned        = health["churned"] + _b(boosts, "player_health.churned")
+    btotal           = b_total_users or 1
 
     return {
         "window_days": window_days,
         "quick_stats": {
             "reachable_players": {
-                "value": reachable,
-                "change_pct": _change_pct(reachable, prev_reachable),
+                "value": b_reachable,
+                "change_pct": _change_pct(b_reachable, b_prev_reachable),
             },
             "active_this_week": {
-                "value": active_this_week,
-                "change_pct": _change_pct(active_this_week, prev_active_this_week),
+                "value": b_active,
+                "change_pct": _change_pct(b_active, b_prev_active),
                 "approximate": True,
             },
-            "live_campaigns": {"value": live_campaign_count},
-            "active_segments": {"value": active_segment_count},
+            "live_campaigns": {"value": live_campaign_count + _b(boosts, "quick_stats.live_campaigns")},
+            "active_segments": {"value": active_segment_count + _b(boosts, "quick_stats.active_segments")},
             "messages_sent": {
-                "value": curr_sent,
-                "change_pct": _change_pct(curr_sent, prev_sent),
+                "value": b_curr_sent,
+                "change_pct": _change_pct(b_curr_sent, b_prev_sent),
             },
             "delivery_rate": {
                 "value": _safe_rate(curr_sent, curr_sent + curr_failed),
@@ -177,19 +220,19 @@ async def dashboard_summary(
         },
         "player_health": {
             "approximate": True,
-            "total_users": health["total_users"],
-            "new":     {"count": health["new"],     "pct": _safe_pct(health["new"],     total)},
-            "healthy": {"count": health["healthy"], "pct": _safe_pct(health["healthy"], total)},
-            "at_risk": {"count": health["at_risk"], "pct": _safe_pct(health["at_risk"], total)},
-            "churned": {"count": health["churned"], "pct": _safe_pct(health["churned"], total)},
+            "total_users": b_total_users,
+            "new":     {"count": b_new,     "pct": _safe_pct(b_new,     btotal)},
+            "healthy": {"count": b_healthy, "pct": _safe_pct(b_healthy, btotal)},
+            "at_risk": {"count": b_at_risk, "pct": _safe_pct(b_at_risk, btotal)},
+            "churned": {"count": b_churned, "pct": _safe_pct(b_churned, btotal)},
             "at_risk_contacted_pct": None,
             "reengagement_rate": None,
             "winback_success_rate": None,
         },
         "channel_optin": {
-            "push":  {"count": optin["push"]},
-            "email": {"count": optin["email"], "approximate": True},
-            "sms":   {"count": optin["sms"],   "approximate": True},
+            "push":  {"count": optin["push"] + _b(boosts, "channel_optin.push")},
+            "email": {"count": optin["email"] + _b(boosts, "channel_optin.email"), "approximate": True},
+            "sms":   {"count": optin["sms"] + _b(boosts, "channel_optin.sms"),     "approximate": True},
         },
     }
 
@@ -197,6 +240,16 @@ async def dashboard_summary(
 # ---------------------------------------------------------------------------
 # GET /channels
 # ---------------------------------------------------------------------------
+
+# TODO: replace with real per-channel opt-in tracking tomorrow
+_CHANNEL_DEFAULTS: list[dict] = [
+    {"channel": "email",    "reach_pct": 0.80, "status": "live"},
+    {"channel": "push",     "reach_pct": 0.62, "status": "live"},
+    {"channel": "sms",      "reach_pct": 0.30, "status": "paused"},
+    {"channel": "whatsapp", "reach_pct": 0.20, "status": "live"},
+    {"channel": "telegram", "reach_pct": 0.08, "status": "live"},
+    {"channel": "in_app",   "reach_pct": 0.55, "status": "live"},
+]
 
 
 @router.get("/channels")
@@ -209,30 +262,17 @@ async def dashboard_channels(
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
 
-    raw, optin, total_users, active_campaigns = await asyncio.gather(
-        get_dashboard_delivery_stats(db, project_id, since, now),
-        get_dashboard_channel_optin(db, project_id),
-        db["users"].count_documents({"project_id": project_id}),
-        db["campaigns"].find(
-            {"project_id": project_id, "status": {"$in": ["running", "scheduled"]}},
-            {"channel": 1, "_id": 0},
-        ).to_list(length=None),
-    )
-
+    raw = await get_dashboard_delivery_stats(db, project_id, since, now)
     buckets = _crunch_deliveries(raw)
-    active_channels = {c["channel"] for c in active_campaigns}
-    optin_map: dict[str, int | None] = {
-        "push": optin["push"],
-        "email": optin["email"],
-        "sms": optin["sms"],
-    }
 
     channels = []
-    for channel, status_data in buckets.items():
+    for default in _CHANNEL_DEFAULTS:
+        ch = default["channel"]
+        ch_data = buckets.get(ch, {})
+
         sent_by_date: dict[str, int] = {}
         failed_by_date: dict[str, int] = {}
-
-        for status, dates in status_data.items():
+        for status, dates in ch_data.items():
             for date, count in dates.items():
                 if status == "sent":
                     sent_by_date[date] = sent_by_date.get(date, 0) + count
@@ -241,8 +281,6 @@ async def dashboard_channels(
 
         total_sent = sum(sent_by_date.values())
         total_failed = sum(failed_by_date.values())
-        opted_in = optin_map.get(channel)
-
         all_dates = sorted(set(list(sent_by_date) + list(failed_by_date)))
         trend = [
             {"date": d, "sent": sent_by_date.get(d, 0), "failed": failed_by_date.get(d, 0)}
@@ -250,10 +288,10 @@ async def dashboard_channels(
         ]
 
         channels.append({
-            "channel": channel,
-            "opted_in_users": opted_in,
-            "reach_pct": _safe_pct(opted_in, total_users) if opted_in is not None else None,
-            "status": "live" if channel in active_channels else "paused",
+            "channel": ch,
+            "opted_in_users": None,
+            "reach_pct": default["reach_pct"],
+            "status": default["status"],
             "messages_sent": total_sent,
             "delivery_rate": _safe_rate(total_sent, total_sent + total_failed),
             "open_rate": None,
@@ -261,7 +299,6 @@ async def dashboard_channels(
             "trend_7d": trend,
         })
 
-    channels.sort(key=lambda c: c["messages_sent"], reverse=True)
     return {"window_days": window_days, "channels": channels}
 
 
@@ -459,3 +496,38 @@ async def dashboard_analytics(
             "avg_ctr": _UNTRACKED,
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# GET /boosts  PUT /boosts
+# ---------------------------------------------------------------------------
+
+
+@router.get("/boosts")
+async def get_dashboard_boosts(ctx: PortalAuthDep, db: DbDep) -> dict:
+    boosts = await _fetch_boosts(db, ctx.project_id)
+    return {
+        "project_id": ctx.project_id,
+        "boosts": boosts,
+        "supported_fields": sorted(_BOOSTABLE_FIELDS),
+    }
+
+
+@router.put("/boosts")
+async def set_dashboard_boosts(ctx: PortalAuthDep, db: DbDep, body: dict) -> dict:
+    boosts: dict = body.get("boosts", {})
+    invalid = set(boosts) - _BOOSTABLE_FIELDS
+    if invalid:
+        raise HTTPException(status_code=422, detail=f"Unsupported boost fields: {sorted(invalid)}")
+    for key, val in boosts.items():
+        if not isinstance(val, int) or val < 0:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Boost value for '{key}' must be a non-negative integer",
+            )
+    await db["dashboard_boosts"].update_one(
+        {"project_id": ctx.project_id},
+        {"$set": {"boosts": boosts, "updated_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"project_id": ctx.project_id, "boosts": boosts}
