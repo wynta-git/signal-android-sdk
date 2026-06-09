@@ -1,7 +1,13 @@
+import { getToken } from "wynta-react-common/services/tokenRegistry";
 import { MOCK_HEADS } from "./mocks/heads";
 import { MOCK_SUBHEADS } from "./mocks/subheads";
 import { MOCK_CONFIGURES } from "./mocks/configures";
 import { getUsage, getBudget, getHistory } from "./mocks/utils";
+
+function authHeaders(): HeadersInit {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 import {
   MANUAL_SEGMENTS,
   PLAYER_FIRST_NAMES,
@@ -157,17 +163,17 @@ const BONUS_API =
 console.log("BONUS_API", BONUS_API);
 export const api = {
   async fetchKpiSnapshot(siteId: string | number) {
-    const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`);
+    const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`, { headers: authHeaders() });
     if (!res.ok) throw new Error("Failed to fetch bonus summary");
     return res.json();
   },
   async fetchHeads(siteId: string | number) {
-    const res = await fetch(`${BONUS_API}/bonus-heads?site_id=${siteId}`);
+    const res = await fetch(`${BONUS_API}/bonus-heads?site_id=${siteId}`, { headers: authHeaders() });
     if (!res.ok) throw new Error("Failed to fetch bonus heads");
     return res.json();
   },
   async fetchHead(id: number) {
-    const res = await fetch(`${BONUS_API}/bonus-heads/${id}`);
+    const res = await fetch(`${BONUS_API}/bonus-heads/${id}`, { headers: authHeaders() });
     if (!res.ok) throw new Error(`Bonus head ${id} not found`);
     return res.json();
   },
@@ -202,7 +208,7 @@ export const api = {
   async createHead(payload: Record<string, unknown>) {
     const res = await fetch(`${BONUS_API}/bonus-heads`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("Failed to create bonus head");
@@ -211,7 +217,7 @@ export const api = {
   async updateHead(id: number, patch: Record<string, unknown>) {
     const res = await fetch(`${BONUS_API}/bonus-heads/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(patch),
     });
     if (!res.ok) throw new Error("Failed to update bonus head");
