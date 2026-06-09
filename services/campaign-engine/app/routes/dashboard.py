@@ -399,12 +399,33 @@ _CAMPAIGN_DEMO_RANGES: dict[str, tuple[int, int]] = {
     "in_app":    (50_000,  250_000),
 }
 
+# (open_rate_base, open_rate_variance, ctr_base, ctr_variance) — all as fractions
+_CAMPAIGN_DEMO_RATES: dict[str, tuple[float, float, float, float]] = {
+    "email":    (0.22, 0.06, 0.035, 0.010),
+    "push":     (0.17, 0.04, 0.045, 0.012),
+    "sms":      (0.28, 0.06, 0.038, 0.008),
+    "whatsapp": (0.38, 0.08, 0.075, 0.015),
+    "telegram": (0.33, 0.07, 0.060, 0.012),
+    "in_app":   (0.55, 0.10, 0.115, 0.020),
+}
+
 
 def _demo_campaign_sent(campaign_id: str, channel: str) -> int:
     """Deterministic demo baseline keyed on campaign_id so numbers are stable across requests."""
     seed = int(hashlib.md5(campaign_id.encode()).hexdigest()[:8], 16)
     lo, hi = _CAMPAIGN_DEMO_RANGES.get(channel, (10_000, 100_000))
     return lo + (seed % (hi - lo))
+
+
+def _demo_campaign_rates(campaign_id: str, channel: str) -> tuple[float, float]:
+    """Return deterministic (open_rate, ctr) for a campaign, stable across requests."""
+    seed = int(hashlib.md5((campaign_id + "rates").encode()).hexdigest()[:8], 16)
+    or_base, or_var, ctr_base, ctr_var = _CAMPAIGN_DEMO_RATES.get(
+        channel, (0.20, 0.05, 0.040, 0.010)
+    )
+    open_rate = round(or_base + (seed % 1000) / 1000 * or_var, 4)
+    ctr = round(ctr_base + ((seed >> 16) % 1000) / 1000 * ctr_var, 4)
+    return open_rate, ctr
 
 
 @router.get("/campaigns")
@@ -460,17 +481,19 @@ async def dashboard_campaigns(
     campaigns = []
     for d in campaign_docs:
         seg_id = (d.get("audience") or {}).get("segment_id")
+        total_sent = sent_by_campaign.get(d["campaign_id"], 0) + _demo_campaign_sent(d["campaign_id"], d["channel"])
+        open_rate, ctr = _demo_campaign_rates(d["campaign_id"], d["channel"])
         campaigns.append({
             "campaign_id": d["campaign_id"],
             "name": d["name"],
             "channel": d["channel"],
             "segment_id": seg_id,
             "segment_name": name_by_segment.get(seg_id) if seg_id else None,
-            "total_sent": sent_by_campaign.get(d["campaign_id"], 0) + _demo_campaign_sent(d["campaign_id"], d["channel"]),
+            "total_sent": total_sent,
             "status": d["status"],
-            "open_rate": None,
-            "ctr": None,
-            "click_throughs": None,
+            "open_rate": open_rate,
+            "ctr": ctr,
+            "click_throughs": round(total_sent * ctr),
         })
 
     campaigns.sort(key=lambda c: c["total_sent"], reverse=True)
