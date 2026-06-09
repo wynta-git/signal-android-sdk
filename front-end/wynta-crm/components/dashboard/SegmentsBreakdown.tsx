@@ -72,9 +72,10 @@ export default function SegmentsBreakdown() {
   const sum = values.reduce((a, b) => a + b, 0);
 
   const optinCards = optin ? [
-    { label: 'Opted-in to Push',  value: optin.push.count  },
-    { label: 'Opted-in to Email', value: optin.email.count },
-    { label: 'Opted-in to SMS',   value: optin.sms.count   },
+    { label: 'Opted-in to Push',     value: optin.push.count  },
+    { label: 'Opted-in to Email',    value: optin.email.count },
+    { label: 'Opted-in to SMS',      value: optin.sms.count   },
+    { label: 'Opted-in to WhatsApp', value: 0                 },
   ] : [];
 
   return (
