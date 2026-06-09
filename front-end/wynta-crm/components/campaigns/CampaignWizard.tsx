@@ -535,8 +535,11 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
             /* View mode last step — only Close */
             null
           ) : (
-            <button type="button" className="asm-btn asm-btn--primary" onClick={handlePublish} disabled={!s1.name.trim() || saving}>
-              <Icon name="send" size={14} /> {saving ? 'Publishing…' : 'Publish Campaign'}
+            <button type="button" className="asm-btn asm-btn--primary" onClick={handlePublish} disabled={!s1.name.trim() || saving}
+              style={{ letterSpacing: 0.5, fontWeight: 700, gap: 6, paddingRight: 14 }}
+            >
+              {saving ? 'SUBMITTING…' : 'SUBMIT'}
+              {!saving && <span style={{ fontSize: 15, lineHeight: 1, letterSpacing: -1 }}>»</span>}
             </button>
           )}
         </div>
@@ -874,7 +877,7 @@ function Step1({ s, onChange, channel }: Step1Props) {
       <div className="cwiz-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         {/* Preview states */}
-        <div className="cwiz-checkboxes" style={{border: '1px solid #d1d5db', borderRadius: '10px',padding: '15px 15px',}}>
+        {/* <div className="cwiz-checkboxes" style={{border: '1px solid #d1d5db', borderRadius: '10px',padding: '15px 15px',}}>
           <span className="cwiz-card-title" style={{ marginRight: 4, marginBottom: 0 }}>Preview states:</span>
           <label className="cwiz-checkbox-label">
             <input
@@ -892,7 +895,7 @@ function Step1({ s, onChange, channel }: Step1Props) {
             />
             Section enabled
           </label>
-        </div>
+        </div> */}
 
         {/* Bonus container — dashed blue border */}
         <div className="cwiz-bonus-section"  style={{border: '1px dashed #0082c9', borderRadius: '10px',padding: '15px 15px', backgroundColor: '#F5FBFF'}}>
