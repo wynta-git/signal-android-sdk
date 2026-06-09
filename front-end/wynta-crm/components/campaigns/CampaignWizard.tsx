@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import Icon from 'wynta-react-common/components/Icon';
 import { useCommonSelector } from 'wynta-react-common/store/hooks';
 import {
@@ -708,24 +708,7 @@ function Step1({ s, onChange, channel }: Step1Props) {
   const [previewing, setPreviewing]     = useState(false);
 
   /* Bonus heads — read from shared Redux store (loaded by bonus app), fall back to direct fetch */
-  const reduxBonusHeads = useSelector((state: any) => {
-    const h = state.heads;
-    if (!h?.ids?.length) return null;
-    return (h.ids as number[]).map((id: number) => h.entities[id]).filter(Boolean) as Array<{ id: number; name: string }>;
-  });
-  const selectedBrand = useSelector((state: any) => (state.ui?.selectedBrand ?? 1) as number);
-  const [fetchedBonusHeads, setFetchedBonusHeads] = useState<Array<{ id: number; name: string }> | null>(null);
 
-  useEffect(() => {
-    if (reduxBonusHeads) return; // already in store
-    const base = (process.env.NEXT_PUBLIC_BONUS_API_URL ?? 'http://localhost:8010') + '/api/v1/bonus';
-    fetch(`${base}/bonus-heads?site_id=${selectedBrand}`)
-      .then(r => r.ok ? r.json() : [])
-      .then((data: unknown) => { if (Array.isArray(data)) setFetchedBonusHeads(data as Array<{ id: number; name: string }>); })
-      .catch(() => {});
-  }, [reduxBonusHeads, selectedBrand]);
-
-  const bonusHeads = reduxBonusHeads ?? fetchedBonusHeads ?? [];
 
   const handlePreview = async () => {
     if (!s.segment_id) return;
@@ -941,20 +924,14 @@ function Step1({ s, onChange, channel }: Step1Props) {
                 disabled={!s.bonus_offer_enabled}
               >
                 <option value="">— Choose a bonus —</option>
-                {bonusHeads.length > 0 ? bonusHeads.map(h => (
-                  <option key={h.id} value={String(h.id)}>{h.name}</option>
-                )) : (
-                  <>
-                    <option value="welcome_bonus">Welcome Bonus</option>
-                    <option value="login_bonus">Login Bonus</option>
-                    <option value="new_year_bonus">New Year Bonus</option>
-                    <option value="christmas_bonus">Christmas Bonus</option>
-                    <option value="weekly_bonus">Weekly Bonus</option>
-                    <option value="cashback_bonus">Cashback Bonus</option>
-                    <option value="loyalty_bonus">Loyalty Bonus</option>
-                    <option value="referral_bonus">Referral Bonus</option>
-                  </>
-                )}
+                <option value="welcome_bonus">Welcome Bonus</option>
+                <option value="login_bonus">Login Bonus</option>
+                <option value="new_year_bonus">New Year Bonus</option>
+                <option value="christmas_bonus">Christmas Bonus</option>
+                <option value="weekly_bonus">Weekly Bonus</option>
+                <option value="cashback_bonus">Cashback Bonus</option>
+                <option value="loyalty_bonus">Loyalty Bonus</option>
+                <option value="referral_bonus">Referral Bonus</option>
               </select>
               <button type="button" className="cwiz-seg-add-btn" disabled={!s.bonus_offer_enabled}>
                 <Icon name="plus" size={13} /> Create bonus
