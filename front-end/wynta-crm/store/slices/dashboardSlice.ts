@@ -70,7 +70,7 @@ export const fetchDashboardCampaigns = createAsyncThunk(
 export const fetchDashboardAnalytics = createAsyncThunk(
   'dashboard/analytics',
   ({ projectId, windowDays }: { projectId?: string; windowDays?: number } = {}) =>
-    dashboardApi.fetchAnalytics(projectId ?? PROJECT_ID, windowDays ?? 30)
+    dashboardApi.fetchAnalytics(projectId ?? PROJECT_ID, windowDays ?? 7)
 );
 
 // ── Slice ─────────────────────────────────────────────────────────────────────
