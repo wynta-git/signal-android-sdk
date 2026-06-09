@@ -177,23 +177,23 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
       <div className="section-label">Eligibility Criteria</div>
       <PlayerSegmentPicker configureId={cfg.id}/>
 
-      <div className="section-label">Promo Codes · {cfg.codes.length}</div>
-      {cfg.codes.length === 0 ? (
+      <div className="section-label">Promo Codes · {(cfg.codes ?? []).length}</div>
+      {(cfg.codes ?? []).length === 0 ? (
         <div style={{ padding: 16, border: '1px dashed var(--g200)', borderRadius: 'var(--rl)', textAlign: 'center', fontSize: 12, color: 'var(--g400)', marginBottom: 24 }}>
           No promo codes — add one to make the bonus claimable by code.
         </div>
       ) : (
         <div className="mb-6">
-          {cfg.codes.map(code => <PromoCodeRow key={code.id} code={code} configureId={cfg.id} />)}
+          {(cfg.codes ?? []).map(code => <PromoCodeRow key={code.id} code={code} configureId={cfg.id} />)}
         </div>
       )}
 
-      <div className="section-label">Release Triggers · {cfg.triggers.length}</div>
-      {cfg.triggers.length === 0 ? (
+      <div className="section-label">Release Triggers · {(cfg.triggers ?? []).length}</div>
+      {(cfg.triggers ?? []).length === 0 ? (
         <div style={{ padding: 16, border: '1px dashed var(--g200)', borderRadius: 'var(--rl)', textAlign: 'center', fontSize: 12, color: 'var(--g400)' }}>
           No triggers — bonus cannot release until a trigger is configured.
         </div>
-      ) : cfg.triggers.map(t => (
+      ) : (cfg.triggers ?? []).map(t => (
         <div key={t.id} className="trigger-row">
           <span className={'ttype ' + t.trigger_type}>{t.trigger_type}</span>
           <div className="tinfo">

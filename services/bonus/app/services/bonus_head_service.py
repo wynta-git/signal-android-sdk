@@ -179,7 +179,7 @@ async def _write_audit(
             async with conn.cursor() as cur:
                 await cur.execute(_AUDIT_INSERT_SQL, (
                     table_name, action, entity_id, site_id, changed_by,
-                    json.dumps(old_values) if old_values is not None else None,
+                    json.dumps(old_values, default=str) if old_values is not None else None,
                     json.dumps(new_values, default=str) if new_values is not None else None,
                 ))
                 await conn.commit()

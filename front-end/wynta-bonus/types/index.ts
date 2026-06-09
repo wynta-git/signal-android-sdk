@@ -108,6 +108,7 @@ export interface BonusConfigure {
   cashback_bonus_amount_max?: string | number | null;
   wager_chip_type?: string;
   credit_chip_type?: string;
+  release_bucket?: string | null;
   chunk_expiry_days?: number;
   bonus_expiry_days?: number;
   promo_codes: PromoCode[];

@@ -5,7 +5,7 @@ import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { closeDrawer } from '../../store/slices/uiSlice';
 import { createHead, updateHead, fetchHead } from '../../store/slices/headsSlice';
 import { createSubhead, updateSubhead, fetchSubhead } from '../../store/slices/subheadsSlice';
-import { createConfigure, updateConfigure } from '../../store/slices/configuresSlice';
+import { createConfigure, updateConfigure, fetchConfiguresBySubhead } from '../../store/slices/configuresSlice';
 import { updateBudget } from '../../store/slices/budgetsSlice';
 import type { BudgetPeriod } from '../../types';
 import Icon from 'wynta-react-common/components/Icon';
@@ -109,6 +109,8 @@ export default function SlideDrawer() {
             created_by: currentUser,
           },
         })).unwrap();
+        dispatch(fetchConfiguresBySubhead(drawerState.parentId));
+        dispatch(closeDrawer());
       } else if (drawerState?.type === 'EDIT_CONFIGURE' && drawerState.id != null) {
         await dispatch(updateConfigure({
           id: drawerState.id,
