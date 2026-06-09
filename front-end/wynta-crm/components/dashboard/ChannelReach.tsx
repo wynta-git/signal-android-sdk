@@ -22,10 +22,7 @@ export default function ChannelReach() {
       borderRadius: 6, padding: '16px 20px',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 15 }}>📡</span>
-          <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--crm-fg1)' }}>Channel Reach</h2>
-        </div>
+        <h2 style={{ fontSize: 14, fontWeight: 600, color: 'var(--crm-fg1)' }}>Channel Reach</h2>
         <span style={{ fontSize: 12, color: 'var(--crm-fg4)' }}>7-day window</span>
       </div>
 
