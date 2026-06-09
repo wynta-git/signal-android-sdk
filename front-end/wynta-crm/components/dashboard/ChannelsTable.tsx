@@ -26,7 +26,7 @@ function Sparkline({ data }: { data: ChannelData['trend_7d'] }) {
   }).join(' ');
   const lastUp = vals[vals.length - 1] >= vals[vals.length - 2];
   return (
-    <svg width={W} height={H} style={{ display: 'block' }}>
+    <svg width={W} height={H} style={{ display: 'block', margin: '0 auto' }}>
       <polyline points={pts} fill="none" stroke={lastUp ? 'var(--crm-positive)' : 'var(--crm-negative)'} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
