@@ -283,7 +283,8 @@ async def dashboard_summary(
         b_prev_active    = prev_active_this_week
         b_curr_sent      = curr_sent + db_totals["messages_sent"]
         b_prev_sent      = prev_sent + prev_db_totals["messages_sent"]
-        b_total_users    = snap.get("total_users", health["total_users"])
+        b_total_users      = snap.get("total_users", health["total_users"])
+        prev_b_total_users = prev_snap.get("total_users", health["total_users"])
         b_new            = health["new"] + db_totals["new_users"]
         b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
         b_at_risk        = health["at_risk"] + _b(boosts, "player_health.at_risk")
@@ -320,12 +321,14 @@ async def dashboard_summary(
         b_optin_push      = optin["push"]  + _b(boosts, "channel_optin.push")
         b_optin_email     = optin["email"] + _b(boosts, "channel_optin.email")
         b_optin_sms       = optin["sms"]   + _b(boosts, "channel_optin.sms")
-        b_opt_outs        = _b(boosts, "quick_stats.opt_outs")
-        prev_b_optin_push = b_optin_push   # flat boost — no period split, shows 0%
-        prev_b_opt_outs   = b_opt_outs     # flat boost — no period split, shows 0%
-        delivery_rate     = _safe_rate(curr_sent, curr_sent + curr_failed)
+        b_opt_outs         = _b(boosts, "quick_stats.opt_outs")
+        prev_b_optin_push  = 0  # flat boost has no period split
+        prev_b_opt_outs    = 0  # flat boost has no period split
+        prev_b_total_users = b_total_users
+        delivery_rate      = _safe_rate(curr_sent, curr_sent + curr_failed)
 
-    btotal = b_total_users or 1
+    btotal      = b_total_users or 1
+    prev_btotal = prev_b_total_users or b_total_users or 1
 
     return {
         "window_days": window_days,
@@ -356,8 +359,8 @@ async def dashboard_summary(
                 "tracked": b_opt_outs > 0,
                 "change_pct": _change_pct(
                     _safe_pct(b_opt_outs, btotal) or 0,
-                    _safe_pct(prev_b_opt_outs, btotal) or 0,
-                ) if b_opt_outs and prev_b_opt_outs else None,
+                    _safe_pct(prev_b_opt_outs, prev_btotal) or 0,
+                ) if b_opt_outs else None,
             },
             "player_responses": _UNTRACKED,
         },
