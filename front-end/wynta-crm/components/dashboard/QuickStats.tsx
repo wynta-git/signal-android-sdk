@@ -2,34 +2,6 @@
 import { useAppSelector } from '../../store/hooks';
 import { selectDashboardSummary, selectDashboardStatus, selectDashboardWindowDays, selectDashboardDateRange } from '../../store/slices/dashboardSlice';
 
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  const W = 80, H = 32, PAD = 2;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const n = values.length;
-  const pts = values.map((v, i) => {
-    const x = n === 1 ? W / 2 : (i / (n - 1)) * W;
-    const y = H - PAD - ((v - min) / range) * (H - PAD * 2);
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join(' ');
-  return (
-    <svg width={W} height={H} style={{ display: 'block' }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function sparkFromChange(change: number | null | undefined): number[] {
-  const n = 7;
-  if (change == null) return [50, 52, 49, 51, 50, 52, 51];
-  if (change > 0) {
-    const s = Math.max(10, 100 - Math.abs(change) * 5);
-    return Array.from({ length: n }, (_, i) => s + ((100 - s) * i) / (n - 1));
-  }
-  const s = Math.max(10, 100 - Math.abs(change) * 5);
-  return Array.from({ length: n }, (_, i) => 100 - ((100 - s) * i) / (n - 1));
-}
 
 interface StatCardProps {
   label:    string;
@@ -42,15 +14,13 @@ function StatCard({ label, value, change, loading }: StatCardProps) {
   const isPos = change != null && change > 0;
   const isNeg = change != null && change < 0;
   const changeColor = isPos ? 'var(--crm-positive, #10b981)' : isNeg ? 'var(--crm-negative, #ef4444)' : 'var(--crm-fg4)';
-  const sparkData   = sparkFromChange(change);
-  const sparkColor  = isPos ? '#10b981' : isNeg ? '#ef4444' : '#0091e0';
 
   return (
     <div style={{
       background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
       borderRadius: 14, padding: '16px 16px 14px',
     }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--crm-fg3)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--crm-fg3)', marginBottom: 8 }}>
         {label}
       </div>
       {loading ? (
@@ -60,16 +30,13 @@ function StatCard({ label, value, change, loading }: StatCardProps) {
           {value}
         </div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {!loading && change != null ? (
-          <span style={{ fontSize: 11, color: changeColor, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-            {isPos ? '↑' : isNeg ? '↓' : ''}{Math.abs(change).toFixed(1)}%
-          </span>
-        ) : (
-          <span />
-        )}
-        {!loading && <Sparkline values={sparkData} color={sparkColor} />}
-      </div>
+      {!loading && change != null ? (
+        <span style={{ fontSize: 11, color: changeColor, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          {isPos ? '↑' : isNeg ? '↓' : ''}{Math.abs(change).toFixed(1)}%
+        </span>
+      ) : (
+        <span />
+      )}
     </div>
   );
 }
