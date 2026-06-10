@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import structlog
@@ -884,6 +884,26 @@ async def get_dashboard_delivery_stats(
     ]
     cursor = db["notification_deliveries"].aggregate(pipeline)
     return await cursor.to_list(length=None)
+
+
+async def get_daily_boosts_range(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    since: datetime,
+    until: datetime,
+) -> dict[str, dict]:
+    """Return {date_str: day_data} for daily_boosts entries within [since.date, until.date]."""
+    doc = await db["dashboard_boosts"].find_one(
+        {"project_id": project_id}, {"_id": 0, "daily_boosts": 1}
+    )
+    all_daily: dict = (doc or {}).get("daily_boosts", {})
+    since_date = since.date()
+    until_date = until.date()
+    return {
+        date_str: data
+        for date_str, data in all_daily.items()
+        if since_date <= date.fromisoformat(date_str) <= until_date
+    }
 
 
 async def get_dashboard_user_health(

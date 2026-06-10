@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.dependencies import PortalAuthDep, get_db
 from shared.clients.mongo import (
+    get_daily_boosts_range,
     get_dashboard_channel_optin,
     get_dashboard_delivery_stats,
     get_dashboard_user_health,
@@ -54,6 +55,32 @@ def _crunch_deliveries(raw: list[dict]) -> dict:
         out.setdefault(ch, {}).setdefault(st, {}).setdefault(dt, 0)
         out[ch][st][dt] += row["count"]
     return out
+
+
+_DAILY_CHANNELS = ("email", "push", "sms", "whatsapp", "telegram", "in_app")
+
+
+def _crunch_daily_boosts(daily: dict) -> dict:
+    """Aggregate daily_boosts entries into summed totals + last-day snapshot."""
+    totals: dict = {
+        "messages_sent": 0,
+        "new_users": 0,
+        "opt_outs": 0,
+        "channel": {ch: {"sent": 0, "delivered": 0, "failed": 0} for ch in _DAILY_CHANNELS},
+        "snapshot": {},
+    }
+    for date_str in sorted(daily):
+        day = daily[date_str]
+        totals["messages_sent"] += day.get("messages_sent", 0)
+        totals["new_users"]     += day.get("new_users", 0)
+        totals["opt_outs"]      += day.get("opt_outs", 0)
+        for ch, stats in day.get("channel", {}).items():
+            if ch in totals["channel"]:
+                for k in ("sent", "delivered", "failed"):
+                    totals["channel"][ch][k] += stats.get(k, 0)
+        if "snapshot" in day:
+            totals["snapshot"] = day["snapshot"]
+    return totals
 
 
 def _sum_status(buckets: dict, status: str) -> int:
@@ -148,6 +175,7 @@ async def dashboard_summary(
         reachable_count,
         prev_reachable_count,
         boosts,
+        daily_range,
     ) = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now),
         get_dashboard_delivery_stats(db, project_id, prev_since, since),
@@ -179,6 +207,7 @@ async def dashboard_summary(
             ],
         }),
         _fetch_boosts(db, project_id),
+        get_daily_boosts_range(db, project_id, since, now),
     )
 
     curr = _crunch_deliveries(curr_raw)
@@ -192,20 +221,55 @@ async def dashboard_summary(
     reachable = min(reachable_count + optin["push"], total_users)
     prev_reachable = min(prev_reachable_count + optin["push"], total_users)
 
-    # Apply boosts — snapshot fields: fixed offset; time-dependent fields: scale by window_days/30
-    win_scale        = window_days / 30
-    b_reachable      = reachable + _b(boosts, "quick_stats.reachable_players")
-    b_prev_reachable = prev_reachable + _b(boosts, "quick_stats.reachable_players")
-    b_active         = active_this_week + _b(boosts, "quick_stats.active_this_week")
-    b_prev_active    = prev_active_this_week + _b(boosts, "quick_stats.active_this_week")
-    b_curr_sent      = curr_sent + round(_b(boosts, "quick_stats.messages_sent") * win_scale)
-    b_prev_sent      = prev_sent + round(_b(boosts, "quick_stats.messages_sent") * win_scale)
-    b_total_users    = health["total_users"] + _b(boosts, "player_health.total_users")
-    b_new            = health["new"] + round(_b(boosts, "player_health.new") * win_scale)
-    b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
-    b_at_risk        = health["at_risk"] + _b(boosts, "player_health.at_risk")
-    b_churned        = health["churned"] + _b(boosts, "player_health.churned")
-    btotal           = b_total_users or 1
+    # Apply daily boosts if data exists for this range, else fall back to flat boosts
+    db_totals = _crunch_daily_boosts(daily_range)
+    use_daily = db_totals["messages_sent"] > 0
+
+    if use_daily:
+        snap = db_totals["snapshot"]
+        all_ch_sent      = sum(db_totals["channel"][c]["sent"]      for c in _DAILY_CHANNELS)
+        all_ch_delivered = sum(db_totals["channel"][c]["delivered"] for c in _DAILY_CHANNELS)
+        all_ch_failed    = sum(db_totals["channel"][c]["failed"]    for c in _DAILY_CHANNELS)
+
+        b_reachable      = snap.get("reachable_players", reachable)
+        b_prev_reachable = snap.get("reachable_players", prev_reachable)
+        b_active         = snap.get("active_users", active_this_week)
+        b_prev_active    = prev_active_this_week
+        b_curr_sent      = curr_sent + db_totals["messages_sent"]
+        b_prev_sent      = prev_sent
+        b_total_users    = snap.get("total_users", health["total_users"])
+        b_new            = health["new"] + db_totals["new_users"]
+        b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
+        b_at_risk        = health["at_risk"] + _b(boosts, "player_health.at_risk")
+        b_churned        = health["churned"] + _b(boosts, "player_health.churned")
+        b_optin_push     = snap.get("optin_push",  optin["push"]  + _b(boosts, "channel_optin.push"))
+        b_optin_email    = snap.get("optin_email", optin["email"] + _b(boosts, "channel_optin.email"))
+        b_optin_sms      = snap.get("optin_sms",   optin["sms"]   + _b(boosts, "channel_optin.sms"))
+        b_opt_outs       = db_totals["opt_outs"]
+        delivery_rate    = _safe_rate(
+            curr_sent + all_ch_delivered,
+            curr_sent + all_ch_delivered + curr_failed + all_ch_failed,
+        )
+    else:
+        win_scale        = window_days / 30
+        b_reachable      = reachable + _b(boosts, "quick_stats.reachable_players")
+        b_prev_reachable = prev_reachable + _b(boosts, "quick_stats.reachable_players")
+        b_active         = active_this_week + _b(boosts, "quick_stats.active_this_week")
+        b_prev_active    = prev_active_this_week + _b(boosts, "quick_stats.active_this_week")
+        b_curr_sent      = curr_sent + round(_b(boosts, "quick_stats.messages_sent") * win_scale)
+        b_prev_sent      = prev_sent + round(_b(boosts, "quick_stats.messages_sent") * win_scale)
+        b_total_users    = health["total_users"] + _b(boosts, "player_health.total_users")
+        b_new            = health["new"] + round(_b(boosts, "player_health.new") * win_scale)
+        b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
+        b_at_risk        = health["at_risk"] + _b(boosts, "player_health.at_risk")
+        b_churned        = health["churned"] + _b(boosts, "player_health.churned")
+        b_optin_push     = optin["push"]  + _b(boosts, "channel_optin.push")
+        b_optin_email    = optin["email"] + _b(boosts, "channel_optin.email")
+        b_optin_sms      = optin["sms"]   + _b(boosts, "channel_optin.sms")
+        b_opt_outs       = _b(boosts, "quick_stats.opt_outs")
+        delivery_rate    = _safe_rate(curr_sent, curr_sent + curr_failed)
+
+    btotal = b_total_users or 1
 
     return {
         "window_days": window_days,
@@ -225,14 +289,12 @@ async def dashboard_summary(
                 "value": b_curr_sent,
                 "change_pct": _change_pct(b_curr_sent, b_prev_sent),
             },
-            "delivery_rate": {
-                "value": _safe_rate(curr_sent, curr_sent + curr_failed),
-            },
+            "delivery_rate": {"value": delivery_rate},
             "open_rate": _UNTRACKED,
             "ctr": _UNTRACKED,
             "opt_outs": {
-                "value": _safe_pct(_b(boosts, "quick_stats.opt_outs"), b_total_users),
-                "tracked": _b(boosts, "quick_stats.opt_outs") > 0,
+                "value": _safe_pct(b_opt_outs, btotal) if b_opt_outs else None,
+                "tracked": b_opt_outs > 0,
             },
             "player_responses": _UNTRACKED,
         },
@@ -248,9 +310,9 @@ async def dashboard_summary(
             "winback_success_rate": None,
         },
         "channel_optin": {
-            "push":  {"count": optin["push"] + _b(boosts, "channel_optin.push")},
-            "email": {"count": optin["email"] + _b(boosts, "channel_optin.email"), "approximate": True},
-            "sms":   {"count": optin["sms"] + _b(boosts, "channel_optin.sms"),     "approximate": True},
+            "push":  {"count": b_optin_push},
+            "email": {"count": b_optin_email, "approximate": True},
+            "sms":   {"count": b_optin_sms,   "approximate": True},
         },
     }
 
@@ -294,8 +356,12 @@ async def dashboard_channels(
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
 
-    raw = await get_dashboard_delivery_stats(db, project_id, since, now)
+    raw, daily_range = await asyncio.gather(
+        get_dashboard_delivery_stats(db, project_id, since, now),
+        get_daily_boosts_range(db, project_id, since, now),
+    )
     buckets = _crunch_deliveries(raw)
+    db_totals = _crunch_daily_boosts(daily_range)
 
     channels = []
     for default in _CHANNEL_DEFAULTS:
@@ -305,14 +371,25 @@ async def dashboard_channels(
         sent_by_date: dict[str, int] = {}
         failed_by_date: dict[str, int] = {}
         for status, dates in ch_data.items():
-            for date, count in dates.items():
+            for d, count in dates.items():
                 if status == "sent":
-                    sent_by_date[date] = sent_by_date.get(date, 0) + count
+                    sent_by_date[d] = sent_by_date.get(d, 0) + count
                 elif status == "failed":
-                    failed_by_date[date] = failed_by_date.get(date, 0) + count
+                    failed_by_date[d] = failed_by_date.get(d, 0) + count
 
-        total_sent = sum(sent_by_date.values())
-        total_failed = sum(failed_by_date.values())
+        real_sent   = sum(sent_by_date.values())
+        real_failed = sum(failed_by_date.values())
+
+        # Daily boost contribution for this channel
+        daily_ch      = db_totals["channel"].get(ch, {})
+        daily_sent    = daily_ch.get("sent", 0)
+        daily_deliv   = daily_ch.get("delivered", 0)
+        daily_failed  = daily_ch.get("failed", 0)
+
+        total_sent   = real_sent + daily_sent
+        total_deliv  = daily_deliv
+        total_failed = real_failed + daily_failed
+
         all_dates = sorted(set(list(sent_by_date) + list(failed_by_date)))
         trend = [
             {"date": d, "sent": sent_by_date.get(d, 0), "failed": failed_by_date.get(d, 0)}
@@ -320,13 +397,19 @@ async def dashboard_channels(
         ]
 
         demo_sent = default["messages_sent"] + total_sent
+        if total_sent > 0 or total_deliv > 0:
+            delivery_rate = _safe_rate(total_deliv if total_deliv else real_sent,
+                                       (total_deliv if total_deliv else real_sent) + total_failed)
+        else:
+            delivery_rate = default["delivery_rate"]
+
         channels.append({
             "channel": ch,
             "opted_in_users": None,
             "reach_pct": default["reach_pct"],
             "status": default["status"],
             "messages_sent": demo_sent,
-            "delivery_rate": _safe_rate(total_sent, total_sent + total_failed) if total_sent > 0 else default["delivery_rate"],
+            "delivery_rate": delivery_rate,
             "open_rate": default["open_rate"],
             "ctr": default["ctr"],
             "trend_7d": trend if len(trend) >= 2 else _synthetic_trend(demo_sent, 1 - default["delivery_rate"]),
@@ -523,62 +606,90 @@ async def dashboard_analytics(
         day=1, hour=0, minute=0, second=0, microsecond=0
     )
 
-    raw, mtd_raw, prev_mtd_raw = await asyncio.gather(
+    raw, mtd_raw, prev_mtd_raw, daily_range = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now),
         get_dashboard_delivery_stats(db, project_id, month_start, now),
         get_dashboard_delivery_stats(db, project_id, prev_month_start, month_start),
+        get_daily_boosts_range(db, project_id, since, now),
     )
 
     buckets = _crunch_deliveries(raw)
     mtd = _crunch_deliveries(mtd_raw)
     prev_mtd = _crunch_deliveries(prev_mtd_raw)
 
-    # Daily totals across all channels
-    daily_sent: dict[str, int] = {}
+    # Daily totals across all channels (real data)
+    real_daily_sent: dict[str, int] = {}
     daily_failed: dict[str, int] = {}
     for ch_data in buckets.values():
         for st, dates in ch_data.items():
-            for date, count in dates.items():
+            for d, count in dates.items():
                 if st == "sent":
-                    daily_sent[date] = daily_sent.get(date, 0) + count
+                    real_daily_sent[d] = real_daily_sent.get(d, 0) + count
                 elif st == "failed":
-                    daily_failed[date] = daily_failed.get(date, 0) + count
+                    daily_failed[d] = daily_failed.get(d, 0) + count
 
     mtd_sent = _sum_status(mtd, "sent")
     prev_mtd_sent = _sum_status(prev_mtd, "sent")
     mtd_failed = _sum_status(mtd, "failed")
 
-    # ── Analytics defaults (demo boost) ──────────────────────────────────────
+    # ── Analytics boost: daily time series takes priority, daily_avg as fallback ──
     analytics_cfg = await _fetch_analytics_defaults(db, project_id)
     daily_avg     = int(analytics_cfg.get("daily_avg_sent", 0))
-    override_open = analytics_cfg.get("avg_open_rate")  # decimal fraction, e.g. 0.31
-    override_ctr  = analytics_cfg.get("avg_ctr")        # decimal fraction, e.g. 0.062
+    override_open = analytics_cfg.get("avg_open_rate")
+    override_ctr  = analytics_cfg.get("avg_ctr")
 
-    if daily_avg > 0:
-        total_boost  = daily_avg * window_days
-        window_dates = [
-            str((since + timedelta(days=i)).date()) for i in range(window_days)
+    window_dates = [str((since + timedelta(days=i)).date()) for i in range(window_days)]
+
+    if daily_range:
+        # Per-date daily_boosts — use exact values; fall back to daily_avg for missing dates
+        if daily_avg > 0:
+            total_w = sum(_DOW_WEIGHTS[datetime.strptime(d, "%Y-%m-%d").weekday()] for d in window_dates)
+            total_boost = daily_avg * window_days
+        boost_sent: dict[str, int] = {}
+        mtd_daily_boost = 0
+        for d in window_dates:
+            if d in daily_range:
+                val = daily_range[d].get("messages_sent", 0)
+            elif daily_avg > 0:
+                val = round(total_boost * _DOW_WEIGHTS[datetime.strptime(d, "%Y-%m-%d").weekday()] / total_w)
+            else:
+                val = 0
+            boost_sent[d] = val
+            if d >= str(month_start.date()):
+                mtd_daily_boost += val
+        all_dates = sorted(set(list(boost_sent) + list(real_daily_sent) + list(daily_failed)))
+        daily = [
+            {
+                "date": d,
+                "sent":   boost_sent.get(d, 0) + real_daily_sent.get(d, 0),
+                "failed": daily_failed.get(d, 0),
+            }
+            for d in all_dates
         ]
+        mtd_sent      += mtd_daily_boost
+        prev_mtd_sent += mtd_daily_boost  # keep change_pct neutral for demo
+    elif daily_avg > 0:
+        total_boost  = daily_avg * window_days
         total_w = sum(_DOW_WEIGHTS[datetime.strptime(d, "%Y-%m-%d").weekday()] for d in window_dates)
         base: dict[str, int] = {
             d: round(total_boost * _DOW_WEIGHTS[datetime.strptime(d, "%Y-%m-%d").weekday()] / total_w)
             for d in window_dates
         }
-        all_dates = sorted(set(list(base) + list(daily_sent) + list(daily_failed)))
+        all_dates = sorted(set(list(base) + list(real_daily_sent) + list(daily_failed)))
         daily = [
             {
                 "date": d,
-                "sent":   base.get(d, 0) + daily_sent.get(d, 0),
+                "sent":   base.get(d, 0) + real_daily_sent.get(d, 0),
                 "failed": daily_failed.get(d, 0),
             }
             for d in all_dates
         ]
         mtd_sent      += total_boost
-        prev_mtd_sent += total_boost  # keep change_pct neutral for demo
+        prev_mtd_sent += total_boost
     else:
-        all_dates = sorted(set(list(daily_sent) + list(daily_failed)))
+        all_dates = sorted(set(list(real_daily_sent) + list(daily_failed)))
         daily = [
-            {"date": d, "sent": daily_sent.get(d, 0), "failed": daily_failed.get(d, 0)}
+            {"date": d, "sent": real_daily_sent.get(d, 0), "failed": daily_failed.get(d, 0)}
             for d in all_dates
         ]
 
@@ -660,3 +771,91 @@ async def set_dashboard_boosts(ctx: PortalAuthDep, db: DbDep, body: dict) -> dic
         upsert=True,
     )
     return {"project_id": ctx.project_id, "boosts": boosts, "analytics": analytics}
+
+
+# ---------------------------------------------------------------------------
+# GET /boosts/daily  PUT /boosts/daily
+# ---------------------------------------------------------------------------
+
+_DAILY_BOOST_INT_FIELDS = frozenset({"messages_sent", "new_users", "opt_outs"})
+_DAILY_CHANNEL_INT_FIELDS = frozenset({"sent", "delivered", "failed"})
+_DAILY_SNAPSHOT_INT_FIELDS = frozenset({
+    "total_users", "active_users", "reachable_players",
+    "optin_push", "optin_email", "optin_sms",
+})
+
+
+def _validate_daily_entry(date_str: str, entry: dict) -> None:
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(422, f"Invalid date key '{date_str}': must be YYYY-MM-DD")
+
+    for field in _DAILY_BOOST_INT_FIELDS:
+        if field in entry:
+            if not isinstance(entry[field], int) or entry[field] < 0:
+                raise HTTPException(422, f"{date_str}.{field} must be a non-negative integer")
+
+    for ch, stats in entry.get("channel", {}).items():
+        if ch not in _DAILY_CHANNELS:
+            raise HTTPException(422, f"{date_str}.channel: unknown channel '{ch}'")
+        for k in _DAILY_CHANNEL_INT_FIELDS:
+            if k in stats and (not isinstance(stats[k], int) or stats[k] < 0):
+                raise HTTPException(422, f"{date_str}.channel.{ch}.{k} must be a non-negative integer")
+
+    for field in _DAILY_SNAPSHOT_INT_FIELDS:
+        snap = entry.get("snapshot", {})
+        if field in snap and (not isinstance(snap[field], int) or snap[field] < 0):
+            raise HTTPException(422, f"{date_str}.snapshot.{field} must be a non-negative integer")
+
+
+@router.get("/boosts/daily")
+async def get_daily_boosts(
+    ctx: PortalAuthDep,
+    db: DbDep,
+    start_date: str | None = Query(default=None, description="YYYY-MM-DD"),
+    end_date:   str | None = Query(default=None, description="YYYY-MM-DD"),
+) -> dict:
+    doc = await db["dashboard_boosts"].find_one(
+        {"project_id": ctx.project_id}, {"_id": 0, "daily_boosts": 1}
+    )
+    all_daily: dict = (doc or {}).get("daily_boosts", {})
+
+    if start_date or end_date:
+        try:
+            since = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+            until = datetime.strptime(end_date,   "%Y-%m-%d").date() if end_date   else None
+        except ValueError:
+            raise HTTPException(422, "start_date and end_date must be YYYY-MM-DD")
+        from datetime import date as _date
+        all_daily = {
+            k: v for k, v in all_daily.items()
+            if (since is None or _date.fromisoformat(k) >= since)
+            and (until is None or _date.fromisoformat(k) <= until)
+        }
+
+    return {"project_id": ctx.project_id, "daily_boosts": all_daily}
+
+
+@router.put("/boosts/daily")
+async def upsert_daily_boosts(ctx: PortalAuthDep, db: DbDep, body: dict) -> dict:
+    incoming: dict = body.get("daily_boosts", {})
+    if not isinstance(incoming, dict):
+        raise HTTPException(422, "daily_boosts must be an object keyed by YYYY-MM-DD date strings")
+
+    for date_str, entry in incoming.items():
+        _validate_daily_entry(date_str, entry)
+
+    # Merge individual date keys — do not wipe existing dates
+    set_payload = {f"daily_boosts.{d}": v for d, v in incoming.items()}
+    set_payload["updated_at"] = datetime.now(timezone.utc)
+    await db["dashboard_boosts"].update_one(
+        {"project_id": ctx.project_id},
+        {"$set": set_payload},
+        upsert=True,
+    )
+
+    doc = await db["dashboard_boosts"].find_one(
+        {"project_id": ctx.project_id}, {"_id": 0, "daily_boosts": 1}
+    )
+    return {"project_id": ctx.project_id, "daily_boosts": (doc or {}).get("daily_boosts", {})}
