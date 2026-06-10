@@ -10,7 +10,7 @@ from fastapi import Depends
 from app.auth import verify_s2s_request
 from app.db import close_pool, init_pool
 from app.routers.bonus_head import register_exception_handlers
-from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_release_trigger, bonus_eligibility, bonus_summary, player_bonus
+from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_configure_code, bonus_release_trigger, bonus_eligibility, bonus_summary, player_bonus
 from shared.cors import CORS_ORIGINS
 
 structlog.configure(
@@ -55,6 +55,7 @@ _s2s = [Depends(verify_s2s_request)]
 app.include_router(bonus_head.router,            prefix=route_prefix)
 app.include_router(bonus_subhead.router,         prefix=route_prefix)
 app.include_router(bonus_configure.router,       prefix=route_prefix)
+app.include_router(bonus_configure_code.router,  prefix=route_prefix)
 app.include_router(bonus_release_trigger.router, prefix=route_prefix)
 app.include_router(bonus_eligibility.router,     prefix=route_prefix)
 app.include_router(bonus_summary.router,         prefix=route_prefix)

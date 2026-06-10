@@ -5,7 +5,7 @@ import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { closeDrawer } from '../../store/slices/uiSlice';
 import { createHead, updateHead, fetchHead, selectAllHeads } from '../../store/slices/headsSlice';
 import { createSubhead, updateSubhead, fetchSubhead, selectSubheadById } from '../../store/slices/subheadsSlice';
-import { createConfigure, updateConfigure, fetchConfiguresBySubhead, createTrigger, createPromoCode } from '../../store/slices/configuresSlice';
+import { createConfigure, updateConfigure, fetchConfiguresBySubhead, createTrigger, createPromoCode, createEligibility } from '../../store/slices/configuresSlice';
 import { updateBudget } from '../../store/slices/budgetsSlice';
 import type { BudgetPeriod } from '../../types';
 import Icon from 'wynta-react-common/components/Icon';
@@ -124,21 +124,53 @@ export default function SlideDrawer() {
           parentId: drawerState.parentId,
           payload: { ...configureFields, site_id: selectedBrand, created_by: currentUser },
         })).unwrap();
+        const warnings: string[] = [];
         if (Array.isArray(_budget) && (_budget as BudgetPeriod[]).length > 0 && newCfg?.id) {
           await dispatch(updateBudget({
             scope: 'configure',
             id: newCfg.id,
             periods: _budget as BudgetPeriod[],
             updatedBy: currentUser,
-          })).unwrap().catch(() => null);
+          })).unwrap().catch((e: unknown) => {
+            warnings.push(`Budget: ${e instanceof Error ? e.message : 'failed to save'}`);
+          });
         }
         if (_trigger && newCfg?.id) {
-          await dispatch(createTrigger({ configureId: newCfg.id, payload: _trigger as Record<string, unknown> })).unwrap().catch(() => null);
+          await dispatch(createTrigger({
+            configureId: newCfg.id,
+            payload: { ...(_trigger as Record<string, unknown>), site_id: selectedBrand, created_by: currentUser },
+          })).unwrap().catch((e: unknown) => {
+            warnings.push(`Release trigger: ${e instanceof Error ? e.message : 'failed to save'}`);
+          });
         }
         if (_code && newCfg?.id) {
-          await dispatch(createPromoCode({ configureId: newCfg.id, payload: _code as Record<string, unknown> })).unwrap().catch(() => null);
+          await dispatch(createPromoCode({
+            configureId: newCfg.id,
+            payload: { ...(_code as Record<string, unknown>), site_id: selectedBrand, created_by: currentUser },
+          })).unwrap().catch((e: unknown) => {
+            warnings.push(`Promo code: ${e instanceof Error ? e.message : 'failed to save'}`);
+          });
+        }
+        if (_segment_id && newCfg?.id) {
+          await dispatch(createEligibility({
+            configureId: newCfg.id,
+            payload: {
+              site_id: selectedBrand,
+              eligibility_key: 'segment_id',
+              eligibility_value: String(_segment_id),
+              eligibility_value_type: 'INT',
+              active: true,
+              created_by: currentUser,
+            },
+          })).unwrap().catch((e: unknown) => {
+            warnings.push(`Eligibility: ${e instanceof Error ? e.message : 'failed to save'}`);
+          });
         }
         dispatch(fetchConfiguresBySubhead(drawerState.parentId));
+        if (warnings.length > 0) {
+          setSubmitError(`Configure created, but some settings failed to save:\n• ${warnings.join('\n• ')}`);
+          return;
+        }
         dispatch(closeDrawer());
       } else if (drawerState?.type === 'EDIT_CONFIGURE' && drawerState.id != null) {
         await dispatch(updateConfigure({

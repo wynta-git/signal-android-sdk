@@ -294,43 +294,40 @@ export const api = {
     return res.json() as Promise<BonusConfigure>;
   },
   async createPromoCode(configureId: number, payload: Record<string, unknown>) {
-    await delay(280);
-    const id = "PC" + Date.now();
-    const code = { id, configure_id: configureId, ...payload };
-    if (MOCK_CONFIGURES[configureId]) {
-      MOCK_CONFIGURES[configureId].promo_codes = [
-        ...(MOCK_CONFIGURES[configureId].promo_codes || []),
-        code as never,
-      ];
+    const res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ configure_id: configureId, ...payload }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as { detail?: string }).detail ?? 'Failed to create promo code');
     }
-    return code as unknown as PromoCode;
+    return res.json() as Promise<PromoCode>;
   },
   async createTrigger(configureId: number, payload: Record<string, unknown>) {
-    await delay(280);
-    const id = Date.now();
-    const trigger = { id, configure_id: configureId, ...payload };
-    if (MOCK_CONFIGURES[configureId]) {
-      MOCK_CONFIGURES[configureId].triggers = [
-        ...(MOCK_CONFIGURES[configureId].triggers || []),
-        trigger as never,
-      ];
+    const res = await fetch(`${BONUS_API}/bonus-release-triggers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ configure_id: configureId, ...payload }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as { detail?: string }).detail ?? 'Failed to create trigger');
     }
-    return trigger as unknown as Trigger;
+    return res.json() as Promise<Trigger>;
   },
-  async createEligibility(
-    configureId: number,
-    payload: Record<string, unknown>,
-  ) {
-    await delay(280);
-    const id = Date.now();
-    const elig = { id, configure_id: configureId, ...payload };
-    if (MOCK_CONFIGURES[configureId]) {
-      MOCK_CONFIGURES[configureId].eligibilities = [
-        ...(MOCK_CONFIGURES[configureId].eligibilities || []),
-        elig as never,
-      ];
+  async createEligibility(configureId: number, payload: Record<string, unknown>) {
+    const res = await fetch(`${BONUS_API}/bonus-eligibilities`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ configure_id: configureId, ...payload }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as { detail?: string }).detail ?? 'Failed to create eligibility');
     }
-    return elig as unknown as EligibilityRule;
+    return res.json() as Promise<EligibilityRule>;
   },
   async updateBudget(scope: string, id: number, periods: BudgetPeriod[], updatedBy = "system"): Promise<BudgetPeriod[]> {
     const limits = periods.map((p) => ({

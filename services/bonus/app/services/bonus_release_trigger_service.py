@@ -35,6 +35,8 @@ _RESOLVE_CODE_SQL = """
     LIMIT 1
 """
 
+_EXISTS_CONFIGURE_SQL = "SELECT id FROM bonus_configure WHERE id = %s LIMIT 1"
+
 _EXISTS_TRIGGER_SQL = (
     "SELECT 1 FROM bonus_release_trigger "
     "WHERE configure_id = %s AND trigger_type = %s LIMIT 1"
@@ -129,11 +131,17 @@ async def add_bonus_release_trigger(
     try:
         async with get_connection() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(_RESOLVE_CODE_SQL, (data.site_id, data.code))
-                code_row = await cur.fetchone()
-                if code_row is None:
-                    raise BonusCodeNotFoundError(data.site_id, data.code)
-                configure_id: int = code_row[0]
+                if data.configure_id is not None:
+                    await cur.execute(_EXISTS_CONFIGURE_SQL, (data.configure_id,))
+                    if await cur.fetchone() is None:
+                        raise BonusCodeNotFoundError(data.site_id, f"configure_id={data.configure_id}")
+                    configure_id: int = data.configure_id
+                else:
+                    await cur.execute(_RESOLVE_CODE_SQL, (data.site_id, data.code))
+                    code_row = await cur.fetchone()
+                    if code_row is None:
+                        raise BonusCodeNotFoundError(data.site_id, data.code)
+                    configure_id = code_row[0]
 
                 await cur.execute(_EXISTS_TRIGGER_SQL, (configure_id, data.trigger_type))
                 if await cur.fetchone():

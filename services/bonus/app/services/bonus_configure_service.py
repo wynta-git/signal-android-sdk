@@ -17,6 +17,8 @@ from app.models.bonus_configure import (
     BonusConfigureDetail,
     BonusConfigureResponse,
     BonusConfigureUpdate,
+    EligibilitySummary,
+    TriggerSummary,
 )
 from app.services.bonus_head_service import (
     _as_dt,
@@ -85,6 +87,21 @@ _SELECT_CODES_SQL = """
     WHERE configure_id = %s
     ORDER BY display_order
 """
+
+_SELECT_TRIGGERS_FOR_IDS_SQL = """
+    SELECT id, configure_id, trigger_type, active
+    FROM bonus_release_trigger
+    WHERE configure_id IN ({})
+    ORDER BY id
+"""
+
+_SELECT_ELIGIBILITIES_FOR_IDS_SQL = """
+    SELECT id, configure_id, eligibility_key, eligibility_value, eligibility_value_type, active
+    FROM bonus_eligibility
+    WHERE configure_id IN ({})
+    ORDER BY id
+"""
+
 
 # ---------------------------------------------------------------------------
 # SQL — audit log
@@ -333,6 +350,14 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
                 await cur.execute(_SELECT_CODES_SQL, (configure_id,))
                 code_rows = await cur.fetchall()
 
+                sql = _SELECT_TRIGGERS_FOR_IDS_SQL.format("%s")
+                await cur.execute(sql, (configure_id,))
+                trigger_rows = await cur.fetchall()
+
+                sql = _SELECT_ELIGIBILITIES_FOR_IDS_SQL.format("%s")
+                await cur.execute(sql, (configure_id,))
+                eligibility_rows = await cur.fetchall()
+
     except BonusConfigureNotFoundError:
         raise
     except Exception as exc:
@@ -340,7 +365,7 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
         raise DatabaseError(str(exc)) from exc
 
     return BonusConfigureDetail(
-        **_row_to_response(row).model_dump(),
+        **_row_to_response(row).model_dump(exclude={"triggers", "eligibilities"}),
         codes=[
             BonusCodeSummary(
                 id=r[0], code=r[1], max_amount=r[2],
@@ -349,22 +374,79 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
             )
             for r in code_rows
         ],
+        triggers=[
+            TriggerSummary(
+                id=r[0], trigger_type=r[2],
+                active=bool(r[3]),
+            )
+            for r in trigger_rows
+        ],
+        eligibilities=[
+            EligibilitySummary(
+                id=r[0], eligibility_key=r[2], eligibility_value=r[3],
+                eligibility_value_type=r[4], active=bool(r[5]),
+            )
+            for r in eligibility_rows
+        ],
     )
 
 
 async def list_bonus_configures_by_subhead(subhead_id: int) -> list[BonusConfigureResponse]:
-    """Return all configure rows for the given subhead, ordered by priority then id."""
+    """Return all configure rows for the given subhead with their triggers and eligibilities."""
     try:
         async with get_connection() as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_LIST_BY_SUBHEAD_SQL, (subhead_id,))
                 rows = await cur.fetchall()
+
+                if not rows:
+                    return []
+
+                configure_ids = [r[0] for r in rows]
+                placeholders = ", ".join(["%s"] * len(configure_ids))
+
+                sql = _SELECT_TRIGGERS_FOR_IDS_SQL.format(placeholders)
+                await cur.execute(sql, configure_ids)
+                trigger_rows = await cur.fetchall()
+
+                sql = _SELECT_ELIGIBILITIES_FOR_IDS_SQL.format(placeholders)
+                await cur.execute(sql, configure_ids)
+                eligibility_rows = await cur.fetchall()
+
     except Exception as exc:
         log.error("list_bonus_configures.db_error", error=str(exc))
         raise DatabaseError(str(exc)) from exc
 
-    return [_row_to_response(row) for row in rows]
+    triggers_by_cfg: dict[int, list[TriggerSummary]] = {}
+    for r in trigger_rows:
+        cfg_id = r[1]
+        triggers_by_cfg.setdefault(cfg_id, []).append(
+            TriggerSummary(
+                id=r[0], trigger_type=r[2],
+                active=bool(r[3]),
+            )
+        )
+
+    eligibilities_by_cfg: dict[int, list[EligibilitySummary]] = {}
+    for r in eligibility_rows:
+        cfg_id = r[1]
+        eligibilities_by_cfg.setdefault(cfg_id, []).append(
+            EligibilitySummary(
+                id=r[0], eligibility_key=r[2], eligibility_value=r[3],
+                eligibility_value_type=r[4], active=bool(r[5]),
+            )
+        )
+
+    result = []
+    for row in rows:
+        cfg = _row_to_response(row)
+        cfg_id = cfg.id
+        result.append(cfg.model_copy(update={
+            "triggers": triggers_by_cfg.get(cfg_id, []),
+            "eligibilities": eligibilities_by_cfg.get(cfg_id, []),
+        }))
+    return result
 
 
 async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) -> BonusConfigureResponse:

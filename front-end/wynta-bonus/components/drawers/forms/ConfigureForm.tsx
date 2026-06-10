@@ -269,6 +269,17 @@ export default function ConfigureForm({
     monthly?: string;
   }>({});
 
+  const [step1Errors, setStep1Errors] = useState<{
+    name?: string;
+    dates?: string;
+    bonus?: string;
+  }>({});
+  const [step2Errors, setStep2Errors] = useState<{ cashback?: string }>({});
+  const [step4Errors, setStep4Errors] = useState<{
+    segment?: string;
+    code?: string;
+  }>({});
+
   // ── Step 3: Segments ──────────────────────────────────────────────────────
   const [allPlayers, setAllPlayers] = useState(true);
   const [segmentId, setSegmentId] = useState("");
@@ -365,10 +376,15 @@ export default function ConfigureForm({
         <label>Name</label>
         <input
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setStep1Errors((p) => ({ ...p, name: undefined })); }}
           placeholder="e.g. FD Match 100% — Slots"
-          required
+          style={step1Errors.name ? { borderColor: "var(--red, #e53e3e)" } : undefined}
         />
+        {step1Errors.name && (
+          <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+            {step1Errors.name}
+          </div>
+        )}
       </div>
 
       <div className="field-group">
@@ -387,7 +403,7 @@ export default function ConfigureForm({
             <input
               type="datetime-local"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => { setStartDate(e.target.value); setStep1Errors((p) => ({ ...p, dates: undefined })); }}
             />
           </div>
           <div>
@@ -395,10 +411,16 @@ export default function ConfigureForm({
             <input
               type="datetime-local"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              style={step1Errors.dates ? { borderColor: "var(--red, #e53e3e)" } : undefined}
+              onChange={(e) => { setEndDate(e.target.value); setStep1Errors((p) => ({ ...p, dates: undefined })); }}
             />
           </div>
         </div>
+        {step1Errors.dates && (
+          <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+            {step1Errors.dates}
+          </div>
+        )}
       </div>
 
       <div className="field-group">
@@ -451,11 +473,16 @@ export default function ConfigureForm({
           <input
             value={fixed}
             placeholder="e.g. 500"
-            onChange={(e) => setFixed(e.target.value)}
+            style={step1Errors.bonus ? { borderColor: "var(--red, #e53e3e)" } : undefined}
+            onChange={(e) => { setFixed(e.target.value); setStep1Errors((p) => ({ ...p, bonus: undefined })); }}
           />
-          <div className="helper">
-            Player receives this fixed rupee amount as bonus.
-          </div>
+          {step1Errors.bonus ? (
+            <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+              {step1Errors.bonus}
+            </div>
+          ) : (
+            <div className="helper">Player receives this fixed rupee amount as bonus.</div>
+          )}
         </div>
       )}
 
@@ -467,8 +494,8 @@ export default function ConfigureForm({
               <input
                 value={pct}
                 placeholder="e.g. 100"
-                onChange={(e) => setPct(e.target.value)}
-                style={{ paddingRight: 28 }}
+                onChange={(e) => { setPct(e.target.value); setStep1Errors((p) => ({ ...p, bonus: undefined })); }}
+                style={{ paddingRight: 28, ...(step1Errors.bonus ? { borderColor: "var(--red, #e53e3e)" } : {}) }}
               />
               <span
                 style={{
@@ -483,9 +510,13 @@ export default function ConfigureForm({
                 %
               </span>
             </div>
-            <div className="helper">
-              Bonus = this % of the qualifying deposit / wager amount.
-            </div>
+            {step1Errors.bonus ? (
+              <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+                {step1Errors.bonus}
+              </div>
+            ) : (
+              <div className="helper">Bonus = this % of the qualifying deposit / wager amount.</div>
+            )}
           </div>
           <div className="field-group">
             <label>Maximum bonus (₹)</label>
@@ -645,7 +676,8 @@ export default function ConfigureForm({
                     <input
                       value={cbFixed}
                       placeholder="e.g. 200"
-                      onChange={(e) => setCbFixed(e.target.value)}
+                      style={step2Errors.cashback && !cbFixed.trim() ? { borderColor: "var(--red, #e53e3e)" } : undefined}
+                      onChange={(e) => { setCbFixed(e.target.value); setStep2Errors({}); }}
                     />
                   </div>
                   <div>
@@ -654,8 +686,8 @@ export default function ConfigureForm({
                       <input
                         value={cbPct}
                         placeholder="e.g. 10"
-                        onChange={(e) => setCbPct(e.target.value)}
-                        style={{ paddingRight: 28 }}
+                        onChange={(e) => { setCbPct(e.target.value); setStep2Errors({}); }}
+                        style={{ paddingRight: 28, ...(step2Errors.cashback && !cbPct.trim() ? { borderColor: "var(--red, #e53e3e)" } : {}) }}
                       />
                       <span
                         style={{
@@ -684,6 +716,11 @@ export default function ConfigureForm({
                   onChange={(e) => setCbMax(e.target.value)}
                 />
               </div>
+              {step2Errors.cashback && (
+                <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+                  {step2Errors.cashback}
+                </div>
+              )}
             </>
           )}
         </>
@@ -961,7 +998,8 @@ export default function ConfigureForm({
           <label>Segment</label>
           <select
             value={segmentId}
-            onChange={(e) => setSegmentId(e.target.value)}
+            style={step4Errors.segment ? { borderColor: "var(--red, #e53e3e)" } : undefined}
+            onChange={(e) => { setSegmentId(e.target.value); setStep4Errors((p) => ({ ...p, segment: undefined })); }}
           >
             <option value="">— select a segment —</option>
             {allSegments.map((s) => (
@@ -971,9 +1009,13 @@ export default function ConfigureForm({
               </option>
             ))}
           </select>
-          <div className="helper">
-            Only players in this segment will be eligible.
-          </div>
+          {step4Errors.segment ? (
+            <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+              {step4Errors.segment}
+            </div>
+          ) : (
+            <div className="helper">Only players in this segment will be eligible.</div>
+          )}
         </div>
       )}
 
@@ -1008,9 +1050,15 @@ export default function ConfigureForm({
                 <label>Promo code</label>
                 <input
                   value={promoCode}
-                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  style={step4Errors.code ? { borderColor: "var(--red, #e53e3e)" } : undefined}
+                  onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setStep4Errors((p) => ({ ...p, code: undefined })); }}
                   placeholder="e.g. WELCOME100"
                 />
+                {step4Errors.code && (
+                  <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+                    {step4Errors.code}
+                  </div>
+                )}
               </div>
               <div>
                 <label>Display on</label>
@@ -1144,6 +1192,37 @@ export default function ConfigureForm({
 
   // ── Wizard navigation ─────────────────────────────────────────────────────
   const handleNext = () => {
+    if (step === 1) {
+      const errors: typeof step1Errors = {};
+      if (!name.trim()) {
+        errors.name = "Name is required.";
+      }
+      if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+        errors.dates = "End date must be on or after start date.";
+      }
+      if (mechanicsTab === "fixed" && (!fixed.trim() || Number(fixed) <= 0)) {
+        errors.bonus = "Enter a positive fixed bonus amount.";
+      }
+      if (mechanicsTab === "percent" && (!pct.trim() || Number(pct) <= 0)) {
+        errors.bonus = "Enter a positive bonus percentage.";
+      }
+      setStep1Errors(errors);
+      if (Object.keys(errors).length > 0) return;
+    }
+
+    if (step === 2) {
+      const errors: typeof step2Errors = {};
+      if (cashbackOn && chunksOn) {
+        const hasCbFixed = cbFixed.trim() !== "" && Number(cbFixed) > 0;
+        const hasCbPct = cbPct.trim() !== "" && Number(cbPct) > 0;
+        if (!hasCbFixed && !hasCbPct) {
+          errors.cashback = "Enter a cashback fixed amount or percentage (must be > 0).";
+        }
+      }
+      setStep2Errors(errors);
+      if (Object.keys(errors).length > 0) return;
+    }
+
     if (step === 3) {
       const errors: typeof budgetErrors = {};
       const caps = {
@@ -1151,23 +1230,34 @@ export default function ConfigureForm({
         weekly: subLimitVal("WEEKLY"),
         monthly: subLimitVal("MONTHLY"),
       };
-      if (dailyLimit && caps.daily != null && Number(dailyLimit) > caps.daily)
+      if (dailyLimit && Number(dailyLimit) <= 0)
+        errors.daily = "Daily limit must be greater than 0.";
+      else if (dailyLimit && caps.daily != null && Number(dailyLimit) > caps.daily)
         errors.daily = `Cannot exceed subhead daily limit of ₹${caps.daily.toLocaleString()}`;
-      if (
-        weeklyLimit &&
-        caps.weekly != null &&
-        Number(weeklyLimit) > caps.weekly
-      )
+      if (weeklyLimit && Number(weeklyLimit) <= 0)
+        errors.weekly = "Weekly limit must be greater than 0.";
+      else if (weeklyLimit && caps.weekly != null && Number(weeklyLimit) > caps.weekly)
         errors.weekly = `Cannot exceed subhead weekly limit of ₹${caps.weekly.toLocaleString()}`;
-      if (
-        monthlyLimit &&
-        caps.monthly != null &&
-        Number(monthlyLimit) > caps.monthly
-      )
+      if (monthlyLimit && Number(monthlyLimit) <= 0)
+        errors.monthly = "Monthly limit must be greater than 0.";
+      else if (monthlyLimit && caps.monthly != null && Number(monthlyLimit) > caps.monthly)
         errors.monthly = `Cannot exceed subhead monthly limit of ₹${caps.monthly.toLocaleString()}`;
       setBudgetErrors(errors);
       if (Object.keys(errors).length > 0) return;
     }
+
+    if (step === 4) {
+      const errors: typeof step4Errors = {};
+      if (!allPlayers && !segmentId) {
+        errors.segment = "Select a segment or switch back to all players.";
+      }
+      if (codeEnabled && !promoCode.trim()) {
+        errors.code = "Enter a promo code or disable the promo code option.";
+      }
+      setStep4Errors(errors);
+      if (Object.keys(errors).length > 0) return;
+    }
+
     setStep((s) => s + 1);
   };
 
@@ -1175,7 +1265,9 @@ export default function ConfigureForm({
   const stepContent = [step1, step2, step3, step4, step5][step - 1];
 
   return (
-    <form onSubmit={handle} style={{ display: "contents" }}>
+    // Prevent any browser-native form submission in wizard mode — all
+    // navigation and final submission are handled explicitly via buttons below.
+    <form onSubmit={(e) => e.preventDefault()} style={{ display: "contents" }}>
       <div className="drawer-body">
         <StepIndicator step={step} />
         {stepContent}
@@ -1211,6 +1303,7 @@ export default function ConfigureForm({
 
           {step < WIZARD_STEPS.length ? (
             <button
+              key="wizard-next"
               type="button"
               className="btn btn-primary"
               style={{ flex: 1 }}
@@ -1220,10 +1313,12 @@ export default function ConfigureForm({
             </button>
           ) : (
             <button
-              type="submit"
+              key="wizard-submit"
+              type="button"
               className="btn btn-primary"
               style={{ flex: 1 }}
               disabled={submitting}
+              onClick={() => onSubmit(buildPayload())}
             >
               {submitting ? (
                 <>
