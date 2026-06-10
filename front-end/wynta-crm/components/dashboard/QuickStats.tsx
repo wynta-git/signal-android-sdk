@@ -2,31 +2,33 @@
 import { useAppSelector } from '../../store/hooks';
 import { selectDashboardSummary, selectDashboardStatus, selectDashboardWindowDays, selectDashboardDateRange } from '../../store/slices/dashboardSlice';
 
-
-interface StatCardProps {
+interface StatItemProps {
   label:    string;
   value:    string | number;
   change?:  number | null;
   loading?: boolean;
+  borderRight?: boolean;
+  borderBottom?: boolean;
 }
 
-function StatCard({ label, value, change, loading }: StatCardProps) {
+function StatItem({ label, value, change, loading, borderRight, borderBottom }: StatItemProps) {
   const isPos = change != null && change > 0;
   const isNeg = change != null && change < 0;
   const changeColor = isPos ? 'var(--crm-positive, #10b981)' : isNeg ? 'var(--crm-negative, #ef4444)' : 'var(--crm-fg4)';
 
   return (
     <div style={{
-      background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
-      borderRadius: 14, padding: '16px 16px 14px',
+      padding: '16px 20px',
+      borderRight:  borderRight  ? '1px solid var(--crm-border)' : undefined,
+      borderBottom: borderBottom ? '1px solid var(--crm-border)' : undefined,
     }}>
-      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--crm-fg3)', marginBottom: 8 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--crm-fg3)', marginBottom: 6 }}>
         {label}
       </div>
       {loading ? (
-        <div style={{ height: 28, width: '60%', background: 'var(--g100)', borderRadius: 4, marginBottom: 8 }} />
+        <div style={{ height: 26, width: '55%', background: 'var(--g100)', borderRadius: 4, marginBottom: 6 }} />
       ) : (
-        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--crm-fg1)', lineHeight: 1.1, marginBottom: 8 }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--crm-fg1)', lineHeight: 1.15, marginBottom: 4 }}>
           {value}
         </div>
       )}
@@ -35,7 +37,7 @@ function StatCard({ label, value, change, loading }: StatCardProps) {
           {isPos ? '↑' : isNeg ? '↓' : ''}{Math.abs(change).toFixed(1)}%
         </span>
       ) : (
-        <span />
+        <span style={{ display: 'block', height: 16 }} />
       )}
     </div>
   );
@@ -49,17 +51,17 @@ function fmt(n: number | undefined | null): string {
 }
 
 function fmtDateRange(range: { start: string; end: string } | null, windowDays: number): string {
-  const fmt = (s: string) => {
+  const fmtD = (s: string) => {
     const [y, m, d] = s.split('-');
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return `${months[Number(m) - 1]} ${String(Number(d)).padStart(2, '0')}, ${y}`;
   };
-  if (range) return `${fmt(range.start)} – ${fmt(range.end)}`;
+  if (range) return `${fmtD(range.start)} – ${fmtD(range.end)}`;
   const today = new Date();
   const start = new Date(today);
   start.setDate(today.getDate() - (windowDays - 1));
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  return `${fmt(iso(start))} – ${fmt(iso(today))}`;
+  return `${fmtD(iso(start))} – ${fmtD(iso(today))}`;
 }
 
 export default function QuickStats() {
@@ -72,7 +74,7 @@ export default function QuickStats() {
   const optin      = summary?.channel_optin;
   const health     = summary?.player_health;
 
-  const cards = [
+  const items = [
     { label: 'Reachable Players', value: fmt(qs?.reachable_players?.value), change: qs?.reachable_players?.change_pct ?? null },
     { label: 'Active This Week',  value: fmt(qs?.active_this_week?.value),  change: qs?.active_this_week?.change_pct ?? null  },
     { label: 'Live Campaigns',    value: fmt(qs?.live_campaigns?.value),    change: null },
@@ -85,12 +87,18 @@ export default function QuickStats() {
     { label: 'Churned Players',   value: fmt(health?.churned?.count),       change: null },
   ];
 
+  const COLS = 5;
+
   return (
-    <div>
-      {/* Section header */}
+    <div style={{
+      background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
+      borderRadius: 6, overflow: 'hidden',
+    }}>
+      {/* Header */}
       <div style={{
+        background: 'var(--crm-bg)', padding: '10px 14px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 10,
+        borderBottom: '1px solid var(--crm-border)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -109,9 +117,18 @@ export default function QuickStats() {
         </span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
-        {cards.map(c => (
-          <StatCard key={c.label} label={c.label} value={loading ? '' : c.value} change={c.change} loading={loading} />
+      {/* Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
+        {items.map((item, i) => (
+          <StatItem
+            key={item.label}
+            label={item.label}
+            value={loading ? '' : item.value}
+            change={item.change}
+            loading={loading}
+            borderRight={(i + 1) % COLS !== 0}
+            borderBottom={i < items.length - COLS}
+          />
         ))}
       </div>
     </div>
