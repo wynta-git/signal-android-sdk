@@ -100,7 +100,7 @@ export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: str
   return (
     <div style={{ padding: '20px 24px 48px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header — matches .seg-page-header / .cp-page-header pattern */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: -6 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: -14 }}>
         <div>
           <h1 style={{ fontSize: 16, fontWeight: 700, color: 'var(--crm-fg1)', lineHeight: 1.2, marginTop: 25 }}>Quick Stats</h1>
           {/* <p style={{ fontSize: 13, color: 'var(--crm-fg3)' }}>Overview of players, campaigns and channel performance</p> */}
