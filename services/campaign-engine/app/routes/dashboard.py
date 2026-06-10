@@ -215,6 +215,7 @@ async def dashboard_summary(
         prev_reachable_count,
         boosts,
         daily_range,
+        prev_daily_range,
     ) = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now),
         get_dashboard_delivery_stats(db, project_id, comp_since, comp_until),
@@ -247,6 +248,7 @@ async def dashboard_summary(
         }),
         _fetch_boosts(db, project_id),
         get_daily_boosts_range(db, project_id, since, now),
+        get_daily_boosts_range(db, project_id, comp_since, comp_until),
     )
 
     curr = _crunch_deliveries(curr_raw)
@@ -256,28 +258,31 @@ async def dashboard_summary(
     prev_sent   = _sum_status(prev, "sent")
     curr_failed = _sum_status(curr, "failed")
     prev_failed = _sum_status(prev, "failed")
-    prev_delivery_rate = _safe_rate(prev_sent, prev_sent + prev_failed)
+    # prev_delivery_rate is refined below once prev_db_totals is available
+    prev_delivery_rate: float | None = _safe_rate(prev_sent, prev_sent + prev_failed)
 
     # Reachable = email/phone users union push users, capped at total_users
     reachable = min(reachable_count + optin["push"], total_users)
     prev_reachable = min(prev_reachable_count + optin["push"], total_users)
 
     # Apply daily boosts if data exists for this range, else fall back to flat boosts
-    db_totals = _crunch_daily_boosts(daily_range)
+    db_totals      = _crunch_daily_boosts(daily_range)
+    prev_db_totals = _crunch_daily_boosts(prev_daily_range)
     use_daily = db_totals["messages_sent"] > 0
 
     if use_daily:
-        snap = db_totals["snapshot"]
+        snap      = db_totals["snapshot"]
+        prev_snap = prev_db_totals["snapshot"]
         all_ch_sent      = sum(db_totals["channel"][c]["sent"]      for c in _DAILY_CHANNELS)
         all_ch_delivered = sum(db_totals["channel"][c]["delivered"] for c in _DAILY_CHANNELS)
         all_ch_failed    = sum(db_totals["channel"][c]["failed"]    for c in _DAILY_CHANNELS)
 
         b_reachable      = snap.get("reachable_players", reachable)
-        b_prev_reachable = snap.get("reachable_players", prev_reachable)
+        b_prev_reachable = prev_snap.get("reachable_players", prev_reachable)
         b_active         = snap.get("active_users", active_this_week)
         b_prev_active    = prev_active_this_week
         b_curr_sent      = curr_sent + db_totals["messages_sent"]
-        b_prev_sent      = prev_sent
+        b_prev_sent      = prev_sent + prev_db_totals["messages_sent"]
         b_total_users    = snap.get("total_users", health["total_users"])
         b_new            = health["new"] + db_totals["new_users"]
         b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
@@ -290,6 +295,12 @@ async def dashboard_summary(
         delivery_rate    = _safe_rate(
             curr_sent + all_ch_delivered,
             curr_sent + all_ch_delivered + curr_failed + all_ch_failed,
+        )
+        prev_ch_delivered = sum(prev_db_totals["channel"][c]["delivered"] for c in _DAILY_CHANNELS)
+        prev_ch_failed    = sum(prev_db_totals["channel"][c]["failed"]    for c in _DAILY_CHANNELS)
+        prev_delivery_rate = _safe_rate(
+            prev_sent + prev_ch_delivered,
+            prev_sent + prev_ch_delivered + prev_failed + prev_ch_failed,
         )
     else:
         win_scale        = window_days / 30
