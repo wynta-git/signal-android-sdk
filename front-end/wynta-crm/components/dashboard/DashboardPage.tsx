@@ -20,12 +20,7 @@ import CampaignsTable    from './CampaignsTable';
 import AnalyticsChart    from './AnalyticsChart';
 import PlayerHealth      from './PlayerHealth';
 import SegmentsBreakdown from './SegmentsBreakdown';
-
-const WINDOW_OPTIONS = [
-  { label: 'Last 7 days',  value: 7  },
-  { label: 'Last 14 days', value: 14 },
-  { label: 'Last 30 days', value: 30 },
-];
+import DateRangePicker   from './DateRangePicker';
 
 export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: string) => void }) {
   const dispatch   = useAppDispatch();
@@ -71,19 +66,7 @@ export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: str
           <p style={{ fontSize: 13, color: 'var(--crm-fg3)' }}>Overview of players, campaigns and channel performance</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <select
-            value={windowDays}
-            onChange={e => handleWindowChange(Number(e.target.value))}
-            style={{
-              height: 36, padding: '0 10px', border: '1px solid var(--crm-border-md)',
-              borderRadius: 4, background: 'var(--crm-white)', color: 'var(--crm-fg2)',
-              fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
-            }}
-          >
-            {WINDOW_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+          <DateRangePicker windowDays={windowDays} onChange={handleWindowChange} />
           <button
             onClick={() => loadAll(windowDays)}
             style={{
