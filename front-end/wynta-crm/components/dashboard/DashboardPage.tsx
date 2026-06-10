@@ -13,6 +13,7 @@ import {
   setCompareRange,
   selectDashboardWindowDays,
   selectDashboardDateRange,
+  selectDashboardCompareRange,
 } from '../../store/slices/dashboardSlice';
 
 function toISO(d: Date): string {
@@ -27,6 +28,15 @@ function defaultRange(days: number): { start: string; end: string } {
   start.setDate(today.getDate() - (days - 1));
   return { start: toISO(start), end: toISO(today) };
 }
+
+function defaultCompare(range: { start: string; end: string }): { start: string; end: string } {
+  const start = new Date(range.start);
+  const end   = new Date(range.end);
+  const days  = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  const compEnd   = new Date(start); compEnd.setDate(compEnd.getDate() - 1);
+  const compStart = new Date(compEnd); compStart.setDate(compStart.getDate() - (days - 1));
+  return { start: toISO(compStart), end: toISO(compEnd) };
+}
 import { getToken } from 'wynta-react-common/services/tokenRegistry';
 import QuickStats        from './QuickStats';
 import ChannelReach      from './ChannelReach';
@@ -40,8 +50,9 @@ import DateRangePicker   from './DateRangePicker';
 
 export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: string) => void }) {
   const dispatch   = useAppDispatch();
-  const windowDays = useAppSelector(selectDashboardWindowDays);
-  const dateRange  = useAppSelector(selectDashboardDateRange);
+  const windowDays   = useAppSelector(selectDashboardWindowDays);
+  const dateRange    = useAppSelector(selectDashboardDateRange);
+  const compareRange = useAppSelector(selectDashboardCompareRange);
   const pathname   = usePathname();
 
   function loadAll(
@@ -57,16 +68,17 @@ export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: str
   }
 
   useEffect(() => {
-    const range = dateRange ?? defaultRange(windowDays);
+    const range   = dateRange   ?? defaultRange(windowDays);
+    const compare = compareRange ?? defaultCompare(range);
     if (getToken()) {
-      loadAll(windowDays, range);
+      loadAll(windowDays, range, compare);
       return;
     }
     // Token not ready yet (first load race) — poll until available
     const interval = setInterval(() => {
       if (getToken()) {
         clearInterval(interval);
-        loadAll(windowDays, range);
+        loadAll(windowDays, range, compare);
       }
     }, 300);
     return () => clearInterval(interval);

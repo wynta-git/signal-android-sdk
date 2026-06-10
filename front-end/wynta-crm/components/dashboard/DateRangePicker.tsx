@@ -111,7 +111,7 @@ export default function DateRangePicker({ windowDays, onChange }: Props) {
 
   const [open,          setOpen]          = useState(false);
   const [activeRange,   setActiveRange]   = useState<DateRange>(initRange);
-  const [compareActive, setCompareActive] = useState<DateRange | null>(null);
+  const [compareActive, setCompareActive] = useState<DateRange | null>(() => calcCompare(initRange, 'prevPeriod'));
   const [pendingRange,  setPendingRange]  = useState<DateRange>(initRange);
   const [pendingPreset, setPendingPreset] = useState<PresetId>(initPreset);
   const [comparePreset,      setComparePreset]      = useState<ComparePreset>('prevPeriod');
@@ -119,7 +119,7 @@ export default function DateRangePicker({ windowDays, onChange }: Props) {
   const [customCompareEnd,   setCustomCompareEnd]   = useState('');
   const [pickingEnd,         setPickingEnd]         = useState(false);
   const [hoverDay,           setHoverDay]           = useState<Date | null>(null);
-  const [compareOn,          setCompareOn]          = useState(false);
+  const [compareOn,          setCompareOn]          = useState(true);
 
   const [calLeft, setCalLeft] = useState<{ year: number; month: number }>(() => {
     const d = new Date(); d.setMonth(d.getMonth() - 1);
