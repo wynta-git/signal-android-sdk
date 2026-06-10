@@ -38,18 +38,18 @@ function yTicks(max: number): number[] {
 }
 
 function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
-  const W = 800, H = 210, PAD = { top: 10, right: 12, bottom: 52, left: 52 };
+  const W = 800, H = 280, PAD = { top: 16, right: 12, bottom: 52, left: 52 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const max = Math.max(...data.flatMap(d => [d.sent, d.opens, d.conversions]), 1);
   const ticks = yTicks(max);
   const tickMax = ticks[ticks.length - 1];
   const groupW = innerW / data.length;
-  const barW   = Math.max(5, Math.min(20, (groupW - 8) / 3));
-  const gap    = Math.max(1, (groupW - barW * 3) / 4);
+  const barW   = Math.max(8, Math.min(40, (groupW * 0.75) / 3));
+  const gap    = Math.max(2, (groupW - barW * 3) / 4);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
       {/* Y-axis label */}
       <text
         x={12} y={PAD.top + innerH / 2}
@@ -77,7 +77,7 @@ function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
               const x = gx + gap + si * (barW + gap);
               const h = Math.max(2, (val / tickMax) * innerH);
               const y = PAD.top + innerH - h;
-              return <rect key={si} x={x} y={y} width={barW} height={h} rx={2} fill={color} />;
+              return <rect key={si} x={x} y={y} width={barW} height={h} rx={3} fill={color} />;
             })}
             <text x={gx + groupW / 2} y={PAD.top + innerH + 14} fontSize={9} fill="#111827" textAnchor="middle">
               {d.date.slice(5)}
@@ -269,9 +269,9 @@ export default function AnalyticsChart() {
 
       {/* Chart */}
       <div style={{ padding: '12px 14px 0' }}>
-        {loading && <div style={{ height: 190, background: 'var(--g100)', borderRadius: 6 }} />}
+        {loading && <div style={{ height: 280, background: 'var(--g100)', borderRadius: 6 }} />}
         {!loading && enriched.length === 0 && (
-          <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontSize: 12, color: 'var(--crm-fg4)' }}>No analytics data available</span>
           </div>
         )}

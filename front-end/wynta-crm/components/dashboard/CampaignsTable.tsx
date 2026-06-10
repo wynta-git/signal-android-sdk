@@ -138,17 +138,17 @@ export default function CampaignsTable({ onNavigate }: { onNavigate?: (nav: stri
               </th>
               <th style={TH}>Channel</th>
               <th style={TH}>Segment</th>
-              <th style={{ ...TH, textAlign: 'right' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Sent <SortIcon /></div>
+              <th style={TH}>
+                <div style={{ display: 'inline-flex', alignItems: 'center' }}>Sent <SortIcon /></div>
               </th>
-              <th style={{ ...TH, textAlign: 'right' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Open Rate <SortIcon /></div>
+              <th style={TH}>
+                <div style={{ display: 'inline-flex', alignItems: 'center' }}>Open Rate <SortIcon /></div>
               </th>
-              <th style={{ ...TH, textAlign: 'right' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>CTR <SortIcon /></div>
+              <th style={TH}>
+                <div style={{ display: 'inline-flex', alignItems: 'center' }}>CTR <SortIcon /></div>
               </th>
-              <th style={{ ...TH, textAlign: 'right' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Click-throughs <SortIcon /></div>
+              <th style={TH}>
+                <div style={{ display: 'inline-flex', alignItems: 'center' }}>Click-throughs <SortIcon /></div>
               </th>
               <th style={TH}>Status</th>
             </tr>
@@ -198,19 +198,19 @@ export default function CampaignsTable({ onNavigate }: { onNavigate?: (nav: stri
                     ) : <span style={{ color: 'var(--crm-fg4)' }}>—</span>}
                   </td>
                   {/* Sent */}
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 600, color: 'var(--crm-fg1)' }}>
+                  <td style={{ ...TD, fontWeight: 600, color: 'var(--crm-fg1)' }}>
                     {fmt(c.total_sent)}
                   </td>
                   {/* Open Rate */}
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 600, color: isGoodOR ? 'var(--crm-positive)' : 'var(--crm-fg2)' }}>
+                  <td style={{ ...TD, fontWeight: 600, color: isGoodOR ? 'var(--crm-positive)' : 'var(--crm-fg2)' }}>
                     {openRate != null ? `${(openRate * 100).toFixed(0)}%` : UNTRACKED}
                   </td>
                   {/* CTR */}
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 600, color: isGoodCTR ? 'var(--crm-positive)' : isBadCTR ? 'var(--crm-negative, #ef4444)' : 'var(--crm-fg2)' }}>
+                  <td style={{ ...TD, fontWeight: 600, color: isGoodCTR ? 'var(--crm-positive)' : isBadCTR ? 'var(--crm-negative, #ef4444)' : 'var(--crm-fg2)' }}>
                     {ctr != null ? `${(ctr * 100).toFixed(1)}%` : UNTRACKED}
                   </td>
                   {/* Click-throughs */}
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 600, color: 'var(--crm-fg1)' }}>
+                  <td style={{ ...TD, fontWeight: 600, color: 'var(--crm-fg1)' }}>
                     {c.click_throughs != null ? fmt(c.click_throughs) : UNTRACKED}
                   </td>
                   {/* Status */}

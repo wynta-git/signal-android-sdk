@@ -118,12 +118,12 @@ export default function ChannelsTable({ onNavigate }: { onNavigate?: (nav: strin
             <tr>
               <th style={TH}>Channel</th>
               <th style={TH}>Status</th>
-              <th style={{ ...TH, textAlign: 'right' }}>Messages Sent</th>
-              <th style={{ ...TH, textAlign: 'right' }}>Delivery Rate</th>
-              <th style={{ ...TH, textAlign: 'right' }}>Open Rate</th>
-              <th style={{ ...TH, textAlign: 'right' }}>CTR</th>
+              <th style={TH}>Messages Sent</th>
+              <th style={TH}>Delivery Rate</th>
+              <th style={TH}>Open Rate</th>
+              <th style={TH}>CTR</th>
               <th style={{ ...TH }}>Reach Score</th>
-              <th style={{ ...TH, textAlign: 'center' }}>Trend (7d)</th>
+              <th style={TH}>Trend (7d)</th>
             </tr>
           </thead>
           <tbody>
@@ -171,17 +171,17 @@ export default function ChannelsTable({ onNavigate }: { onNavigate?: (nav: strin
                     </span>
                   </td>
                   {/* Messages Sent */}
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 500 }}>{fmt(ch.messages_sent)}</td>
+                  <td style={{ ...TD, fontWeight: 500 }}>{fmt(ch.messages_sent)}</td>
                   {/* Delivery Rate */}
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 600, color: isPositiveDR ? 'var(--crm-positive)' : 'var(--crm-fg2)' }}>
+                  <td style={{ ...TD, fontWeight: 600, color: isPositiveDR ? 'var(--crm-positive)' : 'var(--crm-fg2)' }}>
                     {ch.delivery_rate != null ? `${(ch.delivery_rate * 100).toFixed(1)}%` : UNTRACKED}
                   </td>
                   {/* Open Rate */}
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 600, color: isPositiveOR ? 'var(--crm-positive)' : 'var(--crm-fg2)' }}>
+                  <td style={{ ...TD, fontWeight: 600, color: isPositiveOR ? 'var(--crm-positive)' : 'var(--crm-fg2)' }}>
                     {ch.open_rate != null ? `${(ch.open_rate * 100).toFixed(1)}%` : UNTRACKED}
                   </td>
                   {/* CTR */}
-                  <td style={{ ...TD, textAlign: 'right', fontWeight: 600, color: isPositiveCTR ? 'var(--crm-positive)' : 'var(--crm-fg2)' }}>
+                  <td style={{ ...TD, fontWeight: 600, color: isPositiveCTR ? 'var(--crm-positive)' : 'var(--crm-fg2)' }}>
                     {ch.ctr != null ? `${(ch.ctr * 100).toFixed(1)}%` : UNTRACKED}
                   </td>
                   {/* Reach Score */}
