@@ -42,7 +42,9 @@ def _safe_rate(numerator: int, denominator: int) -> float | None:
 def _change_pct(current: int | float, previous: int | float) -> float | None:
     if not previous:
         return None
-    return round((current - previous) / previous * 100, 1)
+    result = round((current - previous) / previous * 100, 1)
+    # Values beyond ±9999 % are data artifacts (near-zero prior period) — suppress them
+    return result if abs(result) <= 9999 else None
 
 
 def _parse_compare_window(
@@ -232,9 +234,11 @@ async def dashboard_summary(
     curr = _crunch_deliveries(curr_raw)
     prev = _crunch_deliveries(prev_raw)
 
-    curr_sent = _sum_status(curr, "sent")
-    prev_sent = _sum_status(prev, "sent")
+    curr_sent   = _sum_status(curr, "sent")
+    prev_sent   = _sum_status(prev, "sent")
     curr_failed = _sum_status(curr, "failed")
+    prev_failed = _sum_status(prev, "failed")
+    prev_delivery_rate = _safe_rate(prev_sent, prev_sent + prev_failed)
 
     # Reachable = email/phone users union push users, capped at total_users
     reachable = min(reachable_count + optin["push"], total_users)
@@ -308,7 +312,10 @@ async def dashboard_summary(
                 "value": b_curr_sent,
                 "change_pct": _change_pct(b_curr_sent, b_prev_sent),
             },
-            "delivery_rate": {"value": delivery_rate},
+            "delivery_rate": {
+                "value": delivery_rate,
+                "change_pct": _change_pct(delivery_rate, prev_delivery_rate) if delivery_rate is not None else None,
+            },
             "open_rate": _UNTRACKED,
             "ctr": _UNTRACKED,
             "opt_outs": {
