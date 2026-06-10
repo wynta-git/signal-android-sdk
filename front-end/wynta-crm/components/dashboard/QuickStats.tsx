@@ -94,7 +94,7 @@ export default function QuickStats() {
     { label: 'Active This Week',  value: fmt(qs?.active_this_week?.value),  change: qs?.active_this_week?.change_pct ?? null  },
     { label: 'Live Campaigns',    value: fmt(qs?.live_campaigns?.value),    change: null },
     { label: 'Active Segments',   value: fmt(qs?.active_segments?.value),   change: null },
-    { label: 'Unsubscribe Rate',  value: qs?.opt_outs?.tracked ? fmt(qs.opt_outs.value) : '—',                                                  change: null },
+    { label: 'Unsubscribe Rate',  value: qs?.opt_outs?.tracked ? `${((qs.opt_outs.value ?? 0) * 100).toFixed(2)}%` : '—',                      change: null },
     { label: 'Messages Sent',     value: fmt(qs?.messages_sent?.value),     change: qs?.messages_sent?.change_pct ?? null },
     { label: 'Delivery Rate',     value: qs?.delivery_rate?.value != null ? `${(qs.delivery_rate.value * 100).toFixed(1)}%` : '—', change: null },
     { label: 'Opted-in (Push)',   value: fmt(optin?.push?.count),           change: null },
