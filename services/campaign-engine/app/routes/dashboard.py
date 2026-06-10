@@ -104,6 +104,7 @@ def _crunch_daily_boosts(daily: dict) -> dict:
         "channel": {ch: {"sent": 0, "delivered": 0, "failed": 0} for ch in _DAILY_CHANNELS},
         "snapshot": {},
     }
+    delivery_rate_samples: list[float] = []
     for date_str in sorted(daily):
         day = daily[date_str]
         totals["messages_sent"] += day.get("messages_sent", 0)
@@ -115,6 +116,14 @@ def _crunch_daily_boosts(daily: dict) -> dict:
                     totals["channel"][ch][k] += stats.get(k, 0)
         if "snapshot" in day:
             totals["snapshot"] = day["snapshot"]
+            dr = day["snapshot"].get("delivery_rate")
+            if dr is not None:
+                delivery_rate_samples.append(float(dr))
+    # Average of per-day delivery_rate snapshots — varies by date range
+    totals["avg_delivery_rate"] = (
+        round(sum(delivery_rate_samples) / len(delivery_rate_samples), 4)
+        if delivery_rate_samples else None
+    )
     return totals
 
 
@@ -295,15 +304,25 @@ async def dashboard_summary(
         b_opt_outs        = db_totals["opt_outs"]
         prev_b_optin_push = prev_snap.get("optin_push", optin["push"] + _b(boosts, "channel_optin.push"))
         prev_b_opt_outs   = prev_db_totals["opt_outs"]
-        delivery_rate    = _safe_rate(
+        prev_ch_delivered = sum(prev_db_totals["channel"][c]["delivered"] for c in _DAILY_CHANNELS)
+        prev_ch_failed    = sum(prev_db_totals["channel"][c]["failed"]    for c in _DAILY_CHANNELS)
+        _computed_dr      = _safe_rate(
             curr_sent + all_ch_delivered,
             curr_sent + all_ch_delivered + curr_failed + all_ch_failed,
         )
-        prev_ch_delivered = sum(prev_db_totals["channel"][c]["delivered"] for c in _DAILY_CHANNELS)
-        prev_ch_failed    = sum(prev_db_totals["channel"][c]["failed"]    for c in _DAILY_CHANNELS)
-        prev_delivery_rate = _safe_rate(
+        _computed_prev_dr = _safe_rate(
             prev_sent + prev_ch_delivered,
             prev_sent + prev_ch_delivered + prev_failed + prev_ch_failed,
+        )
+        delivery_rate      = (
+            db_totals["avg_delivery_rate"]
+            if db_totals["avg_delivery_rate"] is not None
+            else _computed_dr
+        )
+        prev_delivery_rate = (
+            prev_db_totals["avg_delivery_rate"]
+            if prev_db_totals["avg_delivery_rate"] is not None
+            else _computed_prev_dr
         )
     else:
         win_scale        = window_days / 30
