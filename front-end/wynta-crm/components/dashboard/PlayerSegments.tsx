@@ -82,12 +82,12 @@ export default function PlayerSegments({ onNavigate }: { onNavigate?: (nav: stri
               </span>
               <div style={{ width: 80, background: 'var(--wynta-grey-100)', borderRadius: 3, height: 6, overflow: 'hidden', flexShrink: 0 }}>
                 <div style={{
-                  width: `${Math.min(seg.pct, 100)}%`, background: BAR_COLORS[i % BAR_COLORS.length],
+                  width: `${Math.min((seg.pct ?? 0) * 100, 100)}%`, background: BAR_COLORS[i % BAR_COLORS.length],
                   height: 6, borderRadius: 3, opacity: 0.8,
                 }} />
               </div>
               <span style={{ fontSize: 11, color: 'var(--fg3)', width: 30, textAlign: 'right', flexShrink: 0 }}>
-                {seg.pct.toFixed(0)}%
+                {((seg.pct ?? 0) * 100).toFixed(0)}%
               </span>
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg1)', width: 40, textAlign: 'right', flexShrink: 0 }}>
                 {fmt(seg.members_count)}
