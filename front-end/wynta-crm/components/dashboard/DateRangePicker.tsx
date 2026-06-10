@@ -140,11 +140,10 @@ export default function DateRangePicker({ windowDays, onChange }: Props) {
   }, [open]);
 
   function openPicker() {
-    const p = daysToPreset(windowDays);
-    const r = presetRange(p);
-    setPendingPreset(p); setPendingRange(r);
+    const p = daysToPreset(rangeToDays(activeRange));
+    setPendingPreset(p); setPendingRange(activeRange);
     setPickingEnd(false); setHoverDay(null);
-    setCalLeft({ year: r.start.getFullYear(), month: r.start.getMonth() });
+    setCalLeft({ year: activeRange.start.getFullYear(), month: activeRange.start.getMonth() });
     setOpen(true);
   }
 
