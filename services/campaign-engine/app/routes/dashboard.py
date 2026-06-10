@@ -45,6 +45,22 @@ def _change_pct(current: int | float, previous: int | float) -> float | None:
     return round((current - previous) / previous * 100, 1)
 
 
+def _parse_compare_window(
+    compare_start: str | None,
+    compare_end: str | None,
+    fallback_since: datetime,
+    fallback_until: datetime,
+) -> tuple[datetime, datetime]:
+    if compare_start and compare_end:
+        try:
+            cs = datetime.strptime(compare_start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            ce = (datetime.strptime(compare_end, "%Y-%m-%d") + timedelta(days=1)).replace(tzinfo=timezone.utc)
+            return cs, ce
+        except ValueError:
+            pass
+    return fallback_since, fallback_until
+
+
 def _crunch_deliveries(raw: list[dict]) -> dict:
     """Turn raw aggregation buckets into: result[channel][status][date] = count."""
     out: dict = {}
@@ -156,11 +172,14 @@ async def dashboard_summary(
     ctx: PortalAuthDep,
     db: DbDep,
     window_days: int = Query(default=7, ge=1, le=90),
+    compare_start: str | None = Query(default=None, description="YYYY-MM-DD"),
+    compare_end:   str | None = Query(default=None, description="YYYY-MM-DD"),
 ) -> dict:
     project_id = ctx.project_id
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
     prev_since = since - timedelta(days=window_days)
+    comp_since, comp_until = _parse_compare_window(compare_start, compare_end, prev_since, since)
 
     (
         curr_raw,
@@ -178,7 +197,7 @@ async def dashboard_summary(
         daily_range,
     ) = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now),
-        get_dashboard_delivery_stats(db, project_id, prev_since, since),
+        get_dashboard_delivery_stats(db, project_id, comp_since, comp_until),
         get_dashboard_user_health(db, project_id),
         get_dashboard_channel_optin(db, project_id),
         db["campaigns"].count_documents(
@@ -189,7 +208,7 @@ async def dashboard_summary(
             {"project_id": project_id, "last_seen_at": {"$gte": since}}
         ),
         db["users"].count_documents(
-            {"project_id": project_id, "last_seen_at": {"$gte": prev_since, "$lt": since}}
+            {"project_id": project_id, "last_seen_at": {"$gte": comp_since, "$lt": comp_until}}
         ),
         db["users"].count_documents({"project_id": project_id}),
         db["users"].count_documents({
@@ -596,6 +615,8 @@ async def dashboard_analytics(
     ctx: PortalAuthDep,
     db: DbDep,
     window_days: int = Query(default=30, ge=1, le=365),
+    compare_start: str | None = Query(default=None, description="YYYY-MM-DD"),
+    compare_end:   str | None = Query(default=None, description="YYYY-MM-DD"),
 ) -> dict:
     project_id = ctx.project_id
     now = datetime.now(timezone.utc)
@@ -606,12 +627,24 @@ async def dashboard_analytics(
         day=1, hour=0, minute=0, second=0, microsecond=0
     )
 
-    raw, mtd_raw, prev_mtd_raw, daily_range = await asyncio.gather(
-        get_dashboard_delivery_stats(db, project_id, since, now),
-        get_dashboard_delivery_stats(db, project_id, month_start, now),
-        get_dashboard_delivery_stats(db, project_id, prev_month_start, month_start),
-        get_daily_boosts_range(db, project_id, since, now),
-    )
+    use_custom_compare = bool(compare_start and compare_end)
+    comp_since, comp_until = _parse_compare_window(compare_start, compare_end, prev_month_start, month_start)
+
+    if use_custom_compare:
+        raw, comp_raw, daily_range = await asyncio.gather(
+            get_dashboard_delivery_stats(db, project_id, since, now),
+            get_dashboard_delivery_stats(db, project_id, comp_since, comp_until),
+            get_daily_boosts_range(db, project_id, since, now),
+        )
+        mtd_raw = raw
+        prev_mtd_raw = comp_raw
+    else:
+        raw, mtd_raw, prev_mtd_raw, daily_range = await asyncio.gather(
+            get_dashboard_delivery_stats(db, project_id, since, now),
+            get_dashboard_delivery_stats(db, project_id, month_start, now),
+            get_dashboard_delivery_stats(db, project_id, prev_month_start, month_start),
+            get_daily_boosts_range(db, project_id, since, now),
+        )
 
     buckets = _crunch_deliveries(raw)
     mtd = _crunch_deliveries(mtd_raw)
@@ -701,6 +734,11 @@ async def dashboard_analytics(
         {"value": round(override_ctr * 100, 1), "tracked": True}
         if override_ctr is not None else _UNTRACKED
     )
+
+    # When using a custom compare range, compare current window total against the raw
+    # compare-window total (no boosts applied to comparison side).
+    if use_custom_compare:
+        prev_mtd_sent = _sum_status(_crunch_deliveries(prev_mtd_raw), "sent")
 
     return {
         "window_days": window_days,
