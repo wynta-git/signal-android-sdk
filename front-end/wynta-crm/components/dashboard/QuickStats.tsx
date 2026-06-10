@@ -41,7 +41,7 @@ interface StatCardProps {
 function StatCard({ label, value, change, loading }: StatCardProps) {
   const isPos = change != null && change > 0;
   const isNeg = change != null && change < 0;
-  const changeColor = isPos ? 'var(--crm-positive)' : isNeg ? 'var(--crm-negative, #ef4444)' : 'var(--crm-fg4)';
+  const changeColor = isPos ? 'var(--crm-positive, #10b981)' : isNeg ? 'var(--crm-negative, #ef4444)' : 'var(--crm-fg4)';
   const sparkData   = sparkFromChange(change);
   const sparkColor  = isPos ? '#10b981' : isNeg ? '#ef4444' : '#0091e0';
 
@@ -94,10 +94,10 @@ export default function QuickStats() {
     { label: 'Active This Week',  value: fmt(qs?.active_this_week?.value),  change: qs?.active_this_week?.change_pct ?? null  },
     { label: 'Live Campaigns',    value: fmt(qs?.live_campaigns?.value),    change: null },
     { label: 'Active Segments',   value: fmt(qs?.active_segments?.value),   change: null },
-    { label: 'Unsubscribe Rate',  value: qs?.opt_outs?.tracked ? `${((qs.opt_outs.value ?? 0) * 100).toFixed(2)}%` : '—',                      change: null },
+    { label: 'Unsubscribe Rate',  value: qs?.opt_outs?.tracked ? `${((qs.opt_outs.value ?? 0) * 100).toFixed(2)}%` : '—', change: qs?.opt_outs?.change_pct ?? null },
     { label: 'Messages Sent',     value: fmt(qs?.messages_sent?.value),     change: qs?.messages_sent?.change_pct ?? null },
-    { label: 'Delivery Rate',     value: qs?.delivery_rate?.value != null ? `${(qs.delivery_rate.value * 100).toFixed(1)}%` : '—', change: null },
-    { label: 'Opted-in (Push)',   value: fmt(optin?.push?.count),           change: null },
+    { label: 'Delivery Rate',     value: qs?.delivery_rate?.value != null ? `${(qs.delivery_rate.value * 100).toFixed(1)}%` : '—', change: qs?.delivery_rate?.change_pct ?? null },
+    { label: 'Opted-in (Push)',   value: fmt(optin?.push?.count),           change: optin?.push?.change_pct ?? null },
     { label: 'At-Risk Players',   value: fmt(health?.at_risk?.count),       change: null },
     { label: 'Churned Players',   value: fmt(health?.churned?.count),       change: null },
   ];

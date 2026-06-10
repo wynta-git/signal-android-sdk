@@ -77,6 +77,12 @@ function calcCompare(range: DateRange, preset: ComparePreset): DateRange {
   return { start, end };
 }
 
+function toISO(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 function parseInputDate(s: string): Date | null {
   const [mm, dd, yyyy] = s.split('/').map(Number);
   if (!mm || !dd || !yyyy || yyyy < 2000) return null;
@@ -96,7 +102,7 @@ const PRESETS: { id: PresetId; label: string }[] = [
 
 interface Props {
   windowDays: number;
-  onChange:   (days: number) => void;
+  onChange:   (days: number, range: { start: string; end: string }, compare?: { start: string; end: string }) => void;
 }
 
 export default function DateRangePicker({ windowDays, onChange }: Props) {
@@ -165,18 +171,23 @@ export default function DateRangePicker({ windowDays, onChange }: Props) {
 
   function handleApply() {
     setActiveRange(pendingRange);
+    let compareRange: { start: string; end: string } | undefined;
     if (compareOn) {
+      let resolved: DateRange | null = null;
       if (comparePreset === 'custom') {
         const s = parseInputDate(customCompareStart);
         const e = parseInputDate(customCompareEnd);
-        setCompareActive(s && e ? { start: s, end: e } : null);
+        resolved = s && e ? { start: s, end: e } : null;
       } else {
-        setCompareActive(calcCompare(pendingRange, comparePreset));
+        resolved = calcCompare(pendingRange, comparePreset);
       }
+      setCompareActive(resolved);
+      if (resolved) compareRange = { start: toISO(resolved.start), end: toISO(resolved.end) };
     } else {
       setCompareActive(null);
     }
-    onChange(rangeToDays(pendingRange));
+    const range = { start: toISO(pendingRange.start), end: toISO(pendingRange.end) };
+    onChange(rangeToDays(pendingRange), range, compareRange);
     setOpen(false); setPickingEnd(false);
   }
 

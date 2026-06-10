@@ -9,8 +9,24 @@ import {
   fetchDashboardCampaigns,
   fetchDashboardAnalytics,
   setWindowDays,
+  setDateRange,
+  setCompareRange,
   selectDashboardWindowDays,
+  selectDashboardDateRange,
 } from '../../store/slices/dashboardSlice';
+
+function toISO(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+function defaultRange(days: number): { start: string; end: string } {
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(today.getDate() - (days - 1));
+  return { start: toISO(start), end: toISO(today) };
+}
 import { getToken } from 'wynta-react-common/services/tokenRegistry';
 import QuickStats        from './QuickStats';
 import ChannelReach      from './ChannelReach';
@@ -25,26 +41,32 @@ import DateRangePicker   from './DateRangePicker';
 export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: string) => void }) {
   const dispatch   = useAppDispatch();
   const windowDays = useAppSelector(selectDashboardWindowDays);
+  const dateRange  = useAppSelector(selectDashboardDateRange);
   const pathname   = usePathname();
 
-  function loadAll(w: number) {
-    dispatch(fetchDashboardSummary({ windowDays: w }));
-    dispatch(fetchDashboardChannels({ windowDays: w }));
+  function loadAll(
+    w: number,
+    range: { start: string; end: string },
+    compare?: { start: string; end: string },
+  ) {
+    dispatch(fetchDashboardSummary({ windowDays: w, startDate: range.start, endDate: range.end, compareStart: compare?.start, compareEnd: compare?.end }));
+    dispatch(fetchDashboardChannels({ windowDays: w, startDate: range.start, endDate: range.end }));
     dispatch(fetchDashboardSegments({}));
     dispatch(fetchDashboardCampaigns({}));
-    dispatch(fetchDashboardAnalytics({ windowDays: w }));
+    dispatch(fetchDashboardAnalytics({ windowDays: w, startDate: range.start, endDate: range.end, compareStart: compare?.start, compareEnd: compare?.end }));
   }
 
   useEffect(() => {
+    const range = dateRange ?? defaultRange(windowDays);
     if (getToken()) {
-      loadAll(windowDays);
+      loadAll(windowDays, range);
       return;
     }
     // Token not ready yet (first load race) — poll until available
     const interval = setInterval(() => {
       if (getToken()) {
         clearInterval(interval);
-        loadAll(windowDays);
+        loadAll(windowDays, range);
       }
     }, 300);
     return () => clearInterval(interval);
@@ -52,9 +74,15 @@ export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: str
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  function handleWindowChange(w: number) {
+  function handleWindowChange(
+    w: number,
+    range: { start: string; end: string },
+    compare?: { start: string; end: string },
+  ) {
     dispatch(setWindowDays(w));
-    loadAll(w);
+    dispatch(setDateRange(range));
+    dispatch(setCompareRange(compare ?? null));
+    loadAll(w, range, compare);
   }
 
   return (
