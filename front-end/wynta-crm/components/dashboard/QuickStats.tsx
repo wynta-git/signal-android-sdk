@@ -2,43 +2,74 @@
 import { useAppSelector } from '../../store/hooks';
 import { selectDashboardSummary, selectDashboardStatus, selectDashboardWindowDays, selectDashboardDateRange } from '../../store/slices/dashboardSlice';
 
-interface StatItemProps {
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  const W = 80, H = 28, PAD = 2;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const n = values.length;
+  const pts = values.map((v, i) => {
+    const x = n === 1 ? W / 2 : (i / (n - 1)) * W;
+    const y = H - PAD - ((v - min) / range) * (H - PAD * 2);
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(' ');
+  return (
+    <svg width={W} height={H} style={{ display: 'block', flexShrink: 0 }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function sparkFromChange(change: number | null | undefined): number[] {
+  const n = 7;
+  if (change == null) return [50, 52, 49, 51, 50, 52, 51];
+  if (change > 0) {
+    const s = Math.max(10, 100 - Math.abs(change) * 5);
+    return Array.from({ length: n }, (_, i) => s + ((100 - s) * i) / (n - 1));
+  }
+  const s = Math.max(10, 100 - Math.abs(change) * 5);
+  return Array.from({ length: n }, (_, i) => 100 - ((100 - s) * i) / (n - 1));
+}
+
+interface StatCardProps {
   label:    string;
   value:    string | number;
   change?:  number | null;
   loading?: boolean;
-  borderRight?: boolean;
-  borderBottom?: boolean;
 }
 
-function StatItem({ label, value, change, loading, borderRight, borderBottom }: StatItemProps) {
+function StatCard({ label, value, change, loading }: StatCardProps) {
   const isPos = change != null && change > 0;
   const isNeg = change != null && change < 0;
   const changeColor = isPos ? 'var(--crm-positive, #10b981)' : isNeg ? 'var(--crm-negative, #ef4444)' : 'var(--crm-fg4)';
+  const sparkColor  = isPos ? '#10b981' : isNeg ? '#ef4444' : '#0091e0';
+  const sparkData   = sparkFromChange(change);
 
   return (
     <div style={{
-      padding: '16px 20px',
-      borderRight:  borderRight  ? '1px solid var(--crm-border)' : undefined,
-      borderBottom: borderBottom ? '1px solid var(--crm-border)' : undefined,
+      background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
+      borderRadius: 14, padding: '16px 16px 14px',
     }}>
-      <div style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--crm-fg3)', marginBottom: 6 }}>
+      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--crm-fg3)', marginBottom: 8 }}>
         {label}
       </div>
       {loading ? (
-        <div style={{ height: 26, width: '55%', background: 'var(--g100)', borderRadius: 4, marginBottom: 6 }} />
+        <div style={{ height: 28, width: '60%', background: 'var(--g100)', borderRadius: 4, marginBottom: 8 }} />
       ) : (
-        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--crm-fg1)', lineHeight: 1.15, marginBottom: 4 }}>
+        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--crm-fg1)', lineHeight: 1.1, marginBottom: 8 }}>
           {value}
         </div>
       )}
-      {!loading && change != null ? (
-        <span style={{ fontSize: 11, color: changeColor, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-          {isPos ? '↑' : isNeg ? '↓' : ''}{Math.abs(change).toFixed(1)}%
-        </span>
-      ) : (
-        <span style={{ display: 'block', height: 16 }} />
-      )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {!loading && change != null ? (
+          <span style={{ fontSize: 11, color: changeColor, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+            {isPos ? '↑' : isNeg ? '↓' : ''}{Math.abs(change).toFixed(1)}%
+          </span>
+        ) : (
+          <span />
+        )}
+        {!loading && <Sparkline values={sparkData} color={sparkColor} />}
+      </div>
     </div>
   );
 }
@@ -74,7 +105,7 @@ export default function QuickStats() {
   const optin      = summary?.channel_optin;
   const health     = summary?.player_health;
 
-  const items = [
+  const cards = [
     { label: 'Reachable Players', value: fmt(qs?.reachable_players?.value), change: qs?.reachable_players?.change_pct ?? null },
     { label: 'Active This Week',  value: fmt(qs?.active_this_week?.value),  change: qs?.active_this_week?.change_pct ?? null  },
     { label: 'Live Campaigns',    value: fmt(qs?.live_campaigns?.value),    change: null },
@@ -87,47 +118,19 @@ export default function QuickStats() {
     { label: 'Churned Players',   value: fmt(health?.churned?.count),       change: null },
   ];
 
-  const COLS = 5;
-
   return (
-    <div style={{
-      background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
-      borderRadius: 6, overflow: 'hidden',
-    }}>
-      {/* Header */}
-      <div style={{
-        background: 'var(--crm-bg)', padding: '10px 14px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        borderBottom: '1px solid var(--crm-border)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="12" width="4" height="9" rx="1" />
-            <rect x="10" y="7" width="4" height="14" rx="1" />
-            <rect x="17" y="3" width="4" height="18" rx="1" />
-          </svg>
-          <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)', margin: 0 }}>Quick Stats</h2>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ cursor: 'help' }}>
-            <circle cx="7" cy="7" r="6" stroke="#d1d5db" strokeWidth="1.2" />
-            <text x="7" y="11" fontSize="8" fill="#9ca3af" textAnchor="middle">i</text>
-          </svg>
-        </div>
-        <span style={{ fontSize: 12, color: 'var(--crm-fg4)' }}>
-          {fmtDateRange(dateRange, windowDays)}
-        </span>
-      </div>
-
-      {/* Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
-        {items.map((item, i) => (
-          <StatItem
-            key={item.label}
-            label={item.label}
-            value={loading ? '' : item.value}
-            change={item.change}
+    <div>
+      {/* Section heading */}
+      
+      {/* Cards grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        {cards.map(c => (
+          <StatCard
+            key={c.label}
+            label={c.label}
+            value={loading ? '' : c.value}
+            change={c.change}
             loading={loading}
-            borderRight={(i + 1) % COLS !== 0}
-            borderBottom={i < items.length - COLS}
           />
         ))}
       </div>

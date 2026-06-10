@@ -102,8 +102,8 @@ export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: str
       {/* Header — matches .seg-page-header / .cp-page-header pattern */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 0 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 600, color: 'var(--crm-fg1)', lineHeight: 1.2, marginBottom: 4 }}>Dashboard</h1>
-          <p style={{ fontSize: 13, color: 'var(--crm-fg3)' }}>Overview of players, campaigns and channel performance</p>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: 'var(--crm-fg1)', lineHeight: 1.2, marginBottom: 4 }}>Quick Stats</h1>
+          {/* <p style={{ fontSize: 13, color: 'var(--crm-fg3)' }}>Overview of players, campaigns and channel performance</p> */}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <DateRangePicker windowDays={windowDays} onChange={handleWindowChange} />

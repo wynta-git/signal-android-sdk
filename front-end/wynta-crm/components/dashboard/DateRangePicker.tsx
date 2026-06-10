@@ -299,9 +299,12 @@ export default function DateRangePicker({ windowDays, onChange }: Props) {
           </svg>
         </div>
         {shownCompare && (
-          <div style={{ fontSize: 11, color: 'var(--fg3)', marginTop: 2 }}>
-            Compare to: {fmtTrigger(compareActive.start)} – {fmtTrigger(compareActive.end)}
-          </div>
+          <>
+            <div style={{ fontSize: 11, color: 'var(--fg3)', marginTop: 2 }}>
+              Compare to: {fmtTrigger(compareActive.start)} – {fmtTrigger(compareActive.end)}
+            </div>
+            <div style={{ height: 2, background: 'var(--crm-border)', marginTop: 4 }} />
+          </>
         )}
       </div>
 
