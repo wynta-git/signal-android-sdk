@@ -63,6 +63,23 @@ def _parse_compare_window(
     return fallback_since, fallback_until
 
 
+def _resolve_window(
+    start_date: str | None,
+    end_date: str | None,
+    window_days: int,
+) -> tuple[datetime, datetime, int]:
+    """Return (since, until, effective_days) from explicit dates or rolling window."""
+    if start_date and end_date:
+        try:
+            since = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            until = (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).replace(tzinfo=timezone.utc)
+            return since, until, max(1, (until - since).days)
+        except ValueError:
+            pass
+    now = datetime.now(timezone.utc)
+    return now - timedelta(days=window_days), now, window_days
+
+
 def _crunch_deliveries(raw: list[dict]) -> dict:
     """Turn raw aggregation buckets into: result[channel][status][date] = count."""
     out: dict = {}
@@ -174,12 +191,13 @@ async def dashboard_summary(
     ctx: PortalAuthDep,
     db: DbDep,
     window_days: int = Query(default=7, ge=1, le=90),
+    start_date:    str | None = Query(default=None, description="YYYY-MM-DD"),
+    end_date:      str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_start: str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_end:   str | None = Query(default=None, description="YYYY-MM-DD"),
 ) -> dict:
     project_id = ctx.project_id
-    now = datetime.now(timezone.utc)
-    since = now - timedelta(days=window_days)
+    since, now, window_days = _resolve_window(start_date, end_date, window_days)
     prev_since = since - timedelta(days=window_days)
     comp_since, comp_until = _parse_compare_window(compare_start, compare_end, prev_since, since)
 
@@ -377,10 +395,11 @@ async def dashboard_channels(
     ctx: PortalAuthDep,
     db: DbDep,
     window_days: int = Query(default=7, ge=1, le=90),
+    start_date:  str | None = Query(default=None, description="YYYY-MM-DD"),
+    end_date:    str | None = Query(default=None, description="YYYY-MM-DD"),
 ) -> dict:
     project_id = ctx.project_id
-    now = datetime.now(timezone.utc)
-    since = now - timedelta(days=window_days)
+    since, now, window_days = _resolve_window(start_date, end_date, window_days)
 
     raw, daily_range = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now),
@@ -622,12 +641,13 @@ async def dashboard_analytics(
     ctx: PortalAuthDep,
     db: DbDep,
     window_days: int = Query(default=30, ge=1, le=365),
+    start_date:    str | None = Query(default=None, description="YYYY-MM-DD"),
+    end_date:      str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_start: str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_end:   str | None = Query(default=None, description="YYYY-MM-DD"),
 ) -> dict:
     project_id = ctx.project_id
-    now = datetime.now(timezone.utc)
-    since = now - timedelta(days=window_days)
+    since, now, window_days = _resolve_window(start_date, end_date, window_days)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     # First day of previous month
     prev_month_start = (month_start - timedelta(days=1)).replace(
@@ -635,9 +655,15 @@ async def dashboard_analytics(
     )
 
     use_custom_compare = bool(compare_start and compare_end)
-    comp_since, comp_until = _parse_compare_window(compare_start, compare_end, prev_month_start, month_start)
+    # When explicit dates are selected, default comparison is the equivalent prior period;
+    # otherwise fall back to the calendar month-over-month comparison.
+    default_comp_since = since - timedelta(days=window_days) if (start_date and end_date) else prev_month_start
+    default_comp_until = since if (start_date and end_date) else month_start
+    comp_since, comp_until = _parse_compare_window(compare_start, compare_end, default_comp_since, default_comp_until)
 
-    if use_custom_compare:
+    use_window_as_mtd = use_custom_compare or bool(start_date and end_date)
+
+    if use_window_as_mtd:
         raw, comp_raw, daily_range = await asyncio.gather(
             get_dashboard_delivery_stats(db, project_id, since, now),
             get_dashboard_delivery_stats(db, project_id, comp_since, comp_until),
@@ -742,9 +768,9 @@ async def dashboard_analytics(
         if override_ctr is not None else _UNTRACKED
     )
 
-    # When using a custom compare range, compare current window total against the raw
-    # compare-window total (no boosts applied to comparison side).
-    if use_custom_compare:
+    # When using window-as-mtd (explicit dates or custom compare), lock prev_mtd_sent
+    # to the raw comparison window — no boosts on the comparison side.
+    if use_window_as_mtd:
         prev_mtd_sent = _sum_status(_crunch_deliveries(prev_mtd_raw), "sent")
 
     return {
