@@ -39,6 +39,22 @@ def _validate_identifier(field: str, value: str) -> str:
     return value
 
 
+PeriodType = Literal["DAILY", "WEEKLY", "MONTHLY"]
+
+
+class LimitUpsertItem(BaseModel):
+    period_type: PeriodType
+    budget_limit: Decimal | None = Field(None, ge=0)
+
+
+def _no_duplicate_periods(limits: list[LimitUpsertItem]) -> None:
+    seen: set[str] = set()
+    for entry in limits:
+        if entry.period_type in seen:
+            raise ValueError(f"duplicate period_type in request: {entry.period_type}")
+        seen.add(entry.period_type)
+
+
 class BonusHeadCreate(BaseModel):
     """Request payload for creating a new bonus_head row."""
 
@@ -48,6 +64,9 @@ class BonusHeadCreate(BaseModel):
     active: bool = Field(True, description="Whether this head is active")
     owner: _OwnerStr = Field(..., description="Primary accountable person (username or email)")
     created_by: _ActorStr = Field(..., description="Actor creating this record")
+    budget: list[LimitUpsertItem] = Field(
+        ..., min_length=1, description="Budget caps per period; budget_limit null = uncapped"
+    )
 
     @field_validator("name", mode="before")
     @classmethod
@@ -83,6 +102,11 @@ class BonusHeadCreate(BaseModel):
     def description_not_blank(self) -> "BonusHeadCreate":
         if self.description is not None and self.description.strip() == "":
             raise ValueError("description must not be blank when provided")
+        return self
+
+    @model_validator(mode="after")
+    def no_duplicate_periods(self) -> "BonusHeadCreate":
+        _no_duplicate_periods(self.budget)
         return self
 
 
@@ -137,7 +161,6 @@ class BonusHeadDetail(BonusHeadResponse):
 # ---------------------------------------------------------------------------
 
 OwnerRole = Literal["OPS_LEAD", "CAMPAIGN_MANAGER", "FINANCE_APPROVER", "ESCALATION_CONTACT"]
-PeriodType = Literal["DAILY", "WEEKLY", "MONTHLY"]
 
 
 class BonusHeadUpdate(BaseModel):
@@ -204,11 +227,6 @@ class OwnersUpsertRequest(BaseModel):
         return self
 
 
-class LimitUpsertItem(BaseModel):
-    period_type: PeriodType
-    budget_limit: Decimal | None = Field(None, ge=0)
-
-
 class LimitsUpsertRequest(BaseModel):
     """PUT /bonus-heads/{id}/limits — upsert budget caps for one or more periods."""
 
@@ -217,9 +235,5 @@ class LimitsUpsertRequest(BaseModel):
 
     @model_validator(mode="after")
     def no_duplicate_periods(self) -> "LimitsUpsertRequest":
-        seen: set[str] = set()
-        for entry in self.limits:
-            if entry.period_type in seen:
-                raise ValueError(f"duplicate period_type in request: {entry.period_type}")
-            seen.add(entry.period_type)
+        _no_duplicate_periods(self.limits)
         return self

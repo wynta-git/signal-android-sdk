@@ -98,6 +98,7 @@ export default function SlideDrawer() {
             name: data.name,
             description: data.description,
             active: data.active,
+            budget: data.budget,
             owner: ownerIdent,
             created_by: actor,
           },

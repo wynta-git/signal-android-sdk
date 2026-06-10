@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 
 import aiomysql
 import structlog
@@ -212,6 +213,19 @@ async def add_bonus_subhead(data: BonusSubheadCreate) -> BonusSubheadResponse:
                 if await cur.fetchone():
                     raise BonusSubheadDuplicateError(data.head_id, data.name)
 
+                # Validate: subhead limits must not exceed the parent head limits
+                await cur.execute(_SELECT_HEAD_LIMITS_SQL, (data.head_id,))
+                head_limit_map: dict[str, object] = {r[0]: r[1] for r in await cur.fetchall()}
+                for entry in data.budget:
+                    head_limit = head_limit_map.get(entry.period_type)
+                    if head_limit is not None and entry.budget_limit is not None:
+                        if Decimal(str(entry.budget_limit)) > Decimal(str(head_limit)):
+                            raise BonusSubheadValidationError(
+                                "budget_limit",
+                                f"{entry.period_type} limit {entry.budget_limit} exceeds "
+                                f"head limit {head_limit}",
+                            )
+
                 await cur.execute(
                     _INSERT_SQL,
                     (
@@ -228,6 +242,30 @@ async def add_bonus_subhead(data: BonusSubheadCreate) -> BonusSubheadResponse:
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
 
+                # Budget caps are part of the create contract — written in the
+                # same transaction so a subhead can never exist without them.
+                for entry in data.budget:
+                    limit_row_hash = _compute_row_hash({
+                        "entity_type": "SUBHEAD",
+                        "entity_id": new_id,
+                        "site_id": data.site_id,
+                        "period_type": entry.period_type,
+                        "budget_limit": str(entry.budget_limit),
+                        "updated_by": data.created_by,
+                    })
+                    await cur.execute(
+                        _UPSERT_LIMIT_SQL,
+                        (
+                            new_id,
+                            data.site_id,
+                            entry.period_type,
+                            entry.budget_limit,
+                            data.created_by,
+                            data.created_by,
+                            limit_row_hash,
+                        ),
+                    )
+
                 await conn.commit()
                 await _write_audit(
                     "bonus_subhead", "INSERT", new_id, data.site_id, data.created_by,
@@ -235,6 +273,13 @@ async def add_bonus_subhead(data: BonusSubheadCreate) -> BonusSubheadResponse:
                     {"head_id": data.head_id, "name": data.name, "description": data.description,
                      "active": int(data.active), "owner": data.owner},
                 )
+                for entry in data.budget:
+                    new_limit = str(entry.budget_limit) if entry.budget_limit is not None else None
+                    await _write_audit(
+                        "bonus_subhead_budget", "INSERT", new_id, data.site_id, data.created_by,
+                        None,
+                        {"period_type": entry.period_type, "budget_limit": new_limit},
+                    )
 
                 await cur.execute(_SELECT_SQL, (new_id,))
                 row = await cur.fetchone()

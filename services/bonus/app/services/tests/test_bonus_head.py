@@ -15,6 +15,7 @@ VALID = dict(
     name="Welcome",
     owner="priya.sharma",
     created_by="admin",
+    budget=[{"period_type": "DAILY", "budget_limit": 1000}],
 )
 
 

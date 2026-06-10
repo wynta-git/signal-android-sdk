@@ -11,7 +11,10 @@ from app.exceptions import BonusHeadDuplicateError, BonusHeadValidationError, Da
 from app.models.bonus_head import BonusHeadCreate
 from app.services.bonus_head_service import add_bonus_head
 
-_VALID = dict(site_id=1, name="Welcome", owner="priya.sharma", created_by="admin")
+_VALID = dict(
+    site_id=1, name="Welcome", owner="priya.sharma", created_by="admin",
+    budget=[{"period_type": "DAILY", "budget_limit": 1000}],
+)
 _NOW = datetime(2026, 5, 12, 10, 0, 0)
 _DB_ROW = (42, 1, "Welcome", None, 1, "priya.sharma", "admin", "admin", _NOW, _NOW)
 
@@ -49,8 +52,8 @@ def patch_conn(cur: AsyncMock) -> MagicMock:
 
 
 async def test_success_returns_response(cur: AsyncMock, patch_conn: AsyncMock) -> None:
-    # fetchone: [0] EXISTS=None, [1] GET_PREV_HASH=None, [2] post-insert SELECT=_DB_ROW
-    cur.fetchone.side_effect = [None, None, _DB_ROW]
+    # fetchone: [0] EXISTS=None, [1] post-insert SELECT=_DB_ROW
+    cur.fetchone.side_effect = [None, _DB_ROW]
 
     result = await add_bonus_head(BonusHeadCreate(**_VALID))
 
@@ -63,7 +66,8 @@ async def test_success_returns_response(cur: AsyncMock, patch_conn: AsyncMock) -
     assert result.created_by == "admin"
     assert result.updated_by == "admin"
     assert result.created_at == _NOW
-    patch_conn.commit.assert_awaited_once()
+    # 1 txn commit + audit commits (head + 1 budget entry) on the shared mock conn
+    assert patch_conn.commit.await_count == 3
 
 
 # ---------------------------------------------------------------------------

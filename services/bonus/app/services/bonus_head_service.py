@@ -237,6 +237,30 @@ async def add_bonus_head(data: BonusHeadCreate) -> BonusHeadResponse:
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
 
+                # Budget caps are part of the create contract — written in the
+                # same transaction so a head can never exist without them.
+                for entry in data.budget:
+                    limit_row_hash = _compute_row_hash({
+                        "entity_type": "HEAD",
+                        "entity_id": new_id,
+                        "site_id": data.site_id,
+                        "period_type": entry.period_type,
+                        "budget_limit": str(entry.budget_limit),
+                        "updated_by": data.created_by,
+                    })
+                    await cur.execute(
+                        _UPSERT_LIMIT_SQL,
+                        (
+                            new_id,
+                            data.site_id,
+                            entry.period_type,
+                            entry.budget_limit,
+                            data.created_by,
+                            data.created_by,
+                            limit_row_hash,
+                        ),
+                    )
+
                 await conn.commit()
                 await _write_audit(
                     "bonus_head", "INSERT", new_id, data.site_id, data.created_by,
@@ -244,6 +268,13 @@ async def add_bonus_head(data: BonusHeadCreate) -> BonusHeadResponse:
                     {"name": data.name, "description": data.description,
                      "active": int(data.active), "owner": data.owner},
                 )
+                for entry in data.budget:
+                    new_limit = str(entry.budget_limit) if entry.budget_limit is not None else None
+                    await _write_audit(
+                        "bonus_head_budget", "INSERT", new_id, data.site_id, data.created_by,
+                        None,
+                        {"period_type": entry.period_type, "budget_limit": new_limit},
+                    )
 
                 await cur.execute(_SELECT_SQL, (new_id,))
                 row = await cur.fetchone()

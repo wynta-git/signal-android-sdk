@@ -20,7 +20,14 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.models.bonus_head import BudgetPeriod, LimitsUpsertRequest, OwnerEntry, OwnersUpsertRequest
+from app.models.bonus_head import (
+    BudgetPeriod,
+    LimitsUpsertRequest,
+    LimitUpsertItem,
+    OwnerEntry,
+    OwnersUpsertRequest,
+    _no_duplicate_periods,
+)
 
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z0-9_.\- ]+$")
 
@@ -47,6 +54,9 @@ class BonusSubheadCreate(BaseModel):
     active: bool = Field(True)
     owner: str = Field(..., min_length=1, max_length=100)
     created_by: str = Field(..., min_length=1, max_length=100)
+    budget: list[LimitUpsertItem] = Field(
+        ..., min_length=1, description="Budget caps per period; budget_limit null = uncapped"
+    )
 
     @field_validator("name", mode="before")
     @classmethod
@@ -82,6 +92,11 @@ class BonusSubheadCreate(BaseModel):
     def description_not_blank(self) -> "BonusSubheadCreate":
         if self.description is not None and self.description.strip() == "":
             raise ValueError("description must not be blank when provided")
+        return self
+
+    @model_validator(mode="after")
+    def no_duplicate_periods(self) -> "BonusSubheadCreate":
+        _no_duplicate_periods(self.budget)
         return self
 
 
