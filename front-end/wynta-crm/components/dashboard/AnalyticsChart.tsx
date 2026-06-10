@@ -14,6 +14,12 @@ function fmt(n: number | undefined | null): string {
   return n.toLocaleString();
 }
 
+function fmtAxis(n: number): string {
+  if (n >= 1_000_000) return `${Math.round(n / 1_000_000)}M`;
+  if (n >= 1_000)     return `${Math.round(n / 1_000)}K`;
+  return String(Math.round(n));
+}
+
 const COLORS = { sent: '#2563eb', opens: '#22c55e', conversions: '#f59e0b' };
 const LEGEND = [
   { key: 'sent',        label: 'Sent (K)',    color: COLORS.sent },
@@ -32,7 +38,7 @@ function yTicks(max: number): number[] {
 }
 
 function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
-  const W = 800, H = 190, PAD = { top: 10, right: 12, bottom: 34, left: 44 };
+  const W = 800, H = 210, PAD = { top: 10, right: 12, bottom: 52, left: 52 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const max = Math.max(...data.flatMap(d => [d.sent, d.opens, d.conversions]), 1);
@@ -44,13 +50,19 @@ function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }}>
+      {/* Y-axis label */}
+      <text
+        x={12} y={PAD.top + innerH / 2}
+        fontSize={10} fill="#111827" textAnchor="middle" fontWeight={500}
+        transform={`rotate(-90, 12, ${PAD.top + innerH / 2})`}
+      >Count</text>
       {ticks.map(t => {
         const y = PAD.top + innerH * (1 - t / tickMax);
         return (
           <g key={t}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
               stroke="#e5e7eb" strokeWidth={t === 0 ? 1 : 0.5} strokeDasharray={t === 0 ? undefined : '4,3'} />
-            <text x={PAD.left - 5} y={y + 3.5} fontSize={9} fill="#9ca3af" textAnchor="end">{fmt(t)}</text>
+            <text x={PAD.left - 5} y={y + 3.5} fontSize={9} fill="#111827" textAnchor="end">{fmtAxis(t)}</text>
           </g>
         );
       })}
@@ -67,18 +79,22 @@ function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
               const y = PAD.top + innerH - h;
               return <rect key={si} x={x} y={y} width={barW} height={h} rx={2} fill={color} />;
             })}
-            <text x={gx + groupW / 2} y={H - PAD.bottom + 13} fontSize={9} fill="#9ca3af" textAnchor="middle">
+            <text x={gx + groupW / 2} y={PAD.top + innerH + 14} fontSize={9} fill="#111827" textAnchor="middle">
               {d.date.slice(5)}
             </text>
           </g>
         );
       })}
+      {/* X-axis label */}
+      <text x={PAD.left + innerW / 2} y={H - 6} fontSize={10} fill="#111827" textAnchor="middle" fontWeight={500}>
+        Date
+      </text>
     </svg>
   );
 }
 
 function MultiLineChart({ data }: { data: EnrichedDay[] }) {
-  const W = 800, H = 190, PAD = { top: 10, right: 12, bottom: 34, left: 44 };
+  const W = 800, H = 210, PAD = { top: 10, right: 12, bottom: 52, left: 52 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
   const max = Math.max(...data.flatMap(d => [d.sent, d.opens, d.conversions]), 1);
@@ -95,13 +111,19 @@ function MultiLineChart({ data }: { data: EnrichedDay[] }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }}>
+      {/* Y-axis label */}
+      <text
+        x={12} y={PAD.top + innerH / 2}
+        fontSize={10} fill="#111827" textAnchor="middle" fontWeight={500}
+        transform={`rotate(-90, 12, ${PAD.top + innerH / 2})`}
+      >Count</text>
       {ticks.map(t => {
         const y = PAD.top + innerH * (1 - t / tickMax);
         return (
           <g key={t}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
               stroke="#e5e7eb" strokeWidth={0.5} strokeDasharray="4,3" />
-            <text x={PAD.left - 5} y={y + 3.5} fontSize={9} fill="#9ca3af" textAnchor="end">{fmt(t)}</text>
+            <text x={PAD.left - 5} y={y + 3.5} fontSize={9} fill="#111827" textAnchor="end">{fmtAxis(t)}</text>
           </g>
         );
       })}
@@ -112,11 +134,15 @@ function MultiLineChart({ data }: { data: EnrichedDay[] }) {
       {data.map((d, i) => {
         const x = PAD.left + (i / Math.max(n - 1, 1)) * innerW;
         return (
-          <text key={d.date} x={x} y={H - PAD.bottom + 13} fontSize={9} fill="#9ca3af" textAnchor="middle">
+          <text key={d.date} x={x} y={PAD.top + innerH + 14} fontSize={9} fill="#111827" textAnchor="middle">
             {d.date.slice(5)}
           </text>
         );
       })}
+      {/* X-axis label */}
+      <text x={PAD.left + innerW / 2} y={H - 6} fontSize={10} fill="#111827" textAnchor="middle" fontWeight={500}>
+        Date
+      </text>
     </svg>
   );
 }
