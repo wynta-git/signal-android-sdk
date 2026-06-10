@@ -288,10 +288,12 @@ async def dashboard_summary(
         b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
         b_at_risk        = health["at_risk"] + _b(boosts, "player_health.at_risk")
         b_churned        = health["churned"] + _b(boosts, "player_health.churned")
-        b_optin_push     = snap.get("optin_push",  optin["push"]  + _b(boosts, "channel_optin.push"))
-        b_optin_email    = snap.get("optin_email", optin["email"] + _b(boosts, "channel_optin.email"))
-        b_optin_sms      = snap.get("optin_sms",   optin["sms"]   + _b(boosts, "channel_optin.sms"))
-        b_opt_outs       = db_totals["opt_outs"]
+        b_optin_push      = snap.get("optin_push",  optin["push"]  + _b(boosts, "channel_optin.push"))
+        b_optin_email     = snap.get("optin_email", optin["email"] + _b(boosts, "channel_optin.email"))
+        b_optin_sms       = snap.get("optin_sms",   optin["sms"]   + _b(boosts, "channel_optin.sms"))
+        b_opt_outs        = db_totals["opt_outs"]
+        prev_b_optin_push = prev_snap.get("optin_push", optin["push"] + _b(boosts, "channel_optin.push"))
+        prev_b_opt_outs   = prev_db_totals["opt_outs"]
         delivery_rate    = _safe_rate(
             curr_sent + all_ch_delivered,
             curr_sent + all_ch_delivered + curr_failed + all_ch_failed,
@@ -315,11 +317,13 @@ async def dashboard_summary(
         b_healthy        = health["healthy"] + _b(boosts, "player_health.healthy")
         b_at_risk        = health["at_risk"] + _b(boosts, "player_health.at_risk")
         b_churned        = health["churned"] + _b(boosts, "player_health.churned")
-        b_optin_push     = optin["push"]  + _b(boosts, "channel_optin.push")
-        b_optin_email    = optin["email"] + _b(boosts, "channel_optin.email")
-        b_optin_sms      = optin["sms"]   + _b(boosts, "channel_optin.sms")
-        b_opt_outs       = _b(boosts, "quick_stats.opt_outs")
-        delivery_rate    = _safe_rate(curr_sent, curr_sent + curr_failed)
+        b_optin_push      = optin["push"]  + _b(boosts, "channel_optin.push")
+        b_optin_email     = optin["email"] + _b(boosts, "channel_optin.email")
+        b_optin_sms       = optin["sms"]   + _b(boosts, "channel_optin.sms")
+        b_opt_outs        = _b(boosts, "quick_stats.opt_outs")
+        prev_b_optin_push = b_optin_push   # flat boost — no period split, shows 0%
+        prev_b_opt_outs   = b_opt_outs     # flat boost — no period split, shows 0%
+        delivery_rate     = _safe_rate(curr_sent, curr_sent + curr_failed)
 
     btotal = b_total_users or 1
 
@@ -350,6 +354,10 @@ async def dashboard_summary(
             "opt_outs": {
                 "value": _safe_pct(b_opt_outs, btotal) if b_opt_outs else None,
                 "tracked": b_opt_outs > 0,
+                "change_pct": _change_pct(
+                    _safe_pct(b_opt_outs, btotal) or 0,
+                    _safe_pct(prev_b_opt_outs, btotal) or 0,
+                ) if b_opt_outs and prev_b_opt_outs else None,
             },
             "player_responses": _UNTRACKED,
         },
@@ -365,7 +373,7 @@ async def dashboard_summary(
             "winback_success_rate": None,
         },
         "channel_optin": {
-            "push":  {"count": b_optin_push},
+            "push":  {"count": b_optin_push,  "change_pct": _change_pct(b_optin_push, prev_b_optin_push)},
             "email": {"count": b_optin_email, "approximate": True},
             "sms":   {"count": b_optin_sms,   "approximate": True},
         },
