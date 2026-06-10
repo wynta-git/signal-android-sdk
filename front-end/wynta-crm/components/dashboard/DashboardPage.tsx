@@ -67,16 +67,6 @@ export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: str
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <DateRangePicker windowDays={windowDays} onChange={handleWindowChange} />
-          <button
-            onClick={() => loadAll(windowDays)}
-            style={{
-              height: 36, padding: '0 14px', border: '1px solid var(--crm-border-md)',
-              borderRadius: 4, background: 'var(--crm-white)', color: 'var(--crm-fg2)',
-              fontSize: 13, fontFamily: 'inherit', fontWeight: 500, cursor: 'pointer',
-            }}
-          >
-            Refresh
-          </button>
         </div>
       </div>
 

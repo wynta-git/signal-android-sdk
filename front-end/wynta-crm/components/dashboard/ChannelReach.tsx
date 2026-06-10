@@ -68,14 +68,14 @@ export default function ChannelReach() {
                 borderBottom: idx < arr.length - 1 ? '1px solid var(--crm-border)' : 'none',
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: config.color, flexShrink: 0 }} />
-                <span style={{ fontSize: 12, color: 'var(--fg2)', flex: 1 }}>{config.label}</span>
-                <div style={{ width: 80, background: 'var(--wynta-grey-100)', borderRadius: 3, height: 6, overflow: 'hidden', flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: 'var(--fg2)', width: 68, flexShrink: 0 }}>{config.label}</span>
+                <div style={{ flex: 1, background: 'var(--wynta-grey-100)', borderRadius: 3, height: 6, overflow: 'hidden' }}>
                   <div style={{
                     width: `${Math.min(pct ?? 0, 100)}%`, background: config.color,
                     height: 6, borderRadius: 3, opacity: 0.8,
                   }} />
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--fg3)', width: 30, textAlign: 'right', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg3)', width: 36, textAlign: 'right', flexShrink: 0 }}>
                   {pct != null ? `${pct}%` : '—'}
                 </span>
                 <div style={{
