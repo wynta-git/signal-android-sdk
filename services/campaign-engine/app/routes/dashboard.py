@@ -230,7 +230,10 @@ async def dashboard_summary(
             },
             "open_rate": _UNTRACKED,
             "ctr": _UNTRACKED,
-            "opt_outs": {"value": _b(boosts, "quick_stats.opt_outs") or None, "tracked": _b(boosts, "quick_stats.opt_outs") > 0},
+            "opt_outs": {
+                "value": _safe_pct(_b(boosts, "quick_stats.opt_outs"), b_total_users),
+                "tracked": _b(boosts, "quick_stats.opt_outs") > 0,
+            },
             "player_responses": _UNTRACKED,
         },
         "player_health": {
