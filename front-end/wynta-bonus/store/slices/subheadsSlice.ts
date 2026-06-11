@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { api } from '../../services/api';
 import { updateBudget } from './budgetsSlice';
+import { updateOwners } from './ownersSlice';
 import type { BonusSubhead, NormalizedState } from '../../types';
 
 type SubheadsState = NormalizedState<BonusSubhead>;
@@ -63,6 +64,15 @@ const subheadsSlice = createSlice({
           const id = Number(idStr);
           if (state.entities[id]) {
             state.entities[id] = { ...state.entities[id]!, budget: action.payload.periods };
+          }
+        }
+      })
+      .addCase(updateOwners.fulfilled, (state, action) => {
+        const [scope, idStr] = action.payload.key.split(':');
+        if (scope === 'subhead') {
+          const id = Number(idStr);
+          if (state.entities[id]) {
+            state.entities[id] = { ...state.entities[id]!, owners: action.payload.owners };
           }
         }
       });

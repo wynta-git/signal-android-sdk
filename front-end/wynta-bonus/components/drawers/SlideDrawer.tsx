@@ -7,7 +7,8 @@ import { createHead, updateHead, fetchHead, selectAllHeads } from '../../store/s
 import { createSubhead, updateSubhead, fetchSubhead, selectSubheadById } from '../../store/slices/subheadsSlice';
 import { createConfigure, updateConfigure, fetchConfiguresBySubhead, createTrigger, createPromoCode, createEligibility } from '../../store/slices/configuresSlice';
 import { updateBudget } from '../../store/slices/budgetsSlice';
-import type { BudgetPeriod } from '../../types';
+import { updateOwners } from '../../store/slices/ownersSlice';
+import type { BudgetPeriod, OwnerEntry } from '../../types';
 import Icon from 'wynta-react-common/components/Icon';
 import DrawerForm from './DrawerForm';
 import type { DrawerType } from '../../types';
@@ -28,6 +29,7 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   NEW_ELIGIBILITY:{ title: 'Add Eligibility Criterion',     icon: 'filter' },
   NEW_TRIGGER:    { title: 'Add Release Trigger',           icon: 'zap' },
   EDIT_BUDGET:    { title: 'Manage Budget',                 icon: 'wallet' },
+  EDIT_OWNERS:    { title: 'Manage Owners',                 icon: 'users' },
   NEW_MANUAL_BONUS:  { title: 'New Manual Campaign',        icon: 'send' },
   ISSUE_CODE_BONUS:  { title: 'Issue Manual Bonus',         icon: 'send' },
 };
@@ -189,6 +191,16 @@ export default function SlideDrawer() {
         })).unwrap();
         if (scope === 'head') dispatch(fetchHead(drawerState.id));
         if (scope === 'subhead') dispatch(fetchSubhead(drawerState.id));
+      } else if (drawerState?.type === 'EDIT_OWNERS' && drawerState.id != null) {
+        const scope = drawerState.scope === 'subhead' ? 'subhead' : 'head';
+        await dispatch(updateOwners({
+          scope,
+          id: drawerState.id,
+          owners: data.owners as OwnerEntry[],
+          updatedBy: currentUser,
+        })).unwrap();
+        if (scope === 'head') dispatch(fetchHead(drawerState.id));
+        else dispatch(fetchSubhead(drawerState.id));
       }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong');

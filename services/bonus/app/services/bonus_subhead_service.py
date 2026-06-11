@@ -461,6 +461,12 @@ async def upsert_owners(subhead_id: int, data: OwnersUpsertRequest) -> list[Owne
                     raise BonusSubheadNotFoundError(subhead_id)
                 head_id, site_id = meta[0], meta[1]
 
+                # Read existing owners so INSERT vs UPDATE is known for the change log
+                await cur.execute(_SELECT_OWNERS_SQL, (subhead_id,))
+                existing_owners = {
+                    r[0]: {"role": r[1], "active": bool(r[2])} for r in await cur.fetchall()
+                }
+
                 for entry in data.owners:
                     row_hash = _compute_row_hash({
                         "entity_type": "SUBHEAD",
@@ -486,6 +492,27 @@ async def upsert_owners(subhead_id: int, data: OwnersUpsertRequest) -> list[Owne
                     )
 
                 await conn.commit()
+
+                for entry in data.owners:
+                    old = existing_owners.get(entry.username)
+                    new_vals = {
+                        "username": entry.username,
+                        "role": entry.role,
+                        "active": int(entry.active),
+                    }
+                    if old is None:
+                        await _write_audit(
+                            "bonus_subhead_owner", "INSERT", subhead_id, site_id,
+                            data.updated_by, None, new_vals,
+                        )
+                    elif old["role"] != entry.role or old["active"] != entry.active:
+                        await _write_audit(
+                            "bonus_subhead_owner", "UPDATE", subhead_id, site_id,
+                            data.updated_by,
+                            {"username": entry.username, "role": old["role"],
+                             "active": int(old["active"])},
+                            new_vals,
+                        )
 
                 await cur.execute(_SELECT_OWNERS_SQL, (subhead_id,))
                 owner_rows = await cur.fetchall()

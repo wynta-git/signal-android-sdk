@@ -28,6 +28,7 @@ import type {
   EligibilityRule,
   BudgetPeriod,
   Segment,
+  OwnerEntry,
 } from "../types";
 
 const delay = (ms = 180): Promise<void> =>
@@ -354,6 +355,27 @@ export const api = {
     }
     await delay(280);
     return periods;
+  },
+  async updateOwners(
+    scope: "head" | "subhead",
+    id: number,
+    owners: OwnerEntry[],
+    updatedBy = "system",
+  ): Promise<OwnerEntry[]> {
+    const base = scope === "head" ? "bonus-heads" : "bonus-subheads";
+    const res = await fetch(`${BONUS_API}/${base}/${id}/owners`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ owners, updated_by: updatedBy }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const detail = (body as { detail?: unknown }).detail;
+      throw new Error(
+        typeof detail === "string" ? detail : `Failed to update ${scope} owners`,
+      );
+    }
+    return res.json() as Promise<OwnerEntry[]>;
   },
   async createManualBonus(subheadId: number, payload: Record<string, unknown>) {
     await delay(280);

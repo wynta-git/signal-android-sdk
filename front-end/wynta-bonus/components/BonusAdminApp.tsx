@@ -123,6 +123,7 @@ export default function BonusAdminApp() {
       { icon: 'pencil',      label: 'Edit Head',     onClick: () => dispatch(openDrawer({ type: 'EDIT_HEAD', id } as DrawerState)) },
       { icon: 'plus-circle', label: 'Add Subhead',   onClick: () => dispatch(openDrawer({ type: 'NEW_SUBHEAD', parentId: id } as DrawerState)) },
       { icon: 'wallet',      label: 'Manage Budget', onClick: () => dispatch(openDrawer({ type: 'EDIT_BUDGET', scope: 'head', id } as DrawerState)) },
+      { icon: 'users',       label: 'Manage Owners', onClick: () => dispatch(openDrawer({ type: 'EDIT_OWNERS', scope: 'head', id } as DrawerState)) },
       { sep: true, label: '' },
       { icon: 'eye',         label: 'View Details',  onClick: () => handleSelectNode({ type: 'head', id }) },
     ];
@@ -130,6 +131,7 @@ export default function BonusAdminApp() {
       { icon: 'pencil',      label: 'Edit Subhead',  onClick: () => dispatch(openDrawer({ type: 'EDIT_SUBHEAD', id } as DrawerState)) },
       { icon: 'plus-circle', label: 'Add Configure', onClick: () => dispatch(openDrawer({ type: 'NEW_CONFIGURE', parentId: id } as DrawerState)) },
       { icon: 'wallet',      label: 'Manage Budget', onClick: () => dispatch(openDrawer({ type: 'EDIT_BUDGET', scope: 'subhead', id } as DrawerState)) },
+      { icon: 'users',       label: 'Manage Owners', onClick: () => dispatch(openDrawer({ type: 'EDIT_OWNERS', scope: 'subhead', id } as DrawerState)) },
       { sep: true, label: '' },
       { icon: 'eye',         label: 'View Details',  onClick: () => handleSelectNode({ type: 'subhead', id }) },
     ];

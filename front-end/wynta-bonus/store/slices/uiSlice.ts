@@ -5,6 +5,7 @@ import { createHead, updateHead } from './headsSlice';
 import { createSubhead, updateSubhead } from './subheadsSlice';
 import { createConfigure, updateConfigure, createPromoCode, createEligibility, createTrigger } from './configuresSlice';
 import { updateBudget } from './budgetsSlice';
+import { updateOwners } from './ownersSlice';
 import { createManualBonus } from './subheadsSlice';
 import { issueCodeBonus } from './subheadsSlice';
 
@@ -19,6 +20,7 @@ const TOAST_MESSAGES: Record<string, string> = {
   NEW_ELIGIBILITY: 'Eligibility criterion added',
   NEW_TRIGGER: 'Release trigger added',
   EDIT_BUDGET: 'Budget updated',
+  EDIT_OWNERS: 'Owners updated',
   NEW_MANUAL_BONUS: 'Manual bonus campaign created',
   ISSUE_CODE_BONUS: 'Bonus issued to audience',
 };
@@ -73,6 +75,7 @@ const uiSlice = createSlice({
       .addCase(createEligibility.fulfilled, (state) => { state.toast = TOAST_MESSAGES.NEW_ELIGIBILITY; state.drawerState = null; })
       .addCase(createTrigger.fulfilled, (state) => { state.toast = TOAST_MESSAGES.NEW_TRIGGER; state.drawerState = null; })
       .addCase(updateBudget.fulfilled, (state) => { state.toast = TOAST_MESSAGES.EDIT_BUDGET; state.drawerState = null; })
+      .addCase(updateOwners.fulfilled, (state) => { state.toast = TOAST_MESSAGES.EDIT_OWNERS; state.drawerState = null; })
       .addCase(createManualBonus.fulfilled, (state) => { state.toast = TOAST_MESSAGES.NEW_MANUAL_BONUS; state.drawerState = null; })
       .addCase(issueCodeBonus.fulfilled, (state) => { state.toast = TOAST_MESSAGES.ISSUE_CODE_BONUS; state.drawerState = null; });
   },

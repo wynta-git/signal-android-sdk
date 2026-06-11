@@ -186,4 +186,7 @@ export const HISTORY_KIND_META: Record<string, { icon: string; color: string; la
   ADDED_ELIGIBILITY: { icon: 'filter',        color: 'var(--blue)', label: 'Eligibility added' },
   ADDED_TRIGGER:     { icon: 'zap',           color: 'var(--blue)', label: 'Trigger added' },
   BUDGET_UPDATED:    { icon: 'wallet',        color: 'var(--blue)', label: 'Budget updated' },
+  OWNER_ADDED:       { icon: 'user-plus',     color: 'var(--ok)',   label: 'Owner added' },
+  OWNER_REMOVED:     { icon: 'user-minus',    color: 'var(--warn)', label: 'Owner removed' },
+  OWNER_UPDATED:     { icon: 'users',         color: 'var(--blue)', label: 'Owner updated' },
 };

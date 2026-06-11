@@ -12,6 +12,7 @@ _HEAD_HISTORY_SQL = """
     FROM bonus_change_log
     WHERE (table_name = 'bonus_head'        AND entity_id = %s)
        OR (table_name = 'bonus_head_budget' AND entity_id = %s)
+       OR (table_name = 'bonus_head_owner'  AND entity_id = %s)
     ORDER BY changed_at DESC, id DESC
     LIMIT 200
 """
@@ -21,6 +22,7 @@ _SUBHEAD_HISTORY_SQL = """
     FROM bonus_change_log
     WHERE (table_name = 'bonus_subhead'        AND entity_id = %s)
        OR (table_name = 'bonus_subhead_budget' AND entity_id = %s)
+       OR (table_name = 'bonus_subhead_owner'  AND entity_id = %s)
     ORDER BY changed_at DESC, id DESC
     LIMIT 200
 """
@@ -122,6 +124,44 @@ def _row_to_entries(row: tuple) -> list[dict]:
             }
         return [entry]
 
+    if table_name in ("bonus_head_owner", "bonus_subhead_owner"):
+        username = new_vals.get("username") or old_vals.get("username") or ""
+        new_role = new_vals.get("role")
+        if action == "INSERT":
+            return [
+                {"kind": "OWNER_ADDED", "actor": changed_by, "at": at,
+                 "summary": f"Added owner {username}",
+                 "newValue": str(new_role or "")}
+            ]
+
+        entries = []
+        old_active = old_vals.get("active")
+        new_active = new_vals.get("active")
+        if old_active is not None and new_active is not None and int(old_active) != int(new_active):
+            if int(new_active) == 0:
+                entries.append(
+                    {"kind": "OWNER_REMOVED", "actor": changed_by, "at": at,
+                     "summary": f"Removed owner {username}"}
+                )
+            else:
+                entries.append(
+                    {"kind": "OWNER_ADDED", "actor": changed_by, "at": at,
+                     "summary": f"Re-added owner {username}",
+                     "newValue": str(new_role or "")}
+                )
+        old_role = old_vals.get("role")
+        if old_role is not None and new_role is not None and old_role != new_role:
+            entries.append(
+                {"kind": "OWNER_UPDATED", "actor": changed_by, "at": at,
+                 "summary": f"Changed role for {username}",
+                 "field": f"owner.{username}.role",
+                 "old": str(old_role), "new": str(new_role)}
+            )
+        return entries or [
+            {"kind": "OWNER_UPDATED", "actor": changed_by, "at": at,
+             "summary": f"Updated owner {username}"}
+        ]
+
     return []
 
 
@@ -130,7 +170,7 @@ async def get_head_history(head_id: int) -> list[dict]:
         async with get_connection() as conn:
             async with conn.cursor() as cur:
                 await conn.commit()
-                await cur.execute(_HEAD_HISTORY_SQL, (head_id, head_id))
+                await cur.execute(_HEAD_HISTORY_SQL, (head_id, head_id, head_id))
                 rows = await cur.fetchall()
     except Exception as exc:
         log.error("get_head_history.db_error", head_id=head_id, error=str(exc))
@@ -164,7 +204,7 @@ async def get_subhead_history(subhead_id: int) -> list[dict]:
         async with get_connection() as conn:
             async with conn.cursor() as cur:
                 await conn.commit()
-                await cur.execute(_SUBHEAD_HISTORY_SQL, (subhead_id, subhead_id))
+                await cur.execute(_SUBHEAD_HISTORY_SQL, (subhead_id, subhead_id, subhead_id))
                 rows = await cur.fetchall()
     except Exception as exc:
         log.error("get_subhead_history.db_error", subhead_id=subhead_id, error=str(exc))

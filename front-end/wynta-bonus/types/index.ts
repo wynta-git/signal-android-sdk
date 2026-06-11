@@ -9,9 +9,11 @@ export interface Brand {
 
 // ── Bonus tree ────────────────────────────────────────────────────────────────
 
+export type OwnerRole = 'OPS_LEAD' | 'CAMPAIGN_MANAGER' | 'FINANCE_APPROVER' | 'ESCALATION_CONTACT';
+
 export interface OwnerEntry {
   username: string;
-  role: 'OWNER' | 'EDITOR' | 'VIEWER';
+  role: OwnerRole | string;
   active: boolean;
 }
 
@@ -256,6 +258,7 @@ export type DrawerType =
   | 'NEW_ELIGIBILITY'
   | 'NEW_TRIGGER'
   | 'EDIT_BUDGET'
+  | 'EDIT_OWNERS'
   | 'NEW_MANUAL_BONUS'
   | 'ISSUE_CODE_BONUS';
 

@@ -106,11 +106,24 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
         })}
       </div>
 
-      <div className="section-label" style={{ marginTop: 28 }}>
-        Owners & Permissions · {head.owners.length}
+      <div className="section-row" style={{ marginTop: 28 }}>
+        <div className="section-label">
+          Owners & Permissions · {head.owners.filter(o => o.active).length}
+        </div>
+        <div className="right">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => onAction({ type: 'EDIT_OWNERS', scope: 'head', id: head.id })}
+          >
+            <Icon name="user-plus" size={12}/> Edit Owners
+          </button>
+        </div>
       </div>
       <div className="owners-list mb-4">
-        {head.owners.map((o, i) => <OwnerPill key={i} owner={o} />)}
+        {head.owners.filter(o => o.active).length === 0 && (
+          <span style={{ fontSize: 12, color: 'var(--g400)', fontStyle: 'italic' }}>No owners assigned.</span>
+        )}
+        {head.owners.filter(o => o.active).map((o, i) => <OwnerPill key={i} owner={o} />)}
       </div>
 
       <ActionBar>
@@ -122,6 +135,9 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
         </button>
         <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'head', id: head.id })}>
           <Icon name="wallet" size={13}/> Manage Budget
+        </button>
+        <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_OWNERS', scope: 'head', id: head.id })}>
+          <Icon name="users" size={13}/> Manage Owners
         </button>
         <div style={{ flex: 1 }} />
         <Toggle on={head.active} onChange={() => {}} label={head.active ? 'Active' : 'Paused'} />

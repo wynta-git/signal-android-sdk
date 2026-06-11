@@ -526,6 +526,12 @@ async def upsert_owners(head_id: int, data: OwnersUpsertRequest) -> list[OwnerEn
                     raise BonusHeadNotFoundError(head_id)
                 site_id = row[0]
 
+                # Read existing owners so INSERT vs UPDATE is known for the change log
+                await cur.execute(_SELECT_OWNERS_SQL, (head_id,))
+                existing_owners = {
+                    r[0]: {"role": r[1], "active": bool(r[2])} for r in await cur.fetchall()
+                }
+
                 for entry in data.owners:
                     row_hash = _compute_row_hash({
                         "entity_type": "HEAD",
@@ -551,6 +557,27 @@ async def upsert_owners(head_id: int, data: OwnersUpsertRequest) -> list[OwnerEn
                     )
 
                 await conn.commit()
+
+                for entry in data.owners:
+                    old = existing_owners.get(entry.username)
+                    new_vals = {
+                        "username": entry.username,
+                        "role": entry.role,
+                        "active": int(entry.active),
+                    }
+                    if old is None:
+                        await _write_audit(
+                            "bonus_head_owner", "INSERT", head_id, site_id,
+                            data.updated_by, None, new_vals,
+                        )
+                    elif old["role"] != entry.role or old["active"] != entry.active:
+                        await _write_audit(
+                            "bonus_head_owner", "UPDATE", head_id, site_id,
+                            data.updated_by,
+                            {"username": entry.username, "role": old["role"],
+                             "active": int(old["active"])},
+                            new_vals,
+                        )
 
                 await cur.execute(_SELECT_OWNERS_SQL, (head_id,))
                 owner_rows = await cur.fetchall()

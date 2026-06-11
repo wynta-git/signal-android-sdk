@@ -103,11 +103,24 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
         </div>
       )}
 
-      <div className="section-label" style={{ marginTop: 28 }}>
-        Owners · {(subhead.owners ?? []).length}
+      <div className="section-row" style={{ marginTop: 28 }}>
+        <div className="section-label">
+          Owners · {(subhead.owners ?? []).filter(o => o.active).length}
+        </div>
+        <div className="right">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => onAction({ type: 'EDIT_OWNERS', scope: 'subhead', id: subhead.id })}
+          >
+            <Icon name="user-plus" size={12}/> Edit Owners
+          </button>
+        </div>
       </div>
       <div className="owners-list">
-        {(subhead.owners ?? []).map((o, i) => <OwnerPill key={i} owner={o}/>)}
+        {(subhead.owners ?? []).filter(o => o.active).length === 0 && (
+          <span style={{ fontSize: 12, color: 'var(--g400)', fontStyle: 'italic' }}>No owners assigned.</span>
+        )}
+        {(subhead.owners ?? []).filter(o => o.active).map((o, i) => <OwnerPill key={i} owner={o}/>)}
       </div>
 
       <ActionBar>
@@ -119,6 +132,9 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
         </button>
         <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'subhead', id: subhead.id })}>
           <Icon name="wallet" size={13}/> Manage Budget
+        </button>
+        <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_OWNERS', scope: 'subhead', id: subhead.id })}>
+          <Icon name="users" size={13}/> Manage Owners
         </button>
         <div style={{ flex: 1 }}/>
         <Toggle on={subhead.active} onChange={() => {}} label={subhead.active ? 'Active' : 'Paused'}/>
