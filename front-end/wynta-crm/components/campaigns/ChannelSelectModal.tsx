@@ -27,8 +27,11 @@ const MESSAGING: ChannelCard[] = [
   { id: 'rcs',      label: 'RCS',      icon: 'message-square' },
 ];
 
-/** Only Push is enabled; every other channel is coming soon. */
-const ENABLED_CHANNELS = new Set(['push']);
+const ENABLED_CHANNELS = new Set([
+  'push', 'email', 'sms',
+  'in_app', 'on_site', 'cards',
+  'whatsapp', 'telegram', 'rcs',
+]);
 
 interface Props {
   onClose:  () => void;

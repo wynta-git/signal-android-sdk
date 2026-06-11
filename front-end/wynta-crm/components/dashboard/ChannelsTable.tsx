@@ -155,7 +155,7 @@ export default function ChannelsTable({ onNavigate }: { onNavigate?: (nav: strin
                       }}>
                         {cfg.icon}
                       </div>
-                      <span style={{ fontWeight: 500, color: 'var(--crm-fg1)' }}>{cfg.label}</span>
+                      <span style={{ fontSize: 12, color: 'var(--crm-fg2)' }}>{cfg.label}</span>
                     </div>
                   </td>
                   {/* Status */}

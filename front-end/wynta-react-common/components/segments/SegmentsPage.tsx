@@ -31,6 +31,7 @@ interface SegmentRow {
   type: 'static' | 'dynamic';
   conditions: string;
   reach: string;
+  rawCount: number;
   created: string;
   createdBy: string;
   usedIn: string[];
@@ -45,6 +46,7 @@ function toRow(s: Segment): SegmentRow {
     type:      isDyn ? 'dynamic' : 'static',
     conditions: formatConditions(s.rule) || (s as any).description || (s.hint ?? ''),
     reach:     s.count ? s.count.toLocaleString('en-IN') + ' players' : '—',
+    rawCount:  s.count ?? 0,
     created:   formatRelative(s.last_used_at),
     createdBy: (s as any).owner ?? s.owner ?? 'System',
     usedIn:    s.used_by_campaigns ?? (s as any).used_in ?? [],
@@ -94,6 +96,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
 
   const [search, setSearch]   = useState('');
   const [typeFilter, setType] = useState<'all' | 'static' | 'dynamic'>('all');
+  const [reachSort, setReachSort] = useState<'asc' | 'desc' | null>(null);
   const [page, setPage]       = useState(1);
   const PAGE_SIZE = 10;
 
@@ -110,15 +113,18 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
   }
 
   const filtered = useMemo(() => {
-    return rows.filter(r => {
+    const base = rows.filter(r => {
       const matchSearch = !search || r.name.toLowerCase().includes(search.toLowerCase());
       const matchType   = typeFilter === 'all' || r.type === typeFilter;
       return matchSearch && matchType;
     });
-  }, [rows, search, typeFilter]);
+    if (reachSort === 'asc')  return [...base].sort((a, b) => a.rawCount - b.rawCount);
+    if (reachSort === 'desc') return [...base].sort((a, b) => b.rawCount - a.rawCount);
+    return base;
+  }, [rows, search, typeFilter, reachSort]);
 
-  // Reset to page 1 whenever filter/search changes
-  useEffect(() => { setPage(1); }, [search, typeFilter]);
+  // Reset to page 1 whenever filter/search/sort changes
+  useEffect(() => { setPage(1); }, [search, typeFilter, reachSort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -248,7 +254,18 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
               <tr>
                 <th>Segment Name</th>
                 <th>Conditions</th>
-                <th>Est. Reach</th>
+                <th
+                  style={{ cursor: 'pointer', userSelect: 'none' }}
+                  onClick={() => setReachSort(s => s === 'desc' ? 'asc' : 'desc')}
+                >
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    Est. Reach
+                    <svg width="10" height="12" viewBox="0 0 10 14" fill="none" style={{ flexShrink: 0, color: 'var(--crm-blue)' }}>
+                      <path d="M5 1L2 5h6L5 1z" fill="currentColor" opacity={reachSort === 'asc' ? 1 : 0.35} />
+                      <path d="M5 13L2 9h6l-3 4z" fill="currentColor" opacity={reachSort === 'desc' ? 1 : 0.35} />
+                    </svg>
+                  </div>
+                </th>
                 <th>Created</th>
                 <th>Created By</th>
                 <th style={{ width: 180 }}>Used In</th>

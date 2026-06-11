@@ -192,7 +192,7 @@ export default function CampaignsTable({ onNavigate }: { onNavigate?: (nav: stri
                   <td style={TD}>
                     {c.segment_name ? (
                       <span style={{
-                        fontSize: 11, fontWeight: 500, padding: '2px 9px', borderRadius: 20,
+                        fontSize: 12, fontWeight: 500, padding: '2px 9px', borderRadius: 20,
                         background: '#EFF6FF', color: '#1D4ED8',
                       }}>{c.segment_name}</span>
                     ) : <span style={{ color: 'var(--crm-fg4)' }}>—</span>}
@@ -217,7 +217,7 @@ export default function CampaignsTable({ onNavigate }: { onNavigate?: (nav: stri
                   <td style={TD}>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
-                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                      fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
                       background: st.bg, color: st.fg,
                     }}>
                       <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />

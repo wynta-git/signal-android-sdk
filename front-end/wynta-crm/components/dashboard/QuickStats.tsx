@@ -63,7 +63,7 @@ export default function QuickStats() {
     { label: 'Unsubscribe Rate',  value: qs?.opt_outs?.tracked ? `${((qs.opt_outs.value ?? 0) * 100).toFixed(2)}%` : '—', change: qs?.opt_outs?.change_pct ?? null },
     { label: 'Messages Sent',     value: fmt(qs?.messages_sent?.value),     change: qs?.messages_sent?.change_pct ?? null },
     { label: 'Delivery Rate',     value: qs?.delivery_rate?.value != null ? `${(qs.delivery_rate.value * 100).toFixed(1)}%` : '—', change: qs?.delivery_rate?.change_pct ?? null },
-    { label: 'Opted-in (Push)',   value: fmt(optin?.push?.count),           change: optin?.push?.change_pct ?? null },
+    { label: 'Opted-in',   value: fmt(optin?.push?.count),           change: optin?.push?.change_pct ?? null },
     { label: 'At-Risk Players',   value: fmt(health?.at_risk?.count),       change: null },
     { label: 'Churned Players',   value: fmt(health?.churned?.count),       change: null },
   ];
