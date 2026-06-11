@@ -75,6 +75,7 @@ async def list_segments(
         for seg in segments:
             seg["used_by_campaigns"] = usage.get(seg["segment_id"], [])
 
+    segments.sort(key=lambda s: s.get("members_count") or 0, reverse=True)
     return segments
 
 
