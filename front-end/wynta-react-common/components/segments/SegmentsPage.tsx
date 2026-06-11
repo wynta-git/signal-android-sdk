@@ -109,7 +109,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
 
   const [search, setSearch]   = useState('');
   const [typeFilter, setType] = useState<'all' | 'static' | 'dynamic'>('all');
-  const [sort, setSort] = useState<{ col: SegSortCol; dir: 'asc' | 'desc' } | null>(null);
+  const [sort, setSort] = useState<{ col: SegSortCol; dir: 'asc' | 'desc' } | null>({ col: 'reach', dir: 'desc' });
   const [page, setPage]       = useState(1);
   const PAGE_SIZE = 10;
 
