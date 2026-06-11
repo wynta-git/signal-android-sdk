@@ -27,6 +27,7 @@ from app.models.bonus_head import (
     OwnerEntry,
     OwnersUpsertRequest,
     _no_duplicate_periods,
+    _validate_period_ordering,
 )
 
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z0-9_.\- ]+$")
@@ -97,6 +98,7 @@ class BonusSubheadCreate(BaseModel):
     @model_validator(mode="after")
     def no_duplicate_periods(self) -> "BonusSubheadCreate":
         _no_duplicate_periods(self.budget)
+        _validate_period_ordering(self.budget)
         return self
 
 

@@ -55,6 +55,15 @@ def _no_duplicate_periods(limits: list[LimitUpsertItem]) -> None:
         seen.add(entry.period_type)
 
 
+def _validate_period_ordering(limits: list[LimitUpsertItem]) -> None:
+    """A shorter period's cap must not exceed a longer period's cap (null = uncapped, skipped)."""
+    by_period = {entry.period_type: entry.budget_limit for entry in limits}
+    for lo, hi in (("DAILY", "WEEKLY"), ("WEEKLY", "MONTHLY"), ("DAILY", "MONTHLY")):
+        lo_v, hi_v = by_period.get(lo), by_period.get(hi)
+        if lo_v is not None and hi_v is not None and lo_v > hi_v:
+            raise ValueError(f"{lo} limit {lo_v} cannot exceed {hi} limit {hi_v}")
+
+
 class BonusHeadCreate(BaseModel):
     """Request payload for creating a new bonus_head row."""
 
@@ -107,6 +116,7 @@ class BonusHeadCreate(BaseModel):
     @model_validator(mode="after")
     def no_duplicate_periods(self) -> "BonusHeadCreate":
         _no_duplicate_periods(self.budget)
+        _validate_period_ordering(self.budget)
         return self
 
 
@@ -236,4 +246,5 @@ class LimitsUpsertRequest(BaseModel):
     @model_validator(mode="after")
     def no_duplicate_periods(self) -> "LimitsUpsertRequest":
         _no_duplicate_periods(self.limits)
+        _validate_period_ordering(self.limits)
         return self

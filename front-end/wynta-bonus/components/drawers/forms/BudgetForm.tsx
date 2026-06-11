@@ -7,6 +7,7 @@ import Icon from 'wynta-react-common/components/Icon';
 import DrawerFooter from '../../../components/drawers/DrawerFooter';
 import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
 import { CONFIGURE_BUDGETS } from '../../../services/mocks/budgets';
+import { limitMap, validateBudget } from '../../../utils/budget';
 import type { BudgetPeriod, DrawerState } from '../../../types';
 
 interface BudgetFormProps {
@@ -65,12 +66,9 @@ export default function BudgetForm({ state, submitting, onCancel, onSubmit }: Bu
   const [errors, setErrors] = useState<{ daily?: string; weekly?: string; monthly?: string }>({});
 
   const validate = (): boolean => {
-    if (scope !== 'subhead') return true;
-    const errs: typeof errors = {};
-    const hl = { daily: findHeadLimit('DAILY'), weekly: findHeadLimit('WEEKLY'), monthly: findHeadLimit('MONTHLY') };
-    if (daily   !== '' && hl.daily   != null && Number(daily)   > hl.daily)   errs.daily   = `Cannot exceed head limit (₹${hl.daily})`;
-    if (weekly  !== '' && hl.weekly  != null && Number(weekly)  > hl.weekly)  errs.weekly  = `Cannot exceed head limit (₹${hl.weekly})`;
-    if (monthly !== '' && hl.monthly != null && Number(monthly) > hl.monthly) errs.monthly = `Cannot exceed head limit (₹${hl.monthly})`;
+    const parentLimits =
+      scope === 'subhead' && parentHeadEntity ? limitMap(parentHeadEntity.budget) : undefined;
+    const errs = validateBudget({ daily, weekly, monthly }, parentLimits);
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };

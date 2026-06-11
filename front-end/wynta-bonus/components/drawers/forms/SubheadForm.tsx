@@ -1,11 +1,18 @@
 "use client";
-import { useState } from "react";
-import { useAppSelector } from "../../../store/hooks";
-import { selectHeadById } from "../../../store/slices/headsSlice";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAppDispatch, useAppSelector } from "../../../store/hooks";
+import { fetchHead, selectHeadById } from "../../../store/slices/headsSlice";
 import { selectSubheadById } from "../../../store/slices/subheadsSlice";
 import Icon from "wynta-react-common/components/Icon";
 import Toggle from "wynta-react-common/components/Toggle";
 import DrawerFooter from "../../../components/drawers/DrawerFooter";
+import {
+  FIELD_TO_PERIOD,
+  limitMap,
+  toBudgetPayload,
+  validateBudget,
+  type BudgetField,
+} from "../../../utils/budget";
 import type { DrawerState } from "../../../types";
 
 interface SubheadFormProps {
@@ -23,6 +30,7 @@ export default function SubheadForm({
   onCancel,
   onSubmit,
 }: SubheadFormProps) {
+  const dispatch = useAppDispatch();
   const subFromStore = useAppSelector(
     state.id != null ? selectSubheadById(state.id) : () => undefined,
   );
@@ -40,21 +48,93 @@ export default function SubheadForm({
   const [daily, setDaily] = useState("");
   const [weekly, setWeekly] = useState("");
   const [monthly, setMonthly] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
+
+  // The head summary list has no budget — load the detail so caps are known.
+  useEffect(() => {
+    if (mode !== "new" || parentHeadId == null) return;
+    if (!parentHead || parentHead.budget.length === 0) {
+      dispatch(fetchHead(parentHeadId));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, parentHeadId]);
+
+  const headLimits = useMemo(
+    () => limitMap(parentHead?.budget),
+    [parentHead?.budget],
+  );
+
+  // Default the subhead limits to the parent head's limits, once, and only if
+  // the user hasn't typed anything yet.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (mode !== "new" || prefilled.current) return;
+    if (!parentHead || parentHead.budget.length === 0) return;
+    prefilled.current = true;
+    if (daily === "" && weekly === "" && monthly === "") {
+      setDaily(headLimits.DAILY != null ? String(headLimits.DAILY) : "");
+      setWeekly(headLimits.WEEKLY != null ? String(headLimits.WEEKLY) : "");
+      setMonthly(headLimits.MONTHLY != null ? String(headLimits.MONTHLY) : "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, parentHead, headLimits]);
+
+  const inputs = { daily, weekly, monthly };
+  const errors = useMemo(
+    () => (mode === "new" ? validateBudget(inputs, headLimits) : {}),
+    [daily, weekly, monthly, headLimits, mode], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const budget = [
-      { period_type: "DAILY" as const, budget_limit: Number(daily) },
-      { period_type: "WEEKLY" as const, budget_limit: Number(weekly) },
-      { period_type: "MONTHLY" as const, budget_limit: Number(monthly) },
-    ];
+    if (mode === "new" && Object.keys(errors).length > 0) {
+      setShowErrors(true);
+      return;
+    }
     onSubmit({
       name,
       description,
       owner,
       active,
-      ...(mode === "new" ? { budget } : {}),
+      ...(mode === "new" ? { budget: toBudgetPayload(inputs) } : {}),
     });
+  };
+
+  const limitField = (
+    label: string,
+    field: BudgetField,
+    value: string,
+    setValue: (v: string) => void,
+  ) => {
+    const cap = headLimits[FIELD_TO_PERIOD[field]];
+    const error = errors[field];
+    // Errors from typing show immediately; "required" gaps only after submit.
+    const visibleError = error && (value !== "" || showErrors) ? error : null;
+    return (
+      <div className="field-group">
+        <label>{label}</label>
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={cap != null ? `up to ₹${cap}` : "leave empty for ∞"}
+          style={visibleError ? { borderColor: "#D64545" } : undefined}
+        />
+        {visibleError ? (
+          <div className="helper" style={{ color: "#D64545" }}>
+            {visibleError}
+          </div>
+        ) : (
+          (parentHead?.budget?.length ?? 0) > 0 && (
+            <div className="helper">
+              Head cap: {cap != null ? `₹${cap}` : "∞ (uncapped)"}
+            </div>
+          )
+        )}
+      </div>
+    );
   };
 
   return (
@@ -105,41 +185,11 @@ export default function SubheadForm({
                 marginTop: 4,
               }}
             >
-              Budget
+              Budget Limits
             </div>
-            <div className="field-group">
-              <label>Daily limit (₹)</label>
-              <input
-                type="number"
-                min="0"
-                value={daily}
-                onChange={(e) => setDaily(e.target.value)}
-                placeholder="leave empty for ∞"
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label>Weekly limit (₹)</label>
-              <input
-                type="number"
-                min="0"
-                value={weekly}
-                onChange={(e) => setWeekly(e.target.value)}
-                placeholder="leave empty for ∞"
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label>Monthly limit (₹)</label>
-              <input
-                type="number"
-                min="0"
-                value={monthly}
-                onChange={(e) => setMonthly(e.target.value)}
-                placeholder="leave empty for ∞"
-                required
-              />
-            </div>
+            {limitField("Daily limit (₹)", "daily", daily, setDaily)}
+            {limitField("Weekly limit (₹)", "weekly", weekly, setWeekly)}
+            {limitField("Monthly limit (₹)", "monthly", monthly, setMonthly)}
           </>
         )}
         <div className="field-group">

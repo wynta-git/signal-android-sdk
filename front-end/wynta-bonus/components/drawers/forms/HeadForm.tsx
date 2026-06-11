@@ -1,11 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAppSelector } from "../../../store/hooks";
 import { selectHeadById } from "../../../store/slices/headsSlice";
 import { selectAllUsers } from "wynta-react-common/store/slices/usersSlice";
 import { selectAllBrands } from "wynta-react-common/store/slices/brandsSlice";
 import Toggle from "wynta-react-common/components/Toggle";
 import DrawerFooter from "../../../components/drawers/DrawerFooter";
+import {
+  toBudgetPayload,
+  validateBudget,
+  type BudgetField,
+} from "../../../utils/budget";
 import type { DrawerState } from "../../../types";
 
 interface HeadFormProps {
@@ -38,21 +43,51 @@ export default function HeadForm({
   const [weekly, setWeekly] = useState("");
   const [monthly, setMonthly] = useState("");
 
+  const inputs = { daily, weekly, monthly };
+  const errors = useMemo(
+    () => (mode === "new" ? validateBudget(inputs) : {}),
+    [daily, weekly, monthly, mode], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const budget = [
-      { period_type: "DAILY" as const, budget_limit: Number(daily) },
-      { period_type: "WEEKLY" as const, budget_limit: Number(weekly) },
-      { period_type: "MONTHLY" as const, budget_limit: Number(monthly) },
-    ];
+    if (mode === "new" && Object.keys(errors).length > 0) return;
     onSubmit({
       name,
       description,
       owner,
       site_id: selectedBrand,
       active,
-      ...(mode === "new" ? { budget } : {}),
+      ...(mode === "new" ? { budget: toBudgetPayload(inputs) } : {}),
     });
+  };
+
+  const limitField = (
+    label: string,
+    field: BudgetField,
+    value: string,
+    setValue: (v: string) => void,
+  ) => {
+    const error = errors[field];
+    return (
+      <div className="field-group">
+        <label>{label}</label>
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="leave empty for ∞"
+          style={error ? { borderColor: "#D64545" } : undefined}
+        />
+        {error && (
+          <div className="helper" style={{ color: "#D64545" }}>
+            {error}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -111,39 +146,9 @@ export default function HeadForm({
             >
               Budget
             </div>
-            <div className="field-group">
-              <label>Daily limit (₹)</label>
-              <input
-                type="number"
-                min="0"
-                value={daily}
-                onChange={(e) => setDaily(e.target.value)}
-                placeholder="leave empty for ∞"
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label>Weekly limit (₹)</label>
-              <input
-                type="number"
-                min="0"
-                value={weekly}
-                onChange={(e) => setWeekly(e.target.value)}
-                placeholder="leave empty for ∞"
-                required
-              />
-            </div>
-            <div className="field-group">
-              <label>Monthly limit (₹)</label>
-              <input
-                type="number"
-                min="0"
-                value={monthly}
-                onChange={(e) => setMonthly(e.target.value)}
-                placeholder="leave empty for ∞"
-                required
-              />
-            </div>
+            {limitField("Daily limit (₹)", "daily", daily, setDaily)}
+            {limitField("Weekly limit (₹)", "weekly", weekly, setWeekly)}
+            {limitField("Monthly limit (₹)", "monthly", monthly, setMonthly)}
           </>
         )}
         <div className="field-group">
