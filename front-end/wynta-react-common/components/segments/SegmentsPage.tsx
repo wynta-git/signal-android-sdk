@@ -32,6 +32,7 @@ interface SegmentRow {
   conditions: string;
   reach: string;
   rawCount: number;
+  rawCreated: number;
   created: string;
   createdBy: string;
   usedIn: string[];
@@ -47,6 +48,7 @@ function toRow(s: Segment): SegmentRow {
     conditions: formatConditions(s.rule) || (s as any).description || (s.hint ?? ''),
     reach:     s.count ? s.count.toLocaleString('en-IN') + ' players' : '—',
     rawCount:  s.count ?? 0,
+    rawCreated: s.last_used_at ? new Date(s.last_used_at).getTime() : 0,
     created:   formatRelative(s.last_used_at),
     createdBy: (s as any).owner ?? s.owner ?? 'System',
     usedIn:    s.used_by_campaigns ?? (s as any).used_in ?? [],
@@ -56,6 +58,17 @@ function toRow(s: Segment): SegmentRow {
 interface SegmentsPageProps {
   /** Called when user clicks Add Segment; if omitted the built-in modal is shown */
   onAddSegment?: () => void;
+}
+
+type SegSortCol = 'name' | 'conditions' | 'reach' | 'created' | 'createdBy' | 'usedIn';
+
+function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
+  return (
+    <svg width="10" height="12" viewBox="0 0 10 14" fill="none" style={{ flexShrink: 0, color: 'var(--crm-blue)' }}>
+      <path d="M5 1L2 5h6L5 1z" fill="currentColor" opacity={dir === 'asc' ? 1 : 0.35} />
+      <path d="M5 13L2 9h6l-3 4z" fill="currentColor" opacity={dir === 'desc' ? 1 : 0.35} />
+    </svg>
+  );
 }
 
 export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
@@ -96,7 +109,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
 
   const [search, setSearch]   = useState('');
   const [typeFilter, setType] = useState<'all' | 'static' | 'dynamic'>('all');
-  const [reachSort, setReachSort] = useState<'asc' | 'desc' | null>(null);
+  const [sort, setSort] = useState<{ col: SegSortCol; dir: 'asc' | 'desc' } | null>(null);
   const [page, setPage]       = useState(1);
   const PAGE_SIZE = 10;
 
@@ -118,13 +131,24 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
       const matchType   = typeFilter === 'all' || r.type === typeFilter;
       return matchSearch && matchType;
     });
-    if (reachSort === 'asc')  return [...base].sort((a, b) => a.rawCount - b.rawCount);
-    if (reachSort === 'desc') return [...base].sort((a, b) => b.rawCount - a.rawCount);
-    return base;
-  }, [rows, search, typeFilter, reachSort]);
+    if (!sort) return base;
+    const mul = sort.dir === 'asc' ? 1 : -1;
+    return [...base].sort((a, b) => {
+      let cmp = 0;
+      switch (sort.col) {
+        case 'name':      cmp = a.name.localeCompare(b.name); break;
+        case 'conditions': cmp = a.conditions.localeCompare(b.conditions); break;
+        case 'reach':     cmp = a.rawCount - b.rawCount; break;
+        case 'created':   cmp = a.rawCreated - b.rawCreated; break;
+        case 'createdBy': cmp = a.createdBy.localeCompare(b.createdBy); break;
+        case 'usedIn':    cmp = a.usedIn.length - b.usedIn.length; break;
+      }
+      return cmp * mul;
+    });
+  }, [rows, search, typeFilter, sort]);
 
   // Reset to page 1 whenever filter/search/sort changes
-  useEffect(() => { setPage(1); }, [search, typeFilter, reachSort]);
+  useEffect(() => { setPage(1); }, [search, typeFilter, sort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -252,23 +276,17 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
           <table className="seg-list-table">
             <thead>
               <tr>
-                <th>Segment Name</th>
-                <th>Conditions</th>
-                <th
-                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                  onClick={() => setReachSort(s => s === 'desc' ? 'asc' : 'desc')}
-                >
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    Est. Reach
-                    <svg width="10" height="12" viewBox="0 0 10 14" fill="none" style={{ flexShrink: 0, color: 'var(--crm-blue)' }}>
-                      <path d="M5 1L2 5h6L5 1z" fill="currentColor" opacity={reachSort === 'asc' ? 1 : 0.35} />
-                      <path d="M5 13L2 9h6l-3 4z" fill="currentColor" opacity={reachSort === 'desc' ? 1 : 0.35} />
-                    </svg>
-                  </div>
-                </th>
-                <th>Created</th>
-                <th>Created By</th>
-                <th style={{ width: 180 }}>Used In</th>
+                {(['name','conditions','reach','created','createdBy','usedIn'] as SegSortCol[]).map(col => {
+                  const labels: Record<SegSortCol, string> = { name: 'Segment Name', conditions: 'Conditions', reach: 'Est. Reach', created: 'Created', createdBy: 'Created By', usedIn: 'Used In' };
+                  return (
+                    <th key={col} style={{ cursor: 'pointer', userSelect: 'none', ...(col === 'usedIn' ? { width: 180 } : {}) }} onClick={() => setSort(s => s?.col === col ? { col, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { col, dir: 'desc' })}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {labels[col]}
+                        <SortIcon dir={sort?.col === col ? sort.dir : null} />
+                      </div>
+                    </th>
+                  );
+                })}
                 <th></th>
               </tr>
             </thead>

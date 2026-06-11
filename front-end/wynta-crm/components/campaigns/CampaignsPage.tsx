@@ -93,6 +93,17 @@ function formatRevenue(n?: number) {
 /* ------------------------------------------------------------------ */
 /* Component                                                            */
 /* ------------------------------------------------------------------ */
+type CpSortCol = 'name' | 'objective' | 'segment' | 'channel' | 'schedule' | 'status' | 'revenue' | 'activity';
+
+function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
+  return (
+    <svg width="10" height="12" viewBox="0 0 10 14" fill="none" style={{ flexShrink: 0, color: 'var(--crm-blue)' }}>
+      <path d="M5 1L2 5h6L5 1z" fill="currentColor" opacity={dir === 'asc' ? 1 : 0.35} />
+      <path d="M5 13L2 9h6l-3 4z" fill="currentColor" opacity={dir === 'desc' ? 1 : 0.35} />
+    </svg>
+  );
+}
+
 export default function CampaignsPage({ autoOpenAdd }: { autoOpenAdd?: boolean }) {
   const dispatch     = useDispatch<any>();
   const apiCampaigns = useAppSelector(selectAllCampaigns);
@@ -112,23 +123,44 @@ export default function CampaignsPage({ autoOpenAdd }: { autoOpenAdd?: boolean }
   const [search,    setSearch]    = useState('');
   const [objective, setObjective] = useState('');
   const [channel,   setChannel]   = useState('');
+  const [sort,      setSort]      = useState<{ col: CpSortCol; dir: 'asc' | 'desc' } | null>(null);
   const [page,      setPage]      = useState(1);
   const PAGE_SIZE = 10;
 
-  const filtered = useMemo(() => rows
-    .filter(r => {
+  const filtered = useMemo(() => {
+    const base = rows.filter(r => {
       if (search    && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (objective && r.objective !== objective) return false;
       if (channel   && r.channel   !== channel)   return false;
       return true;
-    })
-    .sort((a, b) => {
+    });
+    return [...base].sort((a, b) => {
+      if (sort) {
+        const mul = sort.dir === 'asc' ? 1 : -1;
+        let cmp = 0;
+        switch (sort.col) {
+          case 'name':     cmp = a.name.localeCompare(b.name); break;
+          case 'objective': cmp = (a.objective ?? '').localeCompare(b.objective ?? ''); break;
+          case 'segment':  cmp = (a.segment_name ?? '').localeCompare(b.segment_name ?? ''); break;
+          case 'channel':  cmp = channelLabel(a.channel).localeCompare(channelLabel(b.channel)); break;
+          case 'schedule': cmp = scheduleTypeLabel(a).localeCompare(scheduleTypeLabel(b)); break;
+          case 'status':   cmp = a.status.localeCompare(b.status); break;
+          case 'revenue':  cmp = (a.revenue_impact ?? 0) - (b.revenue_impact ?? 0); break;
+          case 'activity': {
+            const ta = a.last_activity ? new Date(a.last_activity).getTime() : 0;
+            const tb = b.last_activity ? new Date(b.last_activity).getTime() : 0;
+            cmp = ta - tb; break;
+          }
+        }
+        if (cmp !== 0) return cmp * mul;
+      }
       const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
       const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
       return tb - ta;
-    }), [rows, search, objective, channel]);
+    });
+  }, [rows, search, objective, channel, sort]);
 
-  useEffect(() => { setPage(1); }, [search, objective, channel]);
+  useEffect(() => { setPage(1); }, [search, objective, channel, sort]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -306,14 +338,17 @@ export default function CampaignsPage({ autoOpenAdd }: { autoOpenAdd?: boolean }
           <table className="cp-table">
             <thead>
               <tr>
-                <th>Campaign</th>
-                <th>Objective</th>
-                <th>Behavioral Segment</th>
-                <th>Channels</th>
-                <th>Schedule</th>
-                <th>Status</th>
-                <th>Revenue Impact</th>
-                <th>Last Activity</th>
+                {(['name','objective','segment','channel','schedule','status','revenue','activity'] as CpSortCol[]).map((col, i) => {
+                  const labels: Record<CpSortCol, string> = { name: 'Campaign', objective: 'Objective', segment: 'Behavioral Segment', channel: 'Channels', schedule: 'Schedule', status: 'Status', revenue: 'Revenue Impact', activity: 'Last Activity' };
+                  return (
+                    <th key={col} style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSort(s => s?.col === col ? { col, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { col, dir: 'desc' })}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {labels[col]}
+                        <SortIcon dir={sort?.col === col ? sort.dir : null} />
+                      </div>
+                    </th>
+                  );
+                })}
                 <th></th>
               </tr>
             </thead>
