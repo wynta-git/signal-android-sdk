@@ -13,7 +13,16 @@ import {
 import AddSegmentModal     from './AddSegmentModal';
 import DeleteSegmentModal  from './DeleteSegmentModal';
 import { formatConditions, formatRelative } from '../../utils';
+import { getToken } from '../../services/tokenRegistry';
 import type { Segment } from '../../types';
+
+const SEG_BASE = process.env.NEXT_PUBLIC_SEG_API_URL ?? 'http://3.7.48.14:8003';
+
+interface SegmentStats {
+  total_segments:        number;
+  active_campaigns_using: number;
+  estimated_reach:       number;
+}
 
 
 interface SegmentRow {
@@ -22,6 +31,8 @@ interface SegmentRow {
   type: 'static' | 'dynamic';
   conditions: string;
   reach: string;
+  rawCount: number;
+  rawCreated: number;
   created: string;
   createdBy: string;
   usedIn: string[];
@@ -36,9 +47,11 @@ function toRow(s: Segment): SegmentRow {
     type:      isDyn ? 'dynamic' : 'static',
     conditions: formatConditions(s.rule) || (s as any).description || (s.hint ?? ''),
     reach:     s.count ? s.count.toLocaleString('en-IN') + ' players' : '—',
+    rawCount:  s.count ?? 0,
+    rawCreated: s.last_used_at ? new Date(s.last_used_at).getTime() : 0,
     created:   formatRelative(s.last_used_at),
     createdBy: (s as any).owner ?? s.owner ?? 'System',
-    usedIn:    (s as any).used_in ?? [],
+    usedIn:    s.used_by_campaigns ?? (s as any).used_in ?? [],
   };
 }
 
@@ -47,17 +60,35 @@ interface SegmentsPageProps {
   onAddSegment?: () => void;
 }
 
+type SegSortCol = 'name' | 'conditions' | 'reach' | 'created' | 'createdBy' | 'usedIn';
+
+function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
+  return (
+    <svg width="10" height="12" viewBox="0 0 10 14" fill="none" style={{ flexShrink: 0, color: 'var(--crm-blue)' }}>
+      <path d="M5 1L2 5h6L5 1z" fill="currentColor" opacity={dir === 'asc' ? 1 : 0.35} />
+      <path d="M5 13L2 9h6l-3 4z" fill="currentColor" opacity={dir === 'desc' ? 1 : 0.35} />
+    </svg>
+  );
+}
+
 export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
   const dispatch = useDispatch<any>();
 
   const apiSegments = useCommonSelector(selectAllSegments);
   const status      = useCommonSelector(selectSegmentsStatus);
   const didFetch    = useRef(false);
+  const [stats, setStats] = useState<SegmentStats | null>(null);
 
   useEffect(() => {
     if (didFetch.current) return;
     didFetch.current = true;
     dispatch(fetchSegments());
+    fetch(`${SEG_BASE}/api/v1/segment/segments/stats`, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: SegmentStats | null) => { if (data) setStats(data); })
+      .catch(() => {});
   }, [dispatch]);
 
   /* Use only real API data — no sample / fallback rows */
@@ -78,6 +109,9 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
 
   const [search, setSearch]   = useState('');
   const [typeFilter, setType] = useState<'all' | 'static' | 'dynamic'>('all');
+  const [sort, setSort] = useState<{ col: SegSortCol; dir: 'asc' | 'desc' } | null>({ col: 'reach', dir: 'desc' });
+  const [page, setPage]       = useState(1);
+  const PAGE_SIZE = 10;
 
   type ModalConfig = { mode: 'create' | 'edit'; segmentId?: string } | null;
   const [modalConfig, setModalConfig] = useState<ModalConfig>(null);
@@ -92,12 +126,43 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
   }
 
   const filtered = useMemo(() => {
-    return rows.filter(r => {
+    const base = rows.filter(r => {
       const matchSearch = !search || r.name.toLowerCase().includes(search.toLowerCase());
       const matchType   = typeFilter === 'all' || r.type === typeFilter;
       return matchSearch && matchType;
     });
-  }, [rows, search, typeFilter]);
+    if (!sort) return base;
+    const mul = sort.dir === 'asc' ? 1 : -1;
+    return [...base].sort((a, b) => {
+      let cmp = 0;
+      switch (sort.col) {
+        case 'name':      cmp = a.name.localeCompare(b.name); break;
+        case 'conditions': cmp = a.conditions.localeCompare(b.conditions); break;
+        case 'reach':     cmp = a.rawCount - b.rawCount; break;
+        case 'created':   cmp = a.rawCreated - b.rawCreated; break;
+        case 'createdBy': cmp = a.createdBy.localeCompare(b.createdBy); break;
+        case 'usedIn':    cmp = a.usedIn.length - b.usedIn.length; break;
+      }
+      return cmp * mul;
+    });
+  }, [rows, search, typeFilter, sort]);
+
+  // Reset to page 1 whenever filter/search/sort changes
+  useEffect(() => { setPage(1); }, [search, typeFilter, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  // Build visible page numbers with ellipsis
+  function pageNumbers(): (number | '…')[] {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '…')[] = [1];
+    if (page > 3)  pages.push('…');
+    for (let p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) pages.push(p);
+    if (page < totalPages - 2) pages.push('…');
+    pages.push(totalPages);
+    return pages;
+  }
 
   /* ── Export current filtered rows as CSV ── */
   function handleExport() {
@@ -130,6 +195,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
     if (numericEntry) return n + parseInt(numericEntry, 10);
     return n + r.usedIn.length;
   }, 0);
+  const estimatedReach  = apiSegments.reduce((sum, s) => sum + (s.count ?? 0), 0);
 
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
@@ -172,13 +238,18 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
       <div className="seg-stats-row">
         <div className="seg-stat-card">
           <div className="seg-stat-label">Total Segments</div>
-          <div className="seg-stat-value">{totalCount}</div>
+          <div className="seg-stat-value">{stats ? stats.total_segments.toLocaleString('en-IN') : totalCount}</div>
           <div className="seg-stat-sub">across all types</div>
         </div>
         <div className="seg-stat-card">
           <div className="seg-stat-label">Active Campaigns Using</div>
-          <div className="seg-stat-value">{activeCampaigns}</div>
+          <div className="seg-stat-value">{stats ? stats.active_campaigns_using.toLocaleString('en-IN') : activeCampaigns}</div>
           <div className="seg-stat-sub">segments in use</div>
+        </div>
+        <div className="seg-stat-card">
+          <div className="seg-stat-label">Estimated Reach</div>
+          <div className="seg-stat-value">{estimatedReach.toLocaleString('en-IN')}</div>
+          <div className="seg-stat-sub">players</div>
         </div>
       </div>
 
@@ -205,12 +276,17 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
           <table className="seg-list-table">
             <thead>
               <tr>
-                <th>Segment Name</th>
-                <th>Conditions</th>
-                <th>Est. Reach</th>
-                <th>Created</th>
-                <th>Created By</th>
-                <th>Used In</th>
+                {(['name','conditions','reach','created','createdBy','usedIn'] as SegSortCol[]).map(col => {
+                  const labels: Record<SegSortCol, string> = { name: 'Segment Name', conditions: 'Conditions', reach: 'Est. Reach', created: 'Created', createdBy: 'Created By', usedIn: 'Used In' };
+                  return (
+                    <th key={col} style={{ cursor: 'pointer', userSelect: 'none', ...(col === 'usedIn' ? { width: 180 } : {}) }} onClick={() => setSort(s => s?.col === col ? { col, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { col, dir: 'desc' })}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {labels[col]}
+                        <SortIcon dir={sort?.col === col ? sort.dir : null} />
+                      </div>
+                    </th>
+                  );
+                })}
                 <th></th>
               </tr>
             </thead>
@@ -240,7 +316,7 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                   </td>
                 </tr>
               ) : (
-                filtered.map(row => (
+                paginated.map(row => (
                   <tr key={row.id}>
                     <td>
                       <div className="seg-row-name">{row.name}</div>
@@ -266,13 +342,19 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
                     <td>
                       <div className="seg-creator">{row.createdBy}</div>
                     </td>
-                    <td>
+                    <td style={{ width: 180, maxWidth: 180 }}>
                       {row.usedIn.length > 0 ? (
-                        <div className="seg-used-in">
-                          {row.usedIn.map((u, i) => (
-                            <span key={i} className="seg-campaign-pill">{u}</span>
-                          ))}
-                        </div>
+                        <span
+                          title={row.usedIn.join('\n')}
+                          style={{ fontSize: 12.5, color: 'var(--crm-fg2)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'default' }}
+                        >
+                          {row.usedIn.slice(0, 3).join(', ')}
+                          {row.usedIn.length > 3 && (
+                            <span style={{ color: 'var(--crm-blue)', fontWeight: 500, marginLeft: 4 }}>
+                              +{row.usedIn.length - 3} more
+                            </span>
+                          )}
+                        </span>
                       ) : (
                         <span style={{ color: 'var(--crm-fg4)', fontSize: 12 }}>—</span>
                       )}
@@ -301,6 +383,24 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
             </tbody>
           </table>
         </div>
+
+        {/* ── Pagination ── */}
+        {filtered.length > PAGE_SIZE && (
+          <div className="seg-players-pager">
+            <span className="pager-info">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="pager-controls">
+              <button className="pager-btn" onClick={() => setPage(p => p - 1)} disabled={page === 1}>‹</button>
+              {pageNumbers().map((n, i) =>
+                n === '…'
+                  ? <span key={`e${i}`} className="pager-ellipsis">…</span>
+                  : <button key={n} className={'pager-btn' + (page === n ? ' active' : '')} onClick={() => setPage(n as number)}>{n}</button>
+              )}
+              <button className="pager-btn" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>›</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Delete confirmation modal */}

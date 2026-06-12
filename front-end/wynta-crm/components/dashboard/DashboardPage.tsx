@@ -9,8 +9,34 @@ import {
   fetchDashboardCampaigns,
   fetchDashboardAnalytics,
   setWindowDays,
+  setDateRange,
+  setCompareRange,
   selectDashboardWindowDays,
+  selectDashboardDateRange,
+  selectDashboardCompareRange,
 } from '../../store/slices/dashboardSlice';
+
+function toISO(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+function defaultRange(days: number): { start: string; end: string } {
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(today.getDate() - (days - 1));
+  return { start: toISO(start), end: toISO(today) };
+}
+
+function defaultCompare(range: { start: string; end: string }): { start: string; end: string } {
+  const start = new Date(range.start);
+  const end   = new Date(range.end);
+  const days  = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  const compEnd   = new Date(start); compEnd.setDate(compEnd.getDate() - 1);
+  const compStart = new Date(compEnd); compStart.setDate(compStart.getDate() - (days - 1));
+  return { start: toISO(compStart), end: toISO(compEnd) };
+}
 import { getToken } from 'wynta-react-common/services/tokenRegistry';
 import QuickStats        from './QuickStats';
 import ChannelReach      from './ChannelReach';
@@ -20,36 +46,39 @@ import CampaignsTable    from './CampaignsTable';
 import AnalyticsChart    from './AnalyticsChart';
 import PlayerHealth      from './PlayerHealth';
 import SegmentsBreakdown from './SegmentsBreakdown';
+import DateRangePicker   from './DateRangePicker';
 
-const WINDOW_OPTIONS = [
-  { label: 'Last 7 days',  value: 7  },
-  { label: 'Last 14 days', value: 14 },
-  { label: 'Last 30 days', value: 30 },
-];
-
-export default function DashboardPage() {
+export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: string) => void }) {
   const dispatch   = useAppDispatch();
-  const windowDays = useAppSelector(selectDashboardWindowDays);
+  const windowDays   = useAppSelector(selectDashboardWindowDays);
+  const dateRange    = useAppSelector(selectDashboardDateRange);
+  const compareRange = useAppSelector(selectDashboardCompareRange);
   const pathname   = usePathname();
 
-  function loadAll(w: number) {
-    dispatch(fetchDashboardSummary({ windowDays: w }));
-    dispatch(fetchDashboardChannels({ windowDays: w }));
+  function loadAll(
+    w: number,
+    range: { start: string; end: string },
+    compare?: { start: string; end: string },
+  ) {
+    dispatch(fetchDashboardSummary({ windowDays: w, startDate: range.start, endDate: range.end, compareStart: compare?.start, compareEnd: compare?.end }));
+    dispatch(fetchDashboardChannels({ windowDays: w, startDate: range.start, endDate: range.end }));
     dispatch(fetchDashboardSegments({}));
     dispatch(fetchDashboardCampaigns({}));
-    dispatch(fetchDashboardAnalytics({ windowDays: 30 }));
+    dispatch(fetchDashboardAnalytics({ windowDays: w, startDate: range.start, endDate: range.end, compareStart: compare?.start, compareEnd: compare?.end }));
   }
 
   useEffect(() => {
+    const range   = dateRange   ?? defaultRange(windowDays);
+    const compare = compareRange ?? defaultCompare(range);
     if (getToken()) {
-      loadAll(windowDays);
+      loadAll(windowDays, range, compare);
       return;
     }
     // Token not ready yet (first load race) — poll until available
     const interval = setInterval(() => {
       if (getToken()) {
         clearInterval(interval);
-        loadAll(windowDays);
+        loadAll(windowDays, range, compare);
       }
     }, 300);
     return () => clearInterval(interval);
@@ -57,43 +86,27 @@ export default function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  function handleWindowChange(w: number) {
+  function handleWindowChange(
+    w: number,
+    range: { start: string; end: string },
+    compare?: { start: string; end: string },
+  ) {
     dispatch(setWindowDays(w));
-    loadAll(w);
+    dispatch(setDateRange(range));
+    dispatch(setCompareRange(compare ?? null));
+    loadAll(w, range, compare);
   }
 
   return (
     <div style={{ padding: '20px 24px 48px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header — matches .seg-page-header / .cp-page-header pattern */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: -14 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 600, color: 'var(--crm-fg1)', lineHeight: 1.2, marginBottom: 4 }}>Dashboard</h1>
-          <p style={{ fontSize: 13, color: 'var(--crm-fg3)' }}>Overview of players, campaigns and channel performance</p>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: 'var(--crm-fg1)', lineHeight: 1.2, marginTop: 25 }}>Quick Stats</h1>
+          {/* <p style={{ fontSize: 13, color: 'var(--crm-fg3)' }}>Overview of players, campaigns and channel performance</p> */}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <select
-            value={windowDays}
-            onChange={e => handleWindowChange(Number(e.target.value))}
-            style={{
-              height: 36, padding: '0 10px', border: '1px solid var(--crm-border-md)',
-              borderRadius: 4, background: 'var(--crm-white)', color: 'var(--crm-fg2)',
-              fontSize: 13, fontFamily: 'inherit', cursor: 'pointer', outline: 'none',
-            }}
-          >
-            {WINDOW_OPTIONS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => loadAll(windowDays)}
-            style={{
-              height: 36, padding: '0 14px', border: '1px solid var(--crm-border-md)',
-              borderRadius: 4, background: 'var(--crm-white)', color: 'var(--crm-fg2)',
-              fontSize: 13, fontFamily: 'inherit', fontWeight: 500, cursor: 'pointer',
-            }}
-          >
-            Refresh
-          </button>
+          <DateRangePicker windowDays={windowDays} onChange={handleWindowChange} />
         </div>
       </div>
 
@@ -103,20 +116,20 @@ export default function DashboardPage() {
       {/* Row 2: Channel reach + Player segments */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <ChannelReach />
-        <PlayerSegments />
+        <PlayerSegments onNavigate={onNavChange} />
       </div>
 
       {/* Row 3: All-channels performance table */}
-      <ChannelsTable />
+      <ChannelsTable onNavigate={onNavChange} />
 
       {/* Row 4: Live campaigns table */}
-      <CampaignsTable />
+      <CampaignsTable onNavigate={onNavChange} />
 
-      {/* Row 5: Analytics chart + MTD panel */}
+      {/* Row 5: Analytics chart */}
       <AnalyticsChart />
 
       {/* Row 6: Player health + Segments breakdown */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
         <PlayerHealth />
         <SegmentsBreakdown />
       </div>

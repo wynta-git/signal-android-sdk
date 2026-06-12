@@ -8,6 +8,7 @@
 
   --g50:  #f7f8fa;
   --g100: #f0f2f5;
+  --wynta-grey-100: #f0f2f5;
   --g150: #e8eaee;
   --g200: #dde1e8;
   --g300: #c5ccd8;
@@ -345,7 +346,7 @@ html, body {
 /* Stat cards row */
 .seg-stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -1243,10 +1244,11 @@ html, body {
 .cwiz-schedule-group-label { font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--crm-fg4,#9AA0A6); margin-bottom:4px; }
 .cwiz-schedule-title { font-size:14px; font-weight:600; color:var(--crm-fg1,#1F2430); margin-bottom:14px; }
 .cwiz-radio-label { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--crm-fg2,#3F4652); cursor:pointer; }
-.cwiz-delivery-list { display:flex; flex-direction:column; gap:12px; }
-.cwiz-delivery-row { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--crm-fg2,#3F4652); }
-.cwiz-delivery-text { flex:1; }
-.cwiz-delivery-num { width:60px; height:30px; padding:0 8px; border:1px solid var(--crm-border-md,#DDE0E4); border-radius:4px; font-size:12.5px; font-family:inherit; text-align:center; outline:none; }
+.cwiz-delivery-list { display:grid; grid-template-columns:36px 1fr 60px auto; align-items:center; column-gap:10px; row-gap:14px; }
+.cwiz-delivery-row { display:contents; font-size:13px; color:var(--crm-fg2,#3F4652); }
+.cwiz-delivery-row > * { font-size:13px; color:var(--crm-fg2,#3F4652); }
+.cwiz-delivery-text { }
+.cwiz-delivery-num { width:60px; height:30px; padding:0 15px 0 8px; border:1px solid var(--crm-border-md,#DDE0E4); border-radius:4px; font-size:12.5px; font-family:inherit; text-align:center; outline:none; }
 .cwiz-delivery-unit { height:30px; padding:0 8px; border:1px solid var(--crm-border-md,#DDE0E4); border-radius:4px; font-size:12.5px; font-family:inherit; appearance:none; background:#fff; cursor:pointer; outline:none; }
 
 /* Wizard footer */

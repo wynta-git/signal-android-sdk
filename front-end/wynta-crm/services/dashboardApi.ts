@@ -17,6 +17,7 @@ const authHeader = () => ({
 export interface TrackedMetric {
   value: number | null;
   tracked: boolean;
+  change_pct?: number | null;
 }
 
 export interface QuickStats {
@@ -25,7 +26,7 @@ export interface QuickStats {
   live_campaigns:    { value: number };
   active_segments:   { value: number };
   messages_sent:     { value: number; change_pct?: number | null };
-  delivery_rate:     { value: number | null };
+  delivery_rate:     { value: number | null; change_pct?: number | null };
   open_rate:         TrackedMetric;
   ctr:               TrackedMetric;
   opt_outs:          TrackedMetric;
@@ -43,7 +44,7 @@ export interface PlayerHealth {
   churned: HealthBucket;
 }
 
-export interface ChannelOptinEntry { count: number; approximate?: boolean; }
+export interface ChannelOptinEntry { count: number; approximate?: boolean; change_pct?: number | null; }
 
 export interface SummaryData {
   window_days: number;
@@ -120,14 +121,34 @@ export interface AnalyticsData {
 
 // ── Fetch functions ───────────────────────────────────────────────────────────
 
-export async function fetchSummary(projectId: string, windowDays = 30): Promise<SummaryData> {
-  const res = await fetch(`${ROOT(projectId)}/summary?window_days=${windowDays}`, { headers: authHeader() });
+export async function fetchSummary(
+  projectId: string,
+  windowDays = 30,
+  startDate?: string,
+  endDate?: string,
+  compareStart?: string,
+  compareEnd?: string,
+): Promise<SummaryData> {
+  const params = new URLSearchParams({ window_days: String(windowDays) });
+  if (startDate)    params.set('start_date',    startDate);
+  if (endDate)      params.set('end_date',      endDate);
+  if (compareStart) params.set('compare_start', compareStart);
+  if (compareEnd)   params.set('compare_end',   compareEnd);
+  const res = await fetch(`${ROOT(projectId)}/summary?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchSummary failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchChannels(projectId: string, windowDays = 30): Promise<ChannelData[]> {
-  const res = await fetch(`${ROOT(projectId)}/channels?window_days=${windowDays}`, { headers: authHeader() });
+export async function fetchChannels(
+  projectId: string,
+  windowDays = 30,
+  startDate?: string,
+  endDate?: string,
+): Promise<ChannelData[]> {
+  const params = new URLSearchParams({ window_days: String(windowDays) });
+  if (startDate) params.set('start_date', startDate);
+  if (endDate)   params.set('end_date',   endDate);
+  const res = await fetch(`${ROOT(projectId)}/channels?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchChannels failed: ${res.status}`);
   const data = await res.json();
   return Array.isArray(data) ? data : (data.channels ?? data.items ?? []);
@@ -151,8 +172,20 @@ export async function fetchCampaigns(projectId: string, limit = 10, offset = 0):
   return data;
 }
 
-export async function fetchAnalytics(projectId: string, windowDays = 30): Promise<AnalyticsData> {
-  const res = await fetch(`${ROOT(projectId)}/analytics?window_days=${windowDays}`, { headers: authHeader() });
+export async function fetchAnalytics(
+  projectId: string,
+  windowDays = 30,
+  startDate?: string,
+  endDate?: string,
+  compareStart?: string,
+  compareEnd?: string,
+): Promise<AnalyticsData> {
+  const params = new URLSearchParams({ window_days: String(windowDays) });
+  if (startDate)    params.set('start_date',    startDate);
+  if (endDate)      params.set('end_date',      endDate);
+  if (compareStart) params.set('compare_start', compareStart);
+  if (compareEnd)   params.set('compare_end',   compareEnd);
+  const res = await fetch(`${ROOT(projectId)}/analytics?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchAnalytics failed: ${res.status}`);
   return res.json();
 }

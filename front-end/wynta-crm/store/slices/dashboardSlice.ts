@@ -9,12 +9,15 @@ const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
+interface DateRange    { start: string; end: string; }
+interface CompareRange { start: string; end: string; }
+
 interface DashboardState {
-  summary:   SummaryData   | null;
-  channels:  ChannelData[] | null;
-  segments:  SegmentsData  | null;
-  campaigns: CampaignsData | null;
-  analytics: AnalyticsData | null;
+  summary:      SummaryData   | null;
+  channels:     ChannelData[] | null;
+  segments:     SegmentsData  | null;
+  campaigns:    CampaignsData | null;
+  analytics:    AnalyticsData | null;
   status: {
     summary:   AsyncStatus;
     channels:  AsyncStatus;
@@ -22,15 +25,17 @@ interface DashboardState {
     campaigns: AsyncStatus;
     analytics: AsyncStatus;
   };
-  windowDays: number;
+  windowDays:   number;
+  dateRange:    DateRange    | null;
+  compareRange: CompareRange | null;
 }
 
 const initialState: DashboardState = {
-  summary:   null,
-  channels:  null,
-  segments:  null,
-  campaigns: null,
-  analytics: null,
+  summary:      null,
+  channels:     null,
+  segments:     null,
+  campaigns:    null,
+  analytics:    null,
   status: {
     summary:   'idle',
     channels:  'idle',
@@ -38,21 +43,29 @@ const initialState: DashboardState = {
     campaigns: 'idle',
     analytics: 'idle',
   },
-  windowDays: 7,
+  windowDays:   7,
+  dateRange:    null,
+  compareRange: null,
 };
 
 // ── Thunks ────────────────────────────────────────────────────────────────────
 
 export const fetchDashboardSummary = createAsyncThunk(
   'dashboard/summary',
-  ({ projectId, windowDays }: { projectId?: string; windowDays?: number } = {}) =>
-    dashboardApi.fetchSummary(projectId ?? PROJECT_ID, windowDays ?? 7)
+  ({ projectId, windowDays, startDate, endDate, compareStart, compareEnd }: {
+    projectId?: string; windowDays?: number;
+    startDate?: string; endDate?: string;
+    compareStart?: string; compareEnd?: string;
+  } = {}) =>
+    dashboardApi.fetchSummary(projectId ?? PROJECT_ID, windowDays ?? 7, startDate, endDate, compareStart, compareEnd)
 );
 
 export const fetchDashboardChannels = createAsyncThunk(
   'dashboard/channels',
-  ({ projectId, windowDays }: { projectId?: string; windowDays?: number } = {}) =>
-    dashboardApi.fetchChannels(projectId ?? PROJECT_ID, windowDays ?? 7)
+  ({ projectId, windowDays, startDate, endDate }: {
+    projectId?: string; windowDays?: number; startDate?: string; endDate?: string;
+  } = {}) =>
+    dashboardApi.fetchChannels(projectId ?? PROJECT_ID, windowDays ?? 7, startDate, endDate)
 );
 
 export const fetchDashboardSegments = createAsyncThunk(
@@ -69,8 +82,12 @@ export const fetchDashboardCampaigns = createAsyncThunk(
 
 export const fetchDashboardAnalytics = createAsyncThunk(
   'dashboard/analytics',
-  ({ projectId, windowDays }: { projectId?: string; windowDays?: number } = {}) =>
-    dashboardApi.fetchAnalytics(projectId ?? PROJECT_ID, windowDays ?? 30)
+  ({ projectId, windowDays, startDate, endDate, compareStart, compareEnd }: {
+    projectId?: string; windowDays?: number;
+    startDate?: string; endDate?: string;
+    compareStart?: string; compareEnd?: string;
+  } = {}) =>
+    dashboardApi.fetchAnalytics(projectId ?? PROJECT_ID, windowDays ?? 7, startDate, endDate, compareStart, compareEnd)
 );
 
 // ── Slice ─────────────────────────────────────────────────────────────────────
@@ -81,6 +98,12 @@ const dashboardSlice = createSlice({
   reducers: {
     setWindowDays(state, action: { payload: number }) {
       state.windowDays = action.payload;
+    },
+    setDateRange(state, action: { payload: DateRange | null }) {
+      state.dateRange = action.payload;
+    },
+    setCompareRange(state, action: { payload: CompareRange | null }) {
+      state.compareRange = action.payload;
     },
   },
   extraReducers(builder) {
@@ -107,7 +130,7 @@ const dashboardSlice = createSlice({
   },
 });
 
-export const { setWindowDays } = dashboardSlice.actions;
+export const { setWindowDays, setDateRange, setCompareRange } = dashboardSlice.actions;
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
@@ -119,6 +142,8 @@ export const selectDashboardSegments   = (s: { dashboard?: DashboardState }) => 
 export const selectDashboardCampaigns  = (s: { dashboard?: DashboardState }) => safe(s).campaigns;
 export const selectDashboardAnalytics  = (s: { dashboard?: DashboardState }) => safe(s).analytics;
 export const selectDashboardStatus     = (s: { dashboard?: DashboardState }) => safe(s).status;
-export const selectDashboardWindowDays = (s: { dashboard?: DashboardState }) => safe(s).windowDays;
+export const selectDashboardWindowDays   = (s: { dashboard?: DashboardState }) => safe(s).windowDays;
+export const selectDashboardDateRange    = (s: { dashboard?: DashboardState }) => safe(s).dateRange;
+export const selectDashboardCompareRange = (s: { dashboard?: DashboardState }) => safe(s).compareRange;
 
 export default dashboardSlice.reducer;

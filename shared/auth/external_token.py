@@ -12,6 +12,8 @@ EXTERNAL_JWT_ALGORITHM = "HS256"
 _PROGRAM_ID_TO_PROJECT_ID: dict[int, str] = {
     233: "proj_demo",
     92: "proj_demo",
+    8: "proj_demo",
+    23: "proj_demo",
 }
 
 

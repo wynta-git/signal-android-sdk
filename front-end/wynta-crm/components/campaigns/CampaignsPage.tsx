@@ -93,7 +93,18 @@ function formatRevenue(n?: number) {
 /* ------------------------------------------------------------------ */
 /* Component                                                            */
 /* ------------------------------------------------------------------ */
-export default function CampaignsPage() {
+type CpSortCol = 'name' | 'objective' | 'segment' | 'channel' | 'schedule' | 'status' | 'revenue' | 'activity';
+
+function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
+  return (
+    <svg width="10" height="12" viewBox="0 0 10 14" fill="none" style={{ flexShrink: 0, color: 'var(--crm-blue)' }}>
+      <path d="M5 1L2 5h6L5 1z" fill="currentColor" opacity={dir === 'asc' ? 1 : 0.35} />
+      <path d="M5 13L2 9h6l-3 4z" fill="currentColor" opacity={dir === 'desc' ? 1 : 0.35} />
+    </svg>
+  );
+}
+
+export default function CampaignsPage({ autoOpenAdd }: { autoOpenAdd?: boolean }) {
   const dispatch     = useDispatch<any>();
   const apiCampaigns = useAppSelector(selectAllCampaigns);
   const status       = useAppSelector(selectCampaignsStatus);
@@ -112,25 +123,64 @@ export default function CampaignsPage() {
   const [search,    setSearch]    = useState('');
   const [objective, setObjective] = useState('');
   const [channel,   setChannel]   = useState('');
+  const [sort,      setSort]      = useState<{ col: CpSortCol; dir: 'asc' | 'desc' } | null>(null);
+  const [page,      setPage]      = useState(1);
+  const PAGE_SIZE = 10;
 
-  const filtered = useMemo(() => rows
-    .filter(r => {
+  const filtered = useMemo(() => {
+    const base = rows.filter(r => {
       if (search    && !r.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (objective && r.objective !== objective) return false;
       if (channel   && r.channel   !== channel)   return false;
       return true;
-    })
-    .sort((a, b) => {
+    });
+    return [...base].sort((a, b) => {
+      if (sort) {
+        const mul = sort.dir === 'asc' ? 1 : -1;
+        let cmp = 0;
+        switch (sort.col) {
+          case 'name':     cmp = a.name.localeCompare(b.name); break;
+          case 'objective': cmp = (a.objective ?? '').localeCompare(b.objective ?? ''); break;
+          case 'segment':  cmp = (a.segment_name ?? '').localeCompare(b.segment_name ?? ''); break;
+          case 'channel':  cmp = channelLabel(a.channel).localeCompare(channelLabel(b.channel)); break;
+          case 'schedule': cmp = scheduleTypeLabel(a).localeCompare(scheduleTypeLabel(b)); break;
+          case 'status':   cmp = a.status.localeCompare(b.status); break;
+          case 'revenue':  cmp = (a.revenue_impact ?? 0) - (b.revenue_impact ?? 0); break;
+          case 'activity': {
+            const ta = a.last_activity ? new Date(a.last_activity).getTime() : 0;
+            const tb = b.last_activity ? new Date(b.last_activity).getTime() : 0;
+            cmp = ta - tb; break;
+          }
+        }
+        if (cmp !== 0) return cmp * mul;
+      }
       const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
       const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
       return tb - ta;
-    }), [rows, search, objective, channel]);
+    });
+  }, [rows, search, objective, channel, sort]);
+
+  useEffect(() => { setPage(1); }, [search, objective, channel, sort]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function pageNumbers(): (number | '…')[] {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages: (number | '…')[] = [1];
+    if (page > 3) pages.push('…');
+    for (let p = Math.max(2, page - 1); p <= Math.min(totalPages - 1, page + 1); p++) pages.push(p);
+    if (page < totalPages - 2) pages.push('…');
+    pages.push(totalPages);
+    return pages;
+  }
 
   const objectives = useMemo(() => [...new Set(rows.map(r => r.objective).filter(Boolean))], [rows]);
   const channels   = useMemo(() => [...new Set(rows.map(r => r.channel))], [rows]);
 
   /* Modals */
   const [showChannelModal, setShowChannelModal] = useState(false);
+  useEffect(() => { if (autoOpenAdd) setShowChannelModal(true); }, [autoOpenAdd]);
   const [wizardChannel,    setWizardChannel]    = useState<string | null>(null);
   const [editCampaign,     setEditCampaign]     = useState<Campaign | null>(null);
   const [wizardViewMode,   setWizardViewMode]   = useState(false);
@@ -240,7 +290,7 @@ export default function CampaignsPage() {
         </div>
         <div className="cp-page-actions">
           <button className="seg-btn-secondary" type="button" onClick={handleExport}>
-            <Icon name="download" size={14} /> Export CSV
+            <Icon name="download" size={14} /> Export
           </button>
           <button className="seg-btn-primary" type="button" onClick={() => setShowChannelModal(true)}>
             <Icon name="plus" size={14} /> Add Campaign
@@ -288,14 +338,17 @@ export default function CampaignsPage() {
           <table className="cp-table">
             <thead>
               <tr>
-                <th>Campaign</th>
-                <th>Objective</th>
-                <th>Behavioral Segment</th>
-                <th>Channels</th>
-                <th>Schedule</th>
-                <th>Status</th>
-                <th>Revenue Impact</th>
-                <th>Last Activity</th>
+                {(['name','objective','segment','channel','schedule','status','revenue','activity'] as CpSortCol[]).map((col, i) => {
+                  const labels: Record<CpSortCol, string> = { name: 'Campaign', objective: 'Objective', segment: 'Behavioral Segment', channel: 'Channels', schedule: 'Schedule', status: 'Status', revenue: 'Revenue Impact', activity: 'Last Activity' };
+                  return (
+                    <th key={col} style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setSort(s => s?.col === col ? { col, dir: s.dir === 'desc' ? 'asc' : 'desc' } : { col, dir: 'desc' })}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {labels[col]}
+                        <SortIcon dir={sort?.col === col ? sort.dir : null} />
+                      </div>
+                    </th>
+                  );
+                })}
                 <th></th>
               </tr>
             </thead>
@@ -308,7 +361,7 @@ export default function CampaignsPage() {
                 <tr><td colSpan={9} className="cp-table-empty">
                   {rows.length === 0 ? 'No campaigns yet. Click + Add Campaign to create one.' : 'No campaigns match your filters.'}
                 </td></tr>
-              ) : filtered.map(c => {
+              ) : paginated.map(c => {
                 const badge = STATUS_CFG[c.status] ?? { label: c.status, cls: 'cp-badge cp-badge--draft' };
                 return (
                   <tr key={c.id}>
@@ -387,6 +440,24 @@ export default function CampaignsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* ── Pagination ── */}
+        {filtered.length > PAGE_SIZE && (
+          <div className="seg-players-pager">
+            <span className="pager-info">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div className="pager-controls">
+              <button className="pager-btn" onClick={() => setPage(p => p - 1)} disabled={page === 1}>‹</button>
+              {pageNumbers().map((n, i) =>
+                n === '…'
+                  ? <span key={`e${i}`} className="pager-ellipsis">…</span>
+                  : <button key={n} className={'pager-btn' + (page === n ? ' active' : '')} onClick={() => setPage(n as number)}>{n}</button>
+              )}
+              <button className="pager-btn" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>›</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Modals ── */}

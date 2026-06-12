@@ -1,8 +1,12 @@
 import type { AuthResponse, Brand, SystemUser } from "../types";
+
+const BONUS_API =
+  (process.env.NEXT_PUBLIC_BONUS_API_URL || "http://3.7.48.14:8006") +
+  "/api/v1/system";
 import { getToken } from "./tokenRegistry";
 
 const AUTH_API =
-  (process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:8002") +
+  (process.env.NEXT_PUBLIC_AUTH_API_URL || "http://3.7.48.14:8002") +
   "/api/v1/system";
 
 function authHeaders(): HeadersInit {
@@ -17,11 +21,15 @@ export const api = {
     return res.json();
   },
   async fetchBrands(userId: number = 1): Promise<Brand[]> {
-    const res = await fetch(`${AUTH_API}/brands?user_id=${userId}`, { headers: authHeaders() });
+    const res = await fetch(`${AUTH_API}/brands?user_id=${userId}`, {
+      headers: authHeaders(),
+    });
     if (!res.ok) throw new Error("Failed to fetch brands");
     return res.json();
   },
-  async authenticateWithBridgeToken(credentials: { token: string; }): Promise<AuthResponse> {
+  async authenticateWithBridgeToken(credentials: {
+    token: string;
+  }): Promise<AuthResponse> {
     const res = await fetch(`${AUTH_API}/exchange_token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

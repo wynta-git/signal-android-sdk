@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
@@ -57,7 +58,74 @@ async def list_segments(
     if brand_id is not None:
         query["brand_id"] = brand_id
     cursor = db[SEGMENTS_COL].find(query, {"_id": 0})
-    return await cursor.to_list(length=None)
+    segments = await cursor.to_list(length=None)
+
+    if segments:
+        segment_ids = [s["segment_id"] for s in segments]
+        campaign_cursor = db["campaigns"].find(
+            {"project_id": project_id, "audience.segment_id": {"$in": segment_ids}},
+            {"_id": 0, "name": 1, "audience.segment_id": 1},
+        )
+        campaigns = await campaign_cursor.to_list(length=None)
+        usage: dict[str, list[str]] = {}
+        for c in campaigns:
+            seg_id = (c.get("audience") or {}).get("segment_id")
+            if seg_id:
+                usage.setdefault(seg_id, []).append(c["name"])
+        for seg in segments:
+            seg["used_by_campaigns"] = usage.get(seg["segment_id"], [])
+
+    segments.sort(key=lambda s: s.get("members_count") or 0, reverse=True)
+    return segments
+
+
+async def get_segment_stats(
+    db: AsyncIOMotorDatabase, project_id: str, redis: Redis
+) -> dict[str, Any]:
+    (
+        total_segments,
+        active_campaigns_using,
+        reachable_count,
+        total_users,
+        push_agg,
+        segment_ids,
+    ) = await asyncio.gather(
+        db[SEGMENTS_COL].count_documents({"project_id": project_id}),
+        db["campaigns"].count_documents({
+            "project_id": project_id,
+            "audience.segment_id": {"$exists": True, "$ne": None},
+        }),
+        db["users"].count_documents({
+            "project_id": project_id,
+            "$or": [
+                {"traits.email_hash": {"$exists": True, "$ne": None}},
+                {"traits.phone_hash": {"$exists": True, "$ne": None}},
+            ],
+        }),
+        db["users"].count_documents({"project_id": project_id}),
+        db["device_tokens"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$user_id"}},
+            {"$count": "count"},
+        ]).to_list(length=1),
+        db[SEGMENTS_COL].distinct("segment_id", {"project_id": project_id}),
+    )
+    push_count = push_agg[0]["count"] if push_agg else 0
+    estimated_reach = min(reachable_count + push_count, total_users)
+
+    if segment_ids:
+        keys = [_members_key(project_id, sid) for sid in segment_ids]
+        union = await redis.sunion(*keys)
+        segment_unique_reach = len(union)
+    else:
+        segment_unique_reach = 0
+
+    return {
+        "total_segments": total_segments,
+        "active_campaigns_using": active_campaigns_using,
+        "estimated_reach": estimated_reach,
+        "segment_unique_reach": segment_unique_reach,
+    }
 
 
 async def update_segment(

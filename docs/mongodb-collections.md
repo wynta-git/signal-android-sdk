@@ -19,6 +19,7 @@ Database: `pam`
 | `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook templates. |
 | `notification_deliveries` | notifications-engine | analytics | Per-user, per-campaign delivery status. |
 | `device_tokens` | api-service | notifications-engine | Push device tokens (FCM/APNs) per user. |
+| `dashboard_boosts` | campaign-engine admin API | campaign-engine | Per-project additive offsets applied to dashboard summary counts. |
 
 ## Schemas
 
@@ -239,6 +240,26 @@ Database: `pam`
 //        segmentation-engine (query-time col_map enrichment, meta property discovery).
 // canonical field can be a base column (amount, currency, order_id) or any dynamic column name.
 // Alias wins on conflict: if both source and canonical arrive in the same event, source value is used.
+```
+
+### `dashboard_boosts`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  boosts: {
+    "quick_stats.reachable_players": 1000,   // additive offset; omit field to apply no boost
+    "quick_stats.messages_sent": 5000,
+    "player_health.total_users": 2000,
+    // supported keys: quick_stats.{reachable_players,active_this_week,live_campaigns,
+    //   active_segments,messages_sent}, player_health.{total_users,new,healthy,at_risk,churned},
+    //   channel_optin.{push,email,sms}
+  },
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1 } unique
+// Owner: campaign-engine admin API (PUT /dashboard/boosts). Read by: campaign-engine (GET /summary).
+// delivery_rate is intentionally excluded — it's a ratio; boosting numerator alone would distort it.
 ```
 
 ## Conventions

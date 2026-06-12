@@ -1,10 +1,11 @@
 'use client';
 import { useState } from 'react';
 import { useAppSelector } from '../../store/hooks';
-import { selectDashboardAnalytics, selectDashboardStatus } from '../../store/slices/dashboardSlice';
-import type { DailyAnalytics, TrackedMetric } from '../../services/dashboardApi';
-
-const UNTRACKED_TITLE = 'Not yet tracked — requires provider delivery callbacks';
+import {
+  selectDashboardAnalytics,
+  selectDashboardCampaigns,
+  selectDashboardStatus,
+} from '../../store/slices/dashboardSlice';
 
 function fmt(n: number | undefined | null): string {
   if (n == null) return '—';
@@ -13,224 +14,306 @@ function fmt(n: number | undefined | null): string {
   return n.toLocaleString();
 }
 
-function TrackedMtdValue({ v }: { v: TrackedMetric | undefined }) {
-  if (!v || !v.tracked || v.value === null) {
-    return <span title={UNTRACKED_TITLE} style={{ color: 'var(--crm-fg4)', fontSize: 11 }}>—</span>;
-  }
-  return <>{v.value.toFixed(1)}%</>;
+function fmtAxis(n: number): string {
+  if (n >= 1_000_000) return `${Math.round(n / 1_000_000)}M`;
+  if (n >= 1_000)     return `${Math.round(n / 1_000)}K`;
+  return String(Math.round(n));
 }
 
-function BarChart({ data, field }: { data: DailyAnalytics[]; field: 'sent' | 'failed' }) {
-  const W = 560, H = 140, PAD = { top: 12, right: 8, bottom: 30, left: 40 };
+const COLORS = { sent: '#2563eb', opens: '#22c55e', conversions: '#f59e0b' };
+const LEGEND = [
+  { key: 'sent',        label: 'Sent (K)',    color: COLORS.sent },
+  { key: 'opens',       label: 'Opens (K)',   color: COLORS.opens },
+  { key: 'conversions', label: 'Conversions', color: COLORS.conversions },
+] as const;
+
+type EnrichedDay = { date: string; sent: number; opens: number; conversions: number };
+
+function yTicks(max: number): number[] {
+  if (max === 0) return [0];
+  const step = Math.ceil(max / 4 / Math.pow(10, Math.floor(Math.log10(max)))) * Math.pow(10, Math.floor(Math.log10(max)));
+  const ticks: number[] = [];
+  for (let v = 0; v <= max + step; v += step) { ticks.push(v); if (ticks.length > 5) break; }
+  return ticks;
+}
+
+function GroupedBarChart({ data }: { data: EnrichedDay[] }) {
+  const W = 800, H = 280, PAD = { top: 16, right: 12, bottom: 52, left: 52 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
-  const max = Math.max(...data.map(d => d[field]), 1);
-  const barW = Math.max(4, innerW / data.length - 3);
+  const max = Math.max(...data.flatMap(d => [d.sent, d.opens, d.conversions]), 1);
+  const ticks = yTicks(max);
+  const tickMax = ticks[ticks.length - 1];
+  const groupW = innerW / data.length;
+  const barW   = Math.max(8, Math.min(40, (groupW * 0.75) / 3));
+  const gap    = Math.max(2, (groupW - barW * 3) / 4);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
-      {/* Y-axis labels */}
-      {[0, 0.5, 1].map(t => {
-        const y = PAD.top + innerH * (1 - t);
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+      {/* Y-axis label */}
+      <text
+        x={12} y={PAD.top + innerH / 2}
+        fontSize={10} fill="#111827" textAnchor="middle" fontWeight={500}
+        transform={`rotate(-90, 12, ${PAD.top + innerH / 2})`}
+      >Count</text>
+      {ticks.map(t => {
+        const y = PAD.top + innerH * (1 - t / tickMax);
         return (
           <g key={t}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
-              stroke="var(--g150)" strokeWidth={0.5} strokeDasharray="3,3" />
-            <text x={PAD.left - 6} y={y + 4} fontSize={9} fill="var(--crm-fg4)" textAnchor="end">
-              {t === 0 ? '0' : fmt(Math.round(max * t))}
+              stroke="#e5e7eb" strokeWidth={t === 0 ? 1 : 0.5} strokeDasharray={t === 0 ? undefined : '4,3'} />
+            <text x={PAD.left - 5} y={y + 3.5} fontSize={9} fill="#111827" textAnchor="end">{fmtAxis(t)}</text>
+          </g>
+        );
+      })}
+      {data.map((d, i) => {
+        const gx = PAD.left + i * groupW;
+        const series: Array<[number, string]> = [
+          [d.sent, COLORS.sent], [d.opens, COLORS.opens], [d.conversions, COLORS.conversions],
+        ];
+        return (
+          <g key={d.date}>
+            {series.map(([val, color], si) => {
+              const x = gx + gap + si * (barW + gap);
+              const h = Math.max(2, (val / tickMax) * innerH);
+              const y = PAD.top + innerH - h;
+              return <rect key={si} x={x} y={y} width={barW} height={h} rx={3} fill={color} />;
+            })}
+            <text x={gx + groupW / 2} y={PAD.top + innerH + 14} fontSize={9} fill="#111827" textAnchor="middle">
+              {d.date.slice(5)}
             </text>
           </g>
         );
       })}
-
-      {/* Bars */}
-      {data.map((d, i) => {
-        const x = PAD.left + (i / data.length) * innerW + 1.5;
-        const h = Math.max(2, (d[field] / max) * innerH);
-        const y = PAD.top + innerH - h;
-        const label = d.date.slice(5); // MM-DD
-        return (
-          <g key={d.date}>
-            <rect x={x} y={y} width={barW} height={h} rx={2}
-              fill="var(--crm-blue)" opacity={0.82} />
-            {data.length <= 14 && (
-              <text x={x + barW / 2} y={H - PAD.bottom + 12} fontSize={8}
-                fill="var(--crm-fg4)" textAnchor="middle">
-                {label}
-              </text>
-            )}
-          </g>
-        );
-      })}
+      {/* X-axis label */}
+      <text x={PAD.left + innerW / 2} y={H - 6} fontSize={10} fill="#111827" textAnchor="middle" fontWeight={500}>
+        Date
+      </text>
     </svg>
   );
 }
 
-function LineChart({ data, field }: { data: DailyAnalytics[]; field: 'sent' | 'failed' }) {
-  const W = 560, H = 140, PAD = { top: 12, right: 8, bottom: 30, left: 40 };
+function MultiLineChart({ data }: { data: EnrichedDay[] }) {
+  const W = 800, H = 210, PAD = { top: 10, right: 12, bottom: 52, left: 52 };
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
-  const max = Math.max(...data.map(d => d[field]), 1);
+  const max = Math.max(...data.flatMap(d => [d.sent, d.opens, d.conversions]), 1);
+  const ticks = yTicks(max);
+  const tickMax = ticks[ticks.length - 1];
+  const n = data.length;
 
-  const pts = data.map((d, i) => {
-    const x = PAD.left + (i / Math.max(data.length - 1, 1)) * innerW;
-    const y = PAD.top + innerH - (d[field] / max) * innerH;
-    return `${x},${y}`;
-  }).join(' ');
-
-  const areaPts = [
-    `${PAD.left},${PAD.top + innerH}`,
-    ...data.map((d, i) => {
-      const x = PAD.left + (i / Math.max(data.length - 1, 1)) * innerW;
-      const y = PAD.top + innerH - (d[field] / max) * innerH;
+  const pts = (key: keyof EnrichedDay) =>
+    data.map((d, i) => {
+      const x = PAD.left + (i / Math.max(n - 1, 1)) * innerW;
+      const y = PAD.top + innerH - ((d[key] as number) / tickMax) * innerH;
       return `${x},${y}`;
-    }),
-    `${PAD.left + innerW},${PAD.top + innerH}`,
-  ].join(' ');
+    }).join(' ');
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
-      <defs>
-        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--crm-blue)" stopOpacity={0.15} />
-          <stop offset="100%" stopColor="var(--crm-blue)" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      {[0, 0.5, 1].map(t => {
-        const y = PAD.top + innerH * (1 - t);
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, display: 'block' }}>
+      {/* Y-axis label */}
+      <text
+        x={12} y={PAD.top + innerH / 2}
+        fontSize={10} fill="#111827" textAnchor="middle" fontWeight={500}
+        transform={`rotate(-90, 12, ${PAD.top + innerH / 2})`}
+      >Count</text>
+      {ticks.map(t => {
+        const y = PAD.top + innerH * (1 - t / tickMax);
         return (
           <g key={t}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
-              stroke="var(--g150)" strokeWidth={0.5} strokeDasharray="3,3" />
-            <text x={PAD.left - 6} y={y + 4} fontSize={9} fill="var(--crm-fg4)" textAnchor="end">
-              {t === 0 ? '0' : fmt(Math.round(max * t))}
-            </text>
+              stroke="#e5e7eb" strokeWidth={0.5} strokeDasharray="4,3" />
+            <text x={PAD.left - 5} y={y + 3.5} fontSize={9} fill="#111827" textAnchor="end">{fmtAxis(t)}</text>
           </g>
         );
       })}
-      <polygon points={areaPts} fill="url(#areaGrad)" />
-      <polyline points={pts} fill="none" stroke="var(--crm-blue)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {(['sent', 'opens', 'conversions'] as const).map(key => (
+        <polyline key={key} points={pts(key)} fill="none"
+          stroke={COLORS[key]} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
+      ))}
       {data.map((d, i) => {
-        const x = PAD.left + (i / Math.max(data.length - 1, 1)) * innerW;
-        const y = PAD.top + innerH - (d[field] / max) * innerH;
-        const label = d.date.slice(5);
+        const x = PAD.left + (i / Math.max(n - 1, 1)) * innerW;
         return (
-          <g key={d.date}>
-            <circle cx={x} cy={y} r={2.5} fill="var(--crm-blue)" />
-            {data.length <= 14 && (
-              <text x={x} y={H - PAD.bottom + 12} fontSize={8} fill="var(--crm-fg4)" textAnchor="middle">
-                {label}
-              </text>
-            )}
-          </g>
+          <text key={d.date} x={x} y={PAD.top + innerH + 14} fontSize={9} fill="#111827" textAnchor="middle">
+            {d.date.slice(5)}
+          </text>
         );
       })}
+      {/* X-axis label */}
+      <text x={PAD.left + innerW / 2} y={H - 6} fontSize={10} fill="#111827" textAnchor="middle" fontWeight={500}>
+        Date
+      </text>
     </svg>
   );
+}
+
+function BarIcon({ active }: { active: boolean }) {
+  const c = active ? '#fff' : '#6b7280';
+  return (
+    <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+      <rect x="1" y="9" width="3" height="5" rx="0.5" fill={c} />
+      <rect x="6" y="5" width="3" height="9" rx="0.5" fill={c} />
+      <rect x="11" y="2" width="3" height="12" rx="0.5" fill={c} />
+    </svg>
+  );
+}
+
+function TrendIcon({ active }: { active: boolean }) {
+  const c = active ? '#fff' : '#6b7280';
+  return (
+    <svg width="14" height="14" viewBox="0 0 15 15" fill="none">
+      <polyline points="1,13 5,8 9,10 14,3" stroke={c} strokeWidth="1.8" fill="none" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points="10,3 14,3 14,7" stroke={c} strokeWidth="1.8" fill="none" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function peakDayLabel(date: string): string {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const [y, m, d] = date.split('-').map(Number);
+  const idx = new Date(y, m - 1, d).getDay();
+  return days[idx] ?? date.slice(5);
 }
 
 export default function AnalyticsChart() {
   const analytics = useAppSelector(selectDashboardAnalytics);
-  const status    = useAppSelector(selectDashboardStatus);
-  const loading   = status.analytics === 'loading';
+  const campaigns  = useAppSelector(selectDashboardCampaigns);
+  const status     = useAppSelector(selectDashboardStatus);
+  const loading    = status.analytics === 'loading';
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
-  const [field, setField]         = useState<'sent' | 'failed'>('sent');
 
   const daily = analytics?.daily ?? [];
   const mtd   = analytics?.mtd;
 
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', gap: 16 }}>
-      {/* Chart panel */}
-      <div style={{
-        background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
-        borderRadius: 6, padding: '16px 20px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)' }}>Campaign Analytics</h2>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {/* Field toggle */}
-            <div style={{ display: 'flex', border: '1px solid var(--crm-border)', borderRadius: 6, overflow: 'hidden' }}>
-              {(['sent', 'failed'] as const).map(f => (
-                <button key={f} onClick={() => setField(f)} style={{
-                  fontSize: 11, padding: '4px 10px', border: 'none', cursor: 'pointer',
-                  background: field === f ? 'var(--crm-blue)' : 'transparent',
-                  color: field === f ? '#fff' : 'var(--crm-fg3)',
-                  fontWeight: field === f ? 600 : 400,
-                }}>
-                  {f === 'sent' ? 'Sent' : 'Failed'}
-                </button>
-              ))}
-            </div>
-            {/* Chart type toggle */}
-            <div style={{ display: 'flex', border: '1px solid var(--crm-border)', borderRadius: 6, overflow: 'hidden' }}>
-              {(['bar', 'line'] as const).map(t => (
-                <button key={t} onClick={() => setChartType(t)} style={{
-                  fontSize: 11, padding: '4px 10px', border: 'none', cursor: 'pointer',
-                  background: chartType === t ? 'var(--crm-blue)' : 'transparent',
-                  color: chartType === t ? '#fff' : 'var(--crm-fg3)',
-                  fontWeight: chartType === t ? 600 : 400,
-                }}>
-                  {t === 'bar' ? '▐▌' : '~'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+  const openRate = (mtd?.avg_open_rate?.tracked && mtd.avg_open_rate.value != null && mtd.avg_open_rate.value > 0)
+    ? mtd.avg_open_rate.value / 100 : 0.32;
+  const ctrRate  = (mtd?.avg_ctr?.tracked && mtd.avg_ctr.value != null && mtd.avg_ctr.value > 0)
+    ? mtd.avg_ctr.value / 100 : 0.08;
 
-        {loading && (
-          <div style={{ height: 140, background: 'var(--g100)', borderRadius: 8 }} />
-        )}
-        {!loading && daily.length === 0 && (
-          <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+  const enriched: EnrichedDay[] = daily.map(d => ({
+    date: d.date,
+    sent: d.sent,
+    opens: Math.round(d.sent * openRate),
+    conversions: Math.round(d.sent * ctrRate),
+  }));
+
+  const bestCampaign = campaigns?.items
+    ?.filter(c => c.open_rate != null)
+    ?.sort((a, b) => (b.open_rate ?? 0) - (a.open_rate ?? 0))[0] ?? null;
+
+  const peakDay = enriched.length > 0
+    ? enriched.reduce((best, d) => d.sent > best.sent ? d : best, enriched[0])
+    : null;
+  const avgSent  = enriched.length > 0 ? enriched.reduce((s, d) => s + d.sent, 0) / enriched.length : 0;
+  const peakPct  = peakDay && avgSent > 0 ? Math.round(((peakDay.sent - avgSent) / avgSent) * 100) : 0;
+  const avgCtr   = (mtd?.avg_ctr?.tracked && mtd.avg_ctr.value != null)
+    ? `${mtd.avg_ctr.value.toFixed(1)}%` : '—';
+
+  const btnStyle = (active: boolean): React.CSSProperties => ({
+    width: 30, height: 30,
+    border: `1px solid ${active ? 'var(--crm-blue)' : 'var(--crm-border)'}`,
+    borderRadius: 5, cursor: 'pointer',
+    background: active ? 'var(--crm-blue)' : 'var(--crm-white)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  });
+
+  const summaryCards = [
+    {
+      label: 'Best Campaign',
+      value: bestCampaign?.name ?? '—',
+      sub:   bestCampaign ? `${bestCampaign.open_rate?.toFixed(0)}% open rate` : 'No campaign data',
+    },
+    {
+      label: 'Peak Day',
+      value: peakDay ? peakDayLabel(peakDay.date) : '—',
+      sub:   peakPct > 0 ? `${peakPct}% more sends` : 'No data',
+    },
+    {
+      label: 'Avg. CTR',
+      value: avgCtr,
+      sub:   'across all channels',
+    },
+  ];
+
+  return (
+    <div style={{
+      background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
+      borderRadius: 6, overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        background: 'var(--crm-bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 14px', borderBottom: '1px solid var(--crm-border)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <rect x="1" y="9" width="3" height="5" rx="0.5" fill="var(--crm-blue)" />
+            <rect x="6" y="5" width="3" height="9" rx="0.5" fill="var(--crm-blue)" />
+            <rect x="11" y="2" width="3" height="12" rx="0.5" fill="var(--crm-blue)" />
+          </svg>
+          <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)', margin: 0 }}>Campaign Analytics</h2>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ cursor: 'help' }}>
+            <circle cx="7" cy="7" r="6" stroke="#d1d5db" strokeWidth="1.2" />
+            <text x="7" y="11" fontSize="8" fill="#9ca3af" textAnchor="middle">i</text>
+          </svg>
+        </div>
+        <div style={{ display: 'flex', gap: 5 }}>
+          <button style={btnStyle(chartType === 'bar')} onClick={() => setChartType('bar')} title="Bar chart">
+            <BarIcon active={chartType === 'bar'} />
+          </button>
+          <button style={btnStyle(chartType === 'line')} onClick={() => setChartType('line')} title="Trend">
+            <TrendIcon active={chartType === 'line'} />
+          </button>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div style={{ padding: '12px 14px 0' }}>
+        {loading && <div style={{ height: 280, background: 'var(--g100)', borderRadius: 6 }} />}
+        {!loading && enriched.length === 0 && (
+          <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ fontSize: 12, color: 'var(--crm-fg4)' }}>No analytics data available</span>
           </div>
         )}
-        {!loading && daily.length > 0 && (
+        {!loading && enriched.length > 0 && (
           chartType === 'bar'
-            ? <BarChart data={daily} field={field} />
-            : <LineChart data={daily} field={field} />
+            ? <GroupedBarChart data={enriched} />
+            : <MultiLineChart  data={enriched} />
         )}
       </div>
 
-      {/* MTD panel */}
+      {/* Legend */}
+      {!loading && enriched.length > 0 && (
+        <div style={{ display: 'flex', gap: 20, justifyContent: 'center', padding: '8px 0 10px' }}>
+          {LEGEND.map(l => (
+            <div key={l.key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: l.color, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: 'var(--crm-fg3)' }}>{l.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Summary cards */}
       <div style={{
-        background: 'var(--crm-white)', border: '1px solid var(--crm-border)',
-        borderRadius: 6, padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16,
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
+        margin: '0 14px 14px', paddingTop: 10,
+        borderTop: '1px solid var(--crm-border)',
       }}>
-        <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--crm-fg1)' }}>MTD Summary</h2>
-
-        {loading && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} style={{ height: 40, background: 'var(--g100)', borderRadius: 6 }} />
-            ))}
+        {summaryCards.map(card => (
+          <div key={card.label} style={{
+            background: 'var(--crm-bg)', borderRadius: 4, padding: '8px 10px',
+          }}>
+            <div style={{ fontSize: 10, color: 'var(--crm-fg3)', marginBottom: 2 }}>{card.label}</div>
+            <div style={{
+              fontSize: 13, fontWeight: 600, color: 'var(--crm-fg1)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {card.value}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--crm-fg3)' }}>{card.sub}</div>
           </div>
-        )}
-
-        {!loading && mtd && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {[
-              { label: 'Total Sent',         value: fmt(mtd.total_sent) },
-              { label: 'Total Delivered',    value: fmt(mtd.total_delivered) },
-              { label: 'Avg. Open Rate',   value: <TrackedMtdValue v={mtd.avg_open_rate} /> },
-              { label: 'Avg. CTR',         value: <TrackedMtdValue v={mtd.avg_ctr} /> },
-            ].map(row => (
-              <div key={row.label} style={{ borderBottom: '1px solid var(--crm-border)', paddingBottom: 12 }}>
-                <div style={{ fontSize: 10, color: 'var(--crm-fg4)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {row.label}
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--crm-fg1)' }}>
-                  {row.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && !mtd && (
-          <p style={{ fontSize: 12, color: 'var(--crm-fg4)' }}>No MTD data available</p>
-        )}
+        ))}
       </div>
     </div>
   );

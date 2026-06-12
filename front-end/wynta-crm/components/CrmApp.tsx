@@ -62,17 +62,28 @@ export default function CrmApp() {
 }
 
 function CrmShell() {
-  const [activeNav, setActiveNav] = useState('dashboard');
+  const [activeNav, setActiveNav]           = useState('dashboard');
+  const [campaignAutoAdd, setCampaignAutoAdd] = useState(false);
+
+  function handleNavChange(nav: string) {
+    if (nav === 'campaigns:add') {
+      setCampaignAutoAdd(true);
+      setActiveNav('campaigns');
+    } else {
+      setCampaignAutoAdd(false);
+      setActiveNav(nav);
+    }
+  }
 
   return (
     <div className="crm-shell">
-      <CrmSidebar activeNav={activeNav} onNavChange={setActiveNav} />
+      <CrmSidebar activeNav={activeNav} onNavChange={handleNavChange} />
 
       <main className="crm-main">
         <div className="crm-content">
-          {activeNav === 'dashboard'  ? <DashboardPage /> :
+          {activeNav === 'dashboard'  ? <DashboardPage onNavChange={handleNavChange} /> :
            activeNav === 'segments'     ? <SegmentsPage     /> :
-           activeNav === 'campaigns'    ? <CampaignsPage    /> :
+           activeNav === 'campaigns'    ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
            activeNav === 'events'       ? <EventsPage       /> :
            activeNav === 'integrations' ? <IntegrationsPage /> : (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'60vh', color:'var(--crm-fg4)', fontSize:14 }} />

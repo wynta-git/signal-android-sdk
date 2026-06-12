@@ -13,8 +13,8 @@ from shared.clients.mongo import get_field_aliases, get_trait_schema
 
 log = structlog.get_logger()
 
-_SOFT_TTL = 300   # return stale + background-refresh after this many seconds
-_HARD_TTL = 600   # Redis key absolute expiry
+_SOFT_TTL = 0     # always treat cached data as stale (demo: real-time mode)
+_HARD_TTL = 1     # Redis key expires in 1 s — effectively bypasses cache
 
 _PROP_TYPE_SOFT_TTL = 86400 * 7   # 7 days
 _PROP_TYPE_HARD_TTL = 86400 * 30  # 30 days

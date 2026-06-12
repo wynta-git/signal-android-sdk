@@ -4,7 +4,7 @@ import type {
 } from "../types";
 import { getToken } from './tokenRegistry';
 
-const BASE = process.env.NEXT_PUBLIC_SEG_API_URL || "http://localhost:8003";
+const BASE = process.env.NEXT_PUBLIC_SEG_API_URL || "http://3.7.48.14:8003";
 const SEG_API = `${BASE}/api/v1/segment`;
 
 const authHeader = () => ({
@@ -57,16 +57,18 @@ function toSegment(s: {
   rule?: unknown;
   refresh_strategy?: string;
   scheduled_cron?: string | null;
+  used_by_campaigns?: string[];
 }): Segment {
   return {
-    id:               s.segment_id,
-    label:            s.name,
-    count:            s.members_count ?? 0,
-    last_used_at:     s.last_refresh_time ?? undefined,
-    owner:            s.created_by ?? undefined,
-    rule:             s.rule,
-    refresh_strategy: s.refresh_strategy,
-    scheduled_cron:   s.scheduled_cron ?? undefined,
+    id:                 s.segment_id,
+    label:              s.name,
+    count:              s.members_count ?? 0,
+    last_used_at:       s.last_refresh_time ?? undefined,
+    owner:              s.created_by ?? undefined,
+    rule:               s.rule,
+    refresh_strategy:   s.refresh_strategy,
+    scheduled_cron:     s.scheduled_cron ?? undefined,
+    used_by_campaigns:  s.used_by_campaigns ?? [],
   };
 }
 
