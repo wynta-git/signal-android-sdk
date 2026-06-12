@@ -256,3 +256,87 @@ class FcmSettingsRequest(BaseModel):
         if v.get("type") != "service_account":
             raise ValueError("service_account_json.type must be 'service_account'")
         return v
+
+
+# ---------------------------------------------------------------------------
+# Custom reports
+# ---------------------------------------------------------------------------
+
+_VALID_METRICS: frozenset[str] = frozenset({
+    "messages_sent",
+    "open_rate",
+    "ctr",
+    "conversions",
+    "conversion_rate",
+    "revenue_influenced",
+    "delivery_rate",
+    "bounce_rate",
+    "opt_out_rate",
+    "segment_size",
+    "segment_growth",
+    "player_health_score",
+    "churn_rate",
+    "win_back_rate",
+    "avg_deposits",
+    "active_users",
+})
+
+_VALID_DATE_RANGES: frozenset[str] = frozenset({"last_7_days", "last_30_days", "last_90_days"})
+
+
+class ReportFilters(BaseModel):
+    date_range: str = "last_7_days"
+    channel: str = "all"
+    segment_id: str | None = None
+
+    @field_validator("date_range")
+    @classmethod
+    def validate_date_range(cls, v: str) -> str:
+        if v not in _VALID_DATE_RANGES:
+            raise ValueError(f"date_range must be one of {sorted(_VALID_DATE_RANGES)}")
+        return v
+
+
+class CreateReportRequest(BaseModel):
+    name: str
+    metrics: list[str]
+    filters: ReportFilters = Field(default_factory=ReportFilters)
+
+    @field_validator("metrics")
+    @classmethod
+    def validate_metrics(cls, v: list[str]) -> list[str]:
+        invalid = [m for m in v if m not in _VALID_METRICS]
+        if invalid:
+            raise ValueError(f"Unknown metrics: {invalid}")
+        if not v:
+            raise ValueError("metrics must not be empty")
+        return v
+
+
+class UpdateReportRequest(BaseModel):
+    name: str | None = None
+    metrics: list[str] | None = None
+    filters: ReportFilters | None = None
+
+    @field_validator("metrics")
+    @classmethod
+    def validate_metrics(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        invalid = [m for m in v if m not in _VALID_METRICS]
+        if invalid:
+            raise ValueError(f"Unknown metrics: {invalid}")
+        if not v:
+            raise ValueError("metrics must not be empty")
+        return v
+
+
+class CustomReport(BaseModel):
+    report_id: str
+    user_id: str
+    project_id: str
+    name: str
+    metrics: list[str]
+    filters: ReportFilters
+    created_at: datetime
+    updated_at: datetime
