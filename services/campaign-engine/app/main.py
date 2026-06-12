@@ -76,9 +76,9 @@ app.add_middleware(
 route_prefix = "/api/v1/campaign"
 app.include_router(admin_router, prefix=route_prefix)
 app.include_router(templates_router, prefix=route_prefix)
+app.include_router(reports_router, prefix=route_prefix)
 app.include_router(campaigns_router, prefix=route_prefix)
 app.include_router(dashboard_router, prefix=route_prefix)
-app.include_router(reports_router, prefix=route_prefix)
 app.include_router(settings_router, prefix=route_prefix)
 
 
