@@ -1,4 +1,5 @@
 import asyncio
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
@@ -12,6 +13,13 @@ from app.models import CreateReportRequest, CustomReport, ReportFilters, UpdateR
 from shared.clients.mongo import get_dashboard_delivery_stats
 
 log = structlog.get_logger()
+
+
+def _ch_table(project_id: str, database: str = "pam") -> str:
+    """Per-client ClickHouse table name — mirrors event-processor SchemaManager.table_name()."""
+    safe = re.sub(r"[^a-z0-9_]", "_", project_id.lower()).strip("_") or "unknown"
+    return f"{database}.events_{safe}"
+
 
 router = APIRouter(
     prefix="/projects/{project_id}/reports",
@@ -341,22 +349,22 @@ async def _query_notification_events(
     Returns {channel: {opens: N, clicks: N}}. Returns {} on any error so
     callers degrade gracefully when ClickHouse has no data yet.
     """
-    query = """
+    tbl = _ch_table(project_id)
+    query = f"""
         SELECT
-            properties['channel']                              AS channel,
-            countIf(event_name = 'notification_opened')        AS opens,
-            countIf(event_name = 'notification_clicked')       AS clicks
-        FROM pam.events
-        WHERE project_id = {project_id:String}
-          AND event_name IN ('notification_opened', 'notification_clicked')
-          AND timestamp >= {since:DateTime}
-          AND timestamp <  {until:DateTime}
+            channel,
+            countIf(event_name = 'notification_opened')  AS opens,
+            countIf(event_name = 'notification_clicked') AS clicks
+        FROM {tbl}
+        WHERE event_name IN ('notification_opened', 'notification_clicked')
+          AND timestamp >= {{since:DateTime}}
+          AND timestamp <  {{until:DateTime}}
         GROUP BY channel
     """
     try:
         result = await ch.query(
             query,
-            parameters={"project_id": project_id, "since": since, "until": until},
+            parameters={"since": since, "until": until},
         )
         out: dict[str, dict[str, int]] = {}
         for row in result.named_results():
@@ -379,20 +387,20 @@ async def _query_deposit_totals(
 
     Returns [] on any error so callers degrade gracefully.
     """
-    query = """
+    tbl = _ch_table(project_id)
+    query = f"""
         SELECT user_id, sum(amount) AS total
-        FROM pam.events
-        WHERE project_id = {project_id:String}
-          AND event_name  = 'deposit_success'
-          AND timestamp  >= {since:DateTime}
-          AND timestamp  <  {until:DateTime}
-          AND amount     IS NOT NULL
+        FROM {tbl}
+        WHERE event_name = 'deposit_success'
+          AND timestamp >= {{since:DateTime}}
+          AND timestamp <  {{until:DateTime}}
+          AND amount IS NOT NULL
         GROUP BY user_id
     """
     try:
         result = await ch.query(
             query,
-            parameters={"project_id": project_id, "since": since, "until": until},
+            parameters={"since": since, "until": until},
         )
         return [{"user_id": r["user_id"], "total": float(r["total"])} for r in result.named_results()]
     except Exception:
