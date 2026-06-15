@@ -257,6 +257,50 @@ export async function getPlayerLifecycle(
   return res.json();
 }
 
+// ── Churn & Retention Report ──────────────────────────────────────────────
+
+export interface CohortRow {
+  cohort:         string;
+  players:        number;
+  churned:        number;
+  retained:       number;
+  win_back:       number;
+  revenue_impact: number | null;
+}
+
+export interface ChurnRetentionData {
+  window_days: number;
+  summary: {
+    churn_rate:      MetricValue;
+    churned_players: MetricValue;
+    retained:        MetricValue;
+    win_back_rate:   MetricValue;
+    revenue_saved:   MetricValue;
+  };
+  trend:   TrendPoint[];
+  cohorts: CohortRow[];
+}
+
+export interface ChurnRetentionFilters {
+  windowDays: number;
+  channel:    string;
+  segmentId:  string | null;
+}
+
+export async function getChurnRetention(
+  projectId: string,
+  filters: ChurnRetentionFilters,
+): Promise<ChurnRetentionData> {
+  const params = new URLSearchParams({
+    window_days: String(filters.windowDays),
+    channel:     filters.channel,
+    ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
+  });
+  const res = await fetch(`${root(projectId)}/churn-retention?${params}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`getChurnRetention failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getCampaignStats(
   projectId: string,
   filters: CampaignStatsFilters,

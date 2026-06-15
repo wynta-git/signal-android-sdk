@@ -16,6 +16,7 @@ const CampaignStatsReport     = dynamic(() => import('./reports/CampaignStatsRep
 const SegmentAnalysisReport   = dynamic(() => import('./reports/SegmentAnalysisReport'), { ssr: false });
 const ChannelDeliveryReport   = dynamic(() => import('./reports/ChannelDeliveryReport'), { ssr: false });
 const PlayerLifecycleReport   = dynamic(() => import('./reports/PlayerLifecycleReport'), { ssr: false });
+const ChurnRetentionReport    = dynamic(() => import('./reports/ChurnRetentionReport'), { ssr: false });
 
 /**
  * CrmApp wraps itself in the wynta-crm store Provider.
@@ -95,7 +96,7 @@ function CrmShell() {
            activeNav === 'reports:segment'   ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:churn')} /> :
            activeNav === 'reports:channel'   ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:churn')} /> :
            activeNav === 'reports:lifecycle' ? <PlayerLifecycleReport  onOpenBuilder={() => handleNavChange('reports:churn')} /> :
-           activeNav === 'reports:churn'     ? <ReportsPage      /> : (
+           activeNav === 'reports:churn'     ? <ChurnRetentionReport  onOpenBuilder={() => handleNavChange('reports:churn')} /> : (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'60vh', color:'var(--crm-fg4)', fontSize:14 }} />
           )}
         </div>

@@ -625,6 +625,105 @@ async def get_player_lifecycle(
 
 
 # ---------------------------------------------------------------------------
+# GET /projects/{project_id}/reports/churn-retention
+# ---------------------------------------------------------------------------
+
+_MONTH_NAMES = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+]
+
+
+@router.get("/churn-retention")
+async def get_churn_retention(
+    project_id: str,
+    ctx: PortalAuthDep,
+    db: DbDep,
+    window_days: int = Query(default=7, ge=1, le=90),
+    channel: str = Query(default="all"),
+    segment_id: str | None = Query(default=None),
+) -> dict:
+    if ctx.project_id != project_id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+
+    now   = datetime.now(timezone.utc)
+    since = now - timedelta(days=window_days)
+
+    health_agg, cohort_agg, total_curr = await asyncio.gather(
+        db["users"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$health_status", "count": {"$sum": 1}}},
+        ]).to_list(length=None),
+        db["users"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {
+                "_id": {
+                    "year":          {"$year": "$created_at"},
+                    "month":         {"$month": "$created_at"},
+                    "health_status": "$health_status",
+                },
+                "count": {"$sum": 1},
+            }},
+            {"$sort": {"_id.year": -1, "_id.month": -1}},
+        ]).to_list(length=None),
+        db["users"].count_documents({"project_id": project_id}),
+    )
+
+    health_map  = {r["_id"]: r["count"] for r in health_agg if r["_id"]}
+    total       = total_curr or 1
+    churned     = health_map.get("churned",     0)
+    retained    = health_map.get("healthy",     0)
+    reactivated = health_map.get("reactivated", 0)
+
+    churn_rate     = _safe_rate(churned, total)
+    win_back_denom = churned + reactivated
+    win_back_rate  = _safe_rate(reactivated, win_back_denom) if win_back_denom else None
+
+    summary = {
+        "churn_rate":      {"value": churn_rate},
+        "churned_players": {"value": churned},
+        "retained":        {"value": retained},
+        "win_back_rate":   {"value": win_back_rate},
+        "revenue_saved":   {"value": None, "tracked": False},
+    }
+
+    # Trend: flat current distribution per day — no historical health snapshots available
+    # primary=retained, secondary=reactivated(win-back), tertiary=churned
+    window_dates = [str((since + timedelta(days=i)).date()) for i in range(window_days)]
+    trend: list[dict] = [
+        {"date": d, "primary": retained, "secondary": reactivated, "tertiary": churned}
+        for d in window_dates
+    ]
+
+    # Cohort table: group users by created_at year-month, pivot health_status counts
+    cohort_map: dict[tuple[int, int], dict[str, int]] = {}
+    for row in cohort_agg:
+        yr = row["_id"].get("year")
+        mo = row["_id"].get("month")
+        hs = row["_id"].get("health_status") or "unknown"
+        if yr and mo:
+            cohort_map.setdefault((yr, mo), {})[hs] = row["count"]
+
+    cohorts_out: list[dict] = []
+    for (yr, mo), statuses in sorted(cohort_map.items(), key=lambda x: x[0], reverse=True):
+        cohorts_out.append({
+            "cohort":         f"{_MONTH_NAMES[mo - 1]} {yr}",
+            "players":        sum(statuses.values()),
+            "churned":        statuses.get("churned",     0),
+            "retained":       statuses.get("healthy",     0),
+            "win_back":       statuses.get("reactivated", 0),
+            "revenue_impact": None,
+        })
+
+    return {
+        "window_days": window_days,
+        "summary":     summary,
+        "trend":       trend,
+        "cohorts":     cohorts_out,
+    }
+
+
+# ---------------------------------------------------------------------------
 # POST /projects/{project_id}/reports
 # ---------------------------------------------------------------------------
 
