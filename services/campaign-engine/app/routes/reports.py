@@ -519,6 +519,112 @@ async def get_segment_analysis(
 
 
 # ---------------------------------------------------------------------------
+# GET /projects/{project_id}/reports/player-lifecycle
+# ---------------------------------------------------------------------------
+
+_LIFECYCLE_STAGE_DEFS: list[tuple[str, str, str]] = [
+    ("healthy",     "Healthy",      "< 7 days"),
+    ("at_risk",     "At-Risk",      "8–29 days"),
+    ("churned",     "Churned",      "30+ days"),
+    ("reactivated", "Re-activated", "< 14 days"),
+    ("new",         "New (< 7d)",   "< 7 days"),
+    ("vip",         "VIP Tier",     "< 3 days"),
+]
+
+
+@router.get("/player-lifecycle")
+async def get_player_lifecycle(
+    project_id: str,
+    ctx: PortalAuthDep,
+    db: DbDep,
+    window_days: int = Query(default=7, ge=1, le=90),
+    segment_id: str | None = Query(default=None),
+) -> dict:
+    if ctx.project_id != project_id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+
+    now   = datetime.now(timezone.utc)
+    since = now - timedelta(days=window_days)
+
+    health_agg, total_curr, prev_total = await asyncio.gather(
+        db["users"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$health_status", "count": {"$sum": 1}}},
+        ]).to_list(length=None),
+        db["users"].count_documents({"project_id": project_id}),
+        db["users"].count_documents({"project_id": project_id, "created_at": {"$lt": since}}),
+    )
+
+    health_map = {r["_id"]: r["count"] for r in health_agg if r["_id"]}
+    total = total_curr or 1
+
+    healthy     = health_map.get("healthy",     0)
+    at_risk     = health_map.get("at_risk",     0)
+    churned     = health_map.get("churned",     0)
+    reactivated = health_map.get("reactivated", 0)
+    new_users   = health_map.get("new",         0)
+    vip         = health_map.get("vip",         0)
+
+    summary = {
+        "total_players": {
+            "value":      total_curr,
+            "change_pct": _change_pct(total_curr, prev_total) if prev_total else None,
+        },
+        "healthy": {
+            "value": healthy,
+            "pct":   _safe_rate(healthy, total),
+        },
+        "at_risk": {
+            "value": at_risk,
+            "pct":   _safe_rate(at_risk, total),
+        },
+        "churned": {
+            "value": churned,
+            "pct":   _safe_rate(churned, total),
+        },
+        "win_back_rate": {"value": None, "tracked": False},
+    }
+
+    # Trend: flat current distribution per day (no historical health snapshots)
+    # primary = healthy, secondary = at_risk, tertiary = churned
+    window_dates = [str((since + timedelta(days=i)).date()) for i in range(window_days)]
+    trend: list[dict] = [
+        {"date": d, "primary": healthy, "secondary": at_risk, "tertiary": churned}
+        for d in window_dates
+    ]
+
+    # Stage table rows
+    counts: dict[str, int] = {
+        "healthy":     healthy,
+        "at_risk":     at_risk,
+        "churned":     churned,
+        "reactivated": reactivated,
+        "new":         new_users,
+        "vip":         vip,
+    }
+    stages: list[dict] = []
+    for key, label, days_range in _LIFECYCLE_STAGE_DEFS:
+        count = counts.get(key, 0)
+        if count == 0 and key not in ("healthy", "at_risk", "churned"):
+            continue
+        stages.append({
+            "stage":             label,
+            "players":           count,
+            "pct_of_total":      _safe_rate(count, total),
+            "avg_deposits_30d":  None,
+            "days_since_active": days_range,
+            "crm_touchpoints":   None,
+        })
+
+    return {
+        "window_days": window_days,
+        "summary":     summary,
+        "trend":       trend,
+        "stages":      stages,
+    }
+
+
+# ---------------------------------------------------------------------------
 # POST /projects/{project_id}/reports
 # ---------------------------------------------------------------------------
 

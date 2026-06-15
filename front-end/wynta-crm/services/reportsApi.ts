@@ -215,6 +215,48 @@ export async function getChannelDelivery(
   return res.json();
 }
 
+// ── Player Lifecycle Report ───────────────────────────────────────────────
+
+export interface LifecycleStageRow {
+  stage:             string;
+  players:           number;
+  pct_of_total:      number | null;
+  avg_deposits_30d:  number | null;
+  days_since_active: string;
+  crm_touchpoints:   number | null;
+}
+
+export interface PlayerLifecycleData {
+  window_days: number;
+  summary: {
+    total_players: MetricValue;
+    healthy:       { value: number; pct: number | null };
+    at_risk:       { value: number; pct: number | null };
+    churned:       { value: number; pct: number | null };
+    win_back_rate: MetricValue;
+  };
+  trend:  TrendPoint[];
+  stages: LifecycleStageRow[];
+}
+
+export interface PlayerLifecycleFilters {
+  windowDays: number;
+  segmentId:  string | null;
+}
+
+export async function getPlayerLifecycle(
+  projectId: string,
+  filters: PlayerLifecycleFilters,
+): Promise<PlayerLifecycleData> {
+  const params = new URLSearchParams({
+    window_days: String(filters.windowDays),
+    ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
+  });
+  const res = await fetch(`${root(projectId)}/player-lifecycle?${params}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`getPlayerLifecycle failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getCampaignStats(
   projectId: string,
   filters: CampaignStatsFilters,
