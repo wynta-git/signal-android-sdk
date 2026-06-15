@@ -10,3 +10,6 @@ export { default as Pager } from './Pager';
 export { default as Toggle } from './Toggle';
 export { default as ValidityBar } from './ValidityBar';
 export { default as DjHeaderSlot } from './DjHeaderSlot';
+export { default as WorkspaceMenu } from './WorkspaceMenu';
+export { default as MobileAppCTA } from './MobileAppCTA';
+export { default as UpgradeCTA } from './UpgradeCTA';

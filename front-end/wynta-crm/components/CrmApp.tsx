@@ -6,11 +6,13 @@ import { store }     from '../store';
 import { getToken }  from 'wynta-react-common/services/tokenRegistry';
 import CrmSidebar    from './CrmSidebar';
 
-const SegmentsPage       = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
-const CampaignsPage      = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
-const EventsPage         = dynamic(() => import('./events/EventsPage'), { ssr: false });
-const DashboardPage = dynamic(() => import('./dashboard/DashboardPage'), { ssr: false });
-const IntegrationsPage   = dynamic(() => import('./integrations/IntegrationsPage'), { ssr: false });
+const SegmentsPage            = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
+const CampaignsPage           = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
+const EventsPage              = dynamic(() => import('./events/EventsPage'), { ssr: false });
+const DashboardPage           = dynamic(() => import('./dashboard/DashboardPage'), { ssr: false });
+const IntegrationsPage        = dynamic(() => import('./integrations/IntegrationsPage'), { ssr: false });
+const WorkspaceSettingsPage   = dynamic(() => import('wynta-react-common/workspace-settings/WorkspaceSettingsPage'), { ssr: false });
+const BillingPricingPage      = dynamic(() => import('wynta-react-common/billing-pricing/BillingPricingPage'),       { ssr: false });
 
 /**
  * CrmApp wraps itself in the wynta-crm store Provider.
@@ -85,7 +87,9 @@ function CrmShell() {
            activeNav === 'segments'     ? <SegmentsPage     /> :
            activeNav === 'campaigns'    ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
            activeNav === 'events'       ? <EventsPage       /> :
-           activeNav === 'integrations' ? <IntegrationsPage /> : (
+           activeNav === 'integrations'       ? <IntegrationsPage /> :
+           activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
+           activeNav === 'billing'            ? <BillingPricingPage />      : (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'60vh', color:'var(--crm-fg4)', fontSize:14 }} />
           )}
         </div>
