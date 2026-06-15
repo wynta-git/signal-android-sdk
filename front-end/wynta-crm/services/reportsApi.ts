@@ -1,0 +1,185 @@
+import { getToken } from 'wynta-react-common/services/tokenRegistry';
+
+const BASE = process.env.NEXT_PUBLIC_CAMPAIGN_API_URL || "http://3.7.48.14:8004";
+const root = (projectId: string) => `${BASE}/api/v1/campaign/projects/${projectId}/reports`;
+
+const authHeader = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${getToken()}`,
+});
+
+export type DateRange = 'last_7_days' | 'last_30_days' | 'last_90_days';
+
+export interface ReportFilters {
+  date_range: DateRange;
+  channel: string;
+  segment_id: string | null;
+}
+
+export interface MetricValue {
+  value: number | null;
+  change_pct?: number | null;
+  tracked?: boolean;
+}
+
+export interface CustomReport {
+  report_id: string;
+  user_id: string;
+  project_id: string;
+  name: string;
+  metrics: string[];
+  filters: ReportFilters;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomReportWithData extends CustomReport {
+  data: Record<string, MetricValue>;
+}
+
+export interface CreateReportPayload {
+  name: string;
+  metrics: string[];
+  filters: ReportFilters;
+}
+
+export async function createReport(projectId: string, payload: CreateReportPayload): Promise<{ report_id: string }> {
+  const res = await fetch(root(projectId), {
+    method: 'POST',
+    headers: authHeader(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`createReport failed: ${res.status}`);
+  return res.json();
+}
+
+export async function listReports(projectId: string): Promise<CustomReport[]> {
+  const res = await fetch(root(projectId), { headers: authHeader() });
+  if (!res.ok) throw new Error(`listReports failed: ${res.status}`);
+  const data = await res.json();
+  return data.reports ?? [];
+}
+
+export async function getReport(projectId: string, reportId: string): Promise<CustomReportWithData> {
+  const res = await fetch(`${root(projectId)}/${reportId}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`getReport failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateReport(
+  projectId: string,
+  reportId: string,
+  payload: Partial<CreateReportPayload>,
+): Promise<CustomReport> {
+  const res = await fetch(`${root(projectId)}/${reportId}`, {
+    method: 'PATCH',
+    headers: authHeader(),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`updateReport failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteReport(projectId: string, reportId: string): Promise<void> {
+  const res = await fetch(`${root(projectId)}/${reportId}`, {
+    method: 'DELETE',
+    headers: authHeader(),
+  });
+  if (!res.ok) throw new Error(`deleteReport failed: ${res.status}`);
+}
+
+// ── Campaign Stats Report ─────────────────────────────────────────────────
+
+export interface CampaignStatsFilters {
+  windowDays: number;
+  channel:    string;
+  segmentId:  string | null;
+}
+
+export interface TrendPoint {
+  date:      string;
+  primary:   number;
+  secondary: number;
+  tertiary:  number;
+}
+
+export interface CampaignRow {
+  campaign_id: string;
+  name:        string;
+  channel:     string;
+  sent:        number;
+  open_rate:   number | null;
+  ctr:         number | null;
+  conversions: number | null;
+  status:      string;
+}
+
+export interface CampaignStatsData {
+  window_days: number;
+  summary: {
+    total_sent:          MetricValue;
+    avg_open_rate:       MetricValue;
+    avg_ctr:             MetricValue;
+    conversions:         MetricValue;
+    revenue_influenced:  MetricValue;
+  };
+  trend:     TrendPoint[];
+  campaigns: CampaignRow[];
+}
+
+// ── Segment Analysis Report ───────────────────────────────────────────────
+
+export interface SegmentRow {
+  segment_id: string;
+  name:       string;
+  users:      number;
+  growth_7d:  number | null;
+  open_rate:  number | null;
+  conversion: number | null;
+  status:     string;
+}
+
+export interface SegmentAnalysisData {
+  window_days: number;
+  summary: {
+    total_segments:   MetricValue;
+    reachable_users:  MetricValue;
+    segment_growth:   MetricValue;
+    avg_segment_size: MetricValue;
+    opt_in_rate:      MetricValue;
+  };
+  trend:    TrendPoint[];
+  segments: SegmentRow[];
+}
+
+export interface SegmentAnalysisFilters {
+  windowDays: number;
+  segmentId:  string | null;
+}
+
+export async function getSegmentAnalysis(
+  projectId: string,
+  filters: SegmentAnalysisFilters,
+): Promise<SegmentAnalysisData> {
+  const params = new URLSearchParams({
+    window_days: String(filters.windowDays),
+    ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
+  });
+  const res = await fetch(`${root(projectId)}/segment-analysis?${params}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`getSegmentAnalysis failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getCampaignStats(
+  projectId: string,
+  filters: CampaignStatsFilters,
+): Promise<CampaignStatsData> {
+  const params = new URLSearchParams({
+    window_days: String(filters.windowDays),
+    channel:     filters.channel,
+    ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
+  });
+  const res = await fetch(`${root(projectId)}/campaign-stats?${params}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`getCampaignStats failed: ${res.status}`);
+  return res.json();
+}

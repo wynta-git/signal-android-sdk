@@ -324,6 +324,92 @@ async def get_campaign_stats(
 
 
 # ---------------------------------------------------------------------------
+# GET /projects/{project_id}/reports/segment-analysis
+# ---------------------------------------------------------------------------
+
+@router.get("/segment-analysis")
+async def get_segment_analysis(
+    project_id: str,
+    ctx: PortalAuthDep,
+    db: DbDep,
+    window_days: int = Query(default=7, ge=1, le=90),
+    segment_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict:
+    if ctx.project_id != project_id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+
+    now   = datetime.now(timezone.utc)
+    since = now - timedelta(days=window_days)
+
+    # Always fetch all segments for summary stats; apply segment filter only for the table
+    all_seg_docs = await db["segments"].find(
+        {"project_id": project_id},
+        {"_id": 0, "segment_id": 1, "name": 1, "members_count": 1, "last_refresh_time": 1},
+    ).sort("members_count", -1).to_list(length=None)
+
+    table_docs = (
+        [s for s in all_seg_docs if s["segment_id"] == segment_id]
+        if segment_id
+        else all_seg_docs[:limit]
+    )
+
+    # Summary across all segments
+    non_null = [s["members_count"] for s in all_seg_docs if s.get("members_count") is not None]
+    total_segments = len(all_seg_docs)
+    reachable_users = sum(non_null)
+    avg_size = round(reachable_users / len(non_null)) if non_null else 0
+
+    summary = {
+        "total_segments":   {"value": total_segments},
+        "reachable_users":  {"value": reachable_users},
+        "segment_growth":   {"value": None, "tracked": False},
+        "avg_segment_size": {"value": avg_size},
+        "opt_in_rate":      {"value": None, "tracked": False},
+    }
+
+    # Trend: top 3 segments by size, flat members_count per day (no historical data)
+    top3 = all_seg_docs[:3]
+    window_dates = [str((since + timedelta(days=i)).date()) for i in range(window_days)]
+    _tier_labels = ("primary", "secondary", "tertiary")
+    trend: list[dict] = []
+    for date_str in window_dates:
+        point: dict[str, Any] = {"date": date_str}
+        for i, label in enumerate(_tier_labels):
+            point[label] = top3[i].get("members_count") or 0 if i < len(top3) else 0
+        trend.append(point)
+
+    # Segment status: live if refreshed within 48 h, else paused
+    def _seg_status(doc: dict) -> str:
+        lr = doc.get("last_refresh_time")
+        if not lr:
+            return "paused"
+        if lr.tzinfo is None:
+            lr = lr.replace(tzinfo=timezone.utc)
+        return "live" if (now - lr).total_seconds() < 172_800 else "paused"
+
+    segments_out = [
+        {
+            "segment_id": s["segment_id"],
+            "name":       s["name"],
+            "users":      s.get("members_count") or 0,
+            "growth_7d":  None,
+            "open_rate":  None,
+            "conversion": None,
+            "status":     _seg_status(s),
+        }
+        for s in table_docs
+    ]
+
+    return {
+        "window_days": window_days,
+        "summary":     summary,
+        "trend":       trend,
+        "segments":    segments_out,
+    }
+
+
+# ---------------------------------------------------------------------------
 # POST /projects/{project_id}/reports
 # ---------------------------------------------------------------------------
 
