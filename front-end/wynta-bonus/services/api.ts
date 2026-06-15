@@ -419,6 +419,15 @@ export const api = {
       if (!res.ok) throw new Error("Failed to update subhead budget");
       return res.json() as Promise<BudgetPeriod[]>;
     }
+    if (scope === "configure") {
+      const res = await fetch(`${BONUS_API}/bonus-configures/${id}/limits`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ limits, updated_by: updatedBy }),
+      });
+      if (!res.ok) throw new Error("Failed to update configure budget");
+      return res.json() as Promise<BudgetPeriod[]>;
+    }
     await delay(280);
     return periods;
   },

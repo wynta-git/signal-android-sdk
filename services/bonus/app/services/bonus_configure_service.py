@@ -20,6 +20,7 @@ from app.models.bonus_configure import (
     EligibilitySummary,
     TriggerSummary,
 )
+from app.models.bonus_head import BudgetPeriod, LimitsUpsertRequest
 from app.services.bonus_head_service import (
     _as_dt,
     _compute_row_hash,
@@ -353,6 +354,9 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
                 await cur.execute(sql, (configure_id,))
                 eligibility_rows = await cur.fetchall()
 
+                await cur.execute(_SELECT_CONFIGURE_BUDGET_SQL, (configure_id,))
+                budget_rows = await cur.fetchall()
+
     except BonusConfigureNotFoundError:
         raise
     except Exception as exc:
@@ -360,7 +364,11 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
         raise DatabaseError(str(exc)) from exc
 
     return BonusConfigureDetail(
-        **_row_to_response(row).model_dump(exclude={"triggers", "eligibilities"}),
+        **_row_to_response(row).model_dump(exclude={"budget", "triggers", "eligibilities"}),
+        budget=[
+            BudgetPeriod(period_type=r[0], limit=r[1], used=r[2], reset_at=r[3])
+            for r in budget_rows
+        ],
         codes=[
             BonusCodeSummary(
                 id=r[0], code=r[1], max_amount=r[2],
@@ -548,3 +556,122 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
     assert updated_row is not None
     log.info("update_bonus_configure.done", bonus_configure_id=configure_id)
     return _row_to_response(updated_row)
+
+
+# ---------------------------------------------------------------------------
+# SQL — bonus_budget_limit (entity_type = 'CONFIGURE')
+# ---------------------------------------------------------------------------
+
+_EXISTS_CONFIGURE_ID_SQL = "SELECT site_id FROM bonus_configure WHERE id = %s"
+
+_UPSERT_CONFIGURE_LIMIT_SQL = """
+    INSERT INTO bonus_budget_limit
+        (entity_type, entity_id, site_id, period_type, budget_limit, created_by, updated_by, row_hash)
+    VALUES
+        ('CONFIGURE', %s, %s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+        budget_limit = VALUES(budget_limit),
+        updated_by   = VALUES(updated_by),
+        row_hash     = VALUES(row_hash)
+"""
+
+_SELECT_CONFIGURE_BUDGET_SQL = """
+    SELECT
+        bl.period_type,
+        bl.budget_limit,
+        COALESCE(bu.budget_used, 0.00) AS budget_used,
+        bu.reset_at
+    FROM bonus_budget_limit bl
+    LEFT JOIN bonus_budget_usage bu
+        ON  bu.entity_type = bl.entity_type
+        AND bu.entity_id   = bl.entity_id
+        AND bu.period_type = bl.period_type
+    WHERE bl.entity_type = 'CONFIGURE' AND bl.entity_id = %s
+    ORDER BY CASE bl.period_type
+        WHEN 'DAILY'   THEN 1
+        WHEN 'WEEKLY'  THEN 2
+        WHEN 'MONTHLY' THEN 3
+    END
+"""
+
+_SELECT_CONFIGURE_LIMITS_PRE_SQL = """
+    SELECT period_type, budget_limit
+    FROM bonus_budget_limit
+    WHERE entity_type = 'CONFIGURE' AND entity_id = %s
+"""
+
+
+async def upsert_limits(configure_id: int, data: LimitsUpsertRequest) -> list[BudgetPeriod]:
+    """
+    Set or update budget caps for a bonus configure.
+
+    Raises:
+        BonusConfigureNotFoundError: configure_id does not exist.
+        DatabaseError:               unexpected DB failure.
+    """
+    log.info("upsert_configure_limits.start", bonus_configure_id=configure_id, count=len(data.limits))
+
+    try:
+        async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
+            async with conn.cursor() as cur:
+                await cur.execute(_EXISTS_CONFIGURE_ID_SQL, (configure_id,))
+                meta = await cur.fetchone()
+                if meta is None:
+                    raise BonusConfigureNotFoundError(configure_id)
+                site_id = meta[0]
+
+                await cur.execute(_SELECT_CONFIGURE_LIMITS_PRE_SQL, (configure_id,))
+                existing_limits = {r[0]: r[1] for r in await cur.fetchall()}
+
+                for entry in data.limits:
+                    row_hash = _compute_row_hash({
+                        "entity_type": "CONFIGURE",
+                        "entity_id": configure_id,
+                        "site_id": site_id,
+                        "period_type": entry.period_type,
+                        "budget_limit": str(entry.budget_limit),
+                        "updated_by": data.updated_by,
+                    })
+                    await cur.execute(
+                        _UPSERT_CONFIGURE_LIMIT_SQL,
+                        (
+                            configure_id,
+                            site_id,
+                            entry.period_type,
+                            entry.budget_limit,
+                            data.updated_by,
+                            data.updated_by,
+                            row_hash,
+                        ),
+                    )
+
+                await conn.commit()
+
+                for entry in data.limits:
+                    old_l = existing_limits.get(entry.period_type)
+                    new_l = entry.budget_limit
+                    if str(old_l) != str(new_l):
+                        await _write_audit(
+                            "bonus_configure_budget",
+                            "UPDATE" if entry.period_type in existing_limits else "INSERT",
+                            configure_id, site_id, data.updated_by,
+                            {"budget_limit": str(old_l)} if old_l is not None else None,
+                            {"period_type": entry.period_type,
+                             "budget_limit": str(new_l) if new_l is not None else None},
+                        )
+
+                await cur.execute(_SELECT_CONFIGURE_BUDGET_SQL, (configure_id,))
+                budget_rows = await cur.fetchall()
+
+    except BonusConfigureNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("upsert_configure_limits.db_error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+    log.info("upsert_configure_limits.done", bonus_configure_id=configure_id)
+    return [
+        BudgetPeriod(period_type=r[0], limit=r[1], used=r[2], reset_at=r[3])
+        for r in budget_rows
+    ]

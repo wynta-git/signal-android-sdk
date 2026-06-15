@@ -122,6 +122,7 @@ export interface BonusConfigure {
   release_bucket?: string | null;
   chunk_expiry_days?: number;
   bonus_expiry_days?: number;
+  budget?: BudgetPeriod[];
   promo_codes: PromoCode[];
   codes?: PromoCode[];
   triggers: Trigger[];

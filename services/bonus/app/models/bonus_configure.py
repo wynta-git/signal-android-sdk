@@ -18,6 +18,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.models.bonus_head import BudgetPeriod
+
 ApplicabilityFrequency = Literal["EVERYTIME", "ONCE", "MONTHLY", "WEEKLY"]
 
 
@@ -114,6 +116,7 @@ class BonusConfigureResponse(BaseModel):
     updated_by:                      str
     created_at:                      datetime
     updated_at:                      datetime
+    budget:                          list[BudgetPeriod]       = []
     triggers:                        list[TriggerSummary]     = []
     eligibilities:                   list[EligibilitySummary] = []
 

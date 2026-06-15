@@ -15,11 +15,13 @@ from app.models.bonus_configure import (
     BonusConfigureResponse,
     BonusConfigureUpdate,
 )
+from app.models.bonus_head import BudgetPeriod, LimitsUpsertRequest
 from app.services.bonus_configure_service import (
     add_bonus_configure,
     get_bonus_configure,
     list_bonus_configures_by_subhead,
     update_bonus_configure,
+    upsert_limits,
 )
 from app.services.history_service import get_configure_history
 
@@ -71,6 +73,19 @@ async def patch_bonus_configure(
     """
     payload.updated_by = ctx.user_id
     return await update_bonus_configure(configure_id, payload)
+
+
+@router.put("/{configure_id}/limits", response_model=list[BudgetPeriod])
+async def put_bonus_configure_limits(
+    configure_id: int, payload: LimitsUpsertRequest, ctx: PortalAuthDep
+) -> list[BudgetPeriod]:
+    """
+    Set or update budget caps for a bonus configure.
+
+    Each entry is upserted on period_type. Returns all budget periods after the operation.
+    """
+    payload.updated_by = ctx.user_id
+    return await upsert_limits(configure_id, payload)
 
 
 @router.get("/{configure_id}/history")

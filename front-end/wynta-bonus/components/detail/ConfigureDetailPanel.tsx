@@ -1,5 +1,7 @@
 'use client';
 import React from 'react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { createEligibility, fetchConfigure } from '../../store/slices/configuresSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Badge from 'wynta-react-common/components/Badge';
 import Toggle from 'wynta-react-common/components/Toggle';
@@ -13,8 +15,6 @@ import {
   formatINRCompact,
   formatDateShort,
   getUsage,
-  getBudget,
-  isBudgetInherited,
   formatRelative,
 } from '../../services/mocks/utils';
 
@@ -71,8 +71,10 @@ interface ExtendedConfigure {
   credit_chip_type?: string;
   chunk_expiry_days?: number;
   bonus_expiry_days?: number;
+  budget?: Array<{ period_type: string; limit: string | number | null; used?: string | number; reset_at?: string | null }>;
   codes: ManualCode[];
   triggers: ConfigureTrigger[];
+  eligibilities?: Array<{ id?: number; key?: string; value?: string | number; rule_value?: string | number; [k: string]: unknown }>;
   is_manual?: boolean;
 }
 
@@ -83,6 +85,26 @@ interface ConfigureDetailPanelProps {
 
 export default function ConfigureDetailPanel({ configure, onAction }: ConfigureDetailPanelProps) {
   const cfg = configure;
+  const dispatch = useAppDispatch();
+  const selectedBrand = useAppSelector(s => s.ui.selectedBrand);
+  const bridgeData = useAppSelector(s => s.users.bridgeData);
+  const currentUser: string = (bridgeData?.user as { username?: string } | null)?.username ?? 'system';
+
+  const handleSegmentSelect = async (segmentId: string | number | null) => {
+    if (segmentId == null) return;
+    await dispatch(createEligibility({
+      configureId: cfg.id,
+      payload: {
+        site_id: selectedBrand,
+        eligibility_key: 'segment_id',
+        eligibility_value: String(segmentId),
+        eligibility_value_type: 'INT',
+        active: true,
+        created_by: currentUser,
+      },
+    }));
+    dispatch(fetchConfigure(cfg.id));
+  };
   const wagerPerChunk = (() => {
     const fixed = cfg.bonus_amount_fixed != null ? Number(cfg.bonus_amount_fixed) : null;
     const chunks = cfg.no_of_chunks ?? 1;
@@ -144,11 +166,11 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
 
       <div className="section-row">
         <div className="section-label">Budget Utilization</div>
-        <div className="right">{isBudgetInherited('configure', cfg.id)
+        <div className="right">{!cfg.budget || cfg.budget.length === 0
           ? <span className="inherits-chip"><Icon name="link" size={10}/> Inherits from subhead</span>
           : <strong>Daily · Weekly · Monthly</strong>}</div>
       </div>
-      <BudgetGrid budget={getBudget('configure', cfg.id)} />
+      <BudgetGrid budget={cfg.budget ?? []} />
 
       <div className="section-row" style={{ marginTop: 28 }}>
         <div className="section-label">Usage Breakdown</div>
@@ -177,7 +199,7 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
       </div>
 
       <div className="section-label">Eligibility Criteria</div>
-      <PlayerSegmentPicker configureId={cfg.id}/>
+      <PlayerSegmentPicker configureId={cfg.id} eligibilities={cfg.eligibilities} onSelect={handleSegmentSelect}/>
 
       <div className="section-label">Promo Codes · {(cfg.codes ?? []).length}</div>
       {(cfg.codes ?? []).length === 0 ? (
