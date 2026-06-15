@@ -369,6 +369,37 @@ async def _query_notification_events(
         return {}
 
 
+async def _query_deposit_totals(
+    ch: Any,
+    project_id: str,
+    since: datetime,
+    until: datetime,
+) -> list[dict]:
+    """Return [{user_id, total}] for deposit_success events in the window.
+
+    Returns [] on any error so callers degrade gracefully.
+    """
+    query = """
+        SELECT user_id, sum(amount) AS total
+        FROM pam.events
+        WHERE project_id = {project_id:String}
+          AND event_name  = 'deposit_success'
+          AND timestamp  >= {since:DateTime}
+          AND timestamp  <  {until:DateTime}
+          AND amount     IS NOT NULL
+        GROUP BY user_id
+    """
+    try:
+        result = await ch.query(
+            query,
+            parameters={"project_id": project_id, "since": since, "until": until},
+        )
+        return [{"user_id": r["user_id"], "total": float(r["total"])} for r in result.named_results()]
+    except Exception:
+        log.warning("clickhouse.deposit_totals.failed", project_id=project_id)
+        return []
+
+
 @router.get("/channel-delivery")
 async def get_channel_delivery(
     project_id: str,
@@ -584,22 +615,29 @@ async def get_player_lifecycle(
     project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
+    ch: ChDep,
     window_days: int = Query(default=7, ge=1, le=90),
     segment_id: str | None = Query(default=None),
 ) -> dict:
     if ctx.project_id != project_id:
         raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
 
-    now   = datetime.now(timezone.utc)
-    since = now - timedelta(days=window_days)
+    now           = datetime.now(timezone.utc)
+    since         = now - timedelta(days=window_days)
+    thirty_ago    = now - timedelta(days=30)
 
-    health_agg, total_curr, prev_total, touchpoints_agg = await asyncio.gather(
+    health_agg, total_curr, prev_total, touchpoints_agg, users_by_status, deposit_rows = await asyncio.gather(
         db["users"].aggregate([
             {"$match": {"project_id": project_id}},
             {"$group": {"_id": "$health_status", "count": {"$sum": 1}}},
         ]).to_list(length=None),
         db["users"].count_documents({"project_id": project_id}),
         db["users"].count_documents({"project_id": project_id, "created_at": {"$lt": since}}),
+        db["users"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$health_status", "user_ids": {"$push": "$user_id"}}},
+        ]).to_list(length=None),
+        _query_deposit_totals(ch, project_id, thirty_ago, now),
         db["notification_deliveries"].aggregate([
             {"$match": {"project_id": project_id, "attempted_at": {"$gte": since}}},
             {"$group": {"_id": "$user_id", "delivery_count": {"$sum": 1}}},
@@ -634,6 +672,15 @@ async def get_player_lifecycle(
         if row.get("_id") and row.get("user_count")
     }
 
+    # {health_status: set(user_ids)} for deposit join
+    status_to_users: dict[str, set[str]] = {
+        row["_id"]: set(row["user_ids"])
+        for row in users_by_status
+        if row.get("_id")
+    }
+    # {user_id: total_deposit_30d} from ClickHouse
+    deposit_by_user: dict[str, float] = {r["user_id"]: r["total"] for r in deposit_rows}
+
     health_map = {r["_id"]: r["count"] for r in health_agg if r["_id"]}
     total = total_curr or 1
 
@@ -661,7 +708,9 @@ async def get_player_lifecycle(
             "value": churned,
             "pct":   _safe_rate(churned, total),
         },
-        "win_back_rate": {"value": None, "tracked": False},
+        "win_back_rate": {
+            "value": _safe_rate(reactivated, churned + reactivated),
+        },
     }
 
     # Trend: flat current distribution per day (no historical health snapshots)
@@ -686,11 +735,14 @@ async def get_player_lifecycle(
         count = counts.get(key, 0)
         if count == 0 and key not in ("healthy", "at_risk", "churned"):
             continue
+        stage_uids     = status_to_users.get(key, set())
+        stage_deposits = [deposit_by_user[uid] for uid in stage_uids if uid in deposit_by_user]
+        avg_dep        = round(sum(stage_deposits) / len(stage_deposits), 2) if stage_deposits else None
         stages.append({
             "stage":             label,
             "players":           count,
             "pct_of_total":      _safe_rate(count, total),
-            "avg_deposits_30d":  None,
+            "avg_deposits_30d":  avg_dep,
             "days_since_active": days_range,
             "crm_touchpoints":   touchpoints_map.get(key),
         })
