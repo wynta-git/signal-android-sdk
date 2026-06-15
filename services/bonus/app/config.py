@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -5,6 +6,9 @@ class Settings(BaseSettings):
     # S2S clients: {"client_id": "shared_secret", ...}
     # Set via env: BONUS_S2S_CLIENTS='{"game_server":"secret1","admin":"secret2"}'
     s2s_clients: dict[str, str] = {}
+
+    # RS256 public key (PEM) for portal UI tokens — set BONUS_PORTAL_JWT_PUBLIC_KEY
+    portal_jwt_public_key: str = ""
 
     db_host: str = "43.204.90.164"
     db_port: int = 3306
@@ -28,6 +32,11 @@ class Settings(BaseSettings):
     trigger_cache_ttl: int = 300  # seconds
 
     model_config = SettingsConfigDict(env_prefix="BONUS_", env_file=".env", extra="ignore")
+
+    @field_validator("portal_jwt_public_key", mode="before")
+    @classmethod
+    def normalize_pem(cls, v: str) -> str:
+        return v.replace("\\n", "\n") if isinstance(v, str) else v
 
 
 settings = Settings()

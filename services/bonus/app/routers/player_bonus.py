@@ -32,7 +32,7 @@ from app.services.player_bonus_service import (
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request
 
-router = APIRouter(prefix="/player-bonuses", tags=["player-bonuses"])
+router = APIRouter(prefix="/user-bonuses", tags=["user-bonuses"])
 
 
 @router.get("/applicable-codes", response_model=list[ApplicableCodeResponse])

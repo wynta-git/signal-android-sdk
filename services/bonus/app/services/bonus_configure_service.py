@@ -259,11 +259,6 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
         BonusConfigureDuplicateError:  when (subhead_id, name) already exists.
         DatabaseError:                 on unexpected DB failures.
     """
-    if data.created_by.isdigit():
-        raise BonusConfigureValidationError(
-            "created_by", "created_by must be a username or email, not a numeric id"
-        )
-
     log.info("add_bonus_configure.start", subhead_id=data.subhead_id, name=data.name)
 
     row_hash = _configure_row_hash(data)

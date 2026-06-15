@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { fetchConfiguresBySubhead, selectConfiguresBySubhead } from '../../store/slices/configuresSlice';
 import { getUsage, formatINRCompact, formatRelative } from '../../services/mocks/utils';
@@ -28,7 +28,8 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
   const configures = useAppSelector(selectConfiguresBySubhead(subhead.id));
 
   return (
-    <div className="detail-content" key={`sub-${subhead.id}`}>
+    <React.Fragment key={`sub-${subhead.id}`}>
+    <div className="detail-content">
       <div className="card mb-4">
         <div className="card-header">
           <div style={{ flex: 1 }}>
@@ -123,22 +124,24 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
         {(subhead.owners ?? []).filter(o => o.active).map((o, i) => <OwnerPill key={i} owner={o}/>)}
       </div>
 
-      <ActionBar>
-        <button className="btn btn-primary" onClick={() => onAction({ type: 'EDIT_SUBHEAD', id: subhead.id })}>
-          <Icon name="pencil" size={13}/> Edit Subhead
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_CONFIGURE', parentId: subhead.id })}>
-          <Icon name="plus" size={13}/> Add Configure
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'subhead', id: subhead.id })}>
-          <Icon name="wallet" size={13}/> Manage Budget
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_OWNERS', scope: 'subhead', id: subhead.id })}>
-          <Icon name="users" size={13}/> Manage Owners
-        </button>
-        <div style={{ flex: 1 }}/>
-        <Toggle on={subhead.active} onChange={() => {}} label={subhead.active ? 'Active' : 'Paused'}/>
-      </ActionBar>
     </div>
+
+    <ActionBar>
+      <button className="btn btn-primary" onClick={() => onAction({ type: 'EDIT_SUBHEAD', id: subhead.id })}>
+        <Icon name="pencil" size={13}/> Edit Subhead
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_CONFIGURE', parentId: subhead.id })}>
+        <Icon name="plus" size={13}/> Add Configure
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'subhead', id: subhead.id })}>
+        <Icon name="wallet" size={13}/> Manage Budget
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_OWNERS', scope: 'subhead', id: subhead.id })}>
+        <Icon name="users" size={13}/> Manage Owners
+      </button>
+      <div style={{ flex: 1 }}/>
+      <Toggle on={subhead.active} onChange={() => {}} label={subhead.active ? 'Active' : 'Paused'}/>
+    </ActionBar>
+    </React.Fragment>
   );
 }

@@ -46,7 +46,7 @@ class BonusConfigureCreate(BaseModel):
     cashback_bonus_amount_max:       Decimal | None         = Field(None, ge=0)
     priority:                        int                    = Field(0, ge=0)
     active:                          bool                   = True
-    created_by:                      str                    = Field(..., min_length=1, max_length=100)
+    created_by:                      str                    = ""
 
     @field_validator("start_date", "end_date", mode="after")
     @classmethod
@@ -162,7 +162,7 @@ class BonusConfigureUpdate(BaseModel):
     cashback_bonus_amount_max:       Decimal | None                  = Field(None, ge=0)
     priority:                        int | None                      = Field(None, ge=0)
     active:                          bool | None                     = None
-    updated_by:                      str                             = Field(..., min_length=1, max_length=100)
+    updated_by:                      str                             = ""
 
     @field_validator("start_date", "end_date", mode="after")
     @classmethod

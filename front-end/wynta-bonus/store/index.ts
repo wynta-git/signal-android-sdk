@@ -23,17 +23,24 @@ import type { SelectedNode } from "../types";
 
 const initOnAuthMiddleware: Middleware = (storeApi) => (next) => (action) => {
   const result = next(action);
-  if (authenticateWithBridgeToken.fulfilled.match(action)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const state = storeApi.getState() as any;
-    const siteId: number | undefined = state.users?.bridgeData?.site_id;
-    storeApi.dispatch(fetchBrands() as never);
-    storeApi.dispatch(fetchSegments() as never);
-    if (siteId != null) {
-      storeApi.dispatch(fetchHeads(siteId) as never);
-      storeApi.dispatch(fetchKpiSnapshot(siteId) as never);
-    }
-  }
+
+  // console.log("Middleware triggered for action: " + action.type);
+
+  // if (action.type === "users/auth/fulfilled") {
+  //   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //   const state = storeApi.getState() as any;
+  //   const siteId: number | undefined = state.users?.bridgeData?.site_id;
+  //   const isAuthenticated = state.users?.authStatus === "succeeded";
+  //   if (isAuthenticated) {
+  //     storeApi.dispatch(fetchBrands() as never);
+  //     storeApi.dispatch(fetchSegments() as never);
+
+  //     if (siteId != null) {
+  //       storeApi.dispatch(fetchHeads(siteId) as never);
+  //       storeApi.dispatch(fetchKpiSnapshot(siteId) as never);
+  //     }
+  //   }
+  // }
   return result;
 };
 

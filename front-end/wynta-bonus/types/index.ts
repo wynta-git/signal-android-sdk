@@ -52,16 +52,29 @@ export interface BonusHead {
 export interface PromoCode {
   id: string | number;
   configure_id: number;
+  site_id?: number;
   code?: string;
-  max_amount?: string | number;
-  valid_from?: string;
-  valid_to?: string;
+  max_amount?: string | number | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  display_title?: string | null;
+  display_description?: string | null;
+  terms_url?: string | null;
+  banner_image_url?: string | null;
+  badge_text?: string | null;
+  cta_text?: string | null;
   auto_apply?: boolean;
   display_order?: number;
+  display_on?: string;
+  min_display_amount?: string | number | null;
   active?: boolean;
   status?: string;
   issued?: number;
   redeemed?: number;
+  created_by?: string;
+  updated_by?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Trigger {
@@ -255,6 +268,7 @@ export type DrawerType =
   | 'NEW_CONFIGURE'
   | 'EDIT_CONFIGURE'
   | 'NEW_PROMOCODE'
+  | 'EDIT_PROMOCODE'
   | 'NEW_ELIGIBILITY'
   | 'NEW_TRIGGER'
   | 'EDIT_BUDGET'

@@ -1,8 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '../../../store/hooks';
-import { createEligibility } from '../../../store/slices/configuresSlice';
-import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
+import { useAppSelector } from '../../../store/hooks';
+import { selectConfigureById } from '../../../store/slices/configuresSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '../../../components/drawers/DrawerFooter';
@@ -18,21 +17,25 @@ interface EligibilityFormProps {
 }
 
 export default function EligibilityForm({ state, submitting, onCancel, onSubmit }: EligibilityFormProps) {
-  const dispatch = useAppDispatch();
-  const cfg = state.parentId != null ? MOCK_CONFIGURES[state.parentId] : null;
-  const [key, setKey] = useState('');
-  const [value, setValue] = useState('');
-  const [valueType, setValueType] = useState<typeof VALUE_TYPES[number]>('STRING');
-  const [description, setDescription] = useState('');
-  const [active, setActive] = useState(true);
+  const cfg = useAppSelector(
+    state.parentId != null ? selectConfigureById(state.parentId) : () => undefined
+  );
+
+  const [eligibilityKey,       setEligibilityKey]       = useState('');
+  const [eligibilityValue,     setEligibilityValue]     = useState('');
+  const [eligibilityValueType, setEligibilityValueType] = useState<typeof VALUE_TYPES[number]>('STRING');
+  const [description,          setDescription]          = useState('');
+  const [active,               setActive]               = useState(true);
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { key, value, valueType, description, active };
-    if (state.parentId != null) {
-      dispatch(createEligibility({ configureId: state.parentId, payload }));
-    }
-    onSubmit({ type: 'NEW_ELIGIBILITY', ...payload });
+    onSubmit({
+      eligibility_key:        eligibilityKey,
+      eligibility_value:      eligibilityValue,
+      eligibility_value_type: eligibilityValueType,
+      description:            description || null,
+      active,
+    });
   };
 
   return (
@@ -45,24 +48,29 @@ export default function EligibilityForm({ state, submitting, onCancel, onSubmit 
           </div>
         )}
         <div className="field-group">
-          <label>Key</label>
+          <label>Key <span className="required">*</span></label>
           <input
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
+            value={eligibilityKey}
+            onChange={(e) => setEligibilityKey(e.target.value)}
             placeholder="e.g. player.country"
             required
             style={{ fontFamily: 'var(--mono)', fontSize: 12.5 }}
           />
         </div>
         <div className="field-group">
-          <label>Value</label>
-          <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="e.g. IN" required/>
+          <label>Value <span className="required">*</span></label>
+          <input
+            value={eligibilityValue}
+            onChange={(e) => setEligibilityValue(e.target.value)}
+            placeholder="e.g. IN"
+            required
+          />
         </div>
         <div className="field-group">
           <label>Type</label>
           <div className="seg" style={{ '--cols': 4 } as React.CSSProperties}>
             {VALUE_TYPES.map(t => (
-              <button type="button" key={t} className={valueType === t ? 'active' : ''} onClick={() => setValueType(t)}>{t}</button>
+              <button type="button" key={t} className={eligibilityValueType === t ? 'active' : ''} onClick={() => setEligibilityValueType(t)}>{t}</button>
             ))}
           </div>
         </div>

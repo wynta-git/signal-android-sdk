@@ -121,11 +121,6 @@ async def add_bonus_release_trigger(
         BonusReleaseTriggerDuplicateError:  when (configure_id, trigger_type) already exists.
         DatabaseError:                      on unexpected DB failures.
     """
-    if data.created_by.isdigit():
-        raise BonusReleaseTriggerValidationError(
-            "created_by", "created_by must be a username or email, not a numeric id"
-        )
-
     log.info("add_bonus_release_trigger.start", code=data.code, trigger_type=data.trigger_type)
 
     try:

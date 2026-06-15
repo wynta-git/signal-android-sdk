@@ -11,6 +11,7 @@ export const fetchConfiguresBySubhead = createAsyncThunk<BonusConfigure[], numbe
 export const createConfigure  = createAsyncThunk<BonusConfigure, { parentId: number; payload: Record<string, unknown> }>('configures/create', ({ parentId, payload }) => api.createConfigure(parentId, payload));
 export const updateConfigure  = createAsyncThunk<BonusConfigure, { id: number; patch: Partial<BonusConfigure> }>('configures/update', ({ id, patch }) => api.updateConfigure(id, patch as Record<string, unknown>));
 export const createPromoCode  = createAsyncThunk<PromoCode, { configureId: number; payload: Record<string, unknown> }>('configures/createPromoCode', ({ configureId, payload }) => api.createPromoCode(configureId, payload));
+export const updatePromoCode  = createAsyncThunk<PromoCode, { codeId: number; patch: Record<string, unknown> }>('configures/updatePromoCode', ({ codeId, patch }) => api.updatePromoCode(codeId, patch));
 export const createTrigger    = createAsyncThunk<Trigger, { configureId: number; payload: Record<string, unknown> }>('configures/createTrigger', ({ configureId, payload }) => api.createTrigger(configureId, payload));
 export const createEligibility = createAsyncThunk<EligibilityRule, { configureId: number; payload: Record<string, unknown> }>('configures/createEligibility', ({ configureId, payload }) => api.createEligibility(configureId, payload));
 
@@ -49,6 +50,11 @@ const configuresSlice = createSlice({
         const code = action.payload;
         const cfg = state.entities[code.configure_id];
         if (cfg) cfg.promo_codes = [...(cfg.promo_codes || []), code];
+      })
+      .addCase(updatePromoCode.fulfilled, (state, action) => {
+        const code = action.payload;
+        const cfg = state.entities[code.configure_id];
+        if (cfg) cfg.promo_codes = (cfg.promo_codes || []).map(c => Number(c.id) === Number(code.id) ? code : c);
       })
       .addCase(createTrigger.fulfilled, (state, action) => {
         const t = action.payload;

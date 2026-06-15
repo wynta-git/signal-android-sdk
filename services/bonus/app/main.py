@@ -9,6 +9,7 @@ from fastapi import Depends
 
 from app.auth import verify_s2s_request
 from app.db import close_pool, init_pool
+from app.dependencies import get_portal_token_context
 from app.routers.bonus_head import register_exception_handlers
 from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_configure_code, bonus_release_trigger, bonus_eligibility, bonus_summary, player_bonus
 from shared.cors import CORS_ORIGINS
@@ -50,18 +51,19 @@ app.add_middleware(
 
 route_prefix = "/api/v1/bonus"
 _s2s = [Depends(verify_s2s_request)]
+_portal = [Depends(get_portal_token_context)]
 
-# Back-office routers — no S2S auth required
-app.include_router(bonus_head.router,            prefix=route_prefix)
-app.include_router(bonus_subhead.router,         prefix=route_prefix)
-app.include_router(bonus_configure.router,       prefix=route_prefix)
-app.include_router(bonus_configure_code.router,  prefix=route_prefix)
-app.include_router(bonus_release_trigger.router, prefix=route_prefix)
-app.include_router(bonus_eligibility.router,     prefix=route_prefix)
-app.include_router(bonus_summary.router,         prefix=route_prefix)
+# Back-office routers — portal JWT auth (same RS256 tokens as segmentation-engine)
+app.include_router(bonus_head.router,            prefix=route_prefix, dependencies=_portal)
+app.include_router(bonus_subhead.router,         prefix=route_prefix, dependencies=_portal)
+app.include_router(bonus_configure.router,       prefix=route_prefix, dependencies=_portal)
+app.include_router(bonus_configure_code.router,  prefix=route_prefix, dependencies=_portal)
+app.include_router(bonus_release_trigger.router, prefix=route_prefix, dependencies=_portal)
+app.include_router(bonus_eligibility.router,     prefix=route_prefix, dependencies=_portal)
+app.include_router(bonus_summary.router,         prefix=route_prefix, dependencies=_portal)
 
 # Player bonus router — S2S auth required (called by game servers)
-app.include_router(player_bonus.router,          prefix=route_prefix, dependencies=_s2s)
+app.include_router(player_bonus.router,          prefix="/api/v1",    dependencies=_s2s)
 register_exception_handlers(app)
 bonus_subhead.register_exception_handlers(app)
 bonus_release_trigger.register_exception_handlers(app)

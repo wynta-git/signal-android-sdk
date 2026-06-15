@@ -156,8 +156,6 @@ def _compute_row_hash(fields: dict) -> str:
 def _validate_business_rules(data: BonusHeadCreate) -> None:
     if data.owner.isdigit():
         raise BonusHeadValidationError("owner", "owner must be a username or email, not a numeric id")
-    if data.created_by.isdigit():
-        raise BonusHeadValidationError("created_by", "created_by must be a username or email, not a numeric id")
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 'use client';
+import React from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import Badge from 'wynta-react-common/components/Badge';
 import Toggle from 'wynta-react-common/components/Toggle';
@@ -106,7 +107,8 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
   ];
 
   return (
-    <div className="detail-content" key={`cfg-${cfg.id}`}>
+    <React.Fragment key={`cfg-${cfg.id}`}>
+    <div className="detail-content">
       <div className="card mb-4">
         <div className="card-header">
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -217,28 +219,30 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
         <Icon name="plus" size={12}/> Add Trigger
       </button>
 
-      <ActionBar>
-        {cfg.is_manual ? (
-          <button className="btn btn-primary" onClick={() => onAction({ type: 'NEW_MANUAL_BONUS', parentId: cfg.id })}>
-            <Icon name="plus" size={13}/> New Manual Campaign
-          </button>
-        ) : (
-          <button className="btn btn-primary" onClick={() => onAction({ type: 'EDIT_CONFIGURE', id: cfg.id })}>
-            <Icon name="pencil" size={13}/> Edit Configure
-          </button>
-        )}
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_PROMOCODE', parentId: cfg.id })}>
-          <Icon name="ticket" size={13}/> Add Promo Code
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_TRIGGER', parentId: cfg.id })}>
-          <Icon name="zap" size={13}/> Add Trigger
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'configure', id: cfg.id })}>
-          <Icon name="wallet" size={13}/> Manage Budget
-        </button>
-        <div style={{ flex: 1 }}/>
-        <Toggle on={cfg.active} onChange={() => {}} label={cfg.active ? 'Active' : 'Paused'}/>
-      </ActionBar>
     </div>
+
+    <ActionBar>
+      {cfg.is_manual ? (
+        <button className="btn btn-primary" onClick={() => onAction({ type: 'NEW_MANUAL_BONUS', parentId: cfg.id })}>
+          <Icon name="plus" size={13}/> New Manual Campaign
+        </button>
+      ) : (
+        <button className="btn btn-primary" onClick={() => onAction({ type: 'EDIT_CONFIGURE', id: cfg.id })}>
+          <Icon name="pencil" size={13}/> Edit Configure
+        </button>
+      )}
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_PROMOCODE', parentId: cfg.id })}>
+        <Icon name="ticket" size={13}/> Add Promo Code
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_TRIGGER', parentId: cfg.id })}>
+        <Icon name="zap" size={13}/> Add Trigger
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'configure', id: cfg.id })}>
+        <Icon name="wallet" size={13}/> Manage Budget
+      </button>
+      <div style={{ flex: 1 }}/>
+      <Toggle on={cfg.active} onChange={() => {}} label={cfg.active ? 'Active' : 'Paused'}/>
+    </ActionBar>
+    </React.Fragment>
   );
 }

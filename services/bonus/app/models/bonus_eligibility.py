@@ -25,7 +25,7 @@ class BonusEligibilityCreate(BaseModel):
     eligibility_value_type: EligibilityValueType = "STRING"
     description:            str | None           = Field(None, max_length=500)
     active:                 bool                 = True
-    created_by:             str                  = Field(..., min_length=1, max_length=100)
+    created_by:             str                  = ""
 
 
 class BonusEligibilityResponse(BaseModel):
@@ -55,4 +55,4 @@ class BonusEligibilityUpdate(BaseModel):
     eligibility_value_type: EligibilityValueType | None = None
     description:            str | None           = Field(None, max_length=500)
     active:                 bool | None          = None
-    updated_by:             str                  = Field(..., min_length=1, max_length=100)
+    updated_by:             str                  = ""

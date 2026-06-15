@@ -1687,18 +1687,20 @@ a { color: inherit; text-decoration: none; }
    ============================================================ */
 .detail-panel {
   flex: 1; min-width: 0;
-  padding: 24px 28px 0;
+  padding: 0;
   height: calc(100vh - 56px);
   position: sticky;
   top: 56px;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--g50);
   display: flex;
   flex-direction: column;
 }
 .detail-content {
-  flex-grow: 1;
-  flex-shrink: 0;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 28px 24px;
   display: flex;
   flex-direction: column;
   animation: detail-fade 0.3s ease;
@@ -1915,16 +1917,14 @@ a { color: inherit; text-decoration: none; }
   text-transform: uppercase; letter-spacing: 0.04em;
 }
 
-/* sticky action bar */
+/* action bar — always pinned to bottom of detail-panel */
 .action-bar {
-  position: sticky; bottom: 0;
+  flex-shrink: 0;
   background: #fff;
   border-top: 1px solid var(--g200);
   box-shadow: 0 -6px 16px rgba(0,0,0,0.05);
   padding: 12px 22px;
   display: flex; align-items: center; gap: 10px;
-  margin: auto -28px 0;
-  border-radius: 0;
   z-index: 4;
 }
 
@@ -3242,8 +3242,7 @@ a { color: inherit; text-decoration: none; }
   .kpi-strip { grid-template-columns: 1fr 1.8fr; }
   .kpi-cell { padding-left: 18px; padding-right: 18px; }
   .three-zone { grid-template-columns: 300px 1fr; }
-  .detail-panel { padding: 22px 22px 0; }
-  .action-bar { margin: auto -22px 0; }
+  .detail-content { padding: 22px 22px 24px; }
   .ring-grid { grid-template-columns: repeat(3, 1fr); }
   .usage-chips { grid-template-columns: repeat(5, 1fr); }
 }
@@ -3294,9 +3293,9 @@ a { color: inherit; text-decoration: none; }
     position: relative;
     top: auto;
     height: auto;
-    padding: 20px 20px 0;
+    max-height: 100vh;
   }
-  .action-bar { margin: auto -20px 0; }
+  .detail-content { padding: 20px 20px 24px; }
 
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .ring-grid { grid-template-columns: repeat(2, 1fr); }
@@ -3371,12 +3370,12 @@ a { color: inherit; text-decoration: none; }
   .subhead-row .head { flex-wrap: wrap; }
 
   .action-bar {
-    margin: auto -14px 0;
     padding: 10px 14px;
     flex-wrap: wrap;
     gap: 8px;
   }
   .action-bar .btn { flex: 1 1 auto; }
+  .detail-content { padding: 16px 14px 20px; }
 
   .field-group .row-2 { grid-template-columns: 1fr; }
 

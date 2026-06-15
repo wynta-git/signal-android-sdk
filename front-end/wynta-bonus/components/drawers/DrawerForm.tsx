@@ -27,6 +27,7 @@ export default function DrawerForm({ state, submitting, onCancel, onSubmit }: Dr
     case 'NEW_CONFIGURE':    return <ConfigureForm mode="new"  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_CONFIGURE':   return <ConfigureForm mode="edit" state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'NEW_PROMOCODE':    return <PromoCodeForm  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
+    case 'EDIT_PROMOCODE':   return <PromoCodeForm  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'NEW_ELIGIBILITY':  return <EligibilityForm state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'NEW_TRIGGER':      return <TriggerForm    state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_BUDGET':      return <BudgetForm     state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;

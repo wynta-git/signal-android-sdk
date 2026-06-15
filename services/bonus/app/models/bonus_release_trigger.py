@@ -40,7 +40,7 @@ class BonusReleaseTriggerCreate(BaseModel):
     trigger_type:   TriggerType
     trigger_config: dict[str, Any] | None   = None
     active:         bool                    = True
-    created_by:     str                     = Field(..., min_length=1, max_length=100)
+    created_by:     str                     = ""
 
     @model_validator(mode="after")
     def require_configure_id_or_code(self) -> "BonusReleaseTriggerCreate":
@@ -72,4 +72,4 @@ class BonusReleaseTriggerUpdate(BaseModel):
     trigger_type:   TriggerType | None      = None
     trigger_config: dict[str, Any] | None   = None
     active:         bool | None             = None
-    updated_by:     str                     = Field(..., min_length=1, max_length=100)
+    updated_by:     str                     = ""

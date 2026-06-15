@@ -72,7 +72,7 @@ class BonusHeadCreate(BaseModel):
     description: str | None = Field(None, max_length=500)
     active: bool = Field(True, description="Whether this head is active")
     owner: _OwnerStr = Field(..., description="Primary accountable person (username or email)")
-    created_by: _ActorStr = Field(..., description="Actor creating this record")
+    created_by: str = ""
     budget: list[LimitUpsertItem] = Field(
         ..., min_length=1, description="Budget caps per period; budget_limit null = uncapped"
     )
@@ -87,11 +87,6 @@ class BonusHeadCreate(BaseModel):
     def clean_owner(cls, v: str) -> str:
         return _clean(v)
 
-    @field_validator("created_by", mode="before")
-    @classmethod
-    def clean_created_by(cls, v: str) -> str:
-        return _clean(v)
-
     @field_validator("name")
     @classmethod
     def validate_name_chars(cls, v: str) -> str:
@@ -101,11 +96,6 @@ class BonusHeadCreate(BaseModel):
     @classmethod
     def validate_owner_chars(cls, v: str) -> str:
         return _validate_identifier("owner", v)
-
-    @field_validator("created_by")
-    @classmethod
-    def validate_created_by_chars(cls, v: str) -> str:
-        return _validate_identifier("created_by", v)
 
     @model_validator(mode="after")
     def description_not_blank(self) -> "BonusHeadCreate":
@@ -180,7 +170,7 @@ class BonusHeadUpdate(BaseModel):
     description: str | None = None
     active: bool | None = None
     owner: str | None = Field(None, min_length=1, max_length=100)
-    updated_by: str = Field(..., min_length=1, max_length=100)
+    updated_by: str = ""
 
     @field_validator("name", mode="before")
     @classmethod
@@ -191,11 +181,6 @@ class BonusHeadUpdate(BaseModel):
     @classmethod
     def clean_owner(cls, v: str | None) -> str | None:
         return _clean(v) if v is not None else v
-
-    @field_validator("updated_by", mode="before")
-    @classmethod
-    def clean_updated_by(cls, v: str) -> str:
-        return _clean(v)
 
     @field_validator("name")
     @classmethod
@@ -225,7 +210,7 @@ class OwnersUpsertRequest(BaseModel):
     """PUT /bonus-heads/{id}/owners — upsert one or more owner assignments."""
 
     owners: list[OwnerUpsertItem] = Field(..., min_length=1)
-    updated_by: str = Field(..., min_length=1, max_length=100)
+    updated_by: str = ""
 
     @model_validator(mode="after")
     def no_duplicate_usernames(self) -> "OwnersUpsertRequest":
@@ -241,7 +226,7 @@ class LimitsUpsertRequest(BaseModel):
     """PUT /bonus-heads/{id}/limits — upsert budget caps for one or more periods."""
 
     limits: list[LimitUpsertItem] = Field(..., min_length=1)
-    updated_by: str = Field(..., min_length=1, max_length=100)
+    updated_by: str = ""
 
     @model_validator(mode="after")
     def no_duplicate_periods(self) -> "LimitsUpsertRequest":

@@ -5,7 +5,7 @@ import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { closeDrawer } from '../../store/slices/uiSlice';
 import { createHead, updateHead, fetchHead, selectAllHeads } from '../../store/slices/headsSlice';
 import { createSubhead, updateSubhead, fetchSubhead, selectSubheadById } from '../../store/slices/subheadsSlice';
-import { createConfigure, updateConfigure, fetchConfiguresBySubhead, createTrigger, createPromoCode, createEligibility } from '../../store/slices/configuresSlice';
+import { createConfigure, updateConfigure, fetchConfiguresBySubhead, createTrigger, createPromoCode, updatePromoCode, createEligibility } from '../../store/slices/configuresSlice';
 import { updateBudget } from '../../store/slices/budgetsSlice';
 import { updateOwners } from '../../store/slices/ownersSlice';
 import type { BudgetPeriod, OwnerEntry } from '../../types';
@@ -26,6 +26,7 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   NEW_CONFIGURE:  { title: 'Add Bonus Configure',            icon: 'settings-2' },
   EDIT_CONFIGURE: { title: 'Edit Configure',                icon: 'pencil' },
   NEW_PROMOCODE:  { title: 'Add Promo Code',                icon: 'ticket' },
+  EDIT_PROMOCODE: { title: 'Edit Promo Code',               icon: 'pencil' },
   NEW_ELIGIBILITY:{ title: 'Add Eligibility Criterion',     icon: 'filter' },
   NEW_TRIGGER:    { title: 'Add Release Trigger',           icon: 'zap' },
   EDIT_BUDGET:    { title: 'Manage Budget',                 icon: 'wallet' },
@@ -201,6 +202,31 @@ export default function SlideDrawer() {
         })).unwrap();
         if (scope === 'head') dispatch(fetchHead(drawerState.id));
         else dispatch(fetchSubhead(drawerState.id));
+      } else if (drawerState?.type === 'NEW_TRIGGER' && drawerState.parentId != null) {
+        await dispatch(createTrigger({
+          configureId: drawerState.parentId,
+          payload: { ...data, site_id: selectedBrand, created_by: currentUser },
+        })).unwrap();
+        dispatch(fetchConfiguresBySubhead(drawerState.parentId));
+        dispatch(closeDrawer());
+      } else if (drawerState?.type === 'NEW_ELIGIBILITY' && drawerState.parentId != null) {
+        await dispatch(createEligibility({
+          configureId: drawerState.parentId,
+          payload: { ...data, site_id: selectedBrand, created_by: currentUser },
+        })).unwrap();
+        dispatch(closeDrawer());
+      } else if (drawerState?.type === 'NEW_PROMOCODE' && drawerState.parentId != null) {
+        await dispatch(createPromoCode({
+          configureId: drawerState.parentId,
+          payload: { ...data, site_id: selectedBrand },
+        })).unwrap();
+        dispatch(closeDrawer());
+      } else if (drawerState?.type === 'EDIT_PROMOCODE' && drawerState.id != null) {
+        await dispatch(updatePromoCode({
+          codeId: drawerState.id,
+          patch: { ...data },
+        })).unwrap();
+        dispatch(closeDrawer());
       }
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong');

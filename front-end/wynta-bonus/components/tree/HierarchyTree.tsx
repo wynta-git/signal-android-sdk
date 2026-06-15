@@ -21,6 +21,7 @@ interface HierarchyTreeProps {
   onToggleHead: (id: number) => void;
   onToggleSubhead: (id: number) => void;
   onAddHead: () => void;
+  onReload: () => void;
   onMenu: (evt: MenuEvent) => void;
   selectedBrand: number | null;
   onBrandChange?: (brand: number) => void;
@@ -34,6 +35,7 @@ export default function HierarchyTree({
   onSelectNode,
   onToggleHead, onToggleSubhead,
   onAddHead,
+  onReload,
   onMenu,
   selectedBrand,
   onBrandChange,
@@ -44,6 +46,9 @@ export default function HierarchyTree({
         <span className="title">Bonus Tree</span>
         <button className="ghost-btn" onClick={onAddHead}>
           <Icon name="plus" size={12} strokeWidth={2.4}/> Head
+        </button>
+        <button className="ghost-btn icon-btn" onClick={onReload} title="Reload">
+          <Icon name="rotate-cw" size={13} strokeWidth={2.2}/>
         </button>
       </div>
       <div className="tree-body">

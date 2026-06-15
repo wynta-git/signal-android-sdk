@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from app.dependencies import PortalAuthDep
 from app.exceptions import (
     BonusEligibilityDuplicateError,
     BonusEligibilityNotFoundError,
@@ -26,6 +27,7 @@ router = APIRouter(prefix="/bonus-eligibilities", tags=["bonus-eligibilities"])
 @router.post("", response_model=BonusEligibilityResponse, status_code=201)
 async def create_bonus_eligibility(
     payload: BonusEligibilityCreate,
+    ctx: PortalAuthDep,
 ) -> BonusEligibilityResponse:
     """
     Create one eligibility criterion for a bonus configure node.
@@ -42,6 +44,7 @@ async def create_bonus_eligibility(
     - **description**: human-readable summary of this criterion (optional)
     - **created_by**: actor performing the creation
     """
+    payload.created_by = ctx.user_id
     return await add_bonus_eligibility(payload)
 
 
@@ -57,6 +60,7 @@ async def get_bonus_eligibility_detail(
 async def patch_bonus_eligibility(
     eligibility_id: int,
     payload: BonusEligibilityUpdate,
+    ctx: PortalAuthDep,
 ) -> BonusEligibilityResponse:
     """
     Partially update an eligibility criterion row.
@@ -64,6 +68,7 @@ async def patch_bonus_eligibility(
     Only fields included in the request body are written.
     ``updated_by`` is always required.
     """
+    payload.updated_by = ctx.user_id
     return await update_bonus_eligibility(eligibility_id, payload)
 
 
