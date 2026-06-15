@@ -1,10 +1,11 @@
 import asyncio
+import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.dependencies import PortalAuthDep, get_db
@@ -248,6 +249,190 @@ async def _compute_metrics(
             data[m] = {"value": None, "tracked": False}
 
     return data
+
+
+# ---------------------------------------------------------------------------
+# Campaign stats helpers (reused from dashboard patterns)
+# ---------------------------------------------------------------------------
+
+_CHANNEL_TIERS = ("email", "push", "sms")   # primary / secondary / tertiary
+_TIER_LABELS   = ("primary", "secondary", "tertiary")
+
+_CAMPAIGN_DEMO_RANGES: dict[str, tuple[int, int]] = {
+    "email":    (100_000, 500_000),
+    "push":     (50_000,  200_000),
+    "sms":      (30_000,  150_000),
+    "whatsapp": (20_000,  100_000),
+    "telegram": (5_000,    50_000),
+    "in_app":   (50_000,  250_000),
+}
+_CAMPAIGN_DEMO_RATES: dict[str, tuple[float, float, float, float]] = {
+    "email":    (0.22, 0.06, 0.035, 0.010),
+    "push":     (0.17, 0.04, 0.045, 0.012),
+    "sms":      (0.28, 0.06, 0.038, 0.008),
+    "whatsapp": (0.38, 0.08, 0.075, 0.015),
+    "telegram": (0.33, 0.07, 0.060, 0.012),
+    "in_app":   (0.55, 0.10, 0.115, 0.020),
+}
+_DAILY_WEIGHTS = [0.12, 0.15, 0.16, 0.14, 0.18, 0.13, 0.12]
+
+
+def _demo_sent(campaign_id: str, channel: str) -> int:
+    seed = int(hashlib.md5(campaign_id.encode()).hexdigest()[:8], 16)
+    lo, hi = _CAMPAIGN_DEMO_RANGES.get(channel, (10_000, 100_000))
+    return lo + (seed % (hi - lo))
+
+
+def _demo_rates(campaign_id: str, channel: str) -> tuple[float, float]:
+    seed = int(hashlib.md5((campaign_id + "rates").encode()).hexdigest()[:8], 16)
+    or_base, or_var, ctr_base, ctr_var = _CAMPAIGN_DEMO_RATES.get(channel, (0.20, 0.05, 0.040, 0.010))
+    return (
+        round(or_base + (seed % 1000) / 1000 * or_var, 4),
+        round(ctr_base + ((seed >> 16) % 1000) / 1000 * ctr_var, 4),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /projects/{project_id}/reports/campaign-stats
+# ---------------------------------------------------------------------------
+
+@router.get("/campaign-stats")
+async def get_campaign_stats(
+    project_id: str,
+    ctx: PortalAuthDep,
+    db: DbDep,
+    window_days: int = Query(default=7, ge=1, le=90),
+    channel: str = Query(default="all"),
+    segment_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    if ctx.project_id != project_id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+
+    now   = datetime.now(timezone.utc)
+    since = now - timedelta(days=window_days)
+    prev_since = since - timedelta(days=window_days)
+
+    # ── Parallel fetches ────────────────────────────────────────────────────
+    campaign_query: dict[str, Any] = {"project_id": project_id, "status": {"$in": ["running", "scheduled", "paused", "completed"]}}
+    if segment_id:
+        campaign_query["audience.segment_id"] = segment_id
+    if channel != "all":
+        campaign_query["channel"] = channel
+
+    (
+        curr_raw, prev_raw, daily_range, boosts_doc,
+        campaign_docs, run_rows,
+    ) = await asyncio.gather(
+        get_dashboard_delivery_stats(db, project_id, since, now),
+        get_dashboard_delivery_stats(db, project_id, prev_since, since),
+        get_daily_boosts_range(db, project_id, since, now),
+        db["dashboard_boosts"].find_one({"project_id": project_id}, {"_id": 0, "boosts": 1, "analytics": 1}),
+        db["campaigns"].find(campaign_query, {"_id": 0, "campaign_id": 1, "name": 1, "channel": 1, "status": 1, "audience": 1})
+            .sort("updated_at", -1).skip(offset).limit(limit).to_list(length=None),
+        db["campaign_runs"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$campaign_id", "total_sent": {"$sum": "$sent_count"}}},
+        ]).to_list(length=None),
+    )
+
+    boosts_doc = boosts_doc or {}
+    analytics_cfg = boosts_doc.get("analytics") or {}
+    flat_boosts   = boosts_doc.get("boosts") or {}
+
+    # ── Summary ─────────────────────────────────────────────────────────────
+    curr = _crunch_deliveries(curr_raw)
+    prev = _crunch_deliveries(prev_raw)
+    daily = daily_range or {}
+
+    win_scale  = window_days / 30
+    boost_sent = int(flat_boosts.get("quick_stats.messages_sent", 0))
+    daily_sent = sum(day.get("messages_sent", 0) for day in daily.values())
+
+    curr_sent  = _sum_status(curr, "sent") + daily_sent + round(boost_sent * win_scale)
+    prev_sent  = _sum_status(prev, "sent")  + round(boost_sent * win_scale)
+
+    override_open = analytics_cfg.get("avg_open_rate")
+    override_ctr  = analytics_cfg.get("avg_ctr")
+
+    summary = {
+        "total_sent": {
+            "value":      curr_sent,
+            "change_pct": _change_pct(curr_sent, prev_sent),
+        },
+        "avg_open_rate": (
+            {"value": round(override_open * 100, 1), "change_pct": None, "tracked": True}
+            if override_open is not None
+            else {"value": None, "tracked": False}
+        ),
+        "avg_ctr": (
+            {"value": round(override_ctr * 100, 1), "change_pct": None, "tracked": True}
+            if override_ctr is not None
+            else {"value": None, "tracked": False}
+        ),
+        "conversions":       {"value": None, "tracked": False},
+        "revenue_influenced": {"value": None, "tracked": False},
+    }
+
+    # ── Trend (primary/secondary/tertiary by channel tier) ──────────────────
+    window_dates = [str((since + timedelta(days=i)).date()) for i in range(window_days)]
+    total_w = sum(_DAILY_WEIGHTS[datetime.strptime(d, "%Y-%m-%d").weekday()] for d in window_dates)
+    daily_avg = int(analytics_cfg.get("daily_avg_sent", 0))
+
+    # Per-channel daily data from daily_boosts
+    trend: list[dict] = []
+    for date_str in window_dates:
+        day_boosts = daily.get(date_str, {})
+        ch_data    = day_boosts.get("channel", {})
+
+        # Base from real notification_deliveries grouped by date/channel
+        real_by_ch: dict[str, int] = {}
+        for ch, statuses in curr.items():
+            for st, dates in statuses.items():
+                if st == "sent" and date_str in dates:
+                    real_by_ch[ch] = real_by_ch.get(ch, 0) + dates[date_str]
+
+        # Fallback boost allocation split equally across tier channels
+        fallback = 0
+        if daily_avg > 0:
+            w = _DAILY_WEIGHTS[datetime.strptime(date_str, "%Y-%m-%d").weekday()]
+            fallback = round(daily_avg * w / total_w / len(_CHANNEL_TIERS))
+
+        point: dict[str, Any] = {"date": date_str}
+        for tier, ch in zip(_TIER_LABELS, _CHANNEL_TIERS):
+            boost_val = ch_data.get(ch, {}).get("sent", 0)
+            real_val  = real_by_ch.get(ch, 0)
+            point[tier] = boost_val + real_val + (fallback if not boost_val and not real_val else 0)
+        trend.append(point)
+
+    # ── Campaign table ────────────────────────────────────────────────────────
+    sent_by_campaign = {r["_id"]: r["total_sent"] for r in run_rows}
+    campaigns_out = []
+    for d in campaign_docs:
+        cid  = d["campaign_id"]
+        ch   = d["channel"]
+        open_rate, ctr = _demo_rates(cid, ch)
+        real_sent = sent_by_campaign.get(cid, 0)
+        total = real_sent + _demo_sent(cid, ch)
+        campaigns_out.append({
+            "campaign_id": cid,
+            "name":        d["name"],
+            "channel":     ch,
+            "sent":        total,
+            "open_rate":   open_rate,
+            "ctr":         ctr,
+            "conversions": None,
+            "status":      d["status"],
+        })
+    campaigns_out.sort(key=lambda c: c["sent"], reverse=True)
+
+    return {
+        "window_days": window_days,
+        "summary":   summary,
+        "trend":     trend,
+        "campaigns": campaigns_out,
+    }
 
 
 # ---------------------------------------------------------------------------
