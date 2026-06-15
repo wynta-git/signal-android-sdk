@@ -170,6 +170,51 @@ export async function getSegmentAnalysis(
   return res.json();
 }
 
+// ── Channel Delivery Report ───────────────────────────────────────────────
+
+export interface ChannelRow {
+  channel:       string;
+  messages:      number;
+  delivery_rate: number | null;
+  bounce_rate:   number | null;
+  open_rate:     number | null;
+  ctr:           number | null;
+  opt_outs:      number | null;
+}
+
+export interface ChannelDeliveryData {
+  window_days: number;
+  summary: {
+    total_messages:  MetricValue;
+    delivery_rate:   MetricValue;
+    bounce_rate:     MetricValue;
+    opt_outs_7d:     MetricValue;
+    active_channels: { value: number; paused: number };
+  };
+  trend:    TrendPoint[];
+  channels: ChannelRow[];
+}
+
+export interface ChannelDeliveryFilters {
+  windowDays: number;
+  channel:    string;
+  segmentId:  string | null;
+}
+
+export async function getChannelDelivery(
+  projectId: string,
+  filters: ChannelDeliveryFilters,
+): Promise<ChannelDeliveryData> {
+  const params = new URLSearchParams({
+    window_days: String(filters.windowDays),
+    channel:     filters.channel,
+    ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
+  });
+  const res = await fetch(`${root(projectId)}/channel-delivery?${params}`, { headers: authHeader() });
+  if (!res.ok) throw new Error(`getChannelDelivery failed: ${res.status}`);
+  return res.json();
+}
+
 export async function getCampaignStats(
   projectId: string,
   filters: CampaignStatsFilters,

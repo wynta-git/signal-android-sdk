@@ -324,6 +324,115 @@ async def get_campaign_stats(
 
 
 # ---------------------------------------------------------------------------
+# GET /projects/{project_id}/reports/channel-delivery
+# ---------------------------------------------------------------------------
+
+_ALL_CHANNELS = ("email", "push", "sms", "whatsapp", "telegram", "in_app")
+
+
+@router.get("/channel-delivery")
+async def get_channel_delivery(
+    project_id: str,
+    ctx: PortalAuthDep,
+    db: DbDep,
+    window_days: int = Query(default=7, ge=1, le=90),
+    channel: str = Query(default="all"),
+    segment_id: str | None = Query(default=None),
+) -> dict:
+    if ctx.project_id != project_id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+
+    now        = datetime.now(timezone.utc)
+    since      = now - timedelta(days=window_days)
+    prev_since = since - timedelta(days=window_days)
+
+    curr_raw, prev_raw = await asyncio.gather(
+        get_dashboard_delivery_stats(db, project_id, since, now),
+        get_dashboard_delivery_stats(db, project_id, prev_since, since),
+    )
+
+    curr = _crunch_deliveries(curr_raw)
+    prev = _crunch_deliveries(prev_raw)
+
+    if channel != "all":
+        curr = {k: v for k, v in curr.items() if k == channel}
+        prev = {k: v for k, v in prev.items() if k == channel}
+
+    # ── Summary ─────────────────────────────────────────────────────────────
+    curr_sent   = _sum_status(curr, "sent")
+    prev_sent   = _sum_status(prev, "sent")
+    curr_failed = _sum_status(curr, "failed")
+
+    active_channels = sum(
+        1 for ch_data in curr.values()
+        if "sent" in ch_data and sum(ch_data["sent"].values()) > 0
+    )
+    known_set   = set(_ALL_CHANNELS)
+    active_set  = {ch for ch, ch_data in curr.items() if "sent" in ch_data and sum(ch_data["sent"].values()) > 0}
+    paused_count = len(known_set - active_set) if channel == "all" else 0
+
+    summary = {
+        "total_messages": {
+            "value":      curr_sent,
+            "change_pct": _change_pct(curr_sent, prev_sent),
+        },
+        "delivery_rate": {
+            "value": _safe_rate(curr_sent, curr_sent + curr_failed),
+        },
+        "bounce_rate": {
+            "value": _safe_rate(curr_failed, curr_sent + curr_failed),
+        },
+        "opt_outs_7d": {"value": None, "tracked": False},
+        "active_channels": {
+            "value":  active_channels,
+            "paused": paused_count,
+        },
+    }
+
+    # ── Trend (primary=email / secondary=push / tertiary=sms) ───────────────
+    window_dates = [str((since + timedelta(days=i)).date()) for i in range(window_days)]
+    trend: list[dict] = []
+    for date_str in window_dates:
+        real_by_ch: dict[str, int] = {}
+        for ch_key, statuses in curr.items():
+            for st, dates in statuses.items():
+                if st == "sent" and date_str in dates:
+                    real_by_ch[ch_key] = real_by_ch.get(ch_key, 0) + dates[date_str]
+        point: dict[str, Any] = {"date": date_str}
+        for tier, ch in zip(_TIER_LABELS, _CHANNEL_TIERS):
+            point[tier] = real_by_ch.get(ch, 0)
+        trend.append(point)
+
+    # ── Channel table ────────────────────────────────────────────────────────
+    channels_out: list[dict] = []
+    all_ch_keys = sorted(set(curr.keys()) | (set(_ALL_CHANNELS) if channel == "all" else {channel}))
+    for ch_key in all_ch_keys:
+        ch_data   = curr.get(ch_key, {})
+        ch_sent   = sum(sum(dates.values()) for st, dates in ch_data.items() if st == "sent")
+        ch_failed = sum(sum(dates.values()) for st, dates in ch_data.items() if st == "failed")
+        ch_total  = ch_sent + ch_failed
+        if ch_total == 0:
+            continue
+        channels_out.append({
+            "channel":       ch_key,
+            "messages":      ch_total,
+            "delivery_rate": _safe_rate(ch_sent, ch_total),
+            "bounce_rate":   _safe_rate(ch_failed, ch_total),
+            "open_rate":     None,
+            "ctr":           None,
+            "opt_outs":      None,
+        })
+    channels_out.sort(key=lambda c: c["messages"], reverse=True)
+
+    return {
+        "window_days": window_days,
+        "summary":     summary,
+        "trend":       trend,
+        "channels":    channels_out,
+    }
+
+
+# ---------------------------------------------------------------------------
 # GET /projects/{project_id}/reports/segment-analysis
 # ---------------------------------------------------------------------------
 
