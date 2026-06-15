@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # Separate RS256 public key for portal UI tokens — set PORTAL_JWT_PUBLIC_KEY env var
     portal_jwt_public_key: str = ""
 
+    clickhouse_host: str = "localhost"
+    clickhouse_port: int = 8123
+    clickhouse_database: str = "pam"
+    clickhouse_username: str = "default"
+    clickhouse_password: str = ""
+
     debug: bool = False
     version: str = "0.1.0"
 

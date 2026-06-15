@@ -7,7 +7,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.dependencies import PortalAuthDep, get_db
+from app.dependencies import ChDep, PortalAuthDep, get_db
 from app.models import CreateReportRequest, CustomReport, ReportFilters, UpdateReportRequest
 from shared.clients.mongo import get_dashboard_delivery_stats
 
@@ -330,11 +330,51 @@ async def get_campaign_stats(
 _ALL_CHANNELS = ("email", "push", "sms", "whatsapp", "telegram", "in_app")
 
 
+async def _query_notification_events(
+    ch: Any,
+    project_id: str,
+    since: datetime,
+    until: datetime,
+) -> dict[str, dict[str, int]]:
+    """Query ClickHouse for notification_opened/clicked counts per channel.
+
+    Returns {channel: {opens: N, clicks: N}}. Returns {} on any error so
+    callers degrade gracefully when ClickHouse has no data yet.
+    """
+    query = """
+        SELECT
+            properties['channel']                              AS channel,
+            countIf(event_name = 'notification_opened')        AS opens,
+            countIf(event_name = 'notification_clicked')       AS clicks
+        FROM pam.events
+        WHERE project_id = {project_id:String}
+          AND event_name IN ('notification_opened', 'notification_clicked')
+          AND timestamp >= {since:DateTime}
+          AND timestamp <  {until:DateTime}
+        GROUP BY channel
+    """
+    try:
+        result = await ch.query(
+            query,
+            parameters={"project_id": project_id, "since": since, "until": until},
+        )
+        out: dict[str, dict[str, int]] = {}
+        for row in result.named_results():
+            ch_key = row["channel"]
+            if ch_key:
+                out[ch_key] = {"opens": int(row["opens"]), "clicks": int(row["clicks"])}
+        return out
+    except Exception:
+        log.warning("clickhouse.notification_events.failed", project_id=project_id)
+        return {}
+
+
 @router.get("/channel-delivery")
 async def get_channel_delivery(
     project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
+    ch: ChDep,
     window_days: int = Query(default=7, ge=1, le=90),
     channel: str = Query(default="all"),
     segment_id: str | None = Query(default=None),
@@ -346,9 +386,12 @@ async def get_channel_delivery(
     since      = now - timedelta(days=window_days)
     prev_since = since - timedelta(days=window_days)
 
-    curr_raw, prev_raw = await asyncio.gather(
-        get_dashboard_delivery_stats(db, project_id, since, now),
-        get_dashboard_delivery_stats(db, project_id, prev_since, since),
+    (curr_raw, prev_raw), ch_events = await asyncio.gather(
+        asyncio.gather(
+            get_dashboard_delivery_stats(db, project_id, since, now),
+            get_dashboard_delivery_stats(db, project_id, prev_since, since),
+        ),
+        _query_notification_events(ch, project_id, since, now),
     )
 
     curr = _crunch_deliveries(curr_raw)
@@ -357,6 +400,7 @@ async def get_channel_delivery(
     if channel != "all":
         curr = {k: v for k, v in curr.items() if k == channel}
         prev = {k: v for k, v in prev.items() if k == channel}
+        ch_events = {k: v for k, v in ch_events.items() if k == channel}
 
     # ── Summary ─────────────────────────────────────────────────────────────
     curr_sent   = _sum_status(curr, "sent")
@@ -367,8 +411,8 @@ async def get_channel_delivery(
         1 for ch_data in curr.values()
         if "sent" in ch_data and sum(ch_data["sent"].values()) > 0
     )
-    known_set   = set(_ALL_CHANNELS)
-    active_set  = {ch for ch, ch_data in curr.items() if "sent" in ch_data and sum(ch_data["sent"].values()) > 0}
+    known_set    = set(_ALL_CHANNELS)
+    active_set   = {ch_key for ch_key, ch_data in curr.items() if "sent" in ch_data and sum(ch_data["sent"].values()) > 0}
     paused_count = len(known_set - active_set) if channel == "all" else 0
 
     summary = {
@@ -399,8 +443,8 @@ async def get_channel_delivery(
                 if st == "sent" and date_str in dates:
                     real_by_ch[ch_key] = real_by_ch.get(ch_key, 0) + dates[date_str]
         point: dict[str, Any] = {"date": date_str}
-        for tier, ch in zip(_TIER_LABELS, _CHANNEL_TIERS):
-            point[tier] = real_by_ch.get(ch, 0)
+        for tier, ch_key in zip(_TIER_LABELS, _CHANNEL_TIERS):
+            point[tier] = real_by_ch.get(ch_key, 0)
         trend.append(point)
 
     # ── Channel table ────────────────────────────────────────────────────────
@@ -413,13 +457,16 @@ async def get_channel_delivery(
         ch_total  = ch_sent + ch_failed
         if ch_total == 0:
             continue
+        ev        = ch_events.get(ch_key, {})
+        opens     = ev.get("opens", 0)
+        clicks    = ev.get("clicks", 0)
         channels_out.append({
             "channel":       ch_key,
             "messages":      ch_total,
             "delivery_rate": _safe_rate(ch_sent, ch_total),
             "bounce_rate":   _safe_rate(ch_failed, ch_total),
-            "open_rate":     None,
-            "ctr":           None,
+            "open_rate":     _safe_rate(opens, ch_sent) if opens else None,
+            "ctr":           _safe_rate(clicks, ch_sent) if clicks else None,
             "opt_outs":      None,
         })
     channels_out.sort(key=lambda c: c["messages"], reverse=True)
@@ -546,14 +593,46 @@ async def get_player_lifecycle(
     now   = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
 
-    health_agg, total_curr, prev_total = await asyncio.gather(
+    health_agg, total_curr, prev_total, touchpoints_agg = await asyncio.gather(
         db["users"].aggregate([
             {"$match": {"project_id": project_id}},
             {"$group": {"_id": "$health_status", "count": {"$sum": 1}}},
         ]).to_list(length=None),
         db["users"].count_documents({"project_id": project_id}),
         db["users"].count_documents({"project_id": project_id, "created_at": {"$lt": since}}),
+        db["notification_deliveries"].aggregate([
+            {"$match": {"project_id": project_id, "attempted_at": {"$gte": since}}},
+            {"$group": {"_id": "$user_id", "delivery_count": {"$sum": 1}}},
+            {
+                "$lookup": {
+                    "from": "users",
+                    "let": {"uid": "$_id"},
+                    "pipeline": [
+                        {"$match": {"$expr": {"$and": [
+                            {"$eq": ["$project_id", project_id]},
+                            {"$eq": ["$user_id", "$$uid"]},
+                        ]}}},
+                        {"$project": {"health_status": 1, "_id": 0}},
+                    ],
+                    "as": "user_doc",
+                }
+            },
+            {"$unwind": {"path": "$user_doc", "preserveNullAndEmpty": False}},
+            {
+                "$group": {
+                    "_id": "$user_doc.health_status",
+                    "total_deliveries": {"$sum": "$delivery_count"},
+                    "user_count": {"$sum": 1},
+                }
+            },
+        ]).to_list(length=None),
     )
+
+    touchpoints_map: dict[str, float] = {
+        row["_id"]: round(row["total_deliveries"] / row["user_count"], 1)
+        for row in touchpoints_agg
+        if row.get("_id") and row.get("user_count")
+    }
 
     health_map = {r["_id"]: r["count"] for r in health_agg if r["_id"]}
     total = total_curr or 1
@@ -613,7 +692,7 @@ async def get_player_lifecycle(
             "pct_of_total":      _safe_rate(count, total),
             "avg_deposits_30d":  None,
             "days_since_active": days_range,
-            "crm_touchpoints":   None,
+            "crm_touchpoints":   touchpoints_map.get(key),
         })
 
     return {
