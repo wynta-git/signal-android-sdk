@@ -117,6 +117,8 @@ async def create_campaign_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["notification_templates"].create_index(
         [("project_id", 1), ("template_id", 1)], unique=True
     )
+    await db["custom_reports"].create_index([("user_id", 1), ("project_id", 1)])
+    await db["custom_reports"].create_index([("report_id", 1)], unique=True)
 
 
 async def insert_campaign(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> str:
