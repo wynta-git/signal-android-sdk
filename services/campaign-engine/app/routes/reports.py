@@ -770,6 +770,7 @@ async def get_churn_retention(
     project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
+    ch: ChDep,
     window_days: int = Query(default=7, ge=1, le=90),
     channel: str = Query(default="all"),
     segment_id: str | None = Query(default=None),
@@ -780,7 +781,7 @@ async def get_churn_retention(
     now   = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
 
-    health_agg, cohort_agg, total_curr = await asyncio.gather(
+    health_agg, cohort_agg, total_curr, users_by_status, users_by_cohort, deposit_rows = await asyncio.gather(
         db["users"].aggregate([
             {"$match": {"project_id": project_id}},
             {"$group": {"_id": "$health_status", "count": {"$sum": 1}}},
@@ -798,7 +799,32 @@ async def get_churn_retention(
             {"$sort": {"_id.year": -1, "_id.month": -1}},
         ]).to_list(length=None),
         db["users"].count_documents({"project_id": project_id}),
+        db["users"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$health_status", "user_ids": {"$push": "$user_id"}}},
+        ]).to_list(length=None),
+        db["users"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {
+                "_id": {"year": {"$year": "$created_at"}, "month": {"$month": "$created_at"}},
+                "user_ids": {"$push": "$user_id"},
+            }},
+        ]).to_list(length=None),
+        _query_deposit_totals(ch, project_id, since, now),
     )
+
+    deposit_by_user: dict[str, float] = {r["user_id"]: r["total"] for r in deposit_rows}
+
+    status_to_uids: dict[str, set[str]] = {
+        row["_id"]: set(row["user_ids"])
+        for row in users_by_status
+        if row.get("_id")
+    }
+    cohort_to_uids: dict[tuple[int, int], set[str]] = {
+        (row["_id"]["year"], row["_id"]["month"]): set(row["user_ids"])
+        for row in users_by_cohort
+        if row.get("_id", {}).get("year") and row.get("_id", {}).get("month")
+    }
 
     health_map  = {r["_id"]: r["count"] for r in health_agg if r["_id"]}
     total       = total_curr or 1
@@ -810,12 +836,15 @@ async def get_churn_retention(
     win_back_denom = churned + reactivated
     win_back_rate  = _safe_rate(reactivated, win_back_denom) if win_back_denom else None
 
+    reactivated_uids = status_to_uids.get("reactivated", set())
+    revenue_saved    = round(sum(deposit_by_user[uid] for uid in reactivated_uids if uid in deposit_by_user), 2) or None
+
     summary = {
         "churn_rate":      {"value": churn_rate},
         "churned_players": {"value": churned},
         "retained":        {"value": retained},
         "win_back_rate":   {"value": win_back_rate},
-        "revenue_saved":   {"value": None, "tracked": False},
+        "revenue_saved":   {"value": revenue_saved},
     }
 
     # Trend: flat current distribution per day — no historical health snapshots available
@@ -837,13 +866,15 @@ async def get_churn_retention(
 
     cohorts_out: list[dict] = []
     for (yr, mo), statuses in sorted(cohort_map.items(), key=lambda x: x[0], reverse=True):
+        cohort_uids    = cohort_to_uids.get((yr, mo), set())
+        rev_impact     = round(sum(deposit_by_user[uid] for uid in cohort_uids if uid in deposit_by_user), 2) or None
         cohorts_out.append({
             "cohort":         f"{_MONTH_NAMES[mo - 1]} {yr}",
             "players":        sum(statuses.values()),
             "churned":        statuses.get("churned",     0),
             "retained":       statuses.get("healthy",     0),
             "win_back":       statuses.get("reactivated", 0),
-            "revenue_impact": None,
+            "revenue_impact": rev_impact,
         })
 
     return {
