@@ -12,6 +12,7 @@ from app.schema_manager import SchemaManager
 from app.writer import ClickHouseWriter
 from shared.clients.clickhouse import make_clickhouse_client
 from shared.clients.mongo import make_mongo_client
+from shared.clients.mysql import close_pool, init_pool
 from shared.clients.redis import make_redis_client
 
 configure_logging(debug=settings.debug)
@@ -20,6 +21,17 @@ log = structlog.get_logger()
 
 async def main() -> None:
     log.info("event_processor_starting", version=settings.version)
+
+    await init_pool(
+        host=settings.common_db_host,
+        port=settings.common_db_port,
+        user=settings.common_db_user,
+        password=settings.common_db_password,
+        db=settings.common_db_name,
+        minsize=settings.common_db_min_pool,
+        maxsize=settings.common_db_max_pool,
+    )
+    log.info("mysql_connected", host=settings.common_db_host, db=settings.common_db_name)
 
     ch_client = await make_clickhouse_client(
         host=settings.clickhouse_host,
@@ -45,7 +57,7 @@ async def main() -> None:
     alias_mgr = AliasManager(db)
     profile_updater = ProfileUpdater(db)
     writer = ClickHouseWriter(ch_client, schema_mgr, redis=redis_client, alias_mgr=alias_mgr, profile_updater=profile_updater)
-    consumer_task = asyncio.create_task(run_consumer(writer))
+    consumer_task = asyncio.create_task(run_consumer(writer, redis_client))
 
     loop = asyncio.get_running_loop()
 
@@ -64,6 +76,7 @@ async def main() -> None:
         await ch_client.close()
         await redis_client.aclose()
         mongo_client.close()
+        await close_pool()
 
 
 if __name__ == "__main__":

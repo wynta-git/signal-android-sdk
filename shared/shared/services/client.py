@@ -8,6 +8,7 @@ from shared.clients.mysql import get_connection
 from shared.clients.redis import get_str, set_with_ttl
 
 _CLIENT_VALIDATION_TTL = 300  # 5 minutes — matches token cache TTL
+_SITE_CONFIG_TTL = 3600  # 1 hour — site config changes rarely
 
 _SQL_CLIENT = """
     SELECT sc.id, sc.site_id, sc.client_id, sc.name, sc.description, sc.client_type, sc.active,
@@ -60,6 +61,14 @@ _SQL_VALIDATE_CLIENT = """
       AND sc.active = 1
 """
 
+_SQL_SITE_CONFIG = """
+    SELECT s.program_id, cfg.config_key, cfg.config_value
+    FROM site s
+    LEFT JOIN site_configure cfg ON cfg.site_id = s.id AND cfg.active = 1
+    WHERE s.id = %s
+      AND s.active = 1
+"""
+
 
 class ClientResponse(BaseModel):
     id: int
@@ -84,6 +93,12 @@ class ClientValidationResult(BaseModel):
     project_name: str | None
 
 
+class SiteConfig(BaseModel):
+    site_id: int
+    project_id: int | None  # site.program_id
+    configuration: dict[str, str]  # all active site_configure rows
+
+
 def _cache_key(client_id: str) -> str:
     return f"auth:client:{client_id}"
 
@@ -94,6 +109,10 @@ def _validation_cache_key(client_id: str) -> str:
 
 def _site_clients_cache_key(site_id: int) -> str:
     return f"auth:clients:site:{site_id}"
+
+
+def _site_config_cache_key(site_id: int) -> str:
+    return f"pam:site_config:{site_id}"
 
 
 async def get_client_details(client_id: str, redis: Redis, ttl: int) -> ClientResponse:
@@ -228,3 +247,39 @@ async def get_clients_by_site(site_id: int, redis: Redis, ttl: int) -> list[Clie
 
     await set_with_ttl(redis, key, json.dumps([c.model_dump() for c in clients]), ttl)
     return clients
+
+
+async def get_site_config(
+    site_id: int,
+    redis: Redis,
+    ttl: int = _SITE_CONFIG_TTL,
+) -> SiteConfig | None:
+    """Return site config (project_id + all site_configure rows) for site_id.
+
+    Cached in Redis at pam:site_config:{site_id} for `ttl` seconds.
+    Returns None if the site does not exist or is inactive.
+    """
+    key = _site_config_cache_key(site_id)
+
+    cached = await get_str(redis, key)
+    if cached:
+        return SiteConfig.model_validate(json.loads(cached))
+
+    async with get_connection() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_SITE_CONFIG, (site_id,))
+            rows = await cur.fetchall()
+
+    if not rows:
+        return None
+
+    project_id = rows[0][0]  # site.program_id — same for every row
+    configuration = {row[1]: row[2] for row in rows if row[1] is not None}
+
+    config = SiteConfig(
+        site_id=site_id,
+        project_id=project_id,
+        configuration=configuration,
+    )
+    await set_with_ttl(redis, key, config.model_dump_json(), ttl)
+    return config
