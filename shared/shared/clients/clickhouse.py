@@ -1,3 +1,5 @@
+import warnings
+
 import clickhouse_connect
 from clickhouse_connect.driver.asyncclient import AsyncClient
 
@@ -9,10 +11,12 @@ async def make_clickhouse_client(
     username: str = "default",
     password: str = "",
 ) -> AsyncClient:
-    return await clickhouse_connect.get_async_client(
-        host=host,
-        port=port,
-        database=database,
-        username=username,
-        password=password,
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=FutureWarning, module="clickhouse_connect")
+        return await clickhouse_connect.get_async_client(
+            host=host,
+            port=port,
+            database=database,
+            username=username,
+            password=password,
+        )

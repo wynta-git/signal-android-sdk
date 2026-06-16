@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS pam.events_{project_id}
     event_name     LowCardinality(String),
     schema_version UInt8,
     project_id     LowCardinality(String),
+    site_id        LowCardinality(String),
+    client_id      LowCardinality(String),
     user_id        String,
     session_id     String,
     timestamp      DateTime64(3, 'UTC'),

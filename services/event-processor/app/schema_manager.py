@@ -57,6 +57,8 @@ CREATE TABLE IF NOT EXISTS {table}
     event_name     LowCardinality(String),
     schema_version UInt8,
     project_id     LowCardinality(String),
+    site_id        LowCardinality(String),
+    client_id      LowCardinality(String),
     user_id        String,
     session_id     String,
     timestamp      DateTime64(3, 'UTC'),
@@ -247,6 +249,20 @@ class SchemaManager:
             )
             self._update_cache(project_id, "created_at")
             log.info("ch_created_at_backfilled", project_id=project_id, table=tbl)
+
+        # Backfill site_id on tables created before this column was introduced.
+        if "site_id" not in self._col_cache.get(project_id, set()):
+            await self._ch.command(
+                f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS site_id LowCardinality(String) DEFAULT '' AFTER project_id"
+            )
+            self._update_cache(project_id, "site_id")
+
+        # Backfill client_id on tables created before this column was introduced.
+        if "client_id" not in self._col_cache.get(project_id, set()):
+            await self._ch.command(
+                f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS client_id LowCardinality(String) DEFAULT '' AFTER site_id"
+            )
+            self._update_cache(project_id, "client_id")
 
     # ------------------------------------------------------------------
     # ensure_columns — public entry point called before every insert

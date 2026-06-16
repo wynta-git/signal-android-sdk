@@ -21,6 +21,7 @@ class InvalidTokenError(Exception):
 class TokenContext:
     project_id: str
     site_id: str
+    client_id: str
     scope: list[str]
     env: Literal["live", "test"]
 
@@ -65,7 +66,8 @@ async def validate_token(
 
     ctx = TokenContext(
         project_id=doc["project_id"],
-        site_id=doc["site_id"],
+        site_id=doc.get("site_id", ""),
+        client_id=doc.get("client_id", ""),
         scope=list(doc["scope"]),
         env=_parse_env(token),
     )
@@ -73,7 +75,7 @@ async def validate_token(
     await set_with_ttl(
         redis,
         token_cache_key(token_hash),
-        json.dumps({"project_id": ctx.project_id, "scope": ctx.scope, "env": ctx.env}),
+        json.dumps({"project_id": ctx.project_id, "site_id": ctx.site_id, "client_id": ctx.client_id, "scope": ctx.scope, "env": ctx.env}),
         TOKEN_CACHE_TTL,
     )
 
