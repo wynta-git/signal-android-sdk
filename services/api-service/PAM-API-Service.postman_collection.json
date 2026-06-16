@@ -1,0 +1,315 @@
+{
+  "info": {
+    "name": "PAM API Service",
+    "description": "Player Analytics & Marketing — public ingestion API.\n\nVariables to set before running:\n- `base_url` — e.g. http://localhost:8001\n- `api_token` — opaque Bearer token with events:write scope\n- `admin_token` — opaque Bearer token with admin scope\n- `client_id` — X-Client-Id header value\n- `client_secret` — X-Client-Secret header value",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",      "value": "http://localhost:8001" },
+    { "key": "api_token",     "value": "" },
+    { "key": "admin_token",   "value": "" },
+    { "key": "client_id",     "value": "" },
+    { "key": "client_secret", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/events/health",
+            "description": "Always returns 200. No auth required."
+          }
+        },
+        {
+          "name": "Readiness check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/events/ready",
+            "description": "Returns 200 when Redis and Kafka are reachable, 503 when degraded. No auth required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Track",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/events/track",
+            "description": "Ingest a batch of events. Max 100 per request.",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{api_token}}" },
+              { "key": "X-Client-Id",    "value": "{{client_id}}" },
+              { "key": "X-Client-Secret","value": "{{client_secret}}" },
+              { "key": "Content-Type",   "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"events\": [\n    {\n      \"event_id\": \"evt_01HZ000000000000000000001\",\n      \"event_name\": \"page_viewed\",\n      \"user_id\": \"user_123\",\n      \"timestamp\": \"2026-06-16T10:00:00Z\",\n      \"sdk\": { \"name\": \"pam-js\", \"version\": \"1.0.0\" },\n      \"properties\": {\n        \"page\": \"/home\",\n        \"referrer\": \"https://google.com\"\n      }\n    },\n    {\n      \"event_id\": \"evt_01HZ000000000000000000002\",\n      \"event_name\": \"button_clicked\",\n      \"user_id\": \"user_123\",\n      \"timestamp\": \"2026-06-16T10:00:05Z\",\n      \"sdk\": { \"name\": \"pam-js\", \"version\": \"1.0.0\" },\n      \"properties\": {\n        \"button_id\": \"cta_signup\",\n        \"page\": \"/home\"\n      }\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Identify",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/events/identify",
+            "description": "Upsert user profile traits.",
+            "header": [
+              { "key": "Authorization",  "value": "Bearer {{api_token}}" },
+              { "key": "X-Client-Id",    "value": "{{client_id}}" },
+              { "key": "X-Client-Secret","value": "{{client_secret}}" },
+              { "key": "Content-Type",   "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"user_123\",\n  \"anonymous_id\": \"anon_abc\",\n  \"timestamp\": \"2026-06-16T10:00:00Z\",\n  \"traits\": {\n    \"name\": \"Alice\",\n    \"plan\": \"pro\",\n    \"country\": \"IN\"\n  },\n  \"unset_traits\": [],\n  \"device\": {\n    \"token\": \"fcm_token_abc123\",\n    \"platform\": \"android\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Alias",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/events/alias",
+            "description": "Merge an anonymous ID into a known user ID.",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{api_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"previous_user_id\": \"anon_abc\",\n  \"user_id\": \"user_123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin / Project",
+      "item": [
+        {
+          "name": "Get project",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/events/admin/project",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Update project settings",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/api/v1/events/admin/project",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timezone\": \"Asia/Kolkata\",\n  \"retention_months\": 12\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin / Tokens",
+      "item": [
+        {
+          "name": "Create token",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/events/admin/tokens",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scope\": [\"events:write\"],\n  \"env\": \"live\",\n  \"label\": \"iOS SDK\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Returns the raw token once — store it immediately."
+          }
+        },
+        {
+          "name": "List tokens",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/events/admin/tokens",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Revoke token",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/v1/events/admin/tokens/:token_id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "events", "admin", "tokens", ":token_id"],
+              "variable": [{ "key": "token_id", "value": "<token_id>" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin / Event Routes",
+      "item": [
+        {
+          "name": "List event routes",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/events/admin/event-routes",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Create event route",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/events/admin/event-routes",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"pam.events.raw.v1\",\n  \"event_names\": [\"page_viewed\", \"button_clicked\", \"purchase_completed\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Delete event route",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/v1/events/admin/event-routes/:topic",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "events", "admin", "event-routes", ":topic"],
+              "variable": [{ "key": "topic", "value": "pam.events.raw.v1" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin / Users",
+      "item": [
+        {
+          "name": "Get user",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/events/admin/users/:user_id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "events", "admin", "users", ":user_id"],
+              "variable": [{ "key": "user_id", "value": "user_123" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Delete user",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/v1/events/admin/users/:user_id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "events", "admin", "users", ":user_id"],
+              "variable": [{ "key": "user_id", "value": "user_123" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin / Field Aliases",
+      "item": [
+        {
+          "name": "List field aliases",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/events/admin/field-aliases",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+            ]
+          }
+        },
+        {
+          "name": "Upsert field aliases (replace)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/v1/events/admin/field-aliases/:event_name",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "events", "admin", "field-aliases", ":event_name"],
+              "variable": [{ "key": "event_name", "value": "page_viewed" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aliases\": {\n    \"pg\": \"page\",\n    \"ref\": \"referrer\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Replaces the entire alias map for the event."
+          }
+        },
+        {
+          "name": "Merge field aliases (patch)",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{base_url}}/api/v1/events/admin/field-aliases/:event_name",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "events", "admin", "field-aliases", ":event_name"],
+              "variable": [{ "key": "event_name", "value": "page_viewed" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aliases\": {\n    \"ttl\": \"time_on_page\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Merges new aliases into the existing map without removing others."
+          }
+        }
+      ]
+    }
+  ]
+}

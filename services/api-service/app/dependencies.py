@@ -64,7 +64,8 @@ async def get_client_context(
     request.state.event_route_map = event_route_map
 
     ctx = TokenContext(
-        project_id=str(result.program_id or result.site_id),
+        project_id=result.program_id,
+        site_id=result.site_id,
         scope=["events:write"],
         env="live",
     )

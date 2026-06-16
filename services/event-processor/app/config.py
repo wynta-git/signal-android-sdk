@@ -4,7 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+
     kafka_bootstrap_servers: str = "localhost:9092"
+
     kafka_events_topic: str = "pam.events.raw.v1"
     kafka_dlq_topic: str = "pam.events.invalid.v1"
     kafka_consumer_group: str = "event-processor"

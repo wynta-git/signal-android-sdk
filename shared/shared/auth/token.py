@@ -20,6 +20,7 @@ class InvalidTokenError(Exception):
 @dataclass(frozen=True)
 class TokenContext:
     project_id: str
+    site_id: str
     scope: list[str]
     env: Literal["live", "test"]
 
@@ -64,6 +65,7 @@ async def validate_token(
 
     ctx = TokenContext(
         project_id=doc["project_id"],
+        site_id=doc["site_id"],
         scope=list(doc["scope"]),
         env=_parse_env(token),
     )

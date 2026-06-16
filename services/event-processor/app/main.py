@@ -61,7 +61,7 @@ async def main() -> None:
     except asyncio.CancelledError:
         log.info("event_processor_stopped")
     finally:
-        ch_client.close()
+        await ch_client.close()
         await redis_client.aclose()
         mongo_client.close()
 

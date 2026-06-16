@@ -114,6 +114,7 @@ async def track(
             event.model_copy(
                 update={
                     "project_id": ctx.project_id,
+                    "site_id": ctx.site_id,
                     "received_at": datetime.now(timezone.utc),
                 }
             ).model_dump(mode="json")

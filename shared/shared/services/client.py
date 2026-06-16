@@ -51,9 +51,11 @@ _SQL_CONFIG = """
 """
 
 _SQL_VALIDATE_CLIENT = """
-    SELECT sc.id, sc.client_id, sc.client_secret, sc.site_id, s.program_id
+    SELECT sc.id, sc.client_id, sc.client_secret, sc.site_id, s.program_id,
+           s.name AS site_name, p.name AS project_name, p.project_key AS project_key
     FROM site_client sc
     JOIN site s ON s.id = sc.site_id
+    LEFT JOIN project p ON p.id = s.program_id
     WHERE sc.client_id = %s
       AND sc.active = 1
 """
@@ -77,7 +79,9 @@ class ClientResponse(BaseModel):
 class ClientValidationResult(BaseModel):
     client_id: str
     site_id: int
+    site_name: str | None
     program_id: int | None
+    project_name: str | None
 
 
 def _cache_key(client_id: str) -> str:
@@ -166,12 +170,19 @@ async def validate_client(
     if not row:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    _, cid, stored_secret, site_id, program_id = row
+    _, cid, stored_secret, site_id, program_id, site_name, project_name,project_key = row
 
     if client_secret != stored_secret:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    result = ClientValidationResult(client_id=cid, site_id=site_id, program_id=program_id)
+    result = ClientValidationResult(
+        client_id=cid,
+        site_id=site_id,
+        site_name=site_name,
+        program_id=program_id,
+        project_name=project_name,
+        project_key=project_key,
+    )
     payload = {**result.model_dump(), "_h": stored_secret}
     await set_with_ttl(redis, key, json.dumps(payload), ttl)
 
