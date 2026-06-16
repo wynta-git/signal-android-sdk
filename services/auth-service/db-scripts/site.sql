@@ -25,8 +25,11 @@
 
 CREATE TABLE `site` (
     `id`            INT           NOT NULL AUTO_INCREMENT,
+    `program_id`    INT           DEFAULT NULL,
+    -- logical program this site belongs to; NULL = no program grouping
     `name`          VARCHAR(100)  NOT NULL,
     `description`   VARCHAR(500)  DEFAULT NULL,
+
     `domain`        VARCHAR(255)  DEFAULT NULL,
     -- primary domain or base URL for the site
     `active`        TINYINT(1)    NOT NULL DEFAULT 1,
@@ -42,17 +45,19 @@ CREATE TABLE `site` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_site_name`       (`name`),
     UNIQUE KEY `uk_site_domain`     (`domain`),
-    KEY `idx_site_active`           (`active`)
+    KEY `idx_site_active`           (`active`),
+    KEY `idx_site_program_id`       (`program_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- -----------------------------------------------------------------------------
 -- Sample data
 -- -----------------------------------------------------------------------------
 INSERT INTO `site`
-    (`id`, `name`, `description`, `domain`, `active`, `configuration`,
+    (`id`, `program_id`, `name`, `description`, `domain`, `active`, `configuration`,
      `created_by`, `updated_by`, `created_at`, `updated_at`)
 VALUES
     (1,
+     1,
      'Site One',
      'Primary operator site.',
      'site1.example.com',
@@ -61,6 +66,7 @@ VALUES
      'admin', 'admin', '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
 
     (2,
+     1,
      'Site Two',
      'Secondary operator site.',
      'site2.example.com',

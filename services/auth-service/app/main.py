@@ -9,9 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.cache import close_redis, init_redis
 from app.config import settings
 from app.db import close_pool, init_pool
+from app.dependencies import get_portal_token_context
+from fastapi import Depends
+from app.routes.brands import router as brands_router
+from app.routes.client import router as client_router
 from app.routes.exchange_token import router as exchange_token_router
 from app.routes.portal_token import router as portal_token_router
-from app.routes.brands import router as brands_router
 from app.routes.ready import router as ready_router
 from app.routes.token import router as token_router
 from app.routes.users import router as users_router
@@ -86,8 +89,11 @@ app.include_router(token_router, prefix=route_prefix)
 app.include_router(portal_token_router, prefix=route_prefix)
 app.include_router(exchange_token_router, prefix=route_prefix)
 app.include_router(ready_router, prefix=route_prefix)
-app.include_router(users_router, prefix=route_prefix)
-app.include_router(brands_router, prefix=route_prefix)
+_portal = [Depends(get_portal_token_context)]
+
+app.include_router(users_router, prefix=route_prefix, dependencies=_portal)
+app.include_router(brands_router, prefix=route_prefix, dependencies=_portal)
+app.include_router(client_router, prefix=route_prefix, dependencies=_portal)
 
 
 @app.get(route_prefix+"/health", include_in_schema=False)

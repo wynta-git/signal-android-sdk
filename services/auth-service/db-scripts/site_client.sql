@@ -37,6 +37,8 @@ CREATE TABLE `site_client` (
     `active`        TINYINT(1)    NOT NULL DEFAULT 1,
     `client_type`   VARCHAR(10)   NOT NULL,
     -- S2S | DEVICE
+    `role`          JSON          DEFAULT NULL,
+    -- JSON object describing permissions/scopes granted to this client
     -- NULL = no expiry
     `created_by`    VARCHAR(100)  NOT NULL,
     `updated_by`    VARCHAR(100)  NOT NULL,
@@ -58,7 +60,7 @@ CREATE TABLE `site_client` (
 -- -----------------------------------------------------------------------------
 INSERT INTO `site_client`
     (`id`, `site_id`, `client_id`, `client_secret`, `name`, `description`,
-     `active`, `client_type`,
+     `active`, `client_type`, `role`,
      `created_by`, `updated_by`, `created_at`, `updated_at`)
 VALUES
     -- Active S2S backend integration
@@ -68,6 +70,7 @@ VALUES
      'Site 1 Backend Integration',
      'Primary server-to-server client for the site 1 backend service.',
      1, 'S2S',
+     '{"permissions": ["read", "write", "admin"], "scopes": ["events", "users", "segments"]}',
      'admin', 'admin', '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
 
     -- Active DEVICE client for mobile app
@@ -77,6 +80,7 @@ VALUES
      'Site 1 Mobile SDK',
      'Device client used by the iOS and Android mobile apps.',
      1, 'DEVICE',
+     '{"permissions": ["read", "write"], "scopes": ["events"]}',
      'admin', 'ops.team', '2026-01-01 09:00:00', '2026-03-15 11:00:00'),
 
     -- Inactive S2S client (legacy, decommissioned)
@@ -86,4 +90,5 @@ VALUES
      'Site 1 Backend Integration (Legacy)',
      'Decommissioned v0 backend client; replaced by site1-backend-v1.',
      0, 'S2S',
+     NULL,
      'admin', 'admin', '2025-01-01 09:00:00', '2026-01-01 08:00:00');

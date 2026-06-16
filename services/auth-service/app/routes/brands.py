@@ -6,5 +6,10 @@ router = APIRouter()
 
 
 @router.get("/brands", response_model=list[BrandResponse])
-async def list_brands(user_id: int) -> list[BrandResponse]:
-    return await get_active_brands()
+async def list_brands(program_id: int) -> list[BrandResponse]:
+    return await get_active_brands(program_id)
+
+
+@router.get("/brands/program/{program_id}", response_model=list[BrandResponse])
+async def list_brands_by_program(program_id: int) -> list[BrandResponse]:
+    return await get_active_brands(program_id)
