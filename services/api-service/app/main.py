@@ -18,6 +18,7 @@ from app.routes.ready import router as ready_router
 from app.routes.track import router as track_router
 from shared.clients.kafka import make_kafka_producer
 from shared.clients.mongo import load_event_routes, make_mongo_client
+from shared.clients.mysql import close_pool, init_pool
 from shared.clients.redis import make_redis_client
 
 configure_logging(debug=settings.debug)
@@ -28,6 +29,16 @@ MAX_BODY_BYTES = 1 * 1024 * 1024  # 1 MB
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await init_pool(
+        host=settings.common_db_host,
+        port=settings.common_db_port,
+        user=settings.common_db_user,
+        password=settings.common_db_password,
+        db=settings.common_db_name,
+        minsize=settings.common_db_min_pool,
+        maxsize=settings.common_db_max_pool,
+    )
+
     app.state.mongo = make_mongo_client(
         settings.mongo_url,
         min_pool_size=settings.mongo_min_pool_size,
@@ -37,24 +48,38 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.redis_url,
         max_connections=settings.redis_max_connections,
     )
-    raw_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
-    app.state.producer = KafkaEventProducer(raw_producer, settings.kafka_events_topic)
 
-    routes = await load_event_routes(app.state.mongo[settings.mongo_db])
-    unique_topics = {doc["topic"] for doc in routes}
-    topic_producers: dict[str, KafkaEventProducer] = {}
-    for topic in unique_topics:
-        raw = await make_kafka_producer(settings.kafka_bootstrap_servers)
-        topic_producers[topic] = KafkaEventProducer(raw, topic)
-    app.state.topic_producers = topic_producers
+    raw_producer = None
+    try:
+        raw_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+        app.state.producer = KafkaEventProducer(raw_producer, settings.kafka_events_topic)
+    except Exception as exc:
+        log.warning("kafka_unavailable_at_startup", error=str(exc))
+        app.state.producer = None
+
+    app.state.topic_producers: dict[str, KafkaEventProducer] = {}
     app.state.topic_producers_lock = asyncio.Lock()
 
-    log.info("startup_complete", version=settings.version, fanout_topics=list(unique_topics))
+    if raw_producer is not None:
+        try:
+            routes = await load_event_routes(app.state.mongo[settings.mongo_db])
+            unique_topics = {doc["topic"] for doc in routes}
+            for topic in unique_topics:
+                raw = await make_kafka_producer(settings.kafka_bootstrap_servers)
+                app.state.topic_producers[topic] = KafkaEventProducer(raw, topic)
+            log.info("startup_complete", version=settings.version, fanout_topics=list(unique_topics))
+        except Exception as exc:
+            log.warning("kafka_fanout_setup_failed", error=str(exc))
+    else:
+        log.info("startup_complete_kafka_degraded", version=settings.version)
+
     yield
 
+    await close_pool()
     app.state.mongo.close()
     await app.state.redis.aclose()
-    await raw_producer.stop()
+    if raw_producer is not None:
+        await raw_producer.stop()
     for producer in app.state.topic_producers.values():
         await producer.stop()
     log.info("shutdown_complete")
@@ -72,7 +97,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Client-Id", "X-Idempotency-Key"],
+    allow_headers=["Authorization", "Content-Type", "X-Client-Id", "X-Client-Secret", "X-Idempotency-Key"],
     expose_headers=["X-Request-Id"],
 )
 
