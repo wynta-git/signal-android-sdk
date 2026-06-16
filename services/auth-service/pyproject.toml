@@ -10,6 +10,8 @@ dependencies = [
     "pydantic-settings>=2.3.0",
     "structlog>=24.2.0",
     "PyJWT[crypto]>=2.8.0",
+    "aiomysql>=0.0.22",
+    "redis[asyncio]>=5.0.0",
     "bcrypt>=4.1.0",
     "pam-shared",
 ]

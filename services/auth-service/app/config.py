@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     # Secret key for external JWT validation (HS256)
     external_jwt_secret_key: str = ""
 
+    redis_url: str = "redis://localhost:6379/0"
+    redis_cache_ttl: int = 600  # 10 minutes
+
+    common_db_host: str = "43.204.90.164"
+    common_db_port: int = 3306
+    common_db_user: str = ""
+    common_db_password: str = ""
+    common_db_name: str = "wynta_common"
+    common_db_pool_minsize: int = 1
+    common_db_pool_maxsize: int = 5
+
     debug: bool = False
     version: str = "0.1.0"
 

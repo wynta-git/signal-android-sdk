@@ -6,7 +6,9 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.cache import close_redis, init_redis
 from app.config import settings
+from app.db import close_pool, init_pool
 from app.routes.exchange_token import router as exchange_token_router
 from app.routes.portal_token import router as portal_token_router
 from app.routes.brands import router as brands_router
@@ -28,9 +30,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         min_pool_size=settings.mongo_min_pool_size,
         max_pool_size=settings.mongo_max_pool_size,
     )
+    await init_pool()
+    init_redis()
     log.info("startup_complete", version=settings.version)
     yield
     app.state.mongo.close()
+    await close_pool()
+    await close_redis()
     log.info("shutdown_complete")
 
 
