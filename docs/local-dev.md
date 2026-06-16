@@ -110,7 +110,7 @@ curl -X POST http://localhost:8001/v1/track \
 Verify it landed in ClickHouse:
 ```bash
 docker exec -it pam-clickhouse clickhouse-client \
-  --query "SELECT * FROM pam.events WHERE user_id = 'user_42' LIMIT 5 FORMAT Vertical"
+  --query "SELECT * FROM pam.events_proj_demo WHERE user_id = 'user_42' LIMIT 5 FORMAT Vertical"
 ```
 
 ## Seed data

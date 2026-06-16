@@ -9,8 +9,14 @@ import CrmSidebar    from './CrmSidebar';
 const SegmentsPage       = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
 const CampaignsPage      = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
 const EventsPage         = dynamic(() => import('./events/EventsPage'), { ssr: false });
-const DashboardPage = dynamic(() => import('./dashboard/DashboardPage'), { ssr: false });
+const DashboardPage      = dynamic(() => import('./dashboard/DashboardPage'), { ssr: false });
 const IntegrationsPage   = dynamic(() => import('./integrations/IntegrationsPage'), { ssr: false });
+const ReportsPage           = dynamic(() => import('./reports/ReportsPage'), { ssr: false });
+const CampaignStatsReport     = dynamic(() => import('./reports/CampaignStatsReport'), { ssr: false });
+const SegmentAnalysisReport   = dynamic(() => import('./reports/SegmentAnalysisReport'), { ssr: false });
+const ChannelDeliveryReport   = dynamic(() => import('./reports/ChannelDeliveryReport'), { ssr: false });
+const PlayerLifecycleReport   = dynamic(() => import('./reports/PlayerLifecycleReport'), { ssr: false });
+const ChurnRetentionReport    = dynamic(() => import('./reports/ChurnRetentionReport'), { ssr: false });
 
 /**
  * CrmApp wraps itself in the wynta-crm store Provider.
@@ -81,11 +87,16 @@ function CrmShell() {
 
       <main className="crm-main">
         <div className="crm-content">
-          {activeNav === 'dashboard'  ? <DashboardPage onNavChange={handleNavChange} /> :
-           activeNav === 'segments'     ? <SegmentsPage     /> :
-           activeNav === 'campaigns'    ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
-           activeNav === 'events'       ? <EventsPage       /> :
-           activeNav === 'integrations' ? <IntegrationsPage /> : (
+          {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} /> :
+           activeNav === 'segments'          ? <SegmentsPage     /> :
+           activeNav === 'campaigns'         ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
+           activeNav === 'events'            ? <EventsPage       /> :
+           activeNav === 'integrations'      ? <IntegrationsPage /> :
+           activeNav === 'reports:campaign'  ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:churn')} /> :
+           activeNav === 'reports:segment'   ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:churn')} /> :
+           activeNav === 'reports:channel'   ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:churn')} /> :
+           activeNav === 'reports:lifecycle' ? <PlayerLifecycleReport  onOpenBuilder={() => handleNavChange('reports:churn')} /> :
+           activeNav === 'reports:churn'     ? <ChurnRetentionReport  onOpenBuilder={() => handleNavChange('reports:churn')} /> : (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'60vh', color:'var(--crm-fg4)', fontSize:14 }} />
           )}
         </div>

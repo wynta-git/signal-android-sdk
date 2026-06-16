@@ -5,7 +5,7 @@ Kafka consumer that reads every event from `pam.events.raw.v1` and writes it to 
 ## Responsibilities
 
 - Consume `pam.events.raw.v1` (group: `event-processor`)
-- Batch-write events to ClickHouse `pam.events` (up to 500 events or 5 seconds per flush)
+- Batch-write events to a per-client ClickHouse table `pam.events_{project_id}` (up to 500 events or 5 seconds per flush)
 - Retry failed ClickHouse writes up to 3 times with exponential backoff
 - Send events that exhaust retries to the DLQ topic `pam.events.invalid.v1`
 - Commit Kafka offsets only after a successful write or DLQ hand-off (at-least-once delivery)
@@ -74,6 +74,5 @@ app/
 └── logging_config.py ← structlog setup
 
 migrations/
-├── 0001_init.sql     ← CREATE TABLE pam.events
-└── run.py            ← migration runner
+└── run.py            ← migration runner (client tables are created dynamically by SchemaManager)
 ```
