@@ -7,7 +7,7 @@ class Settings(BaseSettings):
 
     kafka_bootstrap_servers: str = "localhost:9092"
 
-    kafka_events_topic: str = "pam.events.raw.v2"
+    kafka_events_topic: str = "pam.events.raw.v1"
     kafka_dlq_topic: str = "pam.events.invalid.v1"
     kafka_consumer_group: str = "event-processor"
 

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     redis_max_connections: int = 20
 
     kafka_bootstrap_servers: str = "localhost:9093"
-    kafka_events_topic: str = "pam.events.raw.v2"
+    kafka_events_topic: str = "pam.events.raw.v1"
 
     common_db_host: str = "localhost"
     common_db_port: int = 3306
