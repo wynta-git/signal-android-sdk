@@ -407,7 +407,12 @@ export default function BonusAdminApp() {
           onAddHead={() =>
             dispatch(openDrawer({ type: "NEW_HEAD" } as DrawerState))
           }
-          onReload={() => selectedBrand && dispatch(fetchHeads(selectedBrand))}
+          onReload={() => {
+            if (!selectedBrand) return;
+            dispatch(fetchHeads(selectedBrand))
+              .unwrap()
+              .then((list) => list.forEach((h) => dispatch(fetchHead(h.id))));
+          }}
           onMenu={(ctx: ContextMenuState) => dispatch(openContextMenu(ctx))}
           selectedBrand={selectedBrand}
         />

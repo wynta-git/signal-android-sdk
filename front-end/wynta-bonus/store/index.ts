@@ -21,26 +21,25 @@ import usersReducer, {
 } from "wynta-react-common/store/slices/usersSlice";
 import type { SelectedNode } from "../types";
 
+function decodeJwtPayload(token: string): Record<string, unknown> {
+  try {
+    return JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return {};
+  }
+}
+
 const initOnAuthMiddleware: Middleware = (storeApi) => (next) => (action) => {
   const result = next(action);
 
-  // console.log("Middleware triggered for action: " + action.type);
-
-  // if (action.type === "users/auth/fulfilled") {
-  //   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  //   const state = storeApi.getState() as any;
-  //   const siteId: number | undefined = state.users?.bridgeData?.site_id;
-  //   const isAuthenticated = state.users?.authStatus === "succeeded";
-  //   if (isAuthenticated) {
-  //     storeApi.dispatch(fetchBrands() as never);
-  //     storeApi.dispatch(fetchSegments() as never);
-
-  //     if (siteId != null) {
-  //       storeApi.dispatch(fetchHeads(siteId) as never);
-  //       storeApi.dispatch(fetchKpiSnapshot(siteId) as never);
-  //     }
-  //   }
-  // }
+  if (action.type === "users/auth/fulfilled") {
+    // Auth token is now registered — safe to fetch brand-gated data.
+    // Decode the portal JWT to get project_id for the brands query.
+    const portalToken: string | undefined = (action as { payload?: { data?: { token?: string } } }).payload?.data?.token;
+    const programId = portalToken ? Number(decodeJwtPayload(portalToken).project_id) || 1 : 1;
+    storeApi.dispatch(fetchBrands(programId) as never);
+    storeApi.dispatch(fetchSegments() as never);
+  }
   return result;
 };
 

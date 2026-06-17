@@ -20,8 +20,8 @@ export const api = {
     if (!res.ok) throw new Error("Failed to fetch users");
     return res.json();
   },
-  async fetchBrands(userId: number = 1): Promise<Brand[]> {
-    const res = await fetch(`${AUTH_API}/brands?user_id=${userId}`, {
+  async fetchBrands(programId: number = 1): Promise<Brand[]> {
+    const res = await fetch(`${AUTH_API}/brands?program_id=${programId}`, {
       headers: authHeaders(),
     });
     if (!res.ok) throw new Error("Failed to fetch brands");

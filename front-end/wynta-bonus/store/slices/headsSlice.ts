@@ -31,9 +31,16 @@ const headsSlice = createSlice({
         state.status = 'succeeded';
         const incoming = action.payload.map(_normalize);
         const incomingIds = new Set(incoming.map(h => h.id));
-        // Merge — preserve full detail already loaded for an id
+        // Fresh data wins; preserve any enriched fields (owners, budget) that
+        // were loaded by fetchHead but aren't returned by the list endpoint
         for (const h of incoming) {
-          state.entities[h.id] = { ...h, ...state.entities[h.id] };
+          const existing = state.entities[h.id];
+          state.entities[h.id] = {
+            ...existing,
+            ...h,
+            owners: h.owners?.length ? h.owners : (existing?.owners ?? []),
+            budget: h.budget?.length ? h.budget : (existing?.budget ?? []),
+          };
         }
         state.ids = incoming.map(h => h.id).filter(id => incomingIds.has(id));
       })

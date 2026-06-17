@@ -12,7 +12,7 @@ interface BrandsState {
 
 const initialState: BrandsState = { items: [], status: 'idle', error: null };
 
-export const fetchBrands = createAsyncThunk<Brand[]>('brands/fetchAll', () => api.fetchBrands());
+export const fetchBrands = createAsyncThunk<Brand[], number | undefined>('brands/fetchAll', (programId) => api.fetchBrands(programId));
 
 const brandsSlice = createSlice({
   name: 'brands',
