@@ -8,6 +8,7 @@ __all__ = ["init_pool", "close_pool"]
 
 async def init_pool() -> None:
     await _init_pool(
+        "wynta_common",
         host=settings.common_db_host,
         port=settings.common_db_port,
         user=settings.common_db_user,

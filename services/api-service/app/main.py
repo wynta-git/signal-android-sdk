@@ -30,6 +30,7 @@ MAX_BODY_BYTES = 1 * 1024 * 1024  # 1 MB
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_pool(
+        "wynta_common",
         host=settings.common_db_host,
         port=settings.common_db_port,
         user=settings.common_db_user,

@@ -23,6 +23,7 @@ async def main() -> None:
     log.info("event_processor_starting", version=settings.version)
 
     await init_pool(
+        "wynta_common",
         host=settings.common_db_host,
         port=settings.common_db_port,
         user=settings.common_db_user,
