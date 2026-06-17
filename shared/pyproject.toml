@@ -25,8 +25,11 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["shared"]
+[tool.setuptools]
+packages = ["shared", "shared.auth", "shared.clients", "shared.models", "shared.services"]
+
+[tool.setuptools.package-dir]
+"shared" = "."
