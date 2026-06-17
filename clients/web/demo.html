@@ -650,8 +650,8 @@ async function stepCreateSegment(card) {
     created_by: 'pam-demo',
   };
 
-  showRequest(card, 'POST', `${host()}:8003/api/v1/segments`, body);
-  const r = await api('POST', `${host()}:8003/api/v1/segments`, body,
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments`, body);
+  const r = await api('POST', `${host()}:8003/api/v1/segment/segments`, body,
     { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
   if (r.status === 409) return 'Segment already exists (reused)';
@@ -661,8 +661,8 @@ async function stepCreateSegment(card) {
 }
 
 async function stepEvaluate(card) {
-  showRequest(card, 'POST', `${host()}:8003/api/v1/segments/${state.segmentId}/evaluate`, null);
-  const r = await api('POST', `${host()}:8003/api/v1/segments/${state.segmentId}/evaluate`,
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments/${state.segmentId}/evaluate`, null);
+  const r = await api('POST', `${host()}:8003/api/v1/segment/segments/${state.segmentId}/evaluate`,
     null, { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
   if (!r.ok) throw new Error(JSON.stringify(r.data));
@@ -679,7 +679,7 @@ async function stepMembership(card) {
   const results = [];
   for (const c of checks) {
     const r = await api('GET',
-      `${host()}:8003/api/v1/segments/${state.segmentId}/members/${c.user_id}`,
+      `${host()}:8003/api/v1/segment/segments/${state.segmentId}/members/${c.user_id}`,
       null, { Authorization: `Bearer ${state.portalJwt}` });
     results.push({ user: c.user_id, is_member: r.data?.is_member, ok: r.ok });
   }
