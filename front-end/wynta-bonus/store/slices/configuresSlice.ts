@@ -10,6 +10,7 @@ export const fetchConfigure          = createAsyncThunk<BonusConfigure, number>(
 export const fetchConfiguresBySubhead = createAsyncThunk<BonusConfigure[], number>('configures/fetchBySubhead', (subheadId) => api.fetchConfigures(subheadId));
 export const createConfigure  = createAsyncThunk<BonusConfigure, { parentId: number; payload: Record<string, unknown> }>('configures/create', ({ parentId, payload }) => api.createConfigure(parentId, payload));
 export const updateConfigure  = createAsyncThunk<BonusConfigure, { id: number; patch: Partial<BonusConfigure> }>('configures/update', ({ id, patch }) => api.updateConfigure(id, patch as Record<string, unknown>));
+export const fetchPromoCode   = createAsyncThunk<PromoCode, number>('configures/fetchPromoCode', (codeId) => api.fetchPromoCode(codeId));
 export const createPromoCode  = createAsyncThunk<PromoCode, { configureId: number; payload: Record<string, unknown> }>('configures/createPromoCode', ({ configureId, payload }) => api.createPromoCode(configureId, payload));
 export const updatePromoCode  = createAsyncThunk<PromoCode, { codeId: number; patch: Record<string, unknown> }>('configures/updatePromoCode', ({ codeId, patch }) => api.updatePromoCode(codeId, patch));
 export const createTrigger    = createAsyncThunk<Trigger, { configureId: number; payload: Record<string, unknown> }>('configures/createTrigger', ({ configureId, payload }) => api.createTrigger(configureId, payload));

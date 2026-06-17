@@ -1,3 +1,6 @@
+import json
+from datetime import datetime, timezone
+
 import aiomysql
 import structlog
 
@@ -32,11 +35,26 @@ _SELECT_SQL = """
     WHERE id = %s
 """
 
+_CHANGELOG_INSERT_SQL = """
+    INSERT INTO bonus_change_log
+        (table_name, action, entity_id, site_id, changed_by, changed_at, old_values, new_values)
+    VALUES ('bonus_configure_code', %s, %s, %s, %s, %s, %s, %s)
+"""
+
+# Maps updatable field name → index in _SELECT_SQL result tuple
+_FIELD_IDX: dict[str, int] = {
+    "code": 3, "max_amount": 4, "valid_from": 5, "valid_to": 6,
+    "display_title": 7, "display_description": 8, "terms_url": 9,
+    "banner_image_url": 10, "badge_text": 11, "cta_text": 12,
+    "auto_apply": 13, "display_order": 14, "display_on": 15,
+    "min_display_amount": 16, "active": 17,
+}
+
 _EXISTS_CONFIGURE_SQL = "SELECT site_id FROM bonus_configure WHERE id = %s"
 
 _EXISTS_CODE_SQL = (
     "SELECT 1 FROM bonus_configure_code "
-    "WHERE site_id = %s AND code = %s AND active = 1 AND id != %s LIMIT 1"
+    "WHERE site_id = %s AND code = %s AND id != %s LIMIT 1"
 )
 
 
@@ -54,6 +72,16 @@ def _row_to_response(row: tuple) -> BonusConfigureCodeResponse:
         active=bool(row[17]), created_by=row[18], updated_by=row[19],
         created_at=_as_dt(row[20]), updated_at=_as_dt(row[21]),
     )
+
+
+async def get_bonus_configure_code(code_id: int) -> BonusConfigureCodeResponse:
+    async with get_connection(POOL_BONUS) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SELECT_SQL, (code_id,))
+            row = await cur.fetchone()
+    if not row:
+        raise DatabaseError(f"bonus_configure_code {code_id} not found")
+    return _row_to_response(row)
 
 
 async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfigureCodeResponse:
@@ -98,6 +126,21 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
                     ),
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
+
+                now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+                new_vals = {
+                    "code": data.code,
+                    "max_amount": str(data.max_amount) if data.max_amount is not None else None,
+                    "valid_from": str(data.valid_from) if data.valid_from is not None else None,
+                    "valid_to": str(data.valid_to) if data.valid_to is not None else None,
+                    "display_title": data.display_title,
+                    "active": int(data.active),
+                }
+                await cur.execute(
+                    _CHANGELOG_INSERT_SQL,
+                    ('INSERT', data.configure_id, data.site_id, data.created_by,
+                     now_utc, None, json.dumps(new_vals)),
+                )
                 await conn.commit()
 
                 await cur.execute(_SELECT_SQL, (new_id,))
@@ -157,35 +200,46 @@ async def update_bonus_configure_code(
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
+                # Fetch old row first — needed for duplicate guard, changelog, and 404 check
+                await cur.execute(_SELECT_SQL, (code_id,))
+                old_row = await cur.fetchone()
+                if not old_row:
+                    raise DatabaseError(f"bonus_configure_code {code_id} not found")
+                configure_id: int = old_row[1]
+                site_id: int = old_row[2]
+                old_code: str = old_row[3]
+
                 # Duplicate code guard (skip for current row)
                 if "code" in fields or "active" in fields:
-                    new_code = data.code
-                    if new_code is None:
-                        await cur.execute(
-                            "SELECT code, site_id FROM bonus_configure_code WHERE id = %s",
-                            (code_id,),
+                    new_code = data.code if data.code is not None else old_code
+                    await cur.execute(_EXISTS_CODE_SQL, (site_id, new_code, code_id))
+                    if await cur.fetchone():
+                        raise DatabaseError(
+                            f"code '{new_code}' is already active for site {site_id}"
                         )
-                        existing = await cur.fetchone()
-                        if existing:
-                            new_code = existing[0]
-                            site_id = existing[1]
-                        else:
-                            raise DatabaseError(f"bonus_configure_code {code_id} not found")
-                    else:
-                        await cur.execute(
-                            "SELECT site_id FROM bonus_configure_code WHERE id = %s",
-                            (code_id,),
-                        )
-                        existing = await cur.fetchone()
-                        site_id = existing[0] if existing else None
-                    if site_id and new_code:
-                        await cur.execute(_EXISTS_CODE_SQL, (site_id, new_code, code_id))
-                        if await cur.fetchone():
-                            raise DatabaseError(
-                                f"code '{new_code}' is already active for site {site_id}"
-                            )
 
                 await cur.execute(update_sql, values)
+
+                # Write changelog — only include fields that actually changed
+                old_vals: dict = {}
+                new_vals: dict = {}
+                for f in fields:
+                    idx = _FIELD_IDX.get(f)
+                    if idx is None:
+                        continue
+                    old_v = old_row[idx]
+                    new_v = getattr(data, f)
+                    if old_v != new_v:
+                        old_vals[f] = str(old_v) if old_v is not None else None
+                        new_vals[f] = str(new_v) if new_v is not None else None
+                if old_vals:
+                    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+                    await cur.execute(
+                        _CHANGELOG_INSERT_SQL,
+                        ('UPDATE', configure_id, site_id, data.updated_by, now_utc,
+                         json.dumps(old_vals), json.dumps(new_vals)),
+                    )
+
                 await conn.commit()
                 await cur.execute(_SELECT_SQL, (code_id,))
                 row = await cur.fetchone()

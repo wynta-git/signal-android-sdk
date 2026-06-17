@@ -46,6 +46,7 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   EDIT_CONFIGURE: { title: "Edit Configure", icon: "pencil" },
   NEW_PROMOCODE: { title: "Add Promo Code", icon: "ticket" },
   EDIT_PROMOCODE: { title: "Edit Promo Code", icon: "pencil" },
+  CLONE_PROMOCODE: { title: "Clone Promo Code", icon: "copy" },
   NEW_ELIGIBILITY: { title: "Add Eligibility Criterion", icon: "filter" },
   NEW_TRIGGER: { title: "Add Release Trigger", icon: "zap" },
   EDIT_BUDGET: { title: "Manage Budget", icon: "wallet" },
@@ -358,7 +359,8 @@ export default function SlideDrawer() {
         ).unwrap();
         dispatch(closeDrawer());
       } else if (
-        drawerState?.type === "NEW_PROMOCODE" &&
+        (drawerState?.type === "NEW_PROMOCODE" ||
+          drawerState?.type === "CLONE_PROMOCODE") &&
         drawerState.parentId != null
       ) {
         await dispatch(
@@ -367,6 +369,7 @@ export default function SlideDrawer() {
             payload: { ...data, site_id: selectedBrand },
           }),
         ).unwrap();
+        dispatch(fetchConfigure(drawerState.parentId));
         dispatch(closeDrawer());
       } else if (
         drawerState?.type === "EDIT_PROMOCODE" &&
@@ -378,6 +381,8 @@ export default function SlideDrawer() {
             patch: { ...data },
           }),
         ).unwrap();
+        if (drawerState.parentId != null)
+          dispatch(fetchConfigure(drawerState.parentId));
         dispatch(closeDrawer());
       }
     } catch (err) {

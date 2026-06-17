@@ -44,7 +44,7 @@ async def create_bonus_eligibility(
     - **description**: human-readable summary of this criterion (optional)
     - **created_by**: actor performing the creation
     """
-    payload.created_by = ctx.username
+    payload.created_by = ctx.user_id
     return await add_bonus_eligibility(payload)
 
 
@@ -68,7 +68,7 @@ async def patch_bonus_eligibility(
     Only fields included in the request body are written.
     ``updated_by`` is always required.
     """
-    payload.updated_by = ctx.username
+    payload.updated_by = ctx.user_id
     return await update_bonus_eligibility(eligibility_id, payload)
 
 

@@ -86,6 +86,16 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
     dispatch(openDrawer({ type: 'ISSUE_CODE_BONUS', code, configureId } as unknown as DrawerState));
   };
 
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    dispatch(openDrawer({ type: 'EDIT_PROMOCODE', id: codeIdNum, parentId: configureId } as DrawerState));
+  };
+
+  const handleClone = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    dispatch(openDrawer({ type: 'CLONE_PROMOCODE', id: codeIdNum, parentId: configureId } as DrawerState));
+  };
+
   return (
     <div className={'code-card' + (flash ? ' is-highlighted' : '')} ref={cardRef}>
       <div className="code-top" onClick={() => setOpen(o => !o)}>
@@ -130,6 +140,20 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
             <Icon name="send" size={12}/> Issue Bonus
           </button>
         )}
+        <button
+          className="btn btn-ghost btn-sm btn-icon-only"
+          aria-label="Edit promo code"
+          onClick={handleEdit}
+        >
+          <Icon name="pencil" size={13}/>
+        </button>
+        <button
+          className="btn btn-ghost btn-sm btn-icon-only"
+          aria-label="Clone promo code"
+          onClick={handleClone}
+        >
+          <Icon name="copy" size={13}/>
+        </button>
         <button
           className="btn btn-ghost btn-sm btn-icon-only"
           aria-label="Copy code"

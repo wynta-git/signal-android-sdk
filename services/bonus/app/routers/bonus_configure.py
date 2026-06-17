@@ -45,7 +45,7 @@ async def create_bonus_configure(payload: BonusConfigureCreate, ctx: PortalAuthD
     - **no_of_chunks**: number of equal chunks (default 1)
     - **created_by**: actor performing the creation
     """
-    payload.created_by = ctx.username
+    payload.created_by = ctx.user_id
     return await add_bonus_configure(payload)
 
 
@@ -71,7 +71,7 @@ async def patch_bonus_configure(
     Only fields included in the request body are written. ``updated_by`` is always
     required. Send ``"description": null`` to explicitly clear the description.
     """
-    payload.updated_by = ctx.username
+    payload.updated_by = ctx.user_id
     return await update_bonus_configure(configure_id, payload)
 
 
@@ -84,7 +84,7 @@ async def put_bonus_configure_limits(
 
     Each entry is upserted on period_type. Returns all budget periods after the operation.
     """
-    payload.updated_by = ctx.username
+    payload.updated_by = ctx.user_id
     return await upsert_limits(configure_id, payload)
 
 

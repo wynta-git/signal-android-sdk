@@ -42,7 +42,7 @@ export function formatDateShort(isoStr: string | undefined | null): string {
 export function formatRelative(isoStr: string | undefined | null): string {
   if (!isoStr) return '—';
   const d = new Date(isoStr);
-  const ms = d.getTime() - _now.getTime();
+  const ms = d.getTime() - Date.now();
   const minutes = Math.round(ms / 60000);
   if (minutes === 0) return 'just now';
   if (Math.abs(minutes) < 60) return minutes > 0 ? `in ${minutes}m` : `${-minutes}m ago`;

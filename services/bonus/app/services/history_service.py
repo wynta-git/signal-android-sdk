@@ -30,7 +30,8 @@ _SUBHEAD_HISTORY_SQL = """
 _CONFIGURE_HISTORY_SQL = """
     SELECT id, table_name, action, changed_by, changed_at, old_values, new_values
     FROM bonus_change_log
-    WHERE table_name = 'bonus_configure' AND entity_id = %s
+    WHERE (table_name = 'bonus_configure'      AND entity_id = %s)
+       OR (table_name = 'bonus_configure_code' AND entity_id = %s)
     ORDER BY changed_at DESC, id DESC
     LIMIT 200
 """
@@ -38,7 +39,9 @@ _CONFIGURE_HISTORY_SQL = """
 
 def _at(dt: object) -> str:
     if isinstance(dt, datetime):
-        return dt.isoformat()
+        # MySQL DATETIME is naive — we store UTC, so suffix Z so browsers
+        # convert to local time correctly instead of treating it as local.
+        return dt.isoformat() + "Z"
     return str(dt)
 
 
@@ -124,6 +127,46 @@ def _row_to_entries(row: tuple) -> list[dict]:
             }
         return [entry]
 
+    if table_name == "bonus_configure_code":
+        code_str = new_vals.get("code") or old_vals.get("code") or ""
+        if action == "INSERT":
+            return [
+                {
+                    "kind": "ADDED_CODE",
+                    "actor": changed_by,
+                    "at": at,
+                    "summary": f"Added promo code {code_str}",
+                    "newValue": code_str,
+                }
+            ]
+        if "active" in old_vals:
+            new_active = int(new_vals.get("active", 1))
+            kind = "DEACTIVATED" if new_active == 0 else "ACTIVATED"
+            verb = "Paused" if new_active == 0 else "Activated"
+            return [{"kind": kind, "actor": changed_by, "at": at,
+                     "summary": f"{verb} promo code {code_str}"}]
+
+        changes = []
+        for field in ("max_amount", "valid_from", "valid_to", "display_on",
+                      "auto_apply", "display_order", "min_display_amount",
+                      "display_title", "display_description"):
+            if field in old_vals:
+                changes.append({
+                    "field": f"code.{field}",
+                    "old": str(old_vals[field]),
+                    "new": str(new_vals.get(field, "")),
+                })
+
+        entry: dict = {
+            "kind": "CODE_UPDATED",
+            "actor": changed_by,
+            "at": at,
+            "summary": f"Updated promo code {code_str}",
+        }
+        if changes:
+            entry["changes"] = changes
+        return [entry]
+
     if table_name in ("bonus_head_owner", "bonus_subhead_owner"):
         username = new_vals.get("username") or old_vals.get("username") or ""
         new_role = new_vals.get("role")
@@ -187,7 +230,7 @@ async def get_configure_history(configure_id: int) -> list[dict]:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await conn.commit()
-                await cur.execute(_CONFIGURE_HISTORY_SQL, (configure_id,))
+                await cur.execute(_CONFIGURE_HISTORY_SQL, (configure_id, configure_id))
                 rows = await cur.fetchall()
     except Exception as exc:
         log.error("get_configure_history.db_error", configure_id=configure_id, error=str(exc))

@@ -183,6 +183,7 @@ export const HISTORY_KIND_META: Record<string, { icon: string; color: string; la
   ACTIVATED:         { icon: 'play-circle',   color: 'var(--ok)',   label: 'Activated' },
   DEACTIVATED:       { icon: 'pause-circle',  color: 'var(--warn)', label: 'Paused' },
   ADDED_CODE:        { icon: 'ticket',        color: 'var(--blue)', label: 'Code added' },
+  CODE_UPDATED:      { icon: 'ticket',        color: 'var(--blue)', label: 'Code updated' },
   ADDED_ELIGIBILITY: { icon: 'filter',        color: 'var(--blue)', label: 'Eligibility added' },
   ADDED_TRIGGER:     { icon: 'zap',           color: 'var(--blue)', label: 'Trigger added' },
   BUDGET_UPDATED:    { icon: 'wallet',        color: 'var(--blue)', label: 'Budget updated' },

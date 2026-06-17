@@ -332,6 +332,18 @@ export const api = {
     }
     return res.json() as Promise<BonusConfigure>;
   },
+  async fetchPromoCode(codeId: number) {
+    const res = await fetch(`${BONUS_API}/bonus-configure-codes/${codeId}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to fetch promo code",
+      );
+    }
+    return res.json() as Promise<PromoCode>;
+  },
   async createPromoCode(configureId: number, payload: Record<string, unknown>) {
     const res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
       method: "POST",

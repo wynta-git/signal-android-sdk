@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
-import { useAppSelector } from '../../../store/hooks';
-import { selectConfigureById } from '../../../store/slices/configuresSlice';
+import { useState, useEffect } from 'react';
+import { useAppSelector, useAppDispatch } from '../../../store/hooks';
+import { selectConfigureById, fetchPromoCode } from '../../../store/slices/configuresSlice';
+import type { PromoCode, BonusConfigure } from '../../../types';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '../../../components/drawers/DrawerFooter';
@@ -25,30 +26,100 @@ function toDateLocal(val: string | null | undefined): string {
   return val.slice(0, 10);
 }
 
+function initState(existing: PromoCode | null, cfg?: BonusConfigure) {
+  if (existing) {
+    return {
+      code:               existing.code               ?? '',
+      maxAmount:          String(existing.max_amount  ?? ''),
+      validFrom:          toDateLocal(existing.valid_from),
+      validTo:            toDateLocal(existing.valid_to),
+      displayTitle:       existing.display_title       ?? '',
+      displayDescription: existing.display_description ?? '',
+      termsUrl:           existing.terms_url           ?? '',
+      bannerImageUrl:     existing.banner_image_url    ?? '',
+      badgeText:          existing.badge_text          ?? '',
+      ctaText:            existing.cta_text            ?? '',
+      autoApply:          existing.auto_apply          ?? false,
+      displayOrder:       existing.display_order       ?? 0,
+      displayOn:          existing.display_on          ?? 'DEPOSIT',
+      minDisplayAmount:   String(existing.min_display_amount ?? ''),
+      active:             existing.active              ?? true,
+    };
+  }
+  // New promo code — pre-fill limits and dates from parent configure
+  return {
+    code:               '',
+    maxAmount:          cfg?.bonus_amount_max != null ? String(cfg.bonus_amount_max) : '',
+    validFrom:          toDateLocal(cfg?.start_date),
+    validTo:            toDateLocal(cfg?.end_date),
+    displayTitle:       '',
+    displayDescription: '',
+    termsUrl:           '',
+    bannerImageUrl:     '',
+    badgeText:          '',
+    ctaText:            '',
+    autoApply:          false,
+    displayOrder:       0,
+    displayOn:          'DEPOSIT',
+    minDisplayAmount:   '',
+    active:             true,
+  };
+}
+
 export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }: PromoCodeFormProps) {
-  const isEdit = state.type === 'EDIT_PROMOCODE';
+  const dispatch = useAppDispatch();
+  const isEdit  = state.type === 'EDIT_PROMOCODE';
+  const isClone = state.type === 'CLONE_PROMOCODE';
 
   const cfg = useAppSelector(
     state.parentId != null ? selectConfigureById(state.parentId) : () => undefined
   );
+  const storeExisting = cfg?.promo_codes?.find(c => Number(c.id) === state.id) ?? null;
 
-  const existing = cfg?.promo_codes?.find(c => Number(c.id) === state.id) ?? null;
+  const [loading, setLoading] = useState(isEdit || isClone);
+  const init = initState(storeExisting, (!isEdit && !isClone) ? cfg : undefined);
 
-  const [code,               setCode]               = useState(existing?.code ?? '');
-  const [maxAmount,          setMaxAmount]          = useState(String(existing?.max_amount ?? ''));
-  const [validFrom,          setValidFrom]          = useState(toDateLocal(existing?.valid_from));
-  const [validTo,            setValidTo]            = useState(toDateLocal(existing?.valid_to));
-  const [displayTitle,       setDisplayTitle]       = useState(existing?.display_title ?? '');
-  const [displayDescription, setDisplayDescription] = useState(existing?.display_description ?? '');
-  const [termsUrl,           setTermsUrl]           = useState(existing?.terms_url ?? '');
-  const [bannerImageUrl,     setBannerImageUrl]     = useState(existing?.banner_image_url ?? '');
-  const [badgeText,          setBadgeText]          = useState(existing?.badge_text ?? '');
-  const [ctaText,            setCtaText]            = useState(existing?.cta_text ?? '');
-  const [autoApply,          setAutoApply]          = useState(existing?.auto_apply ?? false);
-  const [displayOrder,       setDisplayOrder]       = useState(existing?.display_order ?? 0);
-  const [displayOn,          setDisplayOn]          = useState(existing?.display_on ?? 'DEPOSIT');
-  const [minDisplayAmount,   setMinDisplayAmount]   = useState(String(existing?.min_display_amount ?? ''));
-  const [active,             setActive]             = useState(existing?.active ?? true);
+  const [code,               setCode]               = useState(init.code);
+  const [maxAmount,          setMaxAmount]          = useState(init.maxAmount);
+  const [validFrom,          setValidFrom]          = useState(init.validFrom);
+  const [validTo,            setValidTo]            = useState(init.validTo);
+  const [displayTitle,       setDisplayTitle]       = useState(init.displayTitle);
+  const [displayDescription, setDisplayDescription] = useState(init.displayDescription);
+  const [termsUrl,           setTermsUrl]           = useState(init.termsUrl);
+  const [bannerImageUrl,     setBannerImageUrl]     = useState(init.bannerImageUrl);
+  const [badgeText,          setBadgeText]          = useState(init.badgeText);
+  const [ctaText,            setCtaText]            = useState(init.ctaText);
+  const [autoApply,          setAutoApply]          = useState(init.autoApply);
+  const [displayOrder,       setDisplayOrder]       = useState(init.displayOrder);
+  const [displayOn,          setDisplayOn]          = useState(init.displayOn);
+  const [minDisplayAmount,   setMinDisplayAmount]   = useState(init.minDisplayAmount);
+  const [active,             setActive]             = useState(init.active);
+
+  useEffect(() => {
+    if ((!isEdit && !isClone) || state.id == null) return;
+    dispatch(fetchPromoCode(state.id))
+      .unwrap()
+      .then((fresh) => {
+        const s = initState(fresh);
+        // Clone: leave code blank so the user must enter a new unique code
+        setCode(isClone ? '' : s.code);
+        setMaxAmount(s.maxAmount);
+        setValidFrom(s.validFrom);
+        setValidTo(s.validTo);
+        setDisplayTitle(s.displayTitle);
+        setDisplayDescription(s.displayDescription);
+        setTermsUrl(s.termsUrl);
+        setBannerImageUrl(s.bannerImageUrl);
+        setBadgeText(s.badgeText);
+        setCtaText(s.ctaText);
+        setAutoApply(s.autoApply);
+        setDisplayOrder(s.displayOrder);
+        setDisplayOn(s.displayOn);
+        setMinDisplayAmount(s.minDisplayAmount);
+        setActive(s.active);
+      })
+      .finally(() => setLoading(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +142,14 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
     });
   };
 
+  if (loading) {
+    return (
+      <div className="drawer-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
+        <Icon name="loader" size={20} color="var(--g400)"/>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handle} style={{ display: 'contents' }}>
       <div className="drawer-body">
@@ -89,7 +168,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
             placeholder="e.g. WELCOME100"
             style={{ fontFamily: 'var(--mono)', letterSpacing: '0.04em', fontWeight: 600 }}
             required={!isEdit}
-            readOnly={isEdit}
+            readOnly={isEdit && !isClone}
           />
           <div className="helper">Alphanumeric + dashes. Unique per site.</div>
         </div>
@@ -159,12 +238,12 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
 
         <div className="field-group">
           <label>Terms URL</label>
-          <input value={termsUrl} onChange={(e) => setTermsUrl(e.target.value)} placeholder="https://…" type="url"/>
+          <input value={termsUrl} onChange={(e) => setTermsUrl(e.target.value)} placeholder="https://…" type="text"/>
         </div>
 
         <div className="field-group">
           <label>Banner image URL</label>
-          <input value={bannerImageUrl} onChange={(e) => setBannerImageUrl(e.target.value)} placeholder="https://cdn…" type="url"/>
+          <input value={bannerImageUrl} onChange={(e) => setBannerImageUrl(e.target.value)} placeholder="https://cdn…" type="text"/>
         </div>
 
         <div className="field-group">
