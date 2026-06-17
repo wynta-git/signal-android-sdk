@@ -6,11 +6,20 @@ import { useCommonSelector } from '../../store/hooks';
 import { fetchSegments, selectAllSegments, selectSegmentsStatus } from '../../store/slices/segmentsSlice';
 import type { Segment } from '../../types';
 
-interface PlayerSegmentPickerProps {
-  configureId: number;
+interface EligibilityLike {
+  key?: string;
+  value?: string | number;
+  rule_value?: string | number;
+  [k: string]: unknown;
 }
 
-export default function PlayerSegmentPicker({ configureId }: PlayerSegmentPickerProps) {
+interface PlayerSegmentPickerProps {
+  configureId: number;
+  eligibilities?: EligibilityLike[];
+  onSelect?: (segmentId: string | number | null) => void;
+}
+
+export default function PlayerSegmentPicker({ configureId, eligibilities, onSelect }: PlayerSegmentPickerProps) {
   const dispatch = useDispatch();
   const segs   = useCommonSelector(selectAllSegments);
   const status = useCommonSelector(selectSegmentsStatus);
@@ -19,13 +28,22 @@ export default function PlayerSegmentPicker({ configureId }: PlayerSegmentPicker
     if (status === 'idle') dispatch(fetchSegments() as any);
   }, [dispatch, status]);
 
-  const defaultId = segs.length ? segs[configureId % segs.length].id : null;
-  const [segmentId, setSegmentId] = useState<string | number | null>(defaultId);
+  const segRule = eligibilities?.find(e => e.key === 'segment_id' || (e as any).eligibility_key === 'segment_id');
+  const segRuleValue = segRule
+    ? (segRule.value ?? segRule.rule_value ?? (segRule as any).eligibility_value ?? null)
+    : null;
+
+  const [segmentId, setSegmentId] = useState<string | number | null>(segRuleValue);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const popRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setSegmentId(defaultId); setOpen(false); }, [configureId]); // eslint-disable-line
+  useEffect(() => {
+    const v = eligibilities?.find(e => e.key === 'segment_id' || (e as any).eligibility_key === 'segment_id');
+    const val = v ? (v.value ?? v.rule_value ?? (v as any).eligibility_value ?? null) : null;
+    setSegmentId(val);
+    setOpen(false);
+  }, [configureId, eligibilities]); // eslint-disable-line
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +83,7 @@ export default function PlayerSegmentPicker({ configureId }: PlayerSegmentPicker
             <button className="btn btn-secondary btn-sm" onClick={() => setOpen(o => !o)}>
               <Icon name="repeat" size={12}/> Change
             </button>
-            <button className="btn btn-secondary btn-sm btn-icon-only" title="Remove segment" onClick={() => { setSegmentId(null); setOpen(false); }}>
+            <button className="btn btn-secondary btn-sm btn-icon-only" title="Remove segment" onClick={() => { setSegmentId(null); setOpen(false); onSelect?.(null); }}>
               <Icon name="x" size={13}/>
             </button>
           </div>
@@ -99,7 +117,7 @@ export default function PlayerSegmentPicker({ configureId }: PlayerSegmentPicker
               <div
                 key={String(s.id)}
                 className={'pop-item' + (s.id === segmentId ? ' selected' : '')}
-                onClick={() => { setSegmentId(s.id); setOpen(false); setQuery(''); }}
+                onClick={() => { setSegmentId(s.id); setOpen(false); setQuery(''); onSelect?.(s.id); }}
               >
                 <Icon name="users" size={12} color={s.id === segmentId ? 'var(--blue)' : 'var(--g400)'}/>
                 <div className="pop-label">{s.label}</div>

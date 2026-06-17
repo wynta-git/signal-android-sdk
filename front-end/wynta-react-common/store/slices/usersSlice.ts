@@ -1,98 +1,104 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import { api } from '../../services/api';
-import { setRegisteredToken } from '../../services/tokenRegistry';
-import type { AsyncStatus, AuthResponse, SystemUser, WyntaBridge } from '../../types';
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { api } from "../../services/api";
+import { setRegisteredToken } from "../../services/tokenRegistry";
+import type {
+  AsyncStatus,
+  AuthResponse,
+  SystemUser,
+  WyntaBridge,
+} from "../../types";
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
 interface UsersState {
-  items:       SystemUser[];
-  status:      AsyncStatus;
-  error:       string | null;
+  items: SystemUser[];
+  status: AsyncStatus;
+  error: string | null;
   // ── Auth ──────────────────────────────────────────────────────────────────
-  authToken:   string | null;
-  authStatus:  AsyncStatus;
-  authError:   string | null;
+  authToken: string | null;
+  authStatus: AsyncStatus;
+  authError: string | null;
   // ── Bridge ────────────────────────────────────────────────────────────────
   bridgeToken: string | null;
-  bridgeData:  Record<string, unknown> | null;
+  bridgeData: Record<string, unknown> | null;
 }
 
 const initialState: UsersState = {
-  items:       [],
-  status:      'idle',
-  error:       null,
-  authToken:   null,
-  authStatus:  'idle',
-  authError:   null,
+  items: [],
+  status: "idle",
+  error: null,
+  authToken: null,
+  authStatus: "idle",
+  authError: null,
   bridgeToken: null,
-  bridgeData:  null,
+  bridgeData: null,
 };
 
 // ── Thunks ────────────────────────────────────────────────────────────────────
 
-export const fetchUsers = createAsyncThunk<SystemUser[]>(
-  'users/fetchAll',
-  () => api.fetchUsers(),
+export const fetchUsers = createAsyncThunk<SystemUser[]>("users/fetchAll", () =>
+  api.fetchUsers(),
 );
 
-export const authenticateWithBridgeToken = createAsyncThunk<AuthResponse, { token: string }>(
-  'users/auth',
-  (credentials) => api.authenticateWithBridgeToken(credentials),
-);
+export const authenticateWithBridgeToken = createAsyncThunk<
+  AuthResponse,
+  { token: string }
+>("users/auth", (credentials) => api.authenticateWithBridgeToken(credentials));
 
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 const usersSlice = createSlice({
-  name: 'users',
+  name: "users",
   initialState,
   reducers: {
     /** Store a token that was injected by the server (e.g. Django header slot) */
     setAuthToken(state, action: { payload: string }) {
-      state.authToken  = action.payload;
-      state.authStatus = 'succeeded';
-      state.authError  = null;
+      state.authToken = action.payload;
+      state.authStatus = "succeeded";
+      state.authError = null;
       setRegisteredToken(action.payload);
     },
     /** Store the full bridge payload extracted from X-Wynta-Bridge header */
     setBridgeData(state, action: { payload: WyntaBridge }) {
       state.bridgeToken = action.payload.token ?? null;
-      state.bridgeData  = action.payload as Record<string, unknown>;
+      state.bridgeData = action.payload as Record<string, unknown>;
       // Bridge token is only valid for exchange_token — do NOT register it here.
       // The real auth token is registered in authenticateWithBridgeToken.fulfilled.
     },
     /** Clear all auth state on logout */
     logout(state) {
-      state.authToken   = null;
-      state.authStatus  = 'idle';
-      state.authError   = null;
+      state.authToken = null;
+      state.authStatus = "idle";
+      state.authError = null;
       state.bridgeToken = null;
-      state.bridgeData  = null;
+      state.bridgeData = null;
     },
   },
   extraReducers(builder) {
     builder
       // ── fetchUsers ──────────────────────────────────────────────────────
-      .addCase(fetchUsers.pending,   (state) => { state.status = 'loading'; })
-      .addCase(fetchUsers.fulfilled, (state, action) => {
-        state.status = 'succeeded';
-        state.items  = action.payload;
+      .addCase(fetchUsers.pending, (state) => {
+        state.status = "loading";
       })
-      .addCase(fetchUsers.rejected,  (state, action) => {
-        state.status = 'failed';
-        state.error  = action.error.message ?? null;
+      .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.status = "succeeded";
+        state.items = action.payload;
+      })
+      .addCase(fetchUsers.rejected, (state, action) => {
+        state.status = "failed";
+        state.error = action.error.message ?? null;
       })
 
       // ── authenticateWithBridgeToken ──────────────────────────────────────
-      .addCase(authenticateWithBridgeToken.pending,   (state) => {
-        state.authStatus = 'loading';
-        state.authError  = null;
+      .addCase(authenticateWithBridgeToken.pending, (state) => {
+        state.authStatus = "loading";
+        state.authError = null;
       })
       .addCase(authenticateWithBridgeToken.fulfilled, (state, action) => {
         // Extract portal token defensively — shape is { data: { token, refresh_interval } }
         const portalToken = action.payload?.data?.token ?? null;
-        state.authStatus = 'succeeded';
-        state.authError  = null;
+        state.authStatus = "succeeded";
+        state.authError = null;
         if (portalToken) {
           state.authToken = portalToken;
           // Replace bridge token in registry with the portal token — all subsequent
@@ -101,10 +107,10 @@ const usersSlice = createSlice({
           setRegisteredToken(portalToken);
         }
       })
-      .addCase(authenticateWithBridgeToken.rejected,  (state, action) => {
-        state.authStatus = 'failed';
-        state.authError  = action.error.message ?? null;
-        state.authToken  = null;
+      .addCase(authenticateWithBridgeToken.rejected, (state, action) => {
+        state.authStatus = "failed";
+        state.authError = action.error.message ?? null;
+        state.authToken = null;
       });
   },
 });
@@ -115,14 +121,22 @@ export const { setAuthToken, setBridgeData, logout } = usersSlice.actions;
 
 // ── Selectors ─────────────────────────────────────────────────────────────────
 
-export const selectAllUsers    = (state: { users: UsersState }) => state.users.items;
-export const selectUsersStatus = (state: { users: UsersState }) => state.users.status;
+export const selectAllUsers = (state: { users: UsersState }) =>
+  state.users.items;
+export const selectUsersStatus = (state: { users: UsersState }) =>
+  state.users.status;
 
-export const selectAuthToken   = (state: { users: UsersState }) => state.users.authToken;
-export const selectAuthStatus  = (state: { users: UsersState }) => state.users.authStatus;
-export const selectAuthError   = (state: { users: UsersState }) => state.users.authError;
-export const selectIsLoggedIn  = (state: { users: UsersState }) => state.users.authToken !== null;
-export const selectBridgeToken = (state: { users: UsersState }) => state.users.bridgeToken;
-export const selectBridgeData  = (state: { users: UsersState }) => state.users.bridgeData;
+export const selectAuthToken = (state: { users: UsersState }) =>
+  state.users.authToken;
+export const selectAuthStatus = (state: { users: UsersState }) =>
+  state.users.authStatus;
+export const selectAuthError = (state: { users: UsersState }) =>
+  state.users.authError;
+export const selectIsLoggedIn = (state: { users: UsersState }) =>
+  state.users.authToken !== null;
+export const selectBridgeToken = (state: { users: UsersState }) =>
+  state.users.bridgeToken;
+export const selectBridgeData = (state: { users: UsersState }) =>
+  state.users.bridgeData;
 
 export default usersSlice.reducer;

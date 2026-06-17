@@ -1,7 +1,19 @@
-import { MOCK_HEADS } from "./mocks/heads";
-import { MOCK_SUBHEADS } from "./mocks/subheads";
+import { getToken } from "wynta-react-common/services/tokenRegistry";
 import { MOCK_CONFIGURES } from "./mocks/configures";
 import { getUsage, getBudget, getHistory } from "./mocks/utils";
+
+// const authHeader = () => ({
+//   'Content-Type': 'application/json',
+//   Authorization: `Bearer ${getToken()}`,
+// });
+
+function authHeaders(): HeadersInit {
+  const token = getToken();
+
+  console.log("Auth headers, token:", token);
+
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 import {
   MANUAL_SEGMENTS,
   PLAYER_FIRST_NAMES,
@@ -24,6 +36,7 @@ import type {
   EligibilityRule,
   BudgetPeriod,
   Segment,
+  OwnerEntry,
 } from "../types";
 
 const delay = (ms = 180): Promise<void> =>
@@ -157,31 +170,49 @@ const BONUS_API =
 console.log("BONUS_API", BONUS_API);
 export const api = {
   async fetchKpiSnapshot(siteId: string | number) {
-    const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`);
+    const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`, {
+      headers: authHeaders(),
+    });
     if (!res.ok) throw new Error("Failed to fetch bonus summary");
     return res.json();
   },
   async fetchHeads(siteId: string | number) {
-    const res = await fetch(`${BONUS_API}/bonus-heads?site_id=${siteId}`);
+    console.log("Fetching heads for siteId:", siteId);
+    const res = await fetch(`${BONUS_API}/bonus-heads?site_id=${siteId}`, {
+      headers: authHeaders(),
+    });
     if (!res.ok) throw new Error("Failed to fetch bonus heads");
     return res.json();
   },
   async fetchHead(id: number) {
-    const res = await fetch(`${BONUS_API}/bonus-heads/${id}`);
+    const res = await fetch(`${BONUS_API}/bonus-heads/${id}`, {
+      headers: authHeaders(),
+    });
     if (!res.ok) throw new Error(`Bonus head ${id} not found`);
     return res.json();
   },
   async fetchSubhead(id: number) {
-    await delay();
-    const s = MOCK_SUBHEADS[id];
-    if (!s) throw new Error("Subhead not found: " + id);
-    return s;
+    const res = await fetch(`${BONUS_API}/bonus-subheads/${id}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error(`Subhead ${id} not found`);
+    return res.json();
   },
   async fetchConfigure(id: number) {
-    await delay();
-    const c = MOCK_CONFIGURES[id];
-    if (!c) throw new Error("Configure not found: " + id);
-    return c;
+    const res = await fetch(`${BONUS_API}/bonus-configures/${id}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error(`Configure ${id} not found`);
+    return res.json();
+  },
+  async fetchConfigures(subheadId: number) {
+    const res = await fetch(
+      `${BONUS_API}/bonus-configures?subhead_id=${subheadId}`,
+      { headers: authHeaders() },
+    );
+    if (!res.ok)
+      throw new Error(`Failed to fetch configures for subhead ${subheadId}`);
+    return res.json();
   },
   async fetchConfigureUsage(id: number) {
     await delay();
@@ -192,17 +223,55 @@ export const api = {
     return getUsage("code", Number(codeId));
   },
   async fetchHistory(type: string, id: number) {
+    if (type === "head") {
+      const res = await fetch(`${BONUS_API}/bonus-heads/${id}/history`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`Failed to fetch history for head ${id}`);
+      return res.json();
+    }
+    if (type === "subhead") {
+      const res = await fetch(`${BONUS_API}/bonus-subheads/${id}/history`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`Failed to fetch history for subhead ${id}`);
+      return res.json();
+    }
+    if (type === "configure") {
+      const res = await fetch(`${BONUS_API}/bonus-configures/${id}/history`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok)
+        throw new Error(`Failed to fetch history for configure ${id}`);
+      return res.json();
+    }
     await delay();
     return getHistory(type, id);
   },
-  async fetchBudget(scope: string, id: number) {
+  async fetchBudget(scope: string, id: number): Promise<BudgetPeriod[]> {
+    if (scope === "head") {
+      const res = await fetch(`${BONUS_API}/bonus-heads/${id}`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`Failed to fetch budget for head ${id}`);
+      const head = await res.json();
+      return (head.budget ?? []) as BudgetPeriod[];
+    }
+    if (scope === "subhead") {
+      const res = await fetch(`${BONUS_API}/bonus-subheads/${id}`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`Failed to fetch budget for subhead ${id}`);
+      const sub = await res.json();
+      return (sub.budget ?? []) as BudgetPeriod[];
+    }
     await delay();
-    return getBudget(scope, id);
+    return getBudget(scope, id) as BudgetPeriod[];
   },
   async createHead(payload: Record<string, unknown>) {
     const res = await fetch(`${BONUS_API}/bonus-heads`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error("Failed to create bonus head");
@@ -211,105 +280,179 @@ export const api = {
   async updateHead(id: number, patch: Record<string, unknown>) {
     const res = await fetch(`${BONUS_API}/bonus-heads/${id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(patch),
     });
     if (!res.ok) throw new Error("Failed to update bonus head");
     return res.json() as Promise<BonusHead>;
   },
   async createSubhead(parentId: number, payload: Record<string, unknown>) {
-    await delay(280);
-    const id = Math.max(0, ...Object.keys(MOCK_SUBHEADS).map(Number)) + 1;
-    const sub = { id, head_id: parentId, configures: [], ...payload };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (MOCK_SUBHEADS as any)[id] = sub;
-    if (MOCK_HEADS[parentId]) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (MOCK_HEADS[parentId] as any).subheads = [
-        ...(MOCK_HEADS[parentId].subheads || []),
-        { id },
-      ];
-    }
-    return sub as unknown as BonusSubhead;
+    const res = await fetch(`${BONUS_API}/bonus-subheads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ head_id: parentId, ...payload }),
+    });
+    if (!res.ok) throw new Error("Failed to create subhead");
+    return res.json() as Promise<BonusSubhead>;
   },
   async updateSubhead(id: number, patch: Record<string, unknown>) {
-    await delay(280);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (MOCK_SUBHEADS as any)[id] = { ...(MOCK_SUBHEADS as any)[id], ...patch };
-    return MOCK_SUBHEADS[id];
+    const res = await fetch(`${BONUS_API}/bonus-subheads/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error("Failed to update subhead");
+    return res.json() as Promise<BonusSubhead>;
   },
   async createConfigure(parentId: number, payload: Record<string, unknown>) {
-    await delay(280);
-    const id = Math.max(0, ...Object.keys(MOCK_CONFIGURES).map(Number)) + 1;
-    const cfg = {
-      id,
-      subhead_id: parentId,
-      promo_codes: [],
-      triggers: [],
-      eligibilities: [],
-      ...payload,
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (MOCK_CONFIGURES as any)[id] = cfg;
-    if (MOCK_SUBHEADS[parentId]) {
-      MOCK_SUBHEADS[parentId].configures = [
-        ...(MOCK_SUBHEADS[parentId].configures || []),
-        id,
-      ];
+    const res = await fetch(`${BONUS_API}/bonus-configures`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ subhead_id: parentId, ...payload }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to create configure",
+      );
     }
-    return cfg as unknown as BonusConfigure;
+    return res.json() as Promise<BonusConfigure>;
   },
   async updateConfigure(id: number, patch: Record<string, unknown>) {
-    await delay(280);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (MOCK_CONFIGURES as any)[id] = {
-      ...(MOCK_CONFIGURES as any)[id],
-      ...patch,
-    };
-    return MOCK_CONFIGURES[id];
+    const res = await fetch(`${BONUS_API}/bonus-configures/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to update configure",
+      );
+    }
+    return res.json() as Promise<BonusConfigure>;
   },
   async createPromoCode(configureId: number, payload: Record<string, unknown>) {
-    await delay(280);
-    const id = "PC" + Date.now();
-    const code = { id, configure_id: configureId, ...payload };
-    if (MOCK_CONFIGURES[configureId]) {
-      MOCK_CONFIGURES[configureId].promo_codes = [
-        ...(MOCK_CONFIGURES[configureId].promo_codes || []),
-        code as never,
-      ];
+    const res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ configure_id: configureId, ...payload }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to create promo code",
+      );
     }
-    return code as unknown as PromoCode;
+    return res.json() as Promise<PromoCode>;
+  },
+  async updatePromoCode(codeId: number, patch: Record<string, unknown>) {
+    const res = await fetch(`${BONUS_API}/bonus-configure-codes/${codeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to update promo code",
+      );
+    }
+    return res.json() as Promise<PromoCode>;
   },
   async createTrigger(configureId: number, payload: Record<string, unknown>) {
-    await delay(280);
-    const id = Date.now();
-    const trigger = { id, configure_id: configureId, ...payload };
-    if (MOCK_CONFIGURES[configureId]) {
-      MOCK_CONFIGURES[configureId].triggers = [
-        ...(MOCK_CONFIGURES[configureId].triggers || []),
-        trigger as never,
-      ];
+    const res = await fetch(`${BONUS_API}/bonus-release-triggers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ configure_id: configureId, ...payload }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to create trigger",
+      );
     }
-    return trigger as unknown as Trigger;
+    return res.json() as Promise<Trigger>;
   },
   async createEligibility(
     configureId: number,
     payload: Record<string, unknown>,
   ) {
-    await delay(280);
-    const id = Date.now();
-    const elig = { id, configure_id: configureId, ...payload };
-    if (MOCK_CONFIGURES[configureId]) {
-      MOCK_CONFIGURES[configureId].eligibilities = [
-        ...(MOCK_CONFIGURES[configureId].eligibilities || []),
-        elig as never,
-      ];
+    const res = await fetch(`${BONUS_API}/bonus-eligibilities`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ configure_id: configureId, ...payload }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to create eligibility",
+      );
     }
-    return elig as unknown as EligibilityRule;
+    return res.json() as Promise<EligibilityRule>;
   },
-  async updateBudget(_scope: string, _id: number, periods: BudgetPeriod[]) {
+  async updateBudget(
+    scope: string,
+    id: number,
+    periods: BudgetPeriod[],
+    updatedBy = "system",
+  ): Promise<BudgetPeriod[]> {
+    const limits = periods.map((p) => ({
+      period_type: p.period_type,
+      budget_limit: p.limit != null && p.limit !== "" ? Number(p.limit) : null,
+    }));
+    if (scope === "head") {
+      const res = await fetch(`${BONUS_API}/bonus-heads/${id}/limits`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ limits, updated_by: updatedBy }),
+      });
+      if (!res.ok) throw new Error("Failed to update head budget");
+      return res.json() as Promise<BudgetPeriod[]>;
+    }
+    if (scope === "subhead") {
+      const res = await fetch(`${BONUS_API}/bonus-subheads/${id}/limits`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ limits, updated_by: updatedBy }),
+      });
+      if (!res.ok) throw new Error("Failed to update subhead budget");
+      return res.json() as Promise<BudgetPeriod[]>;
+    }
+    if (scope === "configure") {
+      const res = await fetch(`${BONUS_API}/bonus-configures/${id}/limits`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ limits, updated_by: updatedBy }),
+      });
+      if (!res.ok) throw new Error("Failed to update configure budget");
+      return res.json() as Promise<BudgetPeriod[]>;
+    }
     await delay(280);
     return periods;
+  },
+  async updateOwners(
+    scope: "head" | "subhead",
+    id: number,
+    owners: OwnerEntry[],
+    updatedBy = "system",
+  ): Promise<OwnerEntry[]> {
+    const base = scope === "head" ? "bonus-heads" : "bonus-subheads";
+    const res = await fetch(`${BONUS_API}/${base}/${id}/owners`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ owners, updated_by: updatedBy }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const detail = (body as { detail?: unknown }).detail;
+      throw new Error(
+        typeof detail === "string"
+          ? detail
+          : `Failed to update ${scope} owners`,
+      );
+    }
+    return res.json() as Promise<OwnerEntry[]>;
   },
   async createManualBonus(subheadId: number, payload: Record<string, unknown>) {
     await delay(280);

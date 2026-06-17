@@ -7,8 +7,9 @@ from pydantic import BaseModel, Field
 
 from shared.auth.token import TokenContext
 from app.config import settings
+from app.dependencies import get_client_context
 from app.middleware.idempotency import check_idempotency, store_idempotency
-from app.middleware.ratelimit import project_rate_limit, user_rate_limit
+from app.middleware.ratelimit import user_rate_limit
 from shared.clients.mongo import upsert_device_token, upsert_user_profile
 
 router = APIRouter()
@@ -41,7 +42,7 @@ class IdentifyResponse(BaseModel):
 async def identify(
     request: Request,
     body: IdentifyRequest,
-    ctx: TokenContext = Depends(project_rate_limit),
+    ctx: TokenContext = Depends(get_client_context),
 ) -> IdentifyResponse:
     cached = await check_idempotency(request, ctx)
     if cached:

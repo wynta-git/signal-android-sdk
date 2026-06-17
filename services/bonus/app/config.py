@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,10 +7,13 @@ class Settings(BaseSettings):
     # Set via env: BONUS_S2S_CLIENTS='{"game_server":"secret1","admin":"secret2"}'
     s2s_clients: dict[str, str] = {}
 
-    db_host: str = "localhost"
+    # RS256 public key (PEM) for portal UI tokens — set BONUS_PORTAL_JWT_PUBLIC_KEY
+    portal_jwt_public_key: str = ""
+
+    db_host: str = "43.204.90.164"
     db_port: int = 3306
-    db_user: str = "root"
-    db_password: str = "password"
+    db_user: str = "wynta_bonus"
+    db_password: str = "wynta_bonus@1234"
     db_name: str = "wynta_bonus"
     db_pool_minsize: int = 2
     db_pool_maxsize: int = 10
@@ -21,6 +25,7 @@ class Settings(BaseSettings):
     kafka_sasl_mechanism: str = "PLAIN"
     kafka_sasl_username: str = "ddf"
     kafka_sasl_password: str= "787"
+    kafka_dlq_topic: str = "pam.bonus.invalid.v1"
     kafka_batch_size: int = 100
     kafka_batch_timeout_ms: int = 1_000
 
@@ -28,6 +33,11 @@ class Settings(BaseSettings):
     trigger_cache_ttl: int = 300  # seconds
 
     model_config = SettingsConfigDict(env_prefix="BONUS_", env_file=".env", extra="ignore")
+
+    @field_validator("portal_jwt_public_key", mode="before")
+    @classmethod
+    def normalize_pem(cls, v: str) -> str:
+        return v.replace("\\n", "\n") if isinstance(v, str) else v
 
 
 settings = Settings()

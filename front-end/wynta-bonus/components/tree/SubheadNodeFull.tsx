@@ -1,10 +1,10 @@
 'use client';
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import ConfigureNode from './ConfigureNode';
-import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
-import { MOCK_CONFIGURES } from '../../services/mocks/configures';
-import type { SubheadSummary, SelectedNode, NodeType, BonusConfigure } from '../../types';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { fetchConfiguresBySubhead, selectConfiguresBySubhead } from '../../store/slices/configuresSlice';
+import type { SubheadSummary, SelectedNode, NodeType } from '../../types';
 
 interface MenuEvent {
   type: NodeType;
@@ -29,10 +29,12 @@ const SubheadNodeFull = memo(function SubheadNodeFull({
   subSummary, expanded, onToggle, selected, onSelect,
   selectedNode, onSelectConfigure, onMenu, loadingChildren,
 }: SubheadNodeFullProps) {
-  const detail = MOCK_SUBHEADS[subSummary.id];
-  const configures: BonusConfigure[] = detail
-    ? (detail.configures as number[]).map((id: number) => MOCK_CONFIGURES[id]).filter(Boolean)
-    : [];
+  const dispatch = useAppDispatch();
+  const configures = useAppSelector(selectConfiguresBySubhead(subSummary.id));
+
+  useEffect(() => {
+    if (expanded) dispatch(fetchConfiguresBySubhead(subSummary.id));
+  }, [expanded, subSummary.id, dispatch]);
 
   const onMenuClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();

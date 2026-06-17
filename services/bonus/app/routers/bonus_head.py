@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from app.dependencies import PortalAuthDep
 from app.exceptions import (
     BonusHeadDuplicateError,
     BonusHeadNotFoundError,
@@ -26,6 +27,7 @@ from app.services.bonus_head_service import (
     upsert_limits,
     upsert_owners,
 )
+from app.services.history_service import get_head_history
 
 router = APIRouter(prefix="/bonus-heads", tags=["bonus-heads"])
 
@@ -46,19 +48,20 @@ async def get_bonus_head_detail(head_id: int) -> BonusHeadDetail:
 
 
 @router.patch("/{head_id}", response_model=BonusHeadResponse)
-async def patch_bonus_head(head_id: int, payload: BonusHeadUpdate) -> BonusHeadResponse:
+async def patch_bonus_head(head_id: int, payload: BonusHeadUpdate, ctx: PortalAuthDep) -> BonusHeadResponse:
     """
     Partially update a bonus head.
 
     Only fields included in the request body are written. `updated_by` is always required.
     Send `"description": null` to explicitly clear the description.
     """
+    payload.updated_by = ctx.user_id
     return await update_bonus_head(head_id, payload)
 
 
 @router.put("/{head_id}/owners", response_model=list[OwnerEntry])
 async def put_bonus_head_owners(
-    head_id: int, payload: OwnersUpsertRequest
+    head_id: int, payload: OwnersUpsertRequest, ctx: PortalAuthDep
 ) -> list[OwnerEntry]:
     """
     Add or update owner assignments for a bonus head.
@@ -66,12 +69,13 @@ async def put_bonus_head_owners(
     Each entry is upserted on username — role, active, and updated_by are
     overwritten on conflict. Returns all current owners after the operation.
     """
+    payload.updated_by = ctx.user_id
     return await upsert_owners(head_id, payload)
 
 
 @router.put("/{head_id}/limits", response_model=list[BudgetPeriod])
 async def put_bonus_head_limits(
-    head_id: int, payload: LimitsUpsertRequest
+    head_id: int, payload: LimitsUpsertRequest, ctx: PortalAuthDep
 ) -> list[BudgetPeriod]:
     """
     Set or update budget caps for a bonus head.
@@ -80,11 +84,18 @@ async def put_bonus_head_limits(
     Pass `null` for budget_limit to mark a period as uncapped.
     Returns all budget periods (with current usage) after the operation.
     """
+    payload.updated_by = ctx.user_id
     return await upsert_limits(head_id, payload)
 
 
+@router.get("/{head_id}/history")
+async def get_bonus_head_history(head_id: int) -> list[dict]:
+    """Return the change history for a bonus head, including budget updates."""
+    return await get_head_history(head_id)
+
+
 @router.post("", response_model=BonusHeadResponse, status_code=201)
-async def create_bonus_head(payload: BonusHeadCreate) -> BonusHeadResponse:
+async def create_bonus_head(payload: BonusHeadCreate, ctx: PortalAuthDep) -> BonusHeadResponse:
     """
     Create a new bonus head.
 
@@ -95,6 +106,7 @@ async def create_bonus_head(payload: BonusHeadCreate) -> BonusHeadResponse:
     - **owner**: primary accountable person (username or email)
     - **created_by**: actor performing the creation
     """
+    payload.created_by = ctx.user_id
     return await add_bonus_head(payload)
 
 

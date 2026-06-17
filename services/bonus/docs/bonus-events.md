@@ -24,12 +24,13 @@ All event names use `SCREAMING_SNAKE_CASE`.
 ## Player Action Events
 
 ### `LOGIN`
+
 Player successfully logs in.
 
-| Property | Type | Required | Notes |
-|---|---|---|---|
-| `login_method` | string | yes | `email`, `phone`, `google`, `apple`, etc. |
-| `ip` | string | no | PII — hashed before storage. |
+| Property       | Type   | Required | Notes                                     |
+| -------------- | ------ | -------- | ----------------------------------------- |
+| `login_method` | string | yes      | `email`, `phone`, `google`, `apple`, etc. |
+| `ip`           | string | no       | PII — hashed before storage.              |
 
 ```json
 {
@@ -47,13 +48,14 @@ Player successfully logs in.
 ---
 
 ### `REGISTRATION`
+
 New player account created.
 
-| Property | Type | Required | Notes |
-|---|---|---|---|
-| `registration_method` | string | yes | `email`, `phone`, `google`, `apple`. |
-| `referral_code` | string | no | Promo or referral code used at sign-up. |
-| `ip` | string | no | PII — hashed before storage. |
+| Property              | Type   | Required | Notes                                   |
+| --------------------- | ------ | -------- | --------------------------------------- |
+| `registration_method` | string | yes      | `email`, `phone`, `google`, `apple`.    |
+| `referral_code`       | string | no       | Promo or referral code used at sign-up. |
+| `ip`                  | string | no       | PII — hashed before storage.            |
 
 ```json
 {
@@ -72,11 +74,12 @@ New player account created.
 ---
 
 ### `APP_VISIT`
+
 Player opens or resumes the app.
 
-| Property | Type | Required | Notes |
-|---|---|---|---|
-| `visit_count` | int | no | Cumulative visit count for this player including this one. |
+| Property      | Type | Required | Notes                                                      |
+| ------------- | ---- | -------- | ---------------------------------------------------------- |
+| `visit_count` | int  | no       | Cumulative visit count for this player including this one. |
 
 ```json
 {
@@ -96,16 +99,17 @@ Player opens or resumes the app.
 ## Deposit Events
 
 ### `DEPOSIT`
+
 Player completes a deposit. Set `is_ftd: true` when this is the player's first ever deposit — the trigger system uses this flag to evaluate first-deposit bonus rules.
 
-| Property | Type | Required | Notes |
-|---|---|---|---|
-| `order_id` | string | yes | Idempotent per project. |
-| `amount` | decimal | yes | Exact settled value; 4-decimal precision. |
-| `currency` | string (ISO 4217) | yes | e.g. `INR`. |
-| `payment_method` | string | yes | `upi`, `netbanking`, `card`, `wallet`. |
-| `is_ftd` | bool | yes | `true` if this is the player's first deposit. |
-| `deposit_count` | int | no | Cumulative deposit count for this player including this one. |
+| Property         | Type              | Required | Notes                                                        |
+| ---------------- | ----------------- | -------- | ------------------------------------------------------------ |
+| `order_id`       | string            | yes      | Idempotent per project.                                      |
+| `amount`         | decimal           | yes      | Exact settled value; 4-decimal precision.                    |
+| `currency`       | string (ISO 4217) | yes      | e.g. `INR`.                                                  |
+| `payment_method` | string            | yes      | `upi`, `netbanking`, `card`, `wallet`.                       |
+| `is_ftd`         | bool              | yes      | `true` if this is the player's first deposit.                |
+| `deposit_count`  | int               | no       | Cumulative deposit count for this player including this one. |
 
 ```json
 {
@@ -120,7 +124,8 @@ Player completes a deposit. Set `is_ftd: true` when this is the player's first e
     "currency": "INR",
     "payment_method": "upi",
     "is_ftd": false,
-    "deposit_count": 3
+    "deposit_count": 3,
+    "promo_code": "FIRST001"
   }
 }
 ```
@@ -130,15 +135,16 @@ Player completes a deposit. Set `is_ftd: true` when this is the player's first e
 ## Gameplay & Betting Events
 
 ### `BET_PLACED`
+
 Emitted when a wager is accepted by the RGS. This event resets the player's session timeout.
 
-| Property | Type | Required | Notes |
-|---|---|---|---|
-| `wager_amount` | decimal | yes | Stake size; 4-decimal precision. |
-| `game_id` | string | yes | Target game ID (e.g. `book_of_frosty`). |
-| `game_category` | string | no | Vertical: `slots`, `roulette`, `blackjack`, `crash`. |
-| `game_provider` | string | no | Studio name (e.g. `evolution`, `netent`, `pragmatic`). |
-| `balance_type` | string | yes | Wallet source: `real`, `bonus`, or `freebet`. |
+| Property        | Type    | Required | Notes                                                  |
+| --------------- | ------- | -------- | ------------------------------------------------------ |
+| `wager_amount`  | decimal | yes      | Stake size; 4-decimal precision.                       |
+| `game_id`       | string  | yes      | Target game ID (e.g. `book_of_frosty`).                |
+| `game_category` | string  | no       | Vertical: `slots`, `roulette`, `blackjack`, `crash`.   |
+| `game_provider` | string  | no       | Studio name (e.g. `evolution`, `netent`, `pragmatic`). |
+| `balance_type`  | string  | yes      | Wallet source: `real`, `bonus`, or `freebet`.          |
 
 ```json
 {
@@ -162,15 +168,16 @@ Emitted when a wager is accepted by the RGS. This event resets the player's sess
 ## Game Events
 
 ### `LEADERBOARD_WON`
+
 Player wins or places in a leaderboard competition.
 
-| Property | Type | Required | Notes |
-|---|---|---|---|
-| `leaderboard_id` | string | yes | ID of the leaderboard. |
-| `rank` | int | yes | Player's final rank. |
-| `prize_amount` | decimal | yes | In `currency` units; 4-decimal precision. |
-| `currency` | string (ISO 4217) | yes | e.g. `INR`. |
-| `period` | string | yes | `DAILY`, `WEEKLY`, `MONTHLY`. |
+| Property         | Type              | Required | Notes                                     |
+| ---------------- | ----------------- | -------- | ----------------------------------------- |
+| `leaderboard_id` | string            | yes      | ID of the leaderboard.                    |
+| `rank`           | int               | yes      | Player's final rank.                      |
+| `prize_amount`   | decimal           | yes      | In `currency` units; 4-decimal precision. |
+| `currency`       | string (ISO 4217) | yes      | e.g. `INR`.                               |
+| `period`         | string            | yes      | `DAILY`, `WEEKLY`, `MONTHLY`.             |
 
 ```json
 {
@@ -191,14 +198,15 @@ Player wins or places in a leaderboard competition.
 ---
 
 ### `TOURNAMENT_WON`
+
 Player wins or places in a tournament.
 
-| Property | Type | Required | Notes |
-|---|---|---|---|
-| `tournament_id` | string | yes | ID of the tournament. |
-| `rank` | int | yes | Player's final rank. |
-| `prize_amount` | decimal | yes | In `currency` units; 4-decimal precision. |
-| `currency` | string (ISO 4217) | yes | e.g. `INR`. |
+| Property        | Type              | Required | Notes                                     |
+| --------------- | ----------------- | -------- | ----------------------------------------- |
+| `tournament_id` | string            | yes      | ID of the tournament.                     |
+| `rank`          | int               | yes      | Player's final rank.                      |
+| `prize_amount`  | decimal           | yes      | In `currency` units; 4-decimal precision. |
+| `currency`      | string (ISO 4217) | yes      | e.g. `INR`.                               |
 
 ```json
 {
@@ -220,12 +228,13 @@ Player wins or places in a tournament.
 ## Referral Events
 
 ### `FRIEND_SIGNUP`
+
 A friend referred by this player completes registration.
 
-| Property | Type | Required | Notes |
-|---|---|---|---|
-| `friend_user_id` | string | yes | User ID of the friend who signed up. |
-| `referral_code` | string | yes | Code used by the friend at sign-up. |
+| Property         | Type   | Required | Notes                                |
+| ---------------- | ------ | -------- | ------------------------------------ |
+| `friend_user_id` | string | yes      | User ID of the friend who signed up. |
+| `referral_code`  | string | yes      | Code used by the friend at sign-up.  |
 
 ```json
 {
@@ -244,16 +253,16 @@ A friend referred by this player completes registration.
 
 ## Event → Trigger Mapping
 
-| Event | `bonus_release_trigger.trigger_type` |
-|---|---|
-| `LOGIN` | `LOGIN` |
-| `REGISTRATION` | `REGISTRATION` |
-| `APP_VISIT` | `APP_VISIT` |
-| `DEPOSIT` | `DEPOSIT` |
-| `BET_PLACED` | `BET_PLACED` |
-| `LEADERBOARD_WON` | `LEADERBOARD_WON` |
-| `TOURNAMENT_WON` | `TOURNAMENT_WON` |
-| `FRIEND_SIGNUP` | `FRIEND_SIGNUP` |
+| Event             | `bonus_release_trigger.trigger_type` |
+| ----------------- | ------------------------------------ |
+| `LOGIN`           | `LOGIN`                              |
+| `REGISTRATION`    | `REGISTRATION`                       |
+| `APP_VISIT`       | `APP_VISIT`                          |
+| `DEPOSIT`         | `DEPOSIT`                            |
+| `BET_PLACED`      | `BET_PLACED`                         |
+| `LEADERBOARD_WON` | `LEADERBOARD_WON`                    |
+| `TOURNAMENT_WON`  | `TOURNAMENT_WON`                     |
+| `FRIEND_SIGNUP`   | `FRIEND_SIGNUP`                      |
 
 ---
 

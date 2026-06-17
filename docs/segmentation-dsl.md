@@ -114,7 +114,7 @@ Nested groups are not supported in v1. If you need `(A AND B) OR C`, split into 
 
 ## Compilation strategy
 
-- Event filters → ClickHouse `SELECT user_id FROM pam.events WHERE ... GROUP BY user_id HAVING count() >= N`
+- Event filters → ClickHouse `SELECT user_id FROM pam.events_{project_id} WHERE ... GROUP BY user_id HAVING count() >= N`
 - Trait filters → MongoDB `users` collection match
 - `did_not_do` → ClickHouse anti-join (set difference)
 - `in_segment` → MongoDB `segment_memberships` lookup

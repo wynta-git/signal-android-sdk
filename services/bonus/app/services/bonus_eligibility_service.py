@@ -101,11 +101,6 @@ def _row_hash(fields: dict) -> str:
 
 async def add_bonus_eligibility(data: BonusEligibilityCreate) -> BonusEligibilityResponse:
     """Create one eligibility criterion row for a configure node."""
-    if data.created_by.isdigit():
-        raise BonusEligibilityValidationError(
-            "created_by", "created_by must be a username or email, not a numeric id"
-        )
-
     log.info("add_bonus_eligibility.start", configure_id=data.configure_id)
 
     hash_val = _row_hash({

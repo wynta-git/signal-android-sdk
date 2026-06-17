@@ -6,9 +6,10 @@ from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, ValidationError
 
 from app.middleware.idempotency import check_idempotency, store_idempotency
-from app.middleware.ratelimit import project_rate_limit, user_rate_limit
+from app.middleware.ratelimit import user_rate_limit
 from shared.auth.token import TokenContext
 from app.config import settings
+from app.dependencies import get_client_context
 from app.kafka_producer import get_or_create_producer
 from fastapi import Depends
 from shared.models.events import REGISTERED_EVENTS, EventEnvelope
@@ -54,7 +55,7 @@ def _map_validation_error(e: ValidationError) -> tuple[str, str]:
 async def track(
     request: Request,
     body: TrackRequest,
-    ctx: TokenContext = Depends(project_rate_limit),
+    ctx: TokenContext = Depends(get_client_context),
 ) -> TrackResponse:
     cached = await check_idempotency(request, ctx)
     if cached:
@@ -113,12 +114,19 @@ async def track(
             event.model_copy(
                 update={
                     "project_id": ctx.project_id,
+                    "site_id": ctx.site_id,
+                    "client_id": ctx.client_id,
                     "received_at": datetime.now(timezone.utc),
                 }
             ).model_dump(mode="json")
         )
 
     if accepted:
+        if request.app.state.producer is None:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "kafka_unavailable", "message": "Event streaming unavailable"},
+            )
         try:
             await request.app.state.producer.publish_events(accepted)
         except Exception:

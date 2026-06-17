@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from app.dependencies import PortalAuthDep
 from app.exceptions import (
     BonusCodeNotFoundError,
     BonusReleaseTriggerDuplicateError,
@@ -26,6 +27,7 @@ router = APIRouter(prefix="/bonus-release-triggers", tags=["bonus-release-trigge
 @router.post("", response_model=BonusReleaseTriggerResponse, status_code=201)
 async def create_bonus_release_trigger(
     payload: BonusReleaseTriggerCreate,
+    ctx: PortalAuthDep,
 ) -> BonusReleaseTriggerResponse:
     """
     Create a release trigger for a bonus configure, resolved via promo code.
@@ -44,6 +46,7 @@ async def create_bonus_release_trigger(
     - **trigger_config**: free-form JSON for additional conditions (optional)
     - **created_by**: actor performing the creation
     """
+    payload.created_by = ctx.user_id
     return await add_bonus_release_trigger(payload)
 
 
@@ -57,7 +60,7 @@ async def get_bonus_release_trigger_detail(
 
 @router.patch("/{trigger_id}", response_model=BonusReleaseTriggerResponse)
 async def patch_bonus_release_trigger(
-    trigger_id: int, payload: BonusReleaseTriggerUpdate
+    trigger_id: int, payload: BonusReleaseTriggerUpdate, ctx: PortalAuthDep
 ) -> BonusReleaseTriggerResponse:
     """
     Partially update a release trigger.
@@ -65,6 +68,7 @@ async def patch_bonus_release_trigger(
     Only fields included in the request body are written. ``updated_by`` is always
     required. To update ``trigger_config``, send the full replacement object.
     """
+    payload.updated_by = ctx.user_id
     return await update_bonus_release_trigger(trigger_id, payload)
 
 

@@ -15,6 +15,7 @@ from shared.auth.token import (
 from app.config import settings
 from shared.clients.mongo import load_event_routes
 from shared.clients.redis import get_lookup, write_event_route_map
+from shared.services.client import validate_client
 
 log = structlog.get_logger()
 
@@ -37,6 +38,45 @@ def _invert_routes(routes: list[dict]) -> dict[str, list[str]]:
 async def get_token_context(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
+) -> TokenContext:
+    return await _validate_token_from_credentials(request, credentials)
+
+
+async def get_client_context(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
+) -> TokenContext:
+    client_id = request.headers.get("X-Client-Id")
+    client_secret = request.headers.get("X-Client-Secret")
+
+    if not client_id or not client_secret:
+        return await _validate_token_from_credentials(request, credentials)
+
+    result = await validate_client(client_id, client_secret, request.app.state.redis)
+
+    lookup = await get_lookup(request.app.state.redis, "__noop__", "__noop__", EVENT_ROUTE_MAP_KEY)
+    event_route_map = lookup["event_route_map"]
+    if not event_route_map:
+        routes = await load_event_routes(request.app.state.mongo[settings.mongo_db])
+        event_route_map = _invert_routes(routes)
+        await write_event_route_map(request.app.state.redis, EVENT_ROUTE_MAP_KEY, event_route_map, EVENT_ROUTE_MAP_TTL)
+
+    request.state.event_route_map = event_route_map
+
+    ctx = TokenContext(
+        project_id=result.program_id,
+        site_id=result.site_id,
+        client_id=result.client_id,
+        scope=["events:write"],
+        env="live",
+    )
+    structlog.contextvars.bind_contextvars(project_id=ctx.project_id, env=ctx.env)
+    return ctx
+   
+
+async def _validate_token_from_credentials(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None,
 ) -> TokenContext:
     if not credentials:
         raise HTTPException(
@@ -103,3 +143,4 @@ def get_producer(request: Request) -> None:
 #   async def track(ctx: EventsWriteDep, ...):
 EventsWriteDep = Annotated[TokenContext, Depends(RequireScope("events:write"))]
 AdminDep = Annotated[TokenContext, Depends(RequireScope("admin"))]
+ClientDep = Annotated[TokenContext, Depends(get_client_context)]

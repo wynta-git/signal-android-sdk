@@ -1,0 +1,211 @@
+{
+  "info": {
+    "name": "Auth Service",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8006",
+      "type": "string"
+    },
+    {
+      "key": "portal_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "site_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "client_id",
+      "value": "site1-backend-v1",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Get System Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "token"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"your-service-account\",\n  \"password\": \"your-password\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Get Portal Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data.token) {",
+                  "  pm.collectionVariables.set('portal_token', res.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/portal_token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "portal_token"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"your-portal-user\",\n  \"password\": \"your-password\",\n  \"project_id\": \"your-project-id\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Exchange Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/exchange_token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "exchange_token"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"your-external-jwt\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "health"]
+            }
+          }
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/ready",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "ready"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Site Data",
+      "item": [
+        {
+          "name": "List Brands",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{portal_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/brands?user_id={{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "brands"],
+              "query": [
+                { "key": "user_id", "value": "{{user_id}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Users by Site",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{portal_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/users?site_id={{site_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "users"],
+              "query": [
+                { "key": "site_id", "value": "{{site_id}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Clients by Site",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{portal_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/clients?site_id={{site_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "clients"],
+              "query": [
+                { "key": "site_id", "value": "{{site_id}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Client Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{portal_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/system/client?client_id={{client_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "system", "client"],
+              "query": [
+                { "key": "client_id", "value": "{{client_id}}" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

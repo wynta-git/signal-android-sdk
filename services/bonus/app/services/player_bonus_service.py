@@ -461,7 +461,7 @@ async def get_player_transaction_detail(
             chunk_expiry_days=chunk_expiry_days, bonus_expiry_days=bonus_expiry_days,
             wager_chip_type=wager_chip_type, credit_chip_type=credit_chip_type,
             grant_amount=grant_amount, release_amount=release_amount,
-            consume_amount=consume_amount_val, status=status, created_at=created_at,
+            bonus_consumed=consume_amount_val, status=status, created_at=created_at,
             chunks=chunks, forfeit=forfeit, expiry_events=expiry_events,
         )
     except PlayerBonusNotFoundError:

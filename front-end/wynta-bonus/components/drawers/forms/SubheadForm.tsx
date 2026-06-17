@@ -1,61 +1,169 @@
-'use client';
-import { useState } from 'react';
-import { useAppDispatch } from '../../../store/hooks';
-import { createSubhead, updateSubhead } from '../../../store/slices/subheadsSlice';
-import { MOCK_HEADS } from '../../../services/mocks/heads';
-import { MOCK_SUBHEADS } from '../../../services/mocks/subheads';
-import Icon from 'wynta-react-common/components/Icon';
-import Toggle from 'wynta-react-common/components/Toggle';
-import DrawerFooter from '../../../components/drawers/DrawerFooter';
-import type { DrawerState } from '../../../types';
+"use client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAppDispatch, useAppSelector } from "../../../store/hooks";
+import { fetchHead, selectHeadById } from "../../../store/slices/headsSlice";
+import { selectSubheadById } from "../../../store/slices/subheadsSlice";
+import Icon from "wynta-react-common/components/Icon";
+import Toggle from "wynta-react-common/components/Toggle";
+import DrawerFooter from "../../../components/drawers/DrawerFooter";
+import {
+  FIELD_TO_PERIOD,
+  limitMap,
+  toBudgetPayload,
+  validateBudget,
+  type BudgetField,
+} from "../../../utils/budget";
+import type { DrawerState } from "../../../types";
 
 interface SubheadFormProps {
-  mode: 'new' | 'edit';
+  mode: "new" | "edit";
   state: DrawerState;
   submitting: boolean;
   onCancel: () => void;
   onSubmit: (data: Record<string, unknown>) => void;
 }
 
-export default function SubheadForm({ mode, state, submitting, onCancel, onSubmit }: SubheadFormProps) {
+export default function SubheadForm({
+  mode,
+  state,
+  submitting,
+  onCancel,
+  onSubmit,
+}: SubheadFormProps) {
   const dispatch = useAppDispatch();
-  const sub = mode === 'edit' && state.id != null ? MOCK_SUBHEADS[state.id] : null;
-  const parentHeadId = state.parentId ?? sub?.parent_head_id;
-  const parentHead = parentHeadId != null ? MOCK_HEADS[parentHeadId] : null;
-  const [name, setName] = useState(sub?.name || '');
-  const [description, setDescription] = useState(sub?.description || '');
-  const [owner, setOwner] = useState(sub?.owner || 'vanessa@wynta.com');
-  const [active, setActive] = useState(sub ? sub.active : true);
+  const subFromStore = useAppSelector(
+    state.id != null ? selectSubheadById(state.id) : () => undefined,
+  );
+  const sub = mode === "edit" ? subFromStore : undefined;
+
+  const parentHeadId = state.parentId ?? sub?.head_id ?? sub?.parent_head_id;
+  const parentHead = useAppSelector(
+    parentHeadId != null ? selectHeadById(parentHeadId) : () => undefined,
+  );
+
+  const [name, setName] = useState(sub?.name ?? "");
+  const [description, setDescription] = useState(sub?.description ?? "");
+  const [owner, setOwner] = useState(sub?.owner ?? "vanessa@wynta.com");
+  const [active, setActive] = useState(sub?.active ?? true);
+  const [daily, setDaily] = useState("");
+  const [weekly, setWeekly] = useState("");
+  const [monthly, setMonthly] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
+
+  // The head summary list has no budget — load the detail so caps are known.
+  useEffect(() => {
+    if (mode !== "new" || parentHeadId == null) return;
+    if (!parentHead || parentHead.budget.length === 0) {
+      dispatch(fetchHead(parentHeadId));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, parentHeadId]);
+
+  const headLimits = useMemo(
+    () => limitMap(parentHead?.budget),
+    [parentHead?.budget],
+  );
+
+  // Default the subhead limits to the parent head's limits, once, and only if
+  // the user hasn't typed anything yet.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (mode !== "new" || prefilled.current) return;
+    if (!parentHead || parentHead.budget.length === 0) return;
+    prefilled.current = true;
+    if (daily === "" && weekly === "" && monthly === "") {
+      setDaily(headLimits.DAILY != null ? String(headLimits.DAILY) : "");
+      setWeekly(headLimits.WEEKLY != null ? String(headLimits.WEEKLY) : "");
+      setMonthly(headLimits.MONTHLY != null ? String(headLimits.MONTHLY) : "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, parentHead, headLimits]);
+
+  const inputs = { daily, weekly, monthly };
+  const errors = useMemo(
+    () => (mode === "new" ? validateBudget(inputs, headLimits) : {}),
+    [daily, weekly, monthly, headLimits, mode], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = { name, description, owner, active };
-    if (mode === 'new' && state.parentId != null) {
-      dispatch(createSubhead({ parentId: state.parentId, payload }));
-    } else if (state.id != null) {
-      dispatch(updateSubhead({ id: state.id, patch: payload }));
+    if (mode === "new" && Object.keys(errors).length > 0) {
+      setShowErrors(true);
+      return;
     }
-    onSubmit({ type: state.type, ...payload });
+    onSubmit({
+      name,
+      description,
+      owner,
+      active,
+      ...(mode === "new" ? { budget: toBudgetPayload(inputs) } : {}),
+    });
+  };
+
+  const limitField = (
+    label: string,
+    field: BudgetField,
+    value: string,
+    setValue: (v: string) => void,
+  ) => {
+    const cap = headLimits[FIELD_TO_PERIOD[field]];
+    const error = errors[field];
+    // Errors from typing show immediately; "required" gaps only after submit.
+    const visibleError = error && (value !== "" || showErrors) ? error : null;
+    return (
+      <div className="field-group">
+        <label>{label}</label>
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={cap != null ? `up to ₹${cap}` : "leave empty for ∞"}
+          style={visibleError ? { borderColor: "#D64545" } : undefined}
+        />
+        {visibleError ? (
+          <div className="helper" style={{ color: "#D64545" }}>
+            {visibleError}
+          </div>
+        ) : (
+          (parentHead?.budget?.length ?? 0) > 0 && (
+            <div className="helper">
+              Head cap: {cap != null ? `₹${cap}` : "∞ (uncapped)"}
+            </div>
+          )
+        )}
+      </div>
+    );
   };
 
   return (
-    <form onSubmit={handle} style={{ display: 'contents' }}>
+    <form onSubmit={handle} style={{ display: "contents" }}>
       <div className="drawer-body">
         {parentHead && (
           <div className="field-group">
             <label>Parent Head</label>
             <span className="parent-chip">
-              <Icon name="folder" size={11}/> {parentHead.name}
+              <Icon name="folder" size={11} /> {parentHead.name}
             </span>
           </div>
         )}
         <div className="field-group">
           <label>Name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. First Deposit Match" required/>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. First Deposit Match"
+            required
+          />
         </div>
         <div className="field-group">
           <label>Description</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short summary"/>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Short summary"
+          />
         </div>
         <div className="field-group">
           <label>Owner</label>
@@ -66,11 +174,37 @@ export default function SubheadForm({ mode, state, submitting, onCancel, onSubmi
             <option>ops@wynta.com</option>
           </select>
         </div>
+        {mode === "new" && (
+          <>
+            <div
+              style={{
+                fontWeight: 600,
+                fontSize: 12,
+                color: "var(--g600)",
+                marginBottom: 4,
+                marginTop: 4,
+              }}
+            >
+              Budget Limits
+            </div>
+            {limitField("Daily limit (₹)", "daily", daily, setDaily)}
+            {limitField("Weekly limit (₹)", "weekly", weekly, setWeekly)}
+            {limitField("Monthly limit (₹)", "monthly", monthly, setMonthly)}
+          </>
+        )}
         <div className="field-group">
-          <Toggle on={active} onChange={setActive} label={active ? 'Active' : 'Paused'}/>
+          <Toggle
+            on={active}
+            onChange={setActive}
+            label={active ? "Active" : "Paused"}
+          />
         </div>
       </div>
-      <DrawerFooter submitting={submitting} onCancel={onCancel} label={mode === 'new' ? 'Create Subhead' : 'Save Changes'}/>
+      <DrawerFooter
+        submitting={submitting}
+        onCancel={onCancel}
+        label={mode === "new" ? "Create Subhead" : "Save Changes"}
+      />
     </form>
   );
 }

@@ -1,11 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { useAppDispatch } from '../../../store/hooks';
-import { createTrigger } from '../../../store/slices/configuresSlice';
+import { useAppSelector } from '../../../store/hooks';
+import { selectConfigureById } from '../../../store/slices/configuresSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Toggle from 'wynta-react-common/components/Toggle';
 import DrawerFooter from '../../../components/drawers/DrawerFooter';
-import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
 import type { DrawerState } from '../../../types';
 
 const TRIGGER_TYPES = ['DEPOSIT', 'REGISTRATION', 'APP_VISIT', 'BET_PLACED', 'LEADERBOARD_WON', 'TOURNAMENT_WON', 'FRIEND_SIGNUP', 'LOGIN'] as const;
@@ -18,33 +17,31 @@ interface TriggerFormProps {
 }
 
 export default function TriggerForm({ state, submitting, onCancel, onSubmit }: TriggerFormProps) {
-  const dispatch = useAppDispatch();
-  const cfg = state.parentId != null ? MOCK_CONFIGURES[state.parentId] : null;
-  const [triggerType, setTriggerType] = useState<typeof TRIGGER_TYPES[number]>('DEPOSIT');
-  const [description, setDescription] = useState('');
-  const [minTriggerAmount, setMinTriggerAmount] = useState('');
-  const [maxTriggerAmount, setMaxTriggerAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [product, setProduct] = useState('');
-  const [occurrence, setOccurrence] = useState(0);
-  const [active, setActive] = useState(true);
+  const cfg = useAppSelector(
+    state.parentId != null ? selectConfigureById(state.parentId) : () => undefined
+  );
+
+  const [triggerType,       setTriggerType]       = useState<typeof TRIGGER_TYPES[number]>('DEPOSIT');
+  const [description,       setDescription]       = useState('');
+  const [minTriggerAmount,  setMinTriggerAmount]  = useState('');
+  const [maxTriggerAmount,  setMaxTriggerAmount]  = useState('');
+  const [paymentMethod,     setPaymentMethod]     = useState('');
+  const [product,           setProduct]           = useState('');
+  const [occurrence,        setOccurrence]        = useState(0);
+  const [active,            setActive]            = useState(true);
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = {
-      trigger_type: triggerType,
-      description: description || null,
-      min_trigger_amount: minTriggerAmount || null,
-      max_trigger_amount: maxTriggerAmount || null,
-      payment_method: paymentMethod || null,
-      product: product || null,
+    onSubmit({
+      trigger_type:       triggerType,
+      description:        description        || null,
+      min_trigger_amount: minTriggerAmount   || null,
+      max_trigger_amount: maxTriggerAmount   || null,
+      payment_method:     paymentMethod      || null,
+      product:            product            || null,
       occurrence,
       active,
-    };
-    if (state.parentId != null) {
-      dispatch(createTrigger({ configureId: state.parentId, payload }));
-    }
-    onSubmit({ type: 'NEW_TRIGGER', ...payload });
+    });
   };
 
   return (

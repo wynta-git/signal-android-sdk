@@ -6,14 +6,14 @@ import structlog
 from aiokafka import ConsumerRecord
 from redis.asyncio import Redis
 
-from app.event_consumer.eligibility_checker import check_eligibility
-from app.event_consumer.grant_writer import (
+from app.event_processor.eligibility_checker import check_eligibility
+from app.event_processor.grant_writer import (
     check_applicability,
     check_occurrence,
     compute_grant_amount,
     write_grant,
 )
-from app.event_consumer.trigger_cache import get_triggers
+from app.event_processor.trigger_cache import get_triggers
 from shared.clients.mysql import get_connection
 
 log = structlog.get_logger()

@@ -1,3 +1,5 @@
+import json
+
 import aiomysql
 import structlog
 
@@ -15,7 +17,10 @@ from app.models.bonus_configure import (
     BonusConfigureDetail,
     BonusConfigureResponse,
     BonusConfigureUpdate,
+    EligibilitySummary,
+    TriggerSummary,
 )
+from app.models.bonus_head import BudgetPeriod, LimitsUpsertRequest
 from app.services.bonus_head_service import (
     _as_dt,
     _compute_row_hash,
@@ -77,23 +82,36 @@ _EXISTS_CONFIGURE_SQL = (
     "SELECT 1 FROM bonus_configure WHERE subhead_id = %s AND name = %s LIMIT 1"
 )
 
-# ---------------------------------------------------------------------------
-# SQL — default bonus_configure_code entry
-# ---------------------------------------------------------------------------
-
-_INSERT_CODE_SQL = """
-    INSERT INTO bonus_configure_code
-        (configure_id, site_id, code, max_amount, valid_from, valid_to,
-         active, created_by, updated_by, row_hash)
-    VALUES
-        (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-"""
-
 _SELECT_CODES_SQL = """
     SELECT id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active
     FROM bonus_configure_code
     WHERE configure_id = %s
     ORDER BY display_order
+"""
+
+_SELECT_TRIGGERS_FOR_IDS_SQL = """
+    SELECT id, configure_id, trigger_type, active
+    FROM bonus_release_trigger
+    WHERE configure_id IN ({})
+    ORDER BY id
+"""
+
+_SELECT_ELIGIBILITIES_FOR_IDS_SQL = """
+    SELECT id, configure_id, eligibility_key, eligibility_value, eligibility_value_type, active
+    FROM bonus_eligibility
+    WHERE configure_id IN ({})
+    ORDER BY id
+"""
+
+
+# ---------------------------------------------------------------------------
+# SQL — audit log
+# ---------------------------------------------------------------------------
+
+_AUDIT_INSERT_SQL = """
+    INSERT INTO bonus_change_log
+        (table_name, action, entity_id, site_id, changed_by, old_values, new_values)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
 """
 
 # ---------------------------------------------------------------------------
@@ -126,6 +144,24 @@ _PATCHABLE: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+async def _write_audit(
+    table_name: str, action: str, entity_id: int, site_id: int,
+    changed_by: str, old_values: dict | None, new_values: dict | None,
+) -> None:
+    """Best-effort audit entry — never raises."""
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_AUDIT_INSERT_SQL, (
+                    table_name, action, entity_id, site_id, changed_by,
+                    json.dumps(old_values, default=str) if old_values is not None else None,
+                    json.dumps(new_values, default=str) if new_values is not None else None,
+                ))
+                await conn.commit()
+    except Exception as exc:
+        log.warning("audit_write.failed", table=table_name, entity_id=entity_id, error=str(exc))
 
 
 def _row_to_response(row: tuple) -> BonusConfigureResponse:
@@ -224,11 +260,6 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
         BonusConfigureDuplicateError:  when (subhead_id, name) already exists.
         DatabaseError:                 on unexpected DB failures.
     """
-    if data.created_by.isdigit():
-        raise BonusConfigureValidationError(
-            "created_by", "created_by must be a username or email, not a numeric id"
-        )
-
     log.info("add_bonus_configure.start", subhead_id=data.subhead_id, name=data.name)
 
     row_hash = _configure_row_hash(data)
@@ -263,24 +294,14 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
 
-                # Insert default promo code entry, inheriting amount cap and validity from configure.
-                default_code = f"AUTO-{new_id}"
-                code_hash = _code_row_hash(
-                    new_id, data.site_id, default_code, data.created_by,
-                    max_amount=data.bonus_amount_max,
-                    valid_from=data.start_date,
-                    valid_to=data.end_date,
-                )
-                await cur.execute(
-                    _INSERT_CODE_SQL,
-                    (
-                        new_id, data.site_id, default_code,
-                        data.bonus_amount_max, data.start_date, data.end_date,
-                        1, data.created_by, data.created_by, code_hash,
-                    ),
-                )
-
                 await conn.commit()
+                await _write_audit(
+                    "bonus_configure", "INSERT", new_id, data.site_id, data.created_by,
+                    None,
+                    {"subhead_id": data.subhead_id, "name": data.name,
+                     "description": data.description, "active": int(data.active),
+                     "applicability_frequency": data.applicability_frequency},
+                )
 
                 await cur.execute(_SELECT_SQL, (new_id,))
                 row = await cur.fetchone()
@@ -325,6 +346,17 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
                 await cur.execute(_SELECT_CODES_SQL, (configure_id,))
                 code_rows = await cur.fetchall()
 
+                sql = _SELECT_TRIGGERS_FOR_IDS_SQL.format("%s")
+                await cur.execute(sql, (configure_id,))
+                trigger_rows = await cur.fetchall()
+
+                sql = _SELECT_ELIGIBILITIES_FOR_IDS_SQL.format("%s")
+                await cur.execute(sql, (configure_id,))
+                eligibility_rows = await cur.fetchall()
+
+                await cur.execute(_SELECT_CONFIGURE_BUDGET_SQL, (configure_id,))
+                budget_rows = await cur.fetchall()
+
     except BonusConfigureNotFoundError:
         raise
     except Exception as exc:
@@ -332,7 +364,11 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
         raise DatabaseError(str(exc)) from exc
 
     return BonusConfigureDetail(
-        **_row_to_response(row).model_dump(),
+        **_row_to_response(row).model_dump(exclude={"budget", "triggers", "eligibilities"}),
+        budget=[
+            BudgetPeriod(period_type=r[0], limit=r[1], used=r[2], reset_at=r[3])
+            for r in budget_rows
+        ],
         codes=[
             BonusCodeSummary(
                 id=r[0], code=r[1], max_amount=r[2],
@@ -341,22 +377,79 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
             )
             for r in code_rows
         ],
+        triggers=[
+            TriggerSummary(
+                id=r[0], trigger_type=r[2],
+                active=bool(r[3]),
+            )
+            for r in trigger_rows
+        ],
+        eligibilities=[
+            EligibilitySummary(
+                id=r[0], eligibility_key=r[2], eligibility_value=r[3],
+                eligibility_value_type=r[4], active=bool(r[5]),
+            )
+            for r in eligibility_rows
+        ],
     )
 
 
 async def list_bonus_configures_by_subhead(subhead_id: int) -> list[BonusConfigureResponse]:
-    """Return all configure rows for the given subhead, ordered by priority then id."""
+    """Return all configure rows for the given subhead with their triggers and eligibilities."""
     try:
         async with get_connection() as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_LIST_BY_SUBHEAD_SQL, (subhead_id,))
                 rows = await cur.fetchall()
+
+                if not rows:
+                    return []
+
+                configure_ids = [r[0] for r in rows]
+                placeholders = ", ".join(["%s"] * len(configure_ids))
+
+                sql = _SELECT_TRIGGERS_FOR_IDS_SQL.format(placeholders)
+                await cur.execute(sql, configure_ids)
+                trigger_rows = await cur.fetchall()
+
+                sql = _SELECT_ELIGIBILITIES_FOR_IDS_SQL.format(placeholders)
+                await cur.execute(sql, configure_ids)
+                eligibility_rows = await cur.fetchall()
+
     except Exception as exc:
         log.error("list_bonus_configures.db_error", error=str(exc))
         raise DatabaseError(str(exc)) from exc
 
-    return [_row_to_response(row) for row in rows]
+    triggers_by_cfg: dict[int, list[TriggerSummary]] = {}
+    for r in trigger_rows:
+        cfg_id = r[1]
+        triggers_by_cfg.setdefault(cfg_id, []).append(
+            TriggerSummary(
+                id=r[0], trigger_type=r[2],
+                active=bool(r[3]),
+            )
+        )
+
+    eligibilities_by_cfg: dict[int, list[EligibilitySummary]] = {}
+    for r in eligibility_rows:
+        cfg_id = r[1]
+        eligibilities_by_cfg.setdefault(cfg_id, []).append(
+            EligibilitySummary(
+                id=r[0], eligibility_key=r[2], eligibility_value=r[3],
+                eligibility_value_type=r[4], active=bool(r[5]),
+            )
+        )
+
+    result = []
+    for row in rows:
+        cfg = _row_to_response(row)
+        cfg_id = cfg.id
+        result.append(cfg.model_copy(update={
+            "triggers": triggers_by_cfg.get(cfg_id, []),
+            "eligibilities": eligibilities_by_cfg.get(cfg_id, []),
+        }))
+    return result
 
 
 async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) -> BonusConfigureResponse:
@@ -427,6 +520,26 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
                 )
                 await conn.commit()
 
+                _audit_col_idx = {
+                    "name": 3, "description": 4, "applicability_frequency": 7,
+                    "active": 22, "wager_multiplier": 8, "no_of_chunks": 9,
+                    "bonus_amount_fixed": 15, "bonus_amount_percent": 16, "bonus_amount_max": 17,
+                    "priority": 21,
+                }
+                old_audit: dict = {}
+                for col, idx in _audit_col_idx.items():
+                    if col in updates:
+                        old_v = row[idx]
+                        new_v = updates[col]
+                        changed = (int(old_v) != int(new_v)) if col == "active" else (str(old_v) != str(new_v))
+                        if changed:
+                            old_audit[col] = int(old_v) if col == "active" else old_v
+                await _write_audit(
+                    "bonus_configure", "UPDATE", configure_id, site_id, data.updated_by,
+                    old_audit if old_audit else None,
+                    {"name": new_values_cl["name"], "active": new_values_cl["active"]},
+                )
+
                 await cur.execute(_SELECT_SQL, (configure_id,))
                 updated_row = await cur.fetchone()
 
@@ -443,3 +556,122 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
     assert updated_row is not None
     log.info("update_bonus_configure.done", bonus_configure_id=configure_id)
     return _row_to_response(updated_row)
+
+
+# ---------------------------------------------------------------------------
+# SQL — bonus_budget_limit (entity_type = 'CONFIGURE')
+# ---------------------------------------------------------------------------
+
+_EXISTS_CONFIGURE_ID_SQL = "SELECT site_id FROM bonus_configure WHERE id = %s"
+
+_UPSERT_CONFIGURE_LIMIT_SQL = """
+    INSERT INTO bonus_budget_limit
+        (entity_type, entity_id, site_id, period_type, budget_limit, created_by, updated_by, row_hash)
+    VALUES
+        ('CONFIGURE', %s, %s, %s, %s, %s, %s, %s)
+    ON DUPLICATE KEY UPDATE
+        budget_limit = VALUES(budget_limit),
+        updated_by   = VALUES(updated_by),
+        row_hash     = VALUES(row_hash)
+"""
+
+_SELECT_CONFIGURE_BUDGET_SQL = """
+    SELECT
+        bl.period_type,
+        bl.budget_limit,
+        COALESCE(bu.budget_used, 0.00) AS budget_used,
+        bu.reset_at
+    FROM bonus_budget_limit bl
+    LEFT JOIN bonus_budget_usage bu
+        ON  bu.entity_type = bl.entity_type
+        AND bu.entity_id   = bl.entity_id
+        AND bu.period_type = bl.period_type
+    WHERE bl.entity_type = 'CONFIGURE' AND bl.entity_id = %s
+    ORDER BY CASE bl.period_type
+        WHEN 'DAILY'   THEN 1
+        WHEN 'WEEKLY'  THEN 2
+        WHEN 'MONTHLY' THEN 3
+    END
+"""
+
+_SELECT_CONFIGURE_LIMITS_PRE_SQL = """
+    SELECT period_type, budget_limit
+    FROM bonus_budget_limit
+    WHERE entity_type = 'CONFIGURE' AND entity_id = %s
+"""
+
+
+async def upsert_limits(configure_id: int, data: LimitsUpsertRequest) -> list[BudgetPeriod]:
+    """
+    Set or update budget caps for a bonus configure.
+
+    Raises:
+        BonusConfigureNotFoundError: configure_id does not exist.
+        DatabaseError:               unexpected DB failure.
+    """
+    log.info("upsert_configure_limits.start", bonus_configure_id=configure_id, count=len(data.limits))
+
+    try:
+        async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
+            async with conn.cursor() as cur:
+                await cur.execute(_EXISTS_CONFIGURE_ID_SQL, (configure_id,))
+                meta = await cur.fetchone()
+                if meta is None:
+                    raise BonusConfigureNotFoundError(configure_id)
+                site_id = meta[0]
+
+                await cur.execute(_SELECT_CONFIGURE_LIMITS_PRE_SQL, (configure_id,))
+                existing_limits = {r[0]: r[1] for r in await cur.fetchall()}
+
+                for entry in data.limits:
+                    row_hash = _compute_row_hash({
+                        "entity_type": "CONFIGURE",
+                        "entity_id": configure_id,
+                        "site_id": site_id,
+                        "period_type": entry.period_type,
+                        "budget_limit": str(entry.budget_limit),
+                        "updated_by": data.updated_by,
+                    })
+                    await cur.execute(
+                        _UPSERT_CONFIGURE_LIMIT_SQL,
+                        (
+                            configure_id,
+                            site_id,
+                            entry.period_type,
+                            entry.budget_limit,
+                            data.updated_by,
+                            data.updated_by,
+                            row_hash,
+                        ),
+                    )
+
+                await conn.commit()
+
+                for entry in data.limits:
+                    old_l = existing_limits.get(entry.period_type)
+                    new_l = entry.budget_limit
+                    if str(old_l) != str(new_l):
+                        await _write_audit(
+                            "bonus_configure_budget",
+                            "UPDATE" if entry.period_type in existing_limits else "INSERT",
+                            configure_id, site_id, data.updated_by,
+                            {"budget_limit": str(old_l)} if old_l is not None else None,
+                            {"period_type": entry.period_type,
+                             "budget_limit": str(new_l) if new_l is not None else None},
+                        )
+
+                await cur.execute(_SELECT_CONFIGURE_BUDGET_SQL, (configure_id,))
+                budget_rows = await cur.fetchall()
+
+    except BonusConfigureNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("upsert_configure_limits.db_error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+    log.info("upsert_configure_limits.done", bonus_configure_id=configure_id)
+    return [
+        BudgetPeriod(period_type=r[0], limit=r[1], used=r[2], reset_at=r[3])
+        for r in budget_rows
+    ]

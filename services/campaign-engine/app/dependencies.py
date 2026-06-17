@@ -2,6 +2,7 @@ from typing import Annotated
 
 import structlog
 from aiokafka import AIOKafkaProducer
+from clickhouse_connect.driver.asyncclient import AsyncClient
 from fastapi import Depends, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -30,6 +31,13 @@ def get_db(request: Request) -> AsyncIOMotorDatabase:
 
 def get_redis(request: Request) -> Redis:
     return request.app.state.redis
+
+
+def get_ch(request: Request) -> AsyncClient:
+    return request.app.state.ch
+
+
+ChDep = Annotated[AsyncClient, Depends(get_ch)]
 
 
 def get_producer(request: Request) -> AIOKafkaProducer:

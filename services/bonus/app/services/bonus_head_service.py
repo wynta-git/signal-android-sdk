@@ -131,6 +131,12 @@ _SELECT_LIMITS_PRE_SQL = """
     WHERE entity_type = 'HEAD' AND entity_id = %s
 """
 
+_AUDIT_INSERT_SQL = """
+    INSERT INTO bonus_change_log
+        (table_name, action, entity_id, site_id, changed_by, old_values, new_values)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
+"""
+
 # ---------------------------------------------------------------------------
 # Hash helpers
 # ---------------------------------------------------------------------------
@@ -150,8 +156,6 @@ def _compute_row_hash(fields: dict) -> str:
 def _validate_business_rules(data: BonusHeadCreate) -> None:
     if data.owner.isdigit():
         raise BonusHeadValidationError("owner", "owner must be a username or email, not a numeric id")
-    if data.created_by.isdigit():
-        raise BonusHeadValidationError("created_by", "created_by must be a username or email, not a numeric id")
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +165,24 @@ def _validate_business_rules(data: BonusHeadCreate) -> None:
 
 def _as_dt(value: object) -> datetime:
     return value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
+
+
+async def _write_audit(
+    table_name: str, action: str, entity_id: int, site_id: int,
+    changed_by: str, old_values: dict | None, new_values: dict | None,
+) -> None:
+    """Best-effort audit entry — never raises, errors are logged as warnings."""
+    try:
+        async with get_connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_AUDIT_INSERT_SQL, (
+                    table_name, action, entity_id, site_id, changed_by,
+                    json.dumps(old_values, default=str) if old_values is not None else None,
+                    json.dumps(new_values, default=str) if new_values is not None else None,
+                ))
+                await conn.commit()
+    except Exception as exc:
+        log.warning("audit_write.failed", table=table_name, entity_id=entity_id, error=str(exc))
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +235,44 @@ async def add_bonus_head(data: BonusHeadCreate) -> BonusHeadResponse:
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
 
+                # Budget caps are part of the create contract — written in the
+                # same transaction so a head can never exist without them.
+                for entry in data.budget:
+                    limit_row_hash = _compute_row_hash({
+                        "entity_type": "HEAD",
+                        "entity_id": new_id,
+                        "site_id": data.site_id,
+                        "period_type": entry.period_type,
+                        "budget_limit": str(entry.budget_limit),
+                        "updated_by": data.created_by,
+                    })
+                    await cur.execute(
+                        _UPSERT_LIMIT_SQL,
+                        (
+                            new_id,
+                            data.site_id,
+                            entry.period_type,
+                            entry.budget_limit,
+                            data.created_by,
+                            data.created_by,
+                            limit_row_hash,
+                        ),
+                    )
+
                 await conn.commit()
+                await _write_audit(
+                    "bonus_head", "INSERT", new_id, data.site_id, data.created_by,
+                    None,
+                    {"name": data.name, "description": data.description,
+                     "active": int(data.active), "owner": data.owner},
+                )
+                for entry in data.budget:
+                    new_limit = str(entry.budget_limit) if entry.budget_limit is not None else None
+                    await _write_audit(
+                        "bonus_head_budget", "INSERT", new_id, data.site_id, data.created_by,
+                        None,
+                        {"period_type": entry.period_type, "budget_limit": new_limit},
+                    )
 
                 await cur.execute(_SELECT_SQL, (new_id,))
                 row = await cur.fetchone()
@@ -368,6 +427,7 @@ async def update_bonus_head(head_id: int, data: BonusHeadUpdate) -> BonusHeadRes
 
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot — pool connection may carry a stale transaction
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (head_id,))
                 head_row = await cur.fetchone()
@@ -395,6 +455,20 @@ async def update_bonus_head(head_id: int, data: BonusHeadUpdate) -> BonusHeadRes
                     f"UPDATE bonus_head SET {set_clause} WHERE id = %s", params
                 )
                 await conn.commit()
+
+                # Compute diff and write audit entry
+                _col_row_idx = {"name": 2, "description": 3, "active": 4, "owner": 5}
+                old_audit: dict = {}
+                for col, idx in _col_row_idx.items():
+                    if col in updates:
+                        old_v = head_row[idx]
+                        new_v = updates[col]
+                        changed = (int(old_v) != int(new_v)) if col == "active" else (old_v != new_v)
+                        if changed:
+                            old_audit[col] = int(old_v) if col == "active" else old_v
+                new_audit = {k: new_values_cl[k] for k in ("name", "description", "active", "owner")}
+                await _write_audit("bonus_head", "UPDATE", head_id, site_id, data.updated_by,
+                                   old_audit if old_audit else None, new_audit)
 
                 await cur.execute(_SELECT_SQL, (head_id,))
                 updated_row = await cur.fetchone()
@@ -442,12 +516,19 @@ async def upsert_owners(head_id: int, data: OwnersUpsertRequest) -> list[OwnerEn
 
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_EXISTS_HEAD_SQL, (head_id,))
                 row = await cur.fetchone()
                 if row is None:
                     raise BonusHeadNotFoundError(head_id)
                 site_id = row[0]
+
+                # Read existing owners so INSERT vs UPDATE is known for the change log
+                await cur.execute(_SELECT_OWNERS_SQL, (head_id,))
+                existing_owners = {
+                    r[0]: {"role": r[1], "active": bool(r[2])} for r in await cur.fetchall()
+                }
 
                 for entry in data.owners:
                     row_hash = _compute_row_hash({
@@ -474,6 +555,27 @@ async def upsert_owners(head_id: int, data: OwnersUpsertRequest) -> list[OwnerEn
                     )
 
                 await conn.commit()
+
+                for entry in data.owners:
+                    old = existing_owners.get(entry.username)
+                    new_vals = {
+                        "username": entry.username,
+                        "role": entry.role,
+                        "active": int(entry.active),
+                    }
+                    if old is None:
+                        await _write_audit(
+                            "bonus_head_owner", "INSERT", head_id, site_id,
+                            data.updated_by, None, new_vals,
+                        )
+                    elif old["role"] != entry.role or old["active"] != entry.active:
+                        await _write_audit(
+                            "bonus_head_owner", "UPDATE", head_id, site_id,
+                            data.updated_by,
+                            {"username": entry.username, "role": old["role"],
+                             "active": int(old["active"])},
+                            new_vals,
+                        )
 
                 await cur.execute(_SELECT_OWNERS_SQL, (head_id,))
                 owner_rows = await cur.fetchall()
@@ -505,12 +607,17 @@ async def upsert_limits(head_id: int, data: LimitsUpsertRequest) -> list[BudgetP
 
     try:
         async with get_connection() as conn:
+            await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_EXISTS_HEAD_SQL, (head_id,))
                 row = await cur.fetchone()
                 if row is None:
                     raise BonusHeadNotFoundError(head_id)
                 site_id = row[0]
+
+                # Read existing limits for audit diff
+                await cur.execute(_SELECT_LIMITS_PRE_SQL, (head_id,))
+                existing_limits = {r[0]: r[1] for r in await cur.fetchall()}
 
                 for entry in data.limits:
                     row_hash = _compute_row_hash({
@@ -535,6 +642,19 @@ async def upsert_limits(head_id: int, data: LimitsUpsertRequest) -> list[BudgetP
                     )
 
                 await conn.commit()
+
+                for entry in data.limits:
+                    old_l = existing_limits.get(entry.period_type)
+                    new_l = entry.budget_limit
+                    if str(old_l) != str(new_l):
+                        await _write_audit(
+                            "bonus_head_budget",
+                            "UPDATE" if entry.period_type in existing_limits else "INSERT",
+                            head_id, site_id, data.updated_by,
+                            {"budget_limit": str(old_l)} if old_l is not None else None,
+                            {"period_type": entry.period_type,
+                             "budget_limit": str(new_l) if new_l is not None else None},
+                        )
 
                 await cur.execute(_SELECT_BUDGET_SQL, (head_id,))
                 budget_rows = await cur.fetchall()

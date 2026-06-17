@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAppDispatch } from '../../store/hooks';
 import { selectNode } from '../../store/slices/treeSlice';
 import { getUsage, formatRelative } from '../../services/mocks/utils';
@@ -14,7 +14,7 @@ import type { BonusHead } from '../../types';
 
 interface HeadDetailPanelProps {
   head: BonusHead;
-  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string }) => void;
+  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string; nodeType?: string }) => void;
 }
 
 export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps) {
@@ -25,7 +25,8 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
   };
 
   return (
-    <div className="detail-content" key={`head-${head.id}`}>
+    <React.Fragment key={`head-${head.id}`}>
+    <div className="detail-content">
       <div className="card mb-4">
         <div className="card-header">
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -46,7 +47,7 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
             <button
               className="btn btn-secondary btn-sm btn-icon-only"
               title="View change history"
-              onClick={() => onAction({ type: 'OPEN_HISTORY', id: head.id })}
+              onClick={() => onAction({ type: 'OPEN_HISTORY', id: head.id, nodeType: 'head' })}
             >
               <Icon name="history" size={14}/>
             </button>
@@ -106,26 +107,44 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
         })}
       </div>
 
-      <div className="section-label" style={{ marginTop: 28 }}>
-        Owners & Permissions · {head.owners.length}
+      <div className="section-row" style={{ marginTop: 28 }}>
+        <div className="section-label">
+          Owners & Permissions · {head.owners.filter(o => o.active).length}
+        </div>
+        <div className="right">
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => onAction({ type: 'EDIT_OWNERS', scope: 'head', id: head.id })}
+          >
+            <Icon name="user-plus" size={12}/> Edit Owners
+          </button>
+        </div>
       </div>
       <div className="owners-list mb-4">
-        {head.owners.map((o, i) => <OwnerPill key={i} owner={o} />)}
+        {head.owners.filter(o => o.active).length === 0 && (
+          <span style={{ fontSize: 12, color: 'var(--g400)', fontStyle: 'italic' }}>No owners assigned.</span>
+        )}
+        {head.owners.filter(o => o.active).map((o, i) => <OwnerPill key={i} owner={o} />)}
       </div>
 
-      <ActionBar>
-        <button className="btn btn-primary" onClick={() => onAction({ type: 'EDIT_HEAD', id: head.id })}>
-          <Icon name="pencil" size={13}/> Edit Head
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_SUBHEAD', parentId: head.id })}>
-          <Icon name="plus" size={13}/> Add Subhead
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'head', id: head.id })}>
-          <Icon name="wallet" size={13}/> Manage Budget
-        </button>
-        <div style={{ flex: 1 }} />
-        <Toggle on={head.active} onChange={() => {}} label={head.active ? 'Active' : 'Paused'} />
-      </ActionBar>
     </div>
+
+    <ActionBar>
+      <button className="btn btn-primary" onClick={() => onAction({ type: 'EDIT_HEAD', id: head.id })}>
+        <Icon name="pencil" size={13}/> Edit Head
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_SUBHEAD', parentId: head.id })}>
+        <Icon name="plus" size={13}/> Add Subhead
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'head', id: head.id })}>
+        <Icon name="wallet" size={13}/> Manage Budget
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_OWNERS', scope: 'head', id: head.id })}>
+        <Icon name="users" size={13}/> Manage Owners
+      </button>
+      <div style={{ flex: 1 }} />
+      <Toggle on={head.active} onChange={() => {}} label={head.active ? 'Active' : 'Paused'} />
+    </ActionBar>
+    </React.Fragment>
   );
 }

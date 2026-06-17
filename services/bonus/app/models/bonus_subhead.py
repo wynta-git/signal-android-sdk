@@ -20,7 +20,15 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.models.bonus_head import BudgetPeriod, LimitsUpsertRequest, OwnerEntry, OwnersUpsertRequest
+from app.models.bonus_head import (
+    BudgetPeriod,
+    LimitsUpsertRequest,
+    LimitUpsertItem,
+    OwnerEntry,
+    OwnersUpsertRequest,
+    _no_duplicate_periods,
+    _validate_period_ordering,
+)
 
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z0-9_.\- ]+$")
 
@@ -46,7 +54,10 @@ class BonusSubheadCreate(BaseModel):
     description: str | None = Field(None, max_length=500)
     active: bool = Field(True)
     owner: str = Field(..., min_length=1, max_length=100)
-    created_by: str = Field(..., min_length=1, max_length=100)
+    created_by: str = ""
+    budget: list[LimitUpsertItem] = Field(
+        ..., min_length=1, description="Budget caps per period; budget_limit null = uncapped"
+    )
 
     @field_validator("name", mode="before")
     @classmethod
@@ -56,11 +67,6 @@ class BonusSubheadCreate(BaseModel):
     @field_validator("owner", mode="before")
     @classmethod
     def clean_owner(cls, v: str) -> str:
-        return _clean(v)
-
-    @field_validator("created_by", mode="before")
-    @classmethod
-    def clean_created_by(cls, v: str) -> str:
         return _clean(v)
 
     @field_validator("name")
@@ -73,15 +79,16 @@ class BonusSubheadCreate(BaseModel):
     def validate_owner_chars(cls, v: str) -> str:
         return _validate_identifier("owner", v)
 
-    @field_validator("created_by")
-    @classmethod
-    def validate_created_by_chars(cls, v: str) -> str:
-        return _validate_identifier("created_by", v)
-
     @model_validator(mode="after")
     def description_not_blank(self) -> "BonusSubheadCreate":
         if self.description is not None and self.description.strip() == "":
             raise ValueError("description must not be blank when provided")
+        return self
+
+    @model_validator(mode="after")
+    def no_duplicate_periods(self) -> "BonusSubheadCreate":
+        _no_duplicate_periods(self.budget)
+        _validate_period_ordering(self.budget)
         return self
 
 
@@ -110,7 +117,7 @@ class BonusSubheadUpdate(BaseModel):
     description: str | None = None
     active: bool | None = None
     owner: str | None = Field(None, min_length=1, max_length=100)
-    updated_by: str = Field(..., min_length=1, max_length=100)
+    updated_by: str = ""
 
     @field_validator("name", mode="before")
     @classmethod
@@ -121,11 +128,6 @@ class BonusSubheadUpdate(BaseModel):
     @classmethod
     def clean_owner(cls, v: str | None) -> str | None:
         return _clean(v) if v is not None else v
-
-    @field_validator("updated_by", mode="before")
-    @classmethod
-    def clean_updated_by(cls, v: str) -> str:
-        return _clean(v)
 
     @field_validator("name")
     @classmethod

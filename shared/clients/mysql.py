@@ -15,6 +15,7 @@ async def init_pool(
     db: str,
     minsize: int = 2,
     maxsize: int = 10,
+    pool_recycle: int = 280,
 ) -> None:
     global _pool
     _pool = await aiomysql.create_pool(
@@ -27,6 +28,9 @@ async def init_pool(
         maxsize=maxsize,
         autocommit=False,
         charset="utf8mb4",
+        # Idle connections to a remote DB get dropped by NAT/firewalls without
+        # the server noticing; recycle before typical idle-timeout windows.
+        pool_recycle=pool_recycle,
     )
 
 
@@ -47,4 +51,10 @@ def get_pool() -> aiomysql.Pool:
 @asynccontextmanager
 async def get_connection() -> AsyncGenerator[aiomysql.Connection, None]:
     async with get_pool().acquire() as conn:
-        yield conn
+        try:
+            yield conn
+        finally:
+            # autocommit is off: end any transaction left open (e.g. reads after
+            # the final commit) so the connection returns to the pool clean and
+            # holds no stale snapshot or locks.
+            await conn.rollback()

@@ -25,6 +25,7 @@ class PortalTokenContext:
 
 
 def validate_portal_token(token: str, public_key: str) -> PortalTokenContext:
+    
     try:
         payload: dict[str, Any] = jwt.decode(
             token,

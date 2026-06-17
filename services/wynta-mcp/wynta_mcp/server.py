@@ -1078,23 +1078,27 @@ async def bonus_create_head(
     name: str,
     owner: str,
     created_by: str,
+    budget_json: str,
     description: str | None = None,
     active: bool = True,
 ) -> str:
-    """Create a new bonus head.
+    """Create a new bonus head with its budget caps.
 
     Args:
         site_id: Site this bonus head belongs to (required).
         name: Unique name within the site, alphanumeric + space/hyphen/underscore/dot (required).
         owner: Primary accountable person — username or email (required).
         created_by: Actor performing the creation (required).
+        budget_json: JSON string with the budget cap list (required), e.g.
+            '[{"period_type": "DAILY", "budget_limit": 5000}]'.
+            period_type must be one of: DAILY, WEEKLY, MONTHLY. Pass null for budget_limit to uncap.
         description: Optional free-text description (max 500 chars).
         active: Whether this head is active (default true).
     """
     return await _bonus_post(
         "/bonus-heads",
         {"site_id": site_id, "name": name, "owner": owner, "created_by": created_by,
-         "description": description, "active": active},
+         "description": description, "active": active, "budget": json.loads(budget_json)},
     )
 
 
@@ -1161,10 +1165,11 @@ async def bonus_create_subhead(
     name: str,
     owner: str,
     created_by: str,
+    budget_json: str,
     description: str | None = None,
     active: bool = True,
 ) -> str:
-    """Create a new bonus subhead under an existing bonus head.
+    """Create a new bonus subhead under an existing bonus head, with its budget caps.
 
     Args:
         head_id: Parent bonus head ID (required).
@@ -1172,13 +1177,18 @@ async def bonus_create_subhead(
         name: Unique name within the parent head (required).
         owner: Primary accountable person (required).
         created_by: Actor performing the creation (required).
+        budget_json: JSON string with the budget cap list (required), e.g.
+            '[{"period_type": "DAILY", "budget_limit": 5000}]'.
+            period_type must be one of: DAILY, WEEKLY, MONTHLY. Pass null for budget_limit to uncap.
+            Limits must not exceed the parent head's caps.
         description: Optional free-text description.
         active: Whether active (default true).
     """
     return await _bonus_post(
         "/bonus-subheads",
         {"head_id": head_id, "site_id": site_id, "name": name, "owner": owner,
-         "created_by": created_by, "description": description, "active": active},
+         "created_by": created_by, "description": description, "active": active,
+         "budget": json.loads(budget_json)},
     )
 
 

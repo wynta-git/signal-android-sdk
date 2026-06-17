@@ -128,7 +128,7 @@ class PlayerBonusTransactionDetail(BaseModel):
     credit_chip_type: str
     grant_amount: Decimal
     release_amount: Decimal
-    consume_amount: Decimal
+    bonus_consumed: Decimal
     status: str
     created_at: datetime
     chunks: list[BonusChunkDetail]

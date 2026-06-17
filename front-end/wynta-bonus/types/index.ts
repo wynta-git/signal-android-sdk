@@ -9,9 +9,11 @@ export interface Brand {
 
 // ── Bonus tree ────────────────────────────────────────────────────────────────
 
+export type OwnerRole = 'OPS_LEAD' | 'CAMPAIGN_MANAGER' | 'FINANCE_APPROVER' | 'ESCALATION_CONTACT';
+
 export interface OwnerEntry {
   username: string;
-  role: 'OWNER' | 'EDITOR' | 'VIEWER';
+  role: OwnerRole | string;
   active: boolean;
 }
 
@@ -50,29 +52,38 @@ export interface BonusHead {
 export interface PromoCode {
   id: string | number;
   configure_id: number;
+  site_id?: number;
   code?: string;
-  max_amount?: string | number;
-  valid_from?: string;
-  valid_to?: string;
+  max_amount?: string | number | null;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  display_title?: string | null;
+  display_description?: string | null;
+  terms_url?: string | null;
+  banner_image_url?: string | null;
+  badge_text?: string | null;
+  cta_text?: string | null;
   auto_apply?: boolean;
   display_order?: number;
+  display_on?: string;
+  min_display_amount?: string | number | null;
   active?: boolean;
   status?: string;
   issued?: number;
   redeemed?: number;
+  created_by?: string;
+  updated_by?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Trigger {
   id: number;
   configure_id?: number;
   trigger_type: string;
-  description?: string | null;
-  min_trigger_amount?: string | number | null;
-  max_trigger_amount?: string | number | null;
-  payment_method?: string | null;
-  product?: string | null;
-  occurrence?: number;
+  trigger_config?: Record<string, unknown> | null;
   active?: boolean;
+  [key: string]: unknown;
 }
 
 export interface EligibilityRule {
@@ -108,8 +119,10 @@ export interface BonusConfigure {
   cashback_bonus_amount_max?: string | number | null;
   wager_chip_type?: string;
   credit_chip_type?: string;
+  release_bucket?: string | null;
   chunk_expiry_days?: number;
   bonus_expiry_days?: number;
+  budget?: BudgetPeriod[];
   promo_codes: PromoCode[];
   codes?: PromoCode[];
   triggers: Trigger[];
@@ -256,9 +269,11 @@ export type DrawerType =
   | 'NEW_CONFIGURE'
   | 'EDIT_CONFIGURE'
   | 'NEW_PROMOCODE'
+  | 'EDIT_PROMOCODE'
   | 'NEW_ELIGIBILITY'
   | 'NEW_TRIGGER'
   | 'EDIT_BUDGET'
+  | 'EDIT_OWNERS'
   | 'NEW_MANUAL_BONUS'
   | 'ISSUE_CODE_BONUS';
 

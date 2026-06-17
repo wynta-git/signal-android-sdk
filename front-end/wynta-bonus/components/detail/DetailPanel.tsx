@@ -2,9 +2,9 @@
 import { useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { fetchHead, selectHeadsStatus } from '../../store/slices/headsSlice';
+import { fetchSubhead } from '../../store/slices/subheadsSlice';
+import { fetchConfigure, selectConfigureById } from '../../store/slices/configuresSlice';
 import { openDrawer, openHistoryDrawer } from '../../store/slices/uiSlice';
-import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
-import { MOCK_CONFIGURES } from '../../services/mocks/configures';
 import HeadDetailPanel from '../../components/detail/HeadDetailPanel';
 import SubheadDetailPanel from '../../components/detail/SubheadDetailPanel';
 import ConfigureDetailPanel from '../../components/detail/ConfigureDetailPanel';
@@ -31,22 +31,23 @@ export default function DetailPanel({ onAction }: DetailPanelProps) {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Fetch full head detail (owners + subheads + budget) whenever selection changes
+  // Fetch full detail whenever selection changes
   useEffect(() => {
-    if (selectedNode?.type === 'head') {
-      dispatch(fetchHead(selectedNode.id));
-    }
+    if (selectedNode?.type === 'head') dispatch(fetchHead(selectedNode.id));
+    if (selectedNode?.type === 'subhead') dispatch(fetchSubhead(selectedNode.id));
+    if (selectedNode?.type === 'configure') dispatch(fetchConfigure(selectedNode.id));
   }, [selectedNode, dispatch]);
 
-  const head        = useAppSelector(s => selectedNode?.type === 'head' ? s.heads.entities[selectedNode.id] : null);
+  const head        = useAppSelector(s => selectedNode?.type === 'head'    ? s.heads.entities[selectedNode.id]    : null);
+  const sub         = useAppSelector(s => selectedNode?.type === 'subhead' ? s.subheads.entities[selectedNode.id] : null);
   const headsStatus = useAppSelector(selectHeadsStatus);
   const brandsStatus = useAppSelector(s => s.brands.status);
-  const sub  = selectedNode?.type === 'subhead'   ? MOCK_SUBHEADS[selectedNode.id]   : null;
-  const cfg  = selectedNode?.type === 'configure' ? MOCK_CONFIGURES[selectedNode.id] : null;
+  const cfgId = selectedNode?.type === 'configure' ? selectedNode.id : 0;
+  const cfg = useAppSelector(selectConfigureById(cfgId));
 
   const handleAction = onAction || ((action: ActionPayload) => {
     if (action.type === 'OPEN_HISTORY') {
-      dispatch(openHistoryDrawer({ type: (action.nodeType ?? action.type) as HistoryDrawerState['type'], id: action.id! }));
+      dispatch(openHistoryDrawer({ type: (action.nodeType ?? 'head') as HistoryDrawerState['type'], id: action.id! }));
     } else {
       dispatch(openDrawer(action as unknown as DrawerState));
     }
@@ -69,7 +70,7 @@ export default function DetailPanel({ onAction }: DetailPanelProps) {
   }
 
   if (selectedNode.type === 'subhead') {
-    if (!sub) return <EmptyState/>;
+    if (!sub) return <div style={{ padding: 32, color: 'var(--g400)', fontSize: 13 }}>Loading…</div>;
     return <SubheadDetailPanel subhead={sub} onAction={handleAction}/>;
   }
 

@@ -14,9 +14,11 @@ bonus_configure columns:
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.models.bonus_head import BudgetPeriod
 
 ApplicabilityFrequency = Literal["EVERYTIME", "ONCE", "MONTHLY", "WEEKLY"]
 
@@ -46,7 +48,7 @@ class BonusConfigureCreate(BaseModel):
     cashback_bonus_amount_max:       Decimal | None         = Field(None, ge=0)
     priority:                        int                    = Field(0, ge=0)
     active:                          bool                   = True
-    created_by:                      str                    = Field(..., min_length=1, max_length=100)
+    created_by:                      str                    = ""
 
     @field_validator("start_date", "end_date", mode="after")
     @classmethod
@@ -63,6 +65,25 @@ class BonusConfigureCreate(BaseModel):
         if self.description is not None and self.description.strip() == "":
             raise ValueError("description must not be blank when provided")
         return self
+
+
+class TriggerSummary(BaseModel):
+    """Trigger row embedded in a configure response."""
+
+    id:             int
+    trigger_type:   str
+    trigger_config: dict[str, Any] | None = None
+    active:         bool
+
+
+class EligibilitySummary(BaseModel):
+    """Eligibility criterion row embedded in a configure response."""
+
+    id:                     int
+    eligibility_key:        str
+    eligibility_value:      str
+    eligibility_value_type: str
+    active:                 bool
 
 
 class BonusConfigureResponse(BaseModel):
@@ -95,6 +116,9 @@ class BonusConfigureResponse(BaseModel):
     updated_by:                      str
     created_at:                      datetime
     updated_at:                      datetime
+    budget:                          list[BudgetPeriod]       = []
+    triggers:                        list[TriggerSummary]     = []
+    eligibilities:                   list[EligibilitySummary] = []
 
     model_config = {"from_attributes": True}
 
@@ -115,7 +139,7 @@ class BonusCodeSummary(BaseModel):
 class BonusConfigureDetail(BonusConfigureResponse):
     """Full configure with its attached promo codes."""
 
-    codes: list[BonusCodeSummary]
+    codes: list[BonusCodeSummary] = []
 
 
 class BonusConfigureUpdate(BaseModel):
@@ -141,7 +165,7 @@ class BonusConfigureUpdate(BaseModel):
     cashback_bonus_amount_max:       Decimal | None                  = Field(None, ge=0)
     priority:                        int | None                      = Field(None, ge=0)
     active:                          bool | None                     = None
-    updated_by:                      str                             = Field(..., min_length=1, max_length=100)
+    updated_by:                      str                             = ""
 
     @field_validator("start_date", "end_date", mode="after")
     @classmethod

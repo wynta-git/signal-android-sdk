@@ -1,14 +1,13 @@
-'use client';
-import { useState } from 'react';
-import { useAppDispatch } from '../../../store/hooks';
-import { updateBudget } from '../../../store/slices/budgetsSlice';
-import Icon from 'wynta-react-common/components/Icon';
-import DrawerFooter from '../../../components/drawers/DrawerFooter';
-import { MOCK_HEADS } from '../../../services/mocks/heads';
-import { MOCK_SUBHEADS } from '../../../services/mocks/subheads';
-import { MOCK_CONFIGURES } from '../../../services/mocks/configures';
-import { CONFIGURE_BUDGETS } from '../../../services/mocks/budgets';
-import type { DrawerState } from '../../../types';
+"use client";
+import { useState } from "react";
+import { useAppSelector } from "../../../store/hooks";
+import { selectHeadById } from "../../../store/slices/headsSlice";
+import { selectSubheadById } from "../../../store/slices/subheadsSlice";
+import { selectConfigureById } from "../../../store/slices/configuresSlice";
+import Icon from "wynta-react-common/components/Icon";
+import DrawerFooter from "../../../components/drawers/DrawerFooter";
+import { limitMap, validateBudget } from "../../../utils/budget";
+import type { BudgetPeriod, DrawerState } from "../../../types";
 
 interface BudgetFormProps {
   state: DrawerState;
@@ -17,87 +16,254 @@ interface BudgetFormProps {
   onSubmit: (data: Record<string, unknown>) => void;
 }
 
-export default function BudgetForm({ state, submitting, onCancel, onSubmit }: BudgetFormProps) {
-  const dispatch = useAppDispatch();
-  const scope = state.scope || 'head';
-  const source =
-    scope === 'subhead'   ? (state.id != null ? MOCK_SUBHEADS[state.id] : null) :
-    scope === 'configure' ? (state.id != null ? MOCK_CONFIGURES[state.id] : null) :
-                            (state.id != null ? MOCK_HEADS[state.id] : null);
+export default function BudgetForm({
+  state,
+  submitting,
+  onCancel,
+  onSubmit,
+}: BudgetFormProps) {
+  const scope = state.scope ?? "head";
 
-  const ownBudget =
-    scope === 'configure' && state.id != null ? (CONFIGURE_BUDGETS[state.id] || []) :
-    (source as { budget?: { period_type: string; limit?: number | null }[] } | null)?.budget || [];
+  const headEntity = useAppSelector(
+    scope === "head" && state.id != null
+      ? selectHeadById(state.id)
+      : () => undefined,
+  );
+  const subheadEntity = useAppSelector(
+    scope === "subhead" && state.id != null
+      ? selectSubheadById(state.id)
+      : () => undefined,
+  );
 
-  const inherits = scope === 'configure' && state.id != null && !CONFIGURE_BUDGETS[state.id];
-  const parentLabel =
-    scope === 'subhead'   ? (source as { parent_head_name?: string } | null)?.parent_head_name :
-    scope === 'configure' ? MOCK_SUBHEADS[(source as { subhead_id?: number } | null)?.subhead_id ?? -1]?.name :
-                            null;
+  const parentHeadId = subheadEntity?.parent_head_id ?? subheadEntity?.head_id;
+  const parentHeadEntity = useAppSelector(
+    scope === "subhead" && parentHeadId != null
+      ? selectHeadById(parentHeadId)
+      : () => undefined,
+  );
 
-  const scopeLabel = { head: 'Head', subhead: 'Subhead', configure: 'Configure' }[scope] ?? 'Head';
-  const scopeIcon  = { head: 'folder', subhead: 'folder-tree', configure: 'settings-2' }[scope] ?? 'folder';
+  const configureEntity = useAppSelector(
+    scope === "configure" && state.id != null
+      ? selectConfigureById(state.id)
+      : () => undefined,
+  );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const findLimit = (pt: string) => (ownBudget as any[]).find((b: { period_type: string }) => b.period_type === pt)?.limit;
+  const sourceName: string =
+    scope === "head"
+      ? (headEntity?.name ?? "")
+      : scope === "subhead"
+        ? (subheadEntity?.name ?? "")
+        : (configureEntity?.name ?? "");
 
-  const [daily, setDaily]     = useState<string>(findLimit('DAILY')   != null ? String(findLimit('DAILY'))   : '');
-  const [weekly, setWeekly]   = useState<string>(findLimit('WEEKLY')  != null ? String(findLimit('WEEKLY'))  : '');
-  const [monthly, setMonthly] = useState<string>(findLimit('MONTHLY') != null ? String(findLimit('MONTHLY')) : '');
+  const ownBudget: BudgetPeriod[] =
+    scope === "head"
+      ? (headEntity?.budget ?? [])
+      : scope === "subhead"
+        ? (subheadEntity?.budget ?? [])
+        : scope === "configure"
+          ? (configureEntity?.budget ?? [])
+          : [];
+
+  const inherits =
+    scope === "configure" &&
+    (configureEntity?.budget == null || configureEntity.budget.length === 0);
+
+  const scopeLabel =
+    { head: "Head", subhead: "Subhead", configure: "Configure" }[scope] ??
+    "Head";
+  const scopeIcon =
+    { head: "folder", subhead: "folder-tree", configure: "settings-2" }[
+      scope
+    ] ?? "folder";
+
+  const findLimit = (pt: string) =>
+    ownBudget.find((b) => b.period_type === pt)?.limit;
+
+  const findHeadLimit = (pt: string): number | null => {
+    if (scope !== "subhead" || !parentHeadEntity) return null;
+    const b = parentHeadEntity.budget?.find((b) => b.period_type === pt);
+    if (!b) return null;
+    const v = b.limit ?? b.budget_limit;
+    return v != null ? Number(v) : null;
+  };
+
+  const [daily, setDaily] = useState<string>(
+    findLimit("DAILY") != null ? String(findLimit("DAILY")) : "",
+  );
+  const [weekly, setWeekly] = useState<string>(
+    findLimit("WEEKLY") != null ? String(findLimit("WEEKLY")) : "",
+  );
+  const [monthly, setMonthly] = useState<string>(
+    findLimit("MONTHLY") != null ? String(findLimit("MONTHLY")) : "",
+  );
+
+  const [errors, setErrors] = useState<{
+    daily?: string;
+    weekly?: string;
+    monthly?: string;
+  }>({});
+
+  const validate = (): boolean => {
+    const parentLimits =
+      scope === "subhead" && parentHeadEntity
+        ? limitMap(parentHeadEntity.budget)
+        : undefined;
+    const errs = validateBudget({ daily, weekly, monthly }, parentLimits);
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const periods = [
-      ...(daily   ? [{ period_type: 'DAILY'   as const, limit: daily   }] : []),
-      ...(weekly  ? [{ period_type: 'WEEKLY'  as const, limit: weekly  }] : []),
-      ...(monthly ? [{ period_type: 'MONTHLY' as const, limit: monthly }] : []),
+    if (!validate()) {
+      return;
+    }
+    const periods: BudgetPeriod[] = [
+      ...(daily !== ""
+        ? [{ period_type: "DAILY" as const, limit: daily }]
+        : [{ period_type: "DAILY" as const, limit: null }]),
+      ...(weekly !== ""
+        ? [{ period_type: "WEEKLY" as const, limit: weekly }]
+        : [{ period_type: "WEEKLY" as const, limit: null }]),
+      ...(monthly !== ""
+        ? [{ period_type: "MONTHLY" as const, limit: monthly }]
+        : [{ period_type: "MONTHLY" as const, limit: null }]),
     ];
-    dispatch(updateBudget({ scope: scope as 'head' | 'subhead' | 'configure', id: state.id!, periods }));
-    onSubmit({ type: 'EDIT_BUDGET', scope, id: state.id, daily, weekly, monthly });
+    onSubmit({ periods });
+  };
+
+  const headLimitHint = (pt: "DAILY" | "WEEKLY" | "MONTHLY") => {
+    const hl = findHeadLimit(pt);
+    return hl != null ? `max ₹${hl} (head cap)` : "leave empty for ∞";
   };
 
   return (
-    <form onSubmit={handle} style={{ display: 'contents' }}>
+    <form onSubmit={handle} style={{ display: "contents" }}>
       <div className="drawer-body">
-        {source && (
+        {sourceName && (
           <div className="field-group">
             <label>{scopeLabel}</label>
-            <span className="parent-chip"><Icon name={scopeIcon} size={11}/> {(source as { name: string }).name}</span>
-            {parentLabel && (
-              <div className="helper" style={{ marginTop: 4 }}>
-                under <strong style={{ color: 'var(--g700)' }}>{parentLabel}</strong>
-              </div>
-            )}
+            <span className="parent-chip">
+              <Icon name={scopeIcon} size={11} /> {sourceName}
+            </span>
+          </div>
+        )}
+        {scope === "subhead" && parentHeadEntity && (
+          <div
+            style={{
+              padding: "10px 12px",
+              borderRadius: "var(--r)",
+              background: "var(--bp)",
+              border: "1px solid var(--bm)",
+              fontSize: 12,
+              color: "var(--blue)",
+              marginBottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Icon name="info" size={13} />
+            Limits must not exceed the parent head{" "}
+            <strong>{parentHeadEntity.name}</strong>.
           </div>
         )}
         {inherits && (
-          <div style={{
-            padding: '10px 12px', borderRadius: 'var(--r)',
-            background: 'var(--bp)', border: '1px solid var(--bm)',
-            fontSize: 12, color: 'var(--blue)', marginBottom: 14,
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <Icon name="info" size={13}/>
-            This configure currently inherits its budget from its subhead. Set any limit below to give it its own cap.
+          <div
+            style={{
+              padding: "10px 12px",
+              borderRadius: "var(--r)",
+              background: "var(--bp)",
+              border: "1px solid var(--bm)",
+              fontSize: 12,
+              color: "var(--blue)",
+              marginBottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Icon name="info" size={13} />
+            This configure currently inherits its budget from its subhead. Set
+            any limit below to give it its own cap.
           </div>
         )}
         <div className="field-group">
           <label>Daily limit (₹)</label>
-          <input value={daily} onChange={(e) => setDaily(e.target.value)} placeholder="leave empty for ∞"/>
+          <input
+            value={daily}
+            onChange={(e) => {
+              setDaily(e.target.value);
+              setErrors((prev) => ({ ...prev, daily: undefined }));
+            }}
+            placeholder={
+              scope === "subhead" ? headLimitHint("DAILY") : "leave empty for ∞"
+            }
+            style={errors.daily ? { borderColor: "var(--err)" } : undefined}
+          />
+          {errors.daily && (
+            <span style={{ fontSize: 11, color: "var(--err)", marginTop: 3 }}>
+              {errors.daily}
+            </span>
+          )}
         </div>
         <div className="field-group">
           <label>Weekly limit (₹)</label>
-          <input value={weekly} onChange={(e) => setWeekly(e.target.value)} placeholder="leave empty for ∞"/>
+          <input
+            value={weekly}
+            onChange={(e) => {
+              setWeekly(e.target.value);
+              setErrors((prev) => ({ ...prev, weekly: undefined }));
+            }}
+            placeholder={
+              scope === "subhead"
+                ? headLimitHint("WEEKLY")
+                : "leave empty for ∞"
+            }
+            style={errors.weekly ? { borderColor: "var(--err)" } : undefined}
+          />
+          {errors.weekly && (
+            <span style={{ fontSize: 11, color: "var(--err)", marginTop: 3 }}>
+              {errors.weekly}
+            </span>
+          )}
         </div>
         <div className="field-group">
           <label>Monthly limit (₹)</label>
-          <input value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="leave empty for ∞"/>
+          <input
+            value={monthly}
+            onChange={(e) => {
+              setMonthly(e.target.value);
+              setErrors((prev) => ({ ...prev, monthly: undefined }));
+            }}
+            placeholder={
+              scope === "subhead"
+                ? headLimitHint("MONTHLY")
+                : "leave empty for ∞"
+            }
+            style={errors.monthly ? { borderColor: "var(--err)" } : undefined}
+          />
+          {errors.monthly && (
+            <span style={{ fontSize: 11, color: "var(--err)", marginTop: 3 }}>
+              {errors.monthly}
+            </span>
+          )}
         </div>
         <div className="helper" style={{ marginTop: 8 }}>
-          When a period limit is hit, {scope === 'head' ? 'configures' : scope === 'subhead' ? "this subhead's configures" : 'this configure'} pause until reset.
+          When a period limit is hit,{" "}
+          {scope === "head"
+            ? "all configures under this head"
+            : scope === "subhead"
+              ? "this subhead's configures"
+              : "this configure"}{" "}
+          pause until reset.
         </div>
       </div>
-      <DrawerFooter submitting={submitting} onCancel={onCancel} label="Save Budget"/>
+      <DrawerFooter
+        submitting={submitting}
+        onCancel={onCancel}
+        label="Save Budget"
+      />
     </form>
   );
 }

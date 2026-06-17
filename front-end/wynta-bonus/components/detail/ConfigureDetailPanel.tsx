@@ -1,4 +1,7 @@
 'use client';
+import React from 'react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { createEligibility, fetchConfigure } from '../../store/slices/configuresSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Badge from 'wynta-react-common/components/Badge';
 import Toggle from 'wynta-react-common/components/Toggle';
@@ -12,8 +15,6 @@ import {
   formatINRCompact,
   formatDateShort,
   getUsage,
-  getBudget,
-  isBudgetInherited,
   formatRelative,
 } from '../../services/mocks/utils';
 
@@ -70,18 +71,40 @@ interface ExtendedConfigure {
   credit_chip_type?: string;
   chunk_expiry_days?: number;
   bonus_expiry_days?: number;
+  budget?: Array<{ period_type: string; limit: string | number | null; used?: string | number; reset_at?: string | null }>;
   codes: ManualCode[];
   triggers: ConfigureTrigger[];
+  eligibilities?: Array<{ id?: number; key?: string; value?: string | number; rule_value?: string | number; [k: string]: unknown }>;
   is_manual?: boolean;
 }
 
 interface ConfigureDetailPanelProps {
   configure: ExtendedConfigure;
-  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string; code?: ManualCode }) => void;
+  onAction: (action: { type: string; id?: number; parentId?: number; scope?: string; nodeType?: string; code?: ManualCode }) => void;
 }
 
 export default function ConfigureDetailPanel({ configure, onAction }: ConfigureDetailPanelProps) {
   const cfg = configure;
+  const dispatch = useAppDispatch();
+  const selectedBrand = useAppSelector(s => s.ui.selectedBrand);
+  const bridgeData = useAppSelector(s => s.users.bridgeData);
+  const currentUser: string = (bridgeData?.user as { username?: string } | null)?.username ?? 'system';
+
+  const handleSegmentSelect = async (segmentId: string | number | null) => {
+    if (segmentId == null) return;
+    await dispatch(createEligibility({
+      configureId: cfg.id,
+      payload: {
+        site_id: selectedBrand,
+        eligibility_key: 'segment_id',
+        eligibility_value: String(segmentId),
+        eligibility_value_type: 'INT',
+        active: true,
+        created_by: currentUser,
+      },
+    }));
+    dispatch(fetchConfigure(cfg.id));
+  };
   const wagerPerChunk = (() => {
     const fixed = cfg.bonus_amount_fixed != null ? Number(cfg.bonus_amount_fixed) : null;
     const chunks = cfg.no_of_chunks ?? 1;
@@ -106,7 +129,8 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
   ];
 
   return (
-    <div className="detail-content" key={`cfg-${cfg.id}`}>
+    <React.Fragment key={`cfg-${cfg.id}`}>
+    <div className="detail-content">
       <div className="card mb-4">
         <div className="card-header">
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -130,7 +154,7 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
             </div>
           </div>
           <div className="header-actions">
-            <button className="btn btn-secondary btn-sm btn-icon-only" title="View change history" onClick={() => onAction({ type: 'OPEN_HISTORY', id: cfg.id })}>
+            <button className="btn btn-secondary btn-sm btn-icon-only" title="View change history" onClick={() => onAction({ type: 'OPEN_HISTORY', id: cfg.id, nodeType: 'configure' })}>
               <Icon name="history" size={14}/>
             </button>
             <button className="btn btn-secondary btn-sm" onClick={() => onAction({ type: 'EDIT_CONFIGURE', id: cfg.id })}>
@@ -142,11 +166,11 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
 
       <div className="section-row">
         <div className="section-label">Budget Utilization</div>
-        <div className="right">{isBudgetInherited('configure', cfg.id)
+        <div className="right">{!cfg.budget || cfg.budget.length === 0
           ? <span className="inherits-chip"><Icon name="link" size={10}/> Inherits from subhead</span>
           : <strong>Daily · Weekly · Monthly</strong>}</div>
       </div>
-      <BudgetGrid budget={getBudget('configure', cfg.id)} />
+      <BudgetGrid budget={cfg.budget ?? []} />
 
       <div className="section-row" style={{ marginTop: 28 }}>
         <div className="section-label">Usage Breakdown</div>
@@ -175,25 +199,25 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
       </div>
 
       <div className="section-label">Eligibility Criteria</div>
-      <PlayerSegmentPicker configureId={cfg.id}/>
+      <PlayerSegmentPicker configureId={cfg.id} eligibilities={cfg.eligibilities} onSelect={handleSegmentSelect}/>
 
-      <div className="section-label">Promo Codes · {cfg.codes.length}</div>
-      {cfg.codes.length === 0 ? (
+      <div className="section-label">Promo Codes · {(cfg.codes ?? []).length}</div>
+      {(cfg.codes ?? []).length === 0 ? (
         <div style={{ padding: 16, border: '1px dashed var(--g200)', borderRadius: 'var(--rl)', textAlign: 'center', fontSize: 12, color: 'var(--g400)', marginBottom: 24 }}>
           No promo codes — add one to make the bonus claimable by code.
         </div>
       ) : (
         <div className="mb-6">
-          {cfg.codes.map(code => <PromoCodeRow key={code.id} code={code} configureId={cfg.id} />)}
+          {(cfg.codes ?? []).map(code => <PromoCodeRow key={code.id} code={code} configureId={cfg.id} />)}
         </div>
       )}
 
-      <div className="section-label">Release Triggers · {cfg.triggers.length}</div>
-      {cfg.triggers.length === 0 ? (
+      <div className="section-label">Release Triggers · {(cfg.triggers ?? []).length}</div>
+      {(cfg.triggers ?? []).length === 0 ? (
         <div style={{ padding: 16, border: '1px dashed var(--g200)', borderRadius: 'var(--rl)', textAlign: 'center', fontSize: 12, color: 'var(--g400)' }}>
           No triggers — bonus cannot release until a trigger is configured.
         </div>
-      ) : cfg.triggers.map(t => (
+      ) : (cfg.triggers ?? []).map(t => (
         <div key={t.id} className="trigger-row">
           <span className={'ttype ' + t.trigger_type}>{t.trigger_type}</span>
           <div className="tinfo">
@@ -217,28 +241,30 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
         <Icon name="plus" size={12}/> Add Trigger
       </button>
 
-      <ActionBar>
-        {cfg.is_manual ? (
-          <button className="btn btn-primary" onClick={() => onAction({ type: 'NEW_MANUAL_BONUS', parentId: cfg.id })}>
-            <Icon name="plus" size={13}/> New Manual Campaign
-          </button>
-        ) : (
-          <button className="btn btn-primary" onClick={() => onAction({ type: 'EDIT_CONFIGURE', id: cfg.id })}>
-            <Icon name="pencil" size={13}/> Edit Configure
-          </button>
-        )}
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_PROMOCODE', parentId: cfg.id })}>
-          <Icon name="ticket" size={13}/> Add Promo Code
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_TRIGGER', parentId: cfg.id })}>
-          <Icon name="zap" size={13}/> Add Trigger
-        </button>
-        <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'configure', id: cfg.id })}>
-          <Icon name="wallet" size={13}/> Manage Budget
-        </button>
-        <div style={{ flex: 1 }}/>
-        <Toggle on={cfg.active} onChange={() => {}} label={cfg.active ? 'Active' : 'Paused'}/>
-      </ActionBar>
     </div>
+
+    <ActionBar>
+      {cfg.is_manual ? (
+        <button className="btn btn-primary" onClick={() => onAction({ type: 'NEW_MANUAL_BONUS', parentId: cfg.id })}>
+          <Icon name="plus" size={13}/> New Manual Campaign
+        </button>
+      ) : (
+        <button className="btn btn-primary" onClick={() => onAction({ type: 'EDIT_CONFIGURE', id: cfg.id })}>
+          <Icon name="pencil" size={13}/> Edit Configure
+        </button>
+      )}
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_PROMOCODE', parentId: cfg.id })}>
+        <Icon name="ticket" size={13}/> Add Promo Code
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'NEW_TRIGGER', parentId: cfg.id })}>
+        <Icon name="zap" size={13}/> Add Trigger
+      </button>
+      <button className="btn btn-secondary" onClick={() => onAction({ type: 'EDIT_BUDGET', scope: 'configure', id: cfg.id })}>
+        <Icon name="wallet" size={13}/> Manage Budget
+      </button>
+      <div style={{ flex: 1 }}/>
+      <Toggle on={cfg.active} onChange={() => {}} label={cfg.active ? 'Active' : 'Paused'}/>
+    </ActionBar>
+    </React.Fragment>
   );
 }

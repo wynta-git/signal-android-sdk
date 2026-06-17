@@ -11,7 +11,10 @@ from app.exceptions import BonusSubheadDuplicateError, BonusSubheadNotFoundError
 from app.models.bonus_subhead import BonusSubheadCreate
 from app.services.bonus_subhead_service import add_bonus_subhead
 
-_VALID = dict(head_id=10, site_id=1, name="First Deposit", owner="priya.sharma", created_by="admin")
+_VALID = dict(
+    head_id=10, site_id=1, name="First Deposit", owner="priya.sharma", created_by="admin",
+    budget=[{"period_type": "DAILY", "budget_limit": 1000}],
+)
 _NOW = datetime(2026, 5, 12, 10, 0, 0)
 # (id, head_id, site_id, name, description, active, owner, created_by, updated_by, created_at, updated_at)
 _DB_ROW = (42, 10, 1, "First Deposit", None, 1, "priya.sharma", "admin", "admin", _NOW, _NOW)
@@ -22,6 +25,7 @@ _HEAD_SITE_ROW = (1,)  # SELECT site_id FROM bonus_head WHERE id=?
 def cur() -> AsyncMock:
     c = AsyncMock()
     c.lastrowid = 42
+    c.fetchall.return_value = []  # head-limits pre-read: no caps configured
     return c
 
 
@@ -48,8 +52,12 @@ def patch_conn(cur: AsyncMock) -> MagicMock:
 # Execute sequence:
 #   [0] SELECT site_id FROM bonus_head   → fetchone → _HEAD_SITE_ROW
 #   [1] SELECT 1 FROM bonus_subhead      → fetchone → None (no dup)
-#   [2] INSERT INTO bonus_subhead
-#   [3] SELECT FROM bonus_subhead        → fetchone → _DB_ROW
+#   [2] SELECT head limits               → fetchall → []
+#   [3] INSERT INTO bonus_subhead
+#   [4] INSERT INTO bonus_budget_limit   (one per budget entry)
+#   [5] INSERT audit (bonus_subhead)
+#   [6] INSERT audit (bonus_subhead_budget)
+#   [7] SELECT FROM bonus_subhead        → fetchone → _DB_ROW
 # ---------------------------------------------------------------------------
 
 
@@ -68,8 +76,11 @@ async def test_success_returns_response(cur: AsyncMock, patch_conn: MagicMock) -
     assert result.created_by == "admin"
     assert result.updated_by == "admin"
     assert result.created_at == _NOW
-    patch_conn.commit.assert_awaited_once()
-    assert cur.execute.await_count == 4
+    # 1 txn commit + audit commits (subhead + 1 budget entry) on the shared mock conn
+    assert patch_conn.commit.await_count == 3
+    # site SELECT, dup SELECT, head-limits SELECT, subhead INSERT, limit INSERT,
+    # 2 audit INSERTs, post-insert SELECT
+    assert cur.execute.await_count == 8
 
 
 # ---------------------------------------------------------------------------

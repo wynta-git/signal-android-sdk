@@ -13,6 +13,7 @@ from app.routes.reports import router as reports_router
 from app.routes.settings import router as settings_router
 from app.routes.templates import router as templates_router
 from app.triggers.event import run_consumer
+from shared.clients.clickhouse import make_clickhouse_client
 from shared.clients.kafka import make_kafka_producer
 from shared.clients.mongo import create_campaign_indexes, make_mongo_client
 from shared.clients.redis import make_redis_client
@@ -35,6 +36,15 @@ async def lifespan(app: FastAPI):
 
     redis = make_redis_client(settings.redis_url)
     app.state.redis = redis
+
+    ch = await make_clickhouse_client(
+        host=settings.clickhouse_host,
+        port=settings.clickhouse_port,
+        database=settings.clickhouse_database,
+        username=settings.clickhouse_username,
+        password=settings.clickhouse_password,
+    )
+    app.state.ch = ch
 
     producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
     app.state.producer = producer

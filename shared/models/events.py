@@ -69,6 +69,8 @@ class EventEnvelope(BaseModel):
     event_name: str
     schema_version: int = 1
     project_id: str | None = None       # injected by api-service; clients must not send
+    site_id: str | None = None           # injected by api-service; clients must not send
+    client_id: str | None = None         # injected by api-service; clients must not send
     user_id: str
     session_id: str | None = None
     timestamp: datetime

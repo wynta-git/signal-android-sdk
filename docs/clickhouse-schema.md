@@ -6,35 +6,30 @@ Owner: `event-processor` writes; everyone else reads.
 
 ## Tables
 
-### `pam.events`
-The main events table. Wide, append-mostly, partitioned by date.
+### `pam.events_{project_id}`
+One table per project (e.g. `pam.events_proj_demo`). Created automatically by the event-processor on the first event for that project. Base columns are fixed; each `properties` key becomes its own `Nullable(String)` column added via `ALTER TABLE … ADD COLUMN IF NOT EXISTS` as new keys arrive.
 
 ```sql
-CREATE TABLE pam.events
+CREATE TABLE IF NOT EXISTS pam.events_{project_id}
 (
-    event_id          UUID,
-    event_name        LowCardinality(String),
-    schema_version    UInt8,
-    project_id        LowCardinality(String),
-    user_id           String,
-    session_id        String,
-    timestamp         DateTime64(3, 'UTC'),
-    received_at       DateTime64(3, 'UTC'),
-
-    sdk_name          LowCardinality(String),
-    sdk_version       String,
-    platform          LowCardinality(String),
-    os                LowCardinality(String),
-
-    -- Common revenue columns (promoted out of properties for fast aggregation)
-    amount            Nullable(Float64),
-    currency          LowCardinality(Nullable(String)),
-    order_id          Nullable(String),
-
-    -- Catch-all for everything else
-    properties        Map(String, String),
-
-    insert_date       Date DEFAULT toDate(received_at)
+    event_id       UUID,
+    event_name     LowCardinality(String),
+    schema_version UInt8,
+    project_id     LowCardinality(String),
+    site_id        LowCardinality(String),
+    client_id      LowCardinality(String),
+    user_id        String,
+    session_id     String,
+    timestamp      DateTime64(3, 'UTC'),
+    received_at    DateTime64(3, 'UTC'),
+    platform       LowCardinality(String),
+    device_type    LowCardinality(String),
+    brand_id       LowCardinality(String),
+    amount         Nullable(Float64),      -- promoted from properties.amount
+    currency       LowCardinality(Nullable(String)),  -- promoted from properties.currency
+    insert_date    Date DEFAULT toDate(received_at),
+    created_at     DateTime DEFAULT now()
+    -- additional Nullable(String) columns added dynamically per properties key
 )
 ENGINE = ReplacingMergeTree(received_at)
 PARTITION BY toYYYYMM(insert_date)
@@ -43,13 +38,13 @@ TTL insert_date + INTERVAL 13 MONTH
 SETTINGS index_granularity = 8192;
 ```
 
-**Why these choices:**
+**Why per-client tables:**
+- Each project's property schema is independent — no null bloat from other projects' keys.
 - `ReplacingMergeTree` — dedupe on `event_id` if the same event arrives twice.
-- `ORDER BY (project_id, event_name, user_id, timestamp, event_id)` — most queries filter on project + event_name; `user_id` keeps per-user reads cheap.
-- `Map(String, String)` for `properties` — schemaless, handles new properties without migrations. Cast at query time.
+- `amount` and `currency` are promoted base columns for fast revenue aggregation.
+- Dynamic column addition via `ALTER TABLE … ADD COLUMN IF NOT EXISTS` — new property keys land as typed columns, no catch-all map needed.
 - `LowCardinality` on enum-ish columns — big disk and query speedup.
-- `PARTITION BY toYYYYMM(insert_date)` — monthly drops for retention, daily would create too many parts.
-- TTL 13 months — covers year-over-year analysis. Adjust per project tier.
+- TTL 13 months — covers year-over-year analysis.
 
 ### `pam.user_profiles_mv`
 Materialized view: latest known traits per user. Updated from `user_identified` events.

@@ -39,6 +39,31 @@ def _validate_identifier(field: str, value: str) -> str:
     return value
 
 
+PeriodType = Literal["DAILY", "WEEKLY", "MONTHLY"]
+
+
+class LimitUpsertItem(BaseModel):
+    period_type: PeriodType
+    budget_limit: Decimal | None = Field(None, ge=0)
+
+
+def _no_duplicate_periods(limits: list[LimitUpsertItem]) -> None:
+    seen: set[str] = set()
+    for entry in limits:
+        if entry.period_type in seen:
+            raise ValueError(f"duplicate period_type in request: {entry.period_type}")
+        seen.add(entry.period_type)
+
+
+def _validate_period_ordering(limits: list[LimitUpsertItem]) -> None:
+    """A shorter period's cap must not exceed a longer period's cap (null = uncapped, skipped)."""
+    by_period = {entry.period_type: entry.budget_limit for entry in limits}
+    for lo, hi in (("DAILY", "WEEKLY"), ("WEEKLY", "MONTHLY"), ("DAILY", "MONTHLY")):
+        lo_v, hi_v = by_period.get(lo), by_period.get(hi)
+        if lo_v is not None and hi_v is not None and lo_v > hi_v:
+            raise ValueError(f"{lo} limit {lo_v} cannot exceed {hi} limit {hi_v}")
+
+
 class BonusHeadCreate(BaseModel):
     """Request payload for creating a new bonus_head row."""
 
@@ -47,7 +72,10 @@ class BonusHeadCreate(BaseModel):
     description: str | None = Field(None, max_length=500)
     active: bool = Field(True, description="Whether this head is active")
     owner: _OwnerStr = Field(..., description="Primary accountable person (username or email)")
-    created_by: _ActorStr = Field(..., description="Actor creating this record")
+    created_by: str = ""
+    budget: list[LimitUpsertItem] = Field(
+        ..., min_length=1, description="Budget caps per period; budget_limit null = uncapped"
+    )
 
     @field_validator("name", mode="before")
     @classmethod
@@ -57,11 +85,6 @@ class BonusHeadCreate(BaseModel):
     @field_validator("owner", mode="before")
     @classmethod
     def clean_owner(cls, v: str) -> str:
-        return _clean(v)
-
-    @field_validator("created_by", mode="before")
-    @classmethod
-    def clean_created_by(cls, v: str) -> str:
         return _clean(v)
 
     @field_validator("name")
@@ -74,15 +97,16 @@ class BonusHeadCreate(BaseModel):
     def validate_owner_chars(cls, v: str) -> str:
         return _validate_identifier("owner", v)
 
-    @field_validator("created_by")
-    @classmethod
-    def validate_created_by_chars(cls, v: str) -> str:
-        return _validate_identifier("created_by", v)
-
     @model_validator(mode="after")
     def description_not_blank(self) -> "BonusHeadCreate":
         if self.description is not None and self.description.strip() == "":
             raise ValueError("description must not be blank when provided")
+        return self
+
+    @model_validator(mode="after")
+    def no_duplicate_periods(self) -> "BonusHeadCreate":
+        _no_duplicate_periods(self.budget)
+        _validate_period_ordering(self.budget)
         return self
 
 
@@ -137,7 +161,6 @@ class BonusHeadDetail(BonusHeadResponse):
 # ---------------------------------------------------------------------------
 
 OwnerRole = Literal["OPS_LEAD", "CAMPAIGN_MANAGER", "FINANCE_APPROVER", "ESCALATION_CONTACT"]
-PeriodType = Literal["DAILY", "WEEKLY", "MONTHLY"]
 
 
 class BonusHeadUpdate(BaseModel):
@@ -147,7 +170,7 @@ class BonusHeadUpdate(BaseModel):
     description: str | None = None
     active: bool | None = None
     owner: str | None = Field(None, min_length=1, max_length=100)
-    updated_by: str = Field(..., min_length=1, max_length=100)
+    updated_by: str = ""
 
     @field_validator("name", mode="before")
     @classmethod
@@ -158,11 +181,6 @@ class BonusHeadUpdate(BaseModel):
     @classmethod
     def clean_owner(cls, v: str | None) -> str | None:
         return _clean(v) if v is not None else v
-
-    @field_validator("updated_by", mode="before")
-    @classmethod
-    def clean_updated_by(cls, v: str) -> str:
-        return _clean(v)
 
     @field_validator("name")
     @classmethod
@@ -192,7 +210,7 @@ class OwnersUpsertRequest(BaseModel):
     """PUT /bonus-heads/{id}/owners — upsert one or more owner assignments."""
 
     owners: list[OwnerUpsertItem] = Field(..., min_length=1)
-    updated_by: str = Field(..., min_length=1, max_length=100)
+    updated_by: str = ""
 
     @model_validator(mode="after")
     def no_duplicate_usernames(self) -> "OwnersUpsertRequest":
@@ -204,22 +222,14 @@ class OwnersUpsertRequest(BaseModel):
         return self
 
 
-class LimitUpsertItem(BaseModel):
-    period_type: PeriodType
-    budget_limit: Decimal | None = Field(None, ge=0)
-
-
 class LimitsUpsertRequest(BaseModel):
     """PUT /bonus-heads/{id}/limits — upsert budget caps for one or more periods."""
 
     limits: list[LimitUpsertItem] = Field(..., min_length=1)
-    updated_by: str = Field(..., min_length=1, max_length=100)
+    updated_by: str = ""
 
     @model_validator(mode="after")
     def no_duplicate_periods(self) -> "LimitsUpsertRequest":
-        seen: set[str] = set()
-        for entry in self.limits:
-            if entry.period_type in seen:
-                raise ValueError(f"duplicate period_type in request: {entry.period_type}")
-            seen.add(entry.period_type)
+        _no_duplicate_periods(self.limits)
+        _validate_period_ordering(self.limits)
         return self

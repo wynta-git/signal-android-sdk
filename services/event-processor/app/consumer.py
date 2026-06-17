@@ -4,6 +4,8 @@ from typing import Any
 
 import structlog
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from redis.asyncio import Redis
+from shared.services.client import get_site_config
 
 from app.config import settings
 from app.writer import ClickHouseWriter
@@ -11,6 +13,39 @@ from app.writer import ClickHouseWriter
 log = structlog.get_logger()
 
 _MAX_RETRIES = 3
+_UNKNOWN_TABLE = "__unknown__"
+
+
+async def _resolve_table(
+    event: dict[str, Any],
+    redis: Redis,
+    cache: dict[int, str],
+) -> tuple[str, dict[str, Any]]:
+    """Return (clickhouse_table, event) for a single event.
+
+    Looks up site config by site_id (Redis-cached). Falls back to the event's
+    own project_id if site config is unavailable. Injects the resolved table name
+    as project_id into the event so the writer uses the correct value.
+    """
+    raw_site_id = event.get("site_id")
+    if raw_site_id is None:
+        return str(event.get("project_id") or _UNKNOWN_TABLE), event
+
+    site_id = int(raw_site_id)
+    if site_id not in cache:
+        cfg = await get_site_config(site_id, redis)
+        if cfg:
+            cache[site_id] = (
+                cfg.configuration.get("clickhouse_table")
+                or (str(cfg.project_id) if cfg.project_id else _UNKNOWN_TABLE)
+            )
+        else:
+            cache[site_id] = _UNKNOWN_TABLE
+
+    table = cache[site_id]
+    if table != _UNKNOWN_TABLE:
+        event = {**event, "project_id": table}
+    return table, event
 _RETRY_BACKOFF = 1.0  # seconds, doubles each attempt
 
 
@@ -59,7 +94,7 @@ async def _send_to_dlq(
         log.error("dlq_flush_failed", error=str(exc))
 
 
-async def run_consumer(writer: ClickHouseWriter) -> None:
+async def run_consumer(writer: ClickHouseWriter, redis: Redis) -> None:
     consumer = AIOKafkaConsumer(
         settings.kafka_events_topic,
         bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -98,16 +133,18 @@ async def run_consumer(writer: ClickHouseWriter) -> None:
             if not events:
                 continue
 
-            # Group events by project_id so each client's batch goes to its own table.
+            # Group events by ClickHouse table name, resolved from site config.
+            # Falls back to the event's own project_id if site config is unavailable.
             by_project: dict[str, list[dict[str, Any]]] = {}
+            _site_table: dict[int, str] = {}
             for event in events:
-                pid = str(event.get("project_id") or "__unknown__")
-                by_project.setdefault(pid, []).append(event)
+                clickhouse_table, event = await _resolve_table(event, redis, _site_table)
+                by_project.setdefault(clickhouse_table, []).append(event)
 
             # Write per project; collect failures across all groups before committing.
             all_failed: list[dict[str, Any]] = []
-            for pid, project_events in by_project.items():
-                failed = await _write_with_retry(writer, pid, project_events)
+            for clickhouse_table, project_events in by_project.items():
+                failed = await _write_with_retry(writer, clickhouse_table, project_events)
                 all_failed.extend(failed)
 
             if all_failed:
