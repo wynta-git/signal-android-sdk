@@ -438,6 +438,13 @@ const STEPS = [
     run: stepIdentify,
   },
   {
+    id: 'deposits',
+    title: 'Track Deposit Events',
+    desc: 'Send deposit_success events with amounts for both demo users — populates ClickHouse amount column for report metrics',
+    pipeNodes: ['pipe-api', 'pipe-kafka', 'pipe-ch'],
+    run: stepDepositEvents,
+  },
+  {
     id: 'segment',
     title: 'Create Segment',
     desc: 'Define a "Demo Buyers" segment matching users who completed a purchase in the last 30 days',
@@ -499,6 +506,13 @@ const STEPS = [
     desc: 'Campaign engine produces to pam.campaigns.send.v1 → notifications-engine delivers (or logs no_device_tokens for test users)',
     pipeNodes: ['pipe-notif'],
     run: stepDelivery,
+  },
+  {
+    id: 'engagement',
+    title: 'Simulate Notification Engagement',
+    desc: 'Send notification_opened and notification_clicked events — populates ClickHouse channel column for open_rate and CTR metrics',
+    pipeNodes: ['pipe-api', 'pipe-kafka', 'pipe-ch'],
+    run: stepNotificationEngagement,
   },
 ];
 
@@ -636,8 +650,8 @@ async function stepCreateSegment(card) {
     created_by: 'pam-demo',
   };
 
-  showRequest(card, 'POST', `${host()}:8003/api/v1/segments`, body);
-  const r = await api('POST', `${host()}:8003/api/v1/segments`, body,
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments`, body);
+  const r = await api('POST', `${host()}:8003/api/v1/segment/segments`, body,
     { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
   if (r.status === 409) return 'Segment already exists (reused)';
@@ -647,8 +661,8 @@ async function stepCreateSegment(card) {
 }
 
 async function stepEvaluate(card) {
-  showRequest(card, 'POST', `${host()}:8003/api/v1/segments/${state.segmentId}/evaluate`, null);
-  const r = await api('POST', `${host()}:8003/api/v1/segments/${state.segmentId}/evaluate`,
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments/${state.segmentId}/evaluate`, null);
+  const r = await api('POST', `${host()}:8003/api/v1/segment/segments/${state.segmentId}/evaluate`,
     null, { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
   if (!r.ok) throw new Error(JSON.stringify(r.data));
@@ -665,7 +679,7 @@ async function stepMembership(card) {
   const results = [];
   for (const c of checks) {
     const r = await api('GET',
-      `${host()}:8003/api/v1/segments/${state.segmentId}/members/${c.user_id}`,
+      `${host()}:8003/api/v1/segment/segments/${state.segmentId}/members/${c.user_id}`,
       null, { Authorization: `Bearer ${state.portalJwt}` });
     results.push({ user: c.user_id, is_member: r.data?.is_member, ok: r.ok });
   }
@@ -916,6 +930,66 @@ EOF</div>
   body.appendChild(note);
 
   return 'Pipeline complete — verify delivery in MongoDB';
+}
+
+async function stepDepositEvents(card) {
+  const events = [
+    { event_id: newUUID(), event_name: 'deposit_success', user_id: demoUser1(),
+      timestamp: ts(0), sdk: { name: 'pam-android', version: '2.1.0' },
+      device: { platform: 'android', os: 'android-14' },
+      properties: { amount: 1500, currency: 'INR', transaction_id: `TXN-${state.runId}-1` },
+      schema_version: 1 },
+    { event_id: newUUID(), event_name: 'deposit_success', user_id: demoUser2(),
+      timestamp: ts(0), sdk: { name: 'pam-ios', version: '2.0.3' },
+      device: { platform: 'ios', os: 'ios-17' },
+      properties: { amount: 800, currency: 'INR', transaction_id: `TXN-${state.runId}-2` },
+      schema_version: 1 },
+  ];
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [{ '...': `${events.length} deposit_success events` }] });
+
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`,
+    { events },
+    { Authorization: `Bearer ${token()}` }
+  );
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Deposit track failed');
+  const { accepted, rejected } = r.data;
+  return `${accepted} accepted (₹1,500 + ₹800) → Kafka → ClickHouse amount column`;
+}
+
+async function stepNotificationEngagement(card) {
+  const campaignId = state.campaignId || 'demo';
+  const events = [
+    { event_id: newUUID(), event_name: 'notification_opened', user_id: demoUser1(),
+      timestamp: ts(0), sdk: { name: 'pam-android', version: '2.1.0' },
+      device: { platform: 'android', os: 'android-14' },
+      properties: { channel: 'push', campaign_id: campaignId },
+      schema_version: 1 },
+    { event_id: newUUID(), event_name: 'notification_clicked', user_id: demoUser1(),
+      timestamp: ts(0), sdk: { name: 'pam-android', version: '2.1.0' },
+      device: { platform: 'android', os: 'android-14' },
+      properties: { channel: 'push', campaign_id: campaignId },
+      schema_version: 1 },
+    { event_id: newUUID(), event_name: 'notification_opened', user_id: demoUser2(),
+      timestamp: ts(0), sdk: { name: 'pam-ios', version: '2.0.3' },
+      device: { platform: 'ios', os: 'ios-17' },
+      properties: { channel: 'push', campaign_id: campaignId },
+      schema_version: 1 },
+  ];
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [{ '...': `${events.length} engagement events` }] });
+
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`,
+    { events },
+    { Authorization: `Bearer ${token()}` }
+  );
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Engagement track failed');
+  const { accepted } = r.data;
+  return `${accepted} accepted — 2 opens, 1 click on push channel → open_rate & CTR`;
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
