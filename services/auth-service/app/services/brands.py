@@ -2,7 +2,7 @@ import json
 
 from pydantic import BaseModel
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_COMMON, get_connection
 from shared.clients.redis import get_str, set_with_ttl
 
 from app.cache import get_redis
@@ -32,7 +32,7 @@ async def get_active_brands(program_id: int) -> list[BrandResponse]:
     if cached:
         return [BrandResponse.model_validate(row) for row in json.loads(cached)]
 
-    async with get_connection() as conn:
+    async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_SQL, (program_id,))
             rows = await cur.fetchall()
