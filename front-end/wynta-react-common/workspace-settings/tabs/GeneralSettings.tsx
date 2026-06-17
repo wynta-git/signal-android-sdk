@@ -1,7 +1,9 @@
 'use client';
-import { useState } from 'react';
-import { DEFAULT_WORKSPACE, TIMEZONES } from '../constants';
+import { useState, useEffect } from 'react';
+import { DEFAULT_WORKSPACE } from '../constants';
 import type { WorkspaceInfo } from '../types';
+
+interface TimezoneOption { value: string; label: string; }
 
 const inputStyle: React.CSSProperties = {
   height: 36, padding: '0 10px',
@@ -28,8 +30,38 @@ const cardStyle: React.CSSProperties = {
 };
 
 export default function GeneralSettings() {
-  const [info, setInfo] = useState<WorkspaceInfo>(DEFAULT_WORKSPACE);
-  const [saved, setSaved] = useState(false);
+  const [info, setInfo]           = useState<WorkspaceInfo>(DEFAULT_WORKSPACE);
+  const [saved, setSaved]         = useState(false);
+  const [timezones, setTimezones] = useState<TimezoneOption[]>([]);
+  const [tzLoading, setTzLoading] = useState(true);
+  const [tzError, setTzError]     = useState(false);
+
+  useEffect(() => {
+    fetch('/api/v1/workspace/settings/general/', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        console.log('[GeneralSettings] API response:', data);
+        const raw: unknown[] =
+          data?.data?.timezones ??
+          data?.data?.timezone_list ??
+          data?.timezones ??
+          data?.timezone_list ??
+          (Array.isArray(data?.data) ? data.data : null) ??
+          [];
+        const tzList: TimezoneOption[] = raw.map((tz: unknown) =>
+          typeof tz === 'string'
+            ? { value: tz, label: tz }
+            : (tz as TimezoneOption)
+        );
+        if (tzList.length > 0) {
+          setTimezones(tzList);
+          const utc = tzList.find(tz => tz.value === 'UTC') ?? tzList[0];
+          setInfo(v => ({ ...v, timezone: utc.value }));
+        }
+      })
+      .catch((err) => { console.error('[GeneralSettings] fetch error:', err); setTzError(true); })
+      .finally(() => setTzLoading(false));
+  }, []);
 
   function handleSubmit() {
     setSaved(true);
@@ -111,9 +143,12 @@ export default function GeneralSettings() {
           <select
             value={info.timezone}
             onChange={e => setInfo(v => ({ ...v, timezone: e.target.value }))}
-            style={{ ...inputStyle, flex: 1, maxWidth: 400, cursor: 'pointer' }}
+            disabled={tzLoading}
+            style={{ ...inputStyle, flex: 1, maxWidth: 400, cursor: tzLoading ? 'not-allowed' : 'pointer', opacity: tzLoading ? 0.6 : 1 }}
           >
-            {TIMEZONES.map(tz => (
+            {tzLoading && <option value="">Loading timezones…</option>}
+            {tzError  && <option value="">Failed to load timezones</option>}
+            {timezones.map(tz => (
               <option key={tz.value} value={tz.value}>{tz.label}</option>
             ))}
           </select>

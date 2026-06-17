@@ -71,7 +71,7 @@ interface ExtendedConfigure {
   credit_chip_type?: string;
   chunk_expiry_days?: number;
   bonus_expiry_days?: number;
-  budget?: Array<{ period_type: string; limit: string | number | null; used?: string | number; reset_at?: string | null }>;
+  budget?: Array<{ period_type: 'DAILY' | 'WEEKLY' | 'MONTHLY'; limit: string | number | null; used?: string | number; reset_at?: string }>;
   codes: ManualCode[];
   triggers: ConfigureTrigger[];
   eligibilities?: Array<{ id?: number; key?: string; value?: string | number; rule_value?: string | number; [k: string]: unknown }>;

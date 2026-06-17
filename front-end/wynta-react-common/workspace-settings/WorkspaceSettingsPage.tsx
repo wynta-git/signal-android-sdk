@@ -6,7 +6,6 @@ import ProductSettings    from './tabs/ProductSettings';
 import UserSettings       from './tabs/UserSettings';
 import ConnectorSettings  from './tabs/ConnectorSettings';
 import AIModelSettings    from './tabs/AIModelSettings';
-import BillingPricingPage from '../billing-pricing/BillingPricingPage';
 import { DEFAULT_TABS }   from './constants';
 import type { WorkspaceSettingsTab } from './types';
 
@@ -21,7 +20,6 @@ const TAB_COMPONENTS: Record<string, React.ComponentType> = {
   users:      UserSettings,
   connectors: ConnectorSettings,
   'ai-model': AIModelSettings,
-  'billing':  BillingPricingPage,
 };
 
 export default function WorkspaceSettingsPage({
@@ -33,7 +31,7 @@ export default function WorkspaceSettingsPage({
   const ActiveComponent = TAB_COMPONENTS[activeTab] ?? GeneralSettings;
 
   return (
-    <div style={{ padding: '0px 24px 24px', minHeight: '100%', background: 'rgb(255, 255, 255)', position: 'relative' }}>
+    <div style={{ padding: '24px 24px 24px', minHeight: '100%', background: 'rgb(255, 255, 255)', position: 'relative' }}>
       <h3 style={{ fontSize: 18, fontWeight: 500, color: '#222222', margin: '0 0 16px' }}>
         Workspace Settings
       </h3>

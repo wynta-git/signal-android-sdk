@@ -1,5 +1,5 @@
 import type {
-  WorkspaceInfo, Product, WorkspaceUser,
+  WorkspaceInfo, Product,
   Connector, AIModel, WorkspaceSettingsTab,
 } from './types';
 
@@ -88,14 +88,6 @@ export const DEFAULT_PRODUCTS: Product[] = [
   },
 ];
 
-export const DEFAULT_USERS: WorkspaceUser[] = [
-  { id: '1', firstName: 'Webby',  lastName: 'Gomes',  email: 'webtest@gmail.com',      role: 'owner',  status: 'active',  avatarInitial: 'W', avatarColor: '#0091E0', joinedAt: '2019-03-18 18:41:10' },
-  { id: '2', firstName: 'fdgdfg', lastName: 'dfgfdg', email: 'micke@igpholding.com',   role: 'admin',  status: 'active',  avatarInitial: 'M', avatarColor: '#10b981', joinedAt: '2019-03-26 16:39:47' },
-  { id: '3', firstName: '-',      lastName: '-',      email: 'lars@igpholding.com',    role: 'admin',  status: 'active',  avatarInitial: 'L', avatarColor: '#8b5cf6', joinedAt: '2019-04-11 14:30:41' },
-  { id: '4', firstName: 'fdg',    lastName: 'fdg',    email: 'micke.ohlen@gmail.com',  role: 'admin',  status: 'active',  avatarInitial: 'M', avatarColor: '#f59e0b', joinedAt: '2019-05-03 00:44:18' },
-  { id: '5', firstName: '-',      lastName: '-',      email: 'fredrik@igpholding.com', role: 'admin',  status: 'active',  avatarInitial: 'F', avatarColor: '#ec4899', joinedAt: '2019-06-03 20:10:53' },
-  { id: '6', firstName: 'app',    lastName: 'test',   email: 'apptest@gmail.com',      role: 'admin',  status: 'active',  avatarInitial: 'A', avatarColor: '#6366f1', joinedAt: '2026-04-30 04:10:53' },
-];
 
 export const DEFAULT_CONNECTORS: Connector[] = [
   { id: 'google-smtp',  name: 'Google',       category: 'Email', categoryDescription: 'Connect an email delivery provider for transactional and notification emails', icon: 'mail', iconBg: '#ffffff', status: 'disconnected', description: 'Gmail via SMTP / OAuth 2.0' },
@@ -269,5 +261,4 @@ export const DEFAULT_TABS: WorkspaceSettingsTab[] = [
   { id: 'users',      label: 'Users',      icon: 'users'    },
   { id: 'connectors', label: 'Connectors', icon: 'plug'     },
   { id: 'ai-model',   label: 'AI Model',        icon: 'sparkles'     },
-  { id: 'billing',    label: 'Billing & Pricing', icon: 'credit-card' },
 ];

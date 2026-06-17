@@ -1,9 +1,28 @@
 'use client';
-import { useState, useMemo } from 'react';
-import { DEFAULT_USERS } from '../constants';
-import type { WorkspaceUser } from '../types';
+import { useState, useEffect, useMemo } from 'react';
+import UserAddEditForm from './UserAddEditForm';
+
+interface ApiUser {
+  id: number | null;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  date_joined: string;
+}
+
+interface UserRow {
+  key: string;
+  id: number | null;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  joinedAt: string;
+}
 
 type UserSortCol = 'email' | 'firstName' | 'lastName' | 'role' | 'joinedAt';
+type View = 'list' | 'add' | 'edit';
 
 function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
   return (
@@ -27,11 +46,49 @@ const COLS: { key: UserSortCol; label: string }[] = [
 ];
 
 export default function UserSettings() {
-  const [users] = useState<WorkspaceUser[]>(DEFAULT_USERS);
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState<{ col: UserSortCol; dir: 'asc' | 'desc' } | null>(null);
+  const [view, setView]               = useState<View>('list');
+  const [editUserId, setEditUserId]   = useState<number | null>(null);
+  const [users, setUsers]             = useState<UserRow[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(false);
+  const [search, setSearch]           = useState('');
+  const [sort, setSort]               = useState<{ col: UserSortCol; dir: 'asc' | 'desc' } | null>(null);
   const [rowsPerPage, setRowsPerPage] = useState(20);
-  const [page, setPage] = useState(1);
+  const [page, setPage]               = useState(1);
+  const [deleteId, setDeleteId]       = useState<number | null>(null);
+  const [deleting, setDeleting]       = useState(false);
+
+  function loadUsers() {
+    setLoading(true);
+    setError(false);
+    fetch('/api/v1/users/', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        const list: ApiUser[] = data?.data ?? [];
+        setUsers(list.map((u, i) => ({
+          key:       u.id != null ? String(u.id) : `user-${i}`,
+          id:        u.id,
+          email:     u.email,
+          firstName: u.first_name,
+          lastName:  u.last_name,
+          role:      u.role,
+          joinedAt:  u.date_joined,
+        })));
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadUsers(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleDelete() {
+    if (deleteId == null) return;
+    setDeleting(true);
+    fetch(`/api/v1/users/${deleteId}/`, { method: 'DELETE', credentials: 'include' })
+      .then(() => { setDeleteId(null); loadUsers(); })
+      .catch(() => {})
+      .finally(() => setDeleting(false));
+  }
 
   const filtered = useMemo(() => {
     let list = [...users];
@@ -46,17 +103,9 @@ export default function UserSettings() {
     }
     if (sort) {
       list.sort((a, b) => {
-        const map: Record<UserSortCol, string> = {
-          email: a.email, firstName: a.firstName, lastName: a.lastName,
-          role: a.role, joinedAt: a.joinedAt,
-        };
-        const mapB: Record<UserSortCol, string> = {
-          email: b.email, firstName: b.firstName, lastName: b.lastName,
-          role: b.role, joinedAt: b.joinedAt,
-        };
-        return sort.dir === 'asc'
-          ? map[sort.col].localeCompare(mapB[sort.col])
-          : mapB[sort.col].localeCompare(map[sort.col]);
+        const va = a[sort.col];
+        const vb = b[sort.col];
+        return sort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
       });
     }
     return list;
@@ -88,18 +137,42 @@ export default function UserSettings() {
     color: disabled ? '#d1d5db' : '#374151',
   });
 
+  if (view === 'add') {
+    return (
+      <UserAddEditForm
+        mode="add"
+        onBack={() => setView('list')}
+        onSaved={() => { setView('list'); loadUsers(); }}
+      />
+    );
+  }
+
+  if (view === 'edit' && editUserId != null) {
+    return (
+      <UserAddEditForm
+        mode="edit"
+        userId={editUserId}
+        onBack={() => setView('list')}
+        onSaved={() => { setView('list'); loadUsers(); }}
+      />
+    );
+  }
+
   return (
     <div>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, marginTop: 10 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0 }}>Add Users</h2>
-        <button type="button" style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          height: 34, padding: '0 14px',
-          background: '#0091E0', color: '#fff',
-          border: 'none', borderRadius: 4,
-          fontSize: 12, fontWeight: 600, cursor: 'pointer',
-        }}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0 }}>Users</h2>
+        <button
+          type="button"
+          onClick={() => setView('add')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            height: 34, padding: '0 14px',
+            background: '#0091E0', color: '#fff',
+            border: 'none', borderRadius: 4,
+            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          }}
+        >
           <span style={{
             width: 16, height: 16, borderRadius: '50%',
             border: '1.5px solid #fff',
@@ -110,9 +183,7 @@ export default function UserSettings() {
         </button>
       </div>
 
-      {/* Table card */}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden' }}>
-        {/* Search */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6' }}>
           <input
             value={search}
@@ -126,46 +197,80 @@ export default function UserSettings() {
           />
         </div>
 
-        {/* Table */}
         <div style={{ overflowX: 'auto' }}>
           <table style={{
-            fontFamily: 'sans-serif',
-            lineHeight: 1.15,
-            wordWrap: 'break-word',
-            borderCollapse: 'collapse',
-            maxWidth: '100%',
-            backgroundColor: 'transparent',
-            marginTop: 0,
-            marginBottom: 0,
-            maxHeight: 400,
-            overflow: 'auto',
-            width: '100%',
+            fontFamily: 'sans-serif', lineHeight: 1.15,
+            borderCollapse: 'collapse', width: '100%',
+            backgroundColor: 'transparent', marginTop: 0, marginBottom: 0,
           }}>
             <thead>
               <tr>
                 {COLS.map((col, i) => (
-                  <th key={col.key} style={{ ...thBase, ...(i > 0 ? thBorder : {}) }} onClick={() => toggleSort(col.key)}>
+                  <th
+                    key={col.key}
+                    style={{ ...thBase, ...(i > 0 ? thBorder : {}) }}
+                    onClick={() => toggleSort(col.key)}
+                  >
                     {col.label}
                     <SortIcon dir={sort?.col === col.key ? sort.dir : null} />
                   </th>
                 ))}
+                <th style={{ ...thBase, ...thBorder, cursor: 'default' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginated.map(user => (
-                <tr key={user.id}>
+              {loading && (
+                <tr>
+                  <td colSpan={6} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 24 }}>
+                    Loading users…
+                  </td>
+                </tr>
+              )}
+              {!loading && error && (
+                <tr>
+                  <td colSpan={6} style={{ ...tdBase, textAlign: 'center', color: '#ef4444', padding: 24 }}>
+                    Failed to load users
+                  </td>
+                </tr>
+              )}
+              {!loading && !error && paginated.map(user => (
+                <tr key={user.key}>
                   <td style={{ ...tdBase, color: '#2563eb' }}>{user.email}</td>
                   <td style={{ ...tdBase, ...thBorder }}>{user.firstName}</td>
                   <td style={{ ...tdBase, ...thBorder }}>{user.lastName}</td>
-                  <td style={{ ...tdBase, ...thBorder, textTransform: 'capitalize' }}>
-                    {user.role === 'owner' ? 'Account Manager' : user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                  </td>
+                  <td style={{ ...tdBase, ...thBorder, textTransform: 'capitalize' }}>{user.role}</td>
                   <td style={{ ...tdBase, ...thBorder }}>{user.joinedAt}</td>
+                  <td style={{ ...tdBase, ...thBorder }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (user.id != null) { setEditUserId(user.id); setView('edit'); }
+                        }}
+                        style={{
+                          padding: '3px 10px', border: '1px solid #d1d5db', borderRadius: 4,
+                          background: '#fff', fontSize: 11, cursor: 'pointer', color: '#374151',
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { if (user.id != null) setDeleteId(user.id); }}
+                        style={{
+                          padding: '3px 10px', border: '1px solid #fca5a5', borderRadius: 4,
+                          background: '#fff', fontSize: 11, cursor: 'pointer', color: '#ef4444',
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
-              {paginated.length === 0 && (
+              {!loading && !error && paginated.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 24 }}>
+                  <td colSpan={6} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 24 }}>
                     No users found
                   </td>
                 </tr>
@@ -174,7 +279,6 @@ export default function UserSettings() {
           </table>
         </div>
 
-        {/* Pagination */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '10px 16px', borderTop: '1px solid #f3f4f6',
@@ -191,20 +295,73 @@ export default function UserSettings() {
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>Showing: {start + 1} - {Math.min(start + rowsPerPage, filtered.length)} of {filtered.length}</span>
+            <span>
+              Showing: {filtered.length === 0 ? 0 : start + 1} – {Math.min(start + rowsPerPage, filtered.length)} of {filtered.length}
+            </span>
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={paginationBtn(page === 1)}>Previous</button>
             {Array.from({ length: totalPages }, (_, i) => (
-              <button key={i + 1} onClick={() => setPage(i + 1)} style={{
-                width: 28, height: 28, border: '1px solid #e5e7eb', borderRadius: 4,
-                background: page === i + 1 ? '#0091E0' : '#fff',
-                color: page === i + 1 ? '#fff' : '#374151',
-                fontSize: 12, cursor: 'pointer', fontWeight: page === i + 1 ? 600 : 400,
-              }}>{i + 1}</button>
+              <button
+                key={i + 1}
+                onClick={() => setPage(i + 1)}
+                style={{
+                  width: 28, height: 28, border: '1px solid #e5e7eb', borderRadius: 4,
+                  background: page === i + 1 ? '#0091E0' : '#fff',
+                  color: page === i + 1 ? '#fff' : '#374151',
+                  fontSize: 12, cursor: 'pointer', fontWeight: page === i + 1 ? 600 : 400,
+                }}
+              >
+                {i + 1}
+              </button>
             ))}
             <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages} style={paginationBtn(page >= totalPages)}>Next</button>
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteId != null && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 8, padding: 24,
+            maxWidth: 400, width: '90%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#111827' }}>Delete User</h3>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6b7280' }}>
+              Are you sure you want to delete this user? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteId(null)}
+                disabled={deleting}
+                style={{
+                  padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 4,
+                  background: '#fff', fontSize: 13, cursor: 'pointer', color: '#374151',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{
+                  padding: '8px 16px', border: 'none', borderRadius: 4,
+                  background: '#ef4444', color: '#fff', fontSize: 13,
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

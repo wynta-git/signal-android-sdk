@@ -1,9 +1,27 @@
 'use client';
-import { useState, useMemo } from 'react';
-import { DEFAULT_AI_MODELS } from '../constants';
-import type { AIModel } from '../types';
+import { useState, useEffect, useMemo } from 'react';
+
+interface ApiModel {
+  id: number;
+  provider: string;
+  created_at: string;
+  is_default: boolean;
+}
+
+interface Provider {
+  id: number;
+  name: string;
+}
+
+interface ModelRow {
+  id: string;
+  provider: string;
+  createdOn: string;
+  isDefault: boolean;
+}
 
 type AISortCol = 'provider' | 'createdOn';
+type View = 'list' | 'add';
 
 function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
   return (
@@ -18,17 +36,56 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
   );
 }
 
-const AI_MODULE_OPTIONS = ['ChatGPT', 'Gemini', 'Claude', 'Llama', 'Mistral', 'Custom'];
-
 export default function AIModelSettings() {
-  const [models, setModels] = useState<AIModel[]>(DEFAULT_AI_MODELS);
-  const [sort, setSort] = useState<{ col: AISortCol; dir: 'asc' | 'desc' } | null>(null);
-  const [search, setSearch] = useState('');
-  const [showAdd, setShowAdd] = useState(false);
-  const [newProvider, setNewProvider] = useState('');
-  const [rowsPerPage, setRowsPerPage] = useState(20);
-  const [page, setPage] = useState(1);
-  const [actionOpen, setActionOpen] = useState<string | null>(null);
+  const [view, setView]                     = useState<View>('list');
+  const [models, setModels]                 = useState<ModelRow[]>([]);
+  const [providers, setProviders]           = useState<Provider[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState(false);
+  const [sort, setSort]                     = useState<{ col: AISortCol; dir: 'asc' | 'desc' } | null>(null);
+  const [search, setSearch]                 = useState('');
+  const [rowsPerPage, setRowsPerPage]       = useState(20);
+  const [page, setPage]                     = useState(1);
+  const [actionOpen, setActionOpen]         = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState('');
+  const [apiKey, setApiKey]                 = useState('');
+
+  function loadData() {
+    setLoading(true);
+    setError(false);
+    fetch('/api/v1/workspace/settings/ai-models/', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        const list: ApiModel[] = data?.data?.models ?? [];
+        const avail: Provider[] = data?.data?.available_providers ?? [];
+        setModels(list.map(m => ({
+          id:        String(m.id),
+          provider:  m.provider,
+          createdOn: m.created_at,
+          isDefault: m.is_default,
+        })));
+        setProviders(avail);
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleAdd() {
+    if (!selectedProvider) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const newId = String(Date.now());
+    setModels(prev => [...prev, {
+      id:        newId,
+      provider:  selectedProvider,
+      createdOn: today,
+      isDefault: prev.length === 0,
+    }]);
+    setSelectedProvider('');
+    setApiKey('');
+    setView('list');
+  }
 
   const filtered = useMemo(() => {
     let list = [...models];
@@ -55,19 +112,6 @@ export default function AIModelSettings() {
     setPage(1);
   }
 
-  function handleAdd() {
-    if (!newProvider) return;
-    const today = new Date().toISOString().slice(0, 10);
-    setModels(prev => [...prev, {
-      id: String(prev.length + 1),
-      provider: newProvider,
-      createdOn: today,
-      isDefault: prev.length === 0,
-    }]);
-    setNewProvider('');
-    setShowAdd(false);
-  }
-
   const thBase: React.CSSProperties = {
     padding: '10px 14px', fontSize: 12, fontWeight: 500, color: '#6b7280',
     textAlign: 'left', cursor: 'pointer', borderBottom: '1px solid #e5e7eb',
@@ -85,64 +129,108 @@ export default function AIModelSettings() {
     color: disabled ? '#d1d5db' : '#374151',
   });
 
+  const fieldStyle: React.CSSProperties = {
+    width: '100%', maxWidth: 520, height: 38, padding: '0 10px',
+    border: '1px solid #d1d5db', borderRadius: 4,
+    fontSize: 13, color: '#374151',
+    background: '#fff', outline: 'none', boxSizing: 'border-box',
+  };
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6,
+  };
+
   /* ── Add AI Model view ── */
-  if (showAdd) {
+  if (view === 'add') {
     return (
-      <div style={{ paddingTop: 24 }}>
+      <div style={{ paddingTop: 8 }}>
         {/* Breadcrumb */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#6b7280', marginBottom: 16 }}>
-          <button
-            type="button"
-            onClick={() => setShowAdd(false)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, color: '#6b7280' }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 14 }}>
+          <span
+            onClick={() => { setSelectedProvider(''); setApiKey(''); setView('list'); }}
+            style={{ color: '#6b7280', cursor: 'pointer' }}
           >
             AI Model
-          </button>
-          <span>›</span>
+          </span>
+          <span style={{ color: '#9ca3af' }}>›</span>
           <span style={{ color: '#111827', fontWeight: 500 }}>Add AI Model</span>
+          <span style={{
+            width: 16, height: 16, borderRadius: '50%',
+            border: '1px solid #d1d5db',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 10, color: '#6b7280',
+          }}>i</span>
         </div>
 
         {/* Info banner */}
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 10,
           padding: '12px 16px', background: '#f3f4f6',
-          border: '1px solid #e5e7eb', borderRadius: 6, marginBottom: 20,
+          border: '1px solid #e5e7eb', borderRadius: 6, marginBottom: 24,
+          maxWidth: 560,
         }}>
-          <span style={{ color: '#6b7280', fontSize: 14, flexShrink: 0, marginTop: 1 }}>ℹ</span>
-          <span style={{ fontSize: 13, color: '#374151' }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
+            <circle cx="8" cy="8" r="7.5" stroke="#9ca3af" />
+            <rect x="7.25" y="7" width="1.5" height="5" rx="0.75" fill="#9ca3af" />
+            <circle cx="8" cy="4.5" r="0.75" fill="#9ca3af" />
+          </svg>
+          <span style={{ fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
             <strong>Choose the AI model</strong> that best fits your needs for speed, intelligence and output quality.{' '}
-            <a href="#" style={{ color: '#0091E0', fontWeight: 500 }}>Help &amp; Support</a>
+            <a href="#" style={{ color: '#0091E0', fontWeight: 500, textDecoration: 'underline' }}>Help &amp; Support</a>
           </span>
         </div>
 
-        {/* Form */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>
+        {/* AI Module */}
+        <div style={{ marginBottom: 18, maxWidth: 520 }}>
+          <label style={labelStyle}>
             AI Module <span style={{ color: '#ef4444' }}>*</span>
           </label>
           <select
-            value={newProvider}
-            onChange={e => setNewProvider(e.target.value)}
+            value={selectedProvider}
+            onChange={e => setSelectedProvider(e.target.value)}
             style={{
-              width: '100%', maxWidth: 520, height: 38, padding: '0 10px',
-              border: '1px solid #d1d5db', borderRadius: 4,
-              fontSize: 13, color: newProvider ? '#374151' : '#9ca3af',
-              background: '#fff', outline: 'none', cursor: 'pointer',
+              ...fieldStyle,
+              cursor: 'pointer',
+              color: selectedProvider ? '#374151' : '#9ca3af',
+              appearance: 'auto',
             }}
           >
             <option value="" disabled>Select</option>
-            {AI_MODULE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            {providers.map(p => (
+              <option key={p.id} value={p.name}>{p.name}</option>
+            ))}
           </select>
         </div>
 
+        {/* API Key */}
+        <div style={{ marginBottom: 24, maxWidth: 520 }}>
+          <label style={labelStyle}>
+            API Key <span style={{ color: '#ef4444' }}>*</span>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 14, height: 14, borderRadius: '50%',
+              border: '1px solid #9ca3af',
+              fontSize: 9, color: '#9ca3af',
+              marginLeft: 4, verticalAlign: 'middle', cursor: 'default',
+            }}>i</span>
+          </label>
+          <input
+            type="text"
+            value={apiKey}
+            onChange={e => setApiKey(e.target.value)}
+            style={fieldStyle}
+          />
+        </div>
+
+        {/* Submit */}
         <button
           type="button"
           onClick={handleAdd}
+          disabled={!selectedProvider}
           style={{
             height: 36, padding: '0 24px',
-            background: '#0091E0', color: '#fff',
-            border: 'none', borderRadius: 4,
-            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            background: selectedProvider ? '#0091E0' : '#93c5fd',
+            color: '#fff', border: 'none', borderRadius: 4,
+            fontSize: 12, fontWeight: 700, cursor: selectedProvider ? 'pointer' : 'not-allowed',
             letterSpacing: 0.8, textTransform: 'uppercase',
           }}
         >
@@ -152,15 +240,14 @@ export default function AIModelSettings() {
     );
   }
 
-  /* ── Main list view ── */
+  /* ── List view ── */
   return (
-    <div style={{ paddingTop: 24 }}>
-      {/* Header */}
+    <div style={{ paddingTop: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0 }}>AI Model</h2>
         <button
           type="button"
-          onClick={() => setShowAdd(true)}
+          onClick={() => setView('add')}
           style={{
             display: 'flex', alignItems: 'center', gap: 7,
             height: 34, padding: '0 14px',
@@ -179,9 +266,7 @@ export default function AIModelSettings() {
         </button>
       </div>
 
-      {/* Table card */}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'visible' }}>
-        {/* Search */}
         <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid #f3f4f6' }}>
           <input
             value={search}
@@ -195,7 +280,6 @@ export default function AIModelSettings() {
           />
         </div>
 
-        {/* Table */}
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>
@@ -205,13 +289,25 @@ export default function AIModelSettings() {
               <th style={{ ...thBase, ...thBorder }} onClick={() => toggleSort('createdOn')}>
                 Created On <SortIcon dir={sort?.col === 'createdOn' ? sort.dir : null} />
               </th>
-              <th style={{ ...thBase, ...thBorder }}>
-                Action <SortIcon dir={null} />
-              </th>
+              <th style={{ ...thBase, ...thBorder, cursor: 'default' }}>Action</th>
             </tr>
           </thead>
           <tbody>
-            {paginated.map(model => (
+            {loading && (
+              <tr>
+                <td colSpan={3} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 28 }}>
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!loading && error && (
+              <tr>
+                <td colSpan={3} style={{ ...tdBase, textAlign: 'center', color: '#ef4444', padding: 28 }}>
+                  Failed to load AI models
+                </td>
+              </tr>
+            )}
+            {!loading && !error && paginated.map(model => (
               <tr key={model.id}>
                 <td style={tdBase}>
                   {model.provider}
@@ -246,25 +342,33 @@ export default function AIModelSettings() {
                         minWidth: 140, overflow: 'hidden',
                       }}>
                         {!model.isDefault && (
-                          <button type="button" onClick={() => {
-                            setModels(ms => ms.map(m => ({ ...m, isDefault: m.id === model.id })));
-                            setActionOpen(null);
-                          }} style={{
-                            display: 'block', width: '100%', padding: '9px 14px',
-                            background: 'none', border: 'none',
-                            textAlign: 'left', fontSize: 12, cursor: 'pointer', color: '#374151',
-                          }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModels(ms => ms.map(m => ({ ...m, isDefault: m.id === model.id })));
+                              setActionOpen(null);
+                            }}
+                            style={{
+                              display: 'block', width: '100%', padding: '9px 14px',
+                              background: 'none', border: 'none',
+                              textAlign: 'left', fontSize: 12, cursor: 'pointer', color: '#374151',
+                            }}
+                          >
                             Set as Default
                           </button>
                         )}
-                        <button type="button" onClick={() => {
-                          setModels(ms => ms.filter(m => m.id !== model.id));
-                          setActionOpen(null);
-                        }} style={{
-                          display: 'block', width: '100%', padding: '9px 14px',
-                          background: 'none', border: 'none',
-                          textAlign: 'left', fontSize: 12, cursor: 'pointer', color: '#ef4444',
-                        }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModels(ms => ms.filter(m => m.id !== model.id));
+                            setActionOpen(null);
+                          }}
+                          style={{
+                            display: 'block', width: '100%', padding: '9px 14px',
+                            background: 'none', border: 'none',
+                            textAlign: 'left', fontSize: 12, cursor: 'pointer', color: '#ef4444',
+                          }}
+                        >
                           Delete
                         </button>
                       </div>
@@ -273,7 +377,7 @@ export default function AIModelSettings() {
                 </td>
               </tr>
             ))}
-            {paginated.length === 0 && (
+            {!loading && !error && paginated.length === 0 && (
               <tr>
                 <td colSpan={3} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 28 }}>
                   No AI models configured
@@ -283,7 +387,6 @@ export default function AIModelSettings() {
           </tbody>
         </table>
 
-        {/* Pagination */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '10px 16px', borderTop: '1px solid #f3f4f6',
@@ -300,7 +403,9 @@ export default function AIModelSettings() {
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>Showing: {start + 1} - {Math.min(start + rowsPerPage, filtered.length)} of {filtered.length}</span>
+            <span>
+              Showing: {filtered.length === 0 ? 0 : start + 1} – {Math.min(start + rowsPerPage, filtered.length)} of {filtered.length}
+            </span>
             <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={paginationBtn(page === 1)}>Previous</button>
             {Array.from({ length: totalPages }, (_, i) => (
               <button key={i + 1} onClick={() => setPage(i + 1)} style={{

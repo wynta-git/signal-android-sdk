@@ -29,7 +29,6 @@ export default function WorkspaceSettingsTabs({ tabs, activeTab, onTabChange }: 
               fontWeight: 500,
               transition: 'color 0.15s',
               background: 'none',
-              border: 'none',
               borderTop: 'none',
               borderLeft: 'none',
               borderRight: 'none',
