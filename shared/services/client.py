@@ -10,6 +10,7 @@ from shared.clients.redis import get_str, set_with_ttl
 _CLIENT_VALIDATION_TTL = 300  # 5 minutes — matches token cache TTL
 _SITE_CONFIG_TTL = 3600  # 1 hour — site config changes rarely
 _CLIENT_SECRET_TTL = 300  # 5 minutes
+_ALL_PROJECTS_TTL = 3600  # 1 hour — project list changes rarely
 
 _SQL_CLIENT = """
     SELECT sc.id, sc.site_id, sc.client_id, sc.name, sc.description, sc.client_type, sc.active,
@@ -78,6 +79,19 @@ _SQL_CLIENT_SECRET = """
     LIMIT 1
 """
 
+_SQL_ALL_PROJECTS = """
+    SELECT id, name, project_key
+    FROM project
+    WHERE active = 1
+    ORDER BY id
+"""
+
+
+class ProjectResponse(BaseModel):
+    id: int
+    name: str
+    project_key: str
+
 
 class ClientResponse(BaseModel):
     id: int
@@ -122,6 +136,10 @@ def _site_clients_cache_key(site_id: int) -> str:
 
 def _site_config_cache_key(site_id: int) -> str:
     return f"pam:site_config:{site_id}"
+
+
+def _all_projects_cache_key() -> str:
+    return "pam:projects:all"
 
 
 async def get_client_details(client_id: str, redis: Redis, ttl: int) -> ClientResponse:
@@ -321,3 +339,28 @@ async def get_client_secret(
     secret: str = row[0]
     await set_with_ttl(redis, key, secret, ttl)
     return secret
+
+
+async def get_all_projects(
+    redis: Redis,
+    ttl: int = _ALL_PROJECTS_TTL,
+) -> list[ProjectResponse]:
+    """Return all active projects.
+
+    Cached in Redis at pam:projects:all for `ttl` seconds.
+    """
+    key = _all_projects_cache_key()
+
+    cached = await get_str(redis, key)
+    if cached:
+        return [ProjectResponse.model_validate(row) for row in json.loads(cached)]
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_ALL_PROJECTS)
+            rows = await cur.fetchall()
+
+    projects = [ProjectResponse(id=row[0], name=row[1], project_key=row[2]) for row in rows]
+
+    await set_with_ttl(redis, key, json.dumps([p.model_dump() for p in projects]), ttl)
+    return projects
