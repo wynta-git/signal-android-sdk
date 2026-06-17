@@ -1,7 +1,7 @@
 import aiomysql
 import structlog
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 from app.exceptions import DatabaseError
 from app.models.bonus_configure_code import (
@@ -72,7 +72,7 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
     )
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_EXISTS_CONFIGURE_SQL, (data.configure_id,))
                 if await cur.fetchone() is None:
@@ -135,7 +135,7 @@ async def update_bonus_configure_code(
 
     fields = data.model_fields_set & _UPDATABLE
     if not fields:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (code_id,))
                 row = await cur.fetchone()
@@ -155,7 +155,7 @@ async def update_bonus_configure_code(
     values.append(code_id)
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 # Duplicate code guard (skip for current row)
                 if "code" in fields or "active" in fields:

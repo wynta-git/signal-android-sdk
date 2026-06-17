@@ -23,11 +23,12 @@ Requests with a timestamp more than **300 seconds** from the server's clock are 
 ### Building the Canonical String
 
 ```
-canonical = "{client_id}\n{timestamp}\n{raw_body}"
+canonical = "{client_id}\n{timestamp}\n{query_string}\n{raw_body}"
 ```
 
 - `client_id` — your `X-Client-Id` value
 - `timestamp` — the exact string you send in `X-Timestamp`
+- `query_string` — the raw URL query string (e.g. `user_id=U1&chip_type=cash`); **empty string** when there are no query parameters
 - `raw_body` — the raw UTF-8 request body bytes; **empty string** for GET requests (no body)
 
 Then sign it:
@@ -37,11 +38,13 @@ signature = HMAC-SHA256(client_secret, canonical)
 X-Signature = hex(signature)
 ```
 
+> **Client secrets** are provisioned per client in the database. Contact the platform team to have your `client_id` and `client_secret` registered.
+
 ---
 
 ### Code Examples
 
-**Python**
+**Python — POST with body**
 
 ```python
 import hashlib, hmac, time, json, requests
@@ -58,7 +61,8 @@ body = json.dumps({
     "wager_tnx_id": "WAGER_REF_001"
 }, separators=(',', ':'))
 
-canonical = f"{client_id}\n{timestamp}\n{body}".encode()
+query_string = ""  # no query params on this endpoint
+canonical = f"{client_id}\n{timestamp}\n{query_string}\n{body}".encode()
 signature = hmac.new(client_secret.encode(), canonical, hashlib.sha256).hexdigest()
 
 resp = requests.post(
@@ -73,7 +77,7 @@ resp = requests.post(
 )
 ```
 
-**Node.js**
+**Node.js — POST with body**
 
 ```javascript
 const crypto = require("crypto");
@@ -90,7 +94,8 @@ const body = JSON.stringify({
   wager_tnx_id: "WAGER_REF_001",
 });
 
-const canonical = `${clientId}\n${timestamp}\n${body}`;
+const queryString = "";  // no query params on this endpoint
+const canonical = `${clientId}\n${timestamp}\n${queryString}\n${body}`;
 const signature = crypto
   .createHmac("sha256", clientSecret)
   .update(canonical)
@@ -108,16 +113,25 @@ fetch("http://localhost:8010/api/v1/user-bonuses/consume", {
 });
 ```
 
-**GET request (no body)**
+**Python — GET with query parameters**
 
 ```python
+import hashlib, hmac, time, requests
+from urllib.parse import urlencode
+
+client_id = "game_server"
+client_secret = "your_shared_secret"
 timestamp = str(int(time.time()))
-canonical = f"{client_id}\n{timestamp}\n".encode()   # empty body
+
+params = {"user_id": "USER_001", "chip_type": "cash"}
+query_string = urlencode(params)  # "user_id=USER_001&chip_type=cash"
+
+canonical = f"{client_id}\n{timestamp}\n{query_string}\n".encode()  # empty body
 signature = hmac.new(client_secret.encode(), canonical, hashlib.sha256).hexdigest()
 
 requests.get(
     "http://localhost:8010/api/v1/user-bonuses/applicable-codes",
-    params={"user_id": "USER_001", "chip_type": "cash"},
+    params=params,
     headers={"X-Client-Id": client_id, "X-Timestamp": timestamp, "X-Signature": signature},
 )
 ```

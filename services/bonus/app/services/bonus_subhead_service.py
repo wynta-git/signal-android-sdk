@@ -4,7 +4,7 @@ from decimal import Decimal
 import aiomysql
 import structlog
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 from app.exceptions import (
     BonusSubheadDuplicateError,
@@ -136,7 +136,7 @@ async def _write_audit(
 ) -> None:
     """Best-effort audit entry — never raises, errors are logged as warnings."""
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_AUDIT_INSERT_SQL, (
                     table_name, action, entity_id, site_id, changed_by,
@@ -202,7 +202,7 @@ async def add_bonus_subhead(data: BonusSubheadCreate) -> BonusSubheadResponse:
     })
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_EXISTS_HEAD_SQL, (data.head_id,))
                 head_row = await cur.fetchone()
@@ -313,7 +313,7 @@ async def get_bonus_subhead(subhead_id: int) -> BonusSubheadDetail:
     log.info("get_bonus_subhead.start", bonus_subhead_id=subhead_id)
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (subhead_id,))
@@ -374,7 +374,7 @@ async def update_bonus_subhead(subhead_id: int, data: BonusSubheadUpdate) -> Bon
     log.info("update_bonus_subhead.start", bonus_subhead_id=subhead_id, fields=list(updates))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await conn.commit()  # force fresh MVCC snapshot
                 await cur.execute(_SELECT_SQL, (subhead_id,))
@@ -452,7 +452,7 @@ async def upsert_owners(subhead_id: int, data: OwnersUpsertRequest) -> list[Owne
     log.info("upsert_subhead_owners.start", bonus_subhead_id=subhead_id, count=len(data.owners))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await conn.commit()  # force fresh MVCC snapshot
                 await cur.execute(_EXISTS_SUBHEAD_ID_SQL, (subhead_id,))
@@ -538,7 +538,7 @@ async def upsert_limits(subhead_id: int, data: LimitsUpsertRequest) -> list[Budg
     log.info("upsert_subhead_limits.start", bonus_subhead_id=subhead_id, count=len(data.limits))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await conn.commit()  # force fresh MVCC snapshot
                 await cur.execute(_EXISTS_SUBHEAD_ID_SQL, (subhead_id,))

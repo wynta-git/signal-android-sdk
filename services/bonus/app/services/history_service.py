@@ -3,7 +3,7 @@ from datetime import datetime
 
 import structlog
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 log = structlog.get_logger(__name__)
 
@@ -167,7 +167,7 @@ def _row_to_entries(row: tuple) -> list[dict]:
 
 async def get_head_history(head_id: int) -> list[dict]:
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await conn.commit()
                 await cur.execute(_HEAD_HISTORY_SQL, (head_id, head_id, head_id))
@@ -184,7 +184,7 @@ async def get_head_history(head_id: int) -> list[dict]:
 
 async def get_configure_history(configure_id: int) -> list[dict]:
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await conn.commit()
                 await cur.execute(_CONFIGURE_HISTORY_SQL, (configure_id,))
@@ -201,7 +201,7 @@ async def get_configure_history(configure_id: int) -> list[dict]:
 
 async def get_subhead_history(subhead_id: int) -> list[dict]:
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await conn.commit()
                 await cur.execute(_SUBHEAD_HISTORY_SQL, (subhead_id, subhead_id, subhead_id))

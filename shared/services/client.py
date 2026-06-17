@@ -4,11 +4,12 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from redis.asyncio import Redis
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_COMMON, get_connection
 from shared.clients.redis import get_str, set_with_ttl
 
 _CLIENT_VALIDATION_TTL = 300  # 5 minutes — matches token cache TTL
 _SITE_CONFIG_TTL = 3600  # 1 hour — site config changes rarely
+_CLIENT_SECRET_TTL = 300  # 5 minutes
 
 _SQL_CLIENT = """
     SELECT sc.id, sc.site_id, sc.client_id, sc.name, sc.description, sc.client_type, sc.active,
@@ -69,6 +70,14 @@ _SQL_SITE_CONFIG = """
       AND s.active = 1
 """
 
+_SQL_CLIENT_SECRET = """
+    SELECT client_secret
+    FROM site_client
+    WHERE client_id = %s
+      AND active = 1
+    LIMIT 1
+"""
+
 
 class ClientResponse(BaseModel):
     id: int
@@ -122,7 +131,7 @@ async def get_client_details(client_id: str, redis: Redis, ttl: int) -> ClientRe
     if cached:
         return ClientResponse.model_validate(json.loads(cached))
 
-    async with get_connection() as conn:
+    async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_SQL_CLIENT, (client_id,))
             row = await cur.fetchone()
@@ -181,7 +190,7 @@ async def validate_client(
             raise HTTPException(status_code=401, detail="Invalid credentials")
         return ClientValidationResult.model_validate(data)
 
-    async with get_connection() as conn:
+    async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_SQL_VALIDATE_CLIENT, (client_id,))
             row = await cur.fetchone()
@@ -215,7 +224,7 @@ async def get_clients_by_site(site_id: int, redis: Redis, ttl: int) -> list[Clie
     if cached:
         return [ClientResponse.model_validate(row) for row in json.loads(cached)]
 
-    async with get_connection() as conn:
+    async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_SQL_CLIENTS_BY_SITE, (site_id,))
             client_rows = await cur.fetchall()
@@ -265,7 +274,7 @@ async def get_site_config(
     if cached:
         return SiteConfig.model_validate(json.loads(cached))
 
-    async with get_connection() as conn:
+    async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_SQL_SITE_CONFIG, (site_id,))
             rows = await cur.fetchall()
@@ -283,3 +292,32 @@ async def get_site_config(
     )
     await set_with_ttl(redis, key, config.model_dump_json(), ttl)
     return config
+
+
+async def get_client_secret(
+    client_id: str,
+    redis: Redis,
+    ttl: int = _CLIENT_SECRET_TTL,
+) -> str | None:
+    """Return the client_secret for an active client_id.
+
+    Checks Redis first; falls back to DB and caches the result.
+    Returns None when the client does not exist or is inactive.
+    """
+    key = f"auth:client:secret:{client_id}"
+
+    cached = await get_str(redis, key)
+    if cached is not None:
+        return cached
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_CLIENT_SECRET, (client_id,))
+            row = await cur.fetchone()
+
+    if not row:
+        return None
+
+    secret: str = row[0]
+    await set_with_ttl(redis, key, secret, ttl)
+    return secret

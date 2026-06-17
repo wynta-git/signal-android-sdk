@@ -7,7 +7,7 @@ import structlog
 from redis.asyncio import Redis
 
 from app.config import settings
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 log = structlog.get_logger(__name__)
 
@@ -20,7 +20,7 @@ _FETCH_SQL = """
 
 
 async def _fetch_from_mysql(configure_id: int) -> list[dict]:
-    async with get_connection() as conn:
+    async with get_connection(POOL_BONUS) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_FETCH_SQL, (configure_id,))
             rows = await cur.fetchall()

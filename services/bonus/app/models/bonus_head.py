@@ -17,7 +17,7 @@ Pydantic models for bonus_head, derived from:
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -72,10 +72,17 @@ class BonusHeadCreate(BaseModel):
     description: str | None = Field(None, max_length=500)
     active: bool = Field(True, description="Whether this head is active")
     owner: _OwnerStr = Field(..., description="Primary accountable person (username or email)")
-    created_by: str = ""
+    created_by: str = Field(default="", exclude=True)
     budget: list[LimitUpsertItem] = Field(
         ..., min_length=1, description="Budget caps per period; budget_limit null = uncapped"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def strip_server_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data.pop("created_by", None)
+        return data
 
     @field_validator("name", mode="before")
     @classmethod

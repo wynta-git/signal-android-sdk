@@ -5,7 +5,7 @@ from datetime import datetime
 import aiomysql
 import structlog
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 from app.exceptions import (
     BonusHeadDuplicateError,
@@ -173,7 +173,7 @@ async def _write_audit(
 ) -> None:
     """Best-effort audit entry — never raises, errors are logged as warnings."""
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_AUDIT_INSERT_SQL, (
                     table_name, action, entity_id, site_id, changed_by,
@@ -214,7 +214,7 @@ async def add_bonus_head(data: BonusHeadCreate) -> BonusHeadResponse:
     })
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_EXISTS_SQL, (data.site_id, data.name))
                 if await cur.fetchone():
@@ -317,7 +317,7 @@ async def get_bonus_head(head_id: int) -> BonusHeadDetail:
     log.info("get_bonus_head.start", bonus_head_id=head_id)
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # close any open transaction from pool reuse, force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (head_id,))
@@ -367,7 +367,7 @@ async def list_bonus_heads(site_id: int) -> list[BonusHeadResponse]:
     """Return all bonus heads for a given site, ordered by id."""
     log.info("list_bonus_heads.start", site_id=site_id)
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_LIST_SQL, (site_id,))
@@ -426,7 +426,7 @@ async def update_bonus_head(head_id: int, data: BonusHeadUpdate) -> BonusHeadRes
     log.info("update_bonus_head.start", bonus_head_id=head_id, fields=list(updates))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot — pool connection may carry a stale transaction
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (head_id,))
@@ -515,7 +515,7 @@ async def upsert_owners(head_id: int, data: OwnersUpsertRequest) -> list[OwnerEn
     log.info("upsert_owners.start", bonus_head_id=head_id, count=len(data.owners))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_EXISTS_HEAD_SQL, (head_id,))
@@ -606,7 +606,7 @@ async def upsert_limits(head_id: int, data: LimitsUpsertRequest) -> list[BudgetP
     log.info("upsert_limits.start", bonus_head_id=head_id, count=len(data.limits))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_EXISTS_HEAD_SQL, (head_id,))

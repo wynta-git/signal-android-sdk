@@ -14,7 +14,7 @@ from app.event_processor.grant_writer import (
     write_grant,
 )
 from app.event_processor.trigger_cache import get_triggers
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 log = structlog.get_logger()
 
@@ -100,7 +100,7 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
         event_payment_method = props.get("payment_method")
 
         try:
-            async with get_connection() as conn:
+            async with get_connection(POOL_BONUS) as conn:
                 for t in triggers:
                     cfg = t["configure"]
 

@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     db_pool_minsize: int = 2
     db_pool_maxsize: int = 10
 
+    common_db_host: str = "43.204.90.164"
+    common_db_port: int = 3306
+    common_db_user: str = "wynta_bonus"
+    common_db_password: str = "wynta_bonus@1234"
+    common_db_name: str = "wynta_common"
+    common_db_pool_minsize: int = 1
+    common_db_pool_maxsize: int = 5
+
     kafka_bootstrap_servers: str = "43.204.90.164:9093"
     kafka_topic: str = "pam.bonus.raw.v1"
     kafka_group_id: str = "pam-bonus-consumer"

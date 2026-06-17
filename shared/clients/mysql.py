@@ -3,10 +3,15 @@ from typing import AsyncGenerator
 
 import aiomysql
 
-_pool: aiomysql.Pool | None = None
+_pools: dict[str, aiomysql.Pool] = {}
+
+# Well-known pool names — services that use shared/ helpers must init these.
+POOL_BONUS = "wynta_bonus"
+POOL_COMMON = "wynta_common"
 
 
 async def init_pool(
+    name: str,
     *,
     host: str,
     port: int,
@@ -17,8 +22,7 @@ async def init_pool(
     maxsize: int = 10,
     pool_recycle: int = 280,
 ) -> None:
-    global _pool
-    _pool = await aiomysql.create_pool(
+    _pools[name] = await aiomysql.create_pool(
         host=host,
         port=port,
         user=user,
@@ -34,23 +38,26 @@ async def init_pool(
     )
 
 
-async def close_pool() -> None:
-    global _pool
-    if _pool is not None:
-        _pool.close()
-        await _pool.wait_closed()
-        _pool = None
+async def close_pool(name: str | None = None) -> None:
+    """Close a named pool, or all pools when name is None."""
+    targets = [name] if name else list(_pools.keys())
+    for n in targets:
+        pool = _pools.pop(n, None)
+        if pool is not None:
+            pool.close()
+            await pool.wait_closed()
 
 
-def get_pool() -> aiomysql.Pool:
-    if _pool is None:
-        raise RuntimeError("MySQL pool is not initialised — call init_pool() at startup")
-    return _pool
+def get_pool(name: str) -> aiomysql.Pool:
+    pool = _pools.get(name)
+    if pool is None:
+        raise RuntimeError(f"MySQL pool '{name}' is not initialised — call init_pool('{name}') at startup")
+    return pool
 
 
 @asynccontextmanager
-async def get_connection() -> AsyncGenerator[aiomysql.Connection, None]:
-    async with get_pool().acquire() as conn:
+async def get_connection(name: str) -> AsyncGenerator[aiomysql.Connection, None]:
+    async with get_pool(name).acquire() as conn:
         try:
             yield conn
         finally:

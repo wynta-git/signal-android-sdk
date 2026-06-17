@@ -12,6 +12,7 @@ from app.db import close_pool, init_pool
 from app.dependencies import get_portal_token_context
 from app.routers.bonus_head import register_exception_handlers
 from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_configure_code, bonus_release_trigger, bonus_eligibility, bonus_summary, player_bonus
+from shared.clients.redis import make_redis_client
 from shared.cors import CORS_ORIGINS
 
 structlog.configure(
@@ -27,10 +28,14 @@ log = structlog.get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    from app.config import settings
     log.info("bonus_service.starting")
     await init_pool()
     log.info("bonus_service.db_pool_ready")
+    app.state.redis = make_redis_client(settings.redis_url)
+    log.info("bonus_service.redis_ready")
     yield
+    await app.state.redis.aclose()
     await close_pool()
     log.info("bonus_service.stopped")
 

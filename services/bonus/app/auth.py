@@ -5,7 +5,7 @@ import time
 from fastapi import Header, Request
 from fastapi.exceptions import HTTPException
 
-from app.config import settings
+from shared.services.client import get_client_secret
 
 
 async def verify_s2s_request(
@@ -22,12 +22,13 @@ async def verify_s2s_request(
     if abs(time.time() - ts) > 300:
         raise HTTPException(status_code=401, detail="Request timestamp outside the 300-second window")
 
-    secret = settings.s2s_clients.get(x_client_id)
+    secret = await get_client_secret(x_client_id, request.app.state.redis)
     if secret is None:
         raise HTTPException(status_code=401, detail="Unknown client")
 
     body = await request.body()
-    canonical = f"{x_client_id}\n{x_timestamp}\n".encode() + body
+    query_string = request.url.query  # e.g. "foo=1&bar=2", empty string if none
+    canonical = f"{x_client_id}\n{x_timestamp}\n{query_string}\n".encode() + body
     expected = hmac.new(secret.encode(), canonical, hashlib.sha256).hexdigest()
 
     if not hmac.compare_digest(expected, x_signature.lower()):

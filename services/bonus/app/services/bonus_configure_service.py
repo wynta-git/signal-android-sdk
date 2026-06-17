@@ -3,7 +3,7 @@ import json
 import aiomysql
 import structlog
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 from app.exceptions import (
     BonusConfigureDuplicateError,
@@ -152,7 +152,7 @@ async def _write_audit(
 ) -> None:
     """Best-effort audit entry — never raises."""
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_AUDIT_INSERT_SQL, (
                     table_name, action, entity_id, site_id, changed_by,
@@ -265,7 +265,7 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
     row_hash = _configure_row_hash(data)
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 # Verify parent subhead exists.
                 await cur.execute(_EXISTS_SUBHEAD_SQL, (data.subhead_id,))
@@ -335,7 +335,7 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
     log.info("get_bonus_configure.start", bonus_configure_id=configure_id)
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (configure_id,))
@@ -397,7 +397,7 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
 async def list_bonus_configures_by_subhead(subhead_id: int) -> list[BonusConfigureResponse]:
     """Return all configure rows for the given subhead with their triggers and eligibilities."""
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_LIST_BY_SUBHEAD_SQL, (subhead_id,))
@@ -474,7 +474,7 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
     log.info("update_bonus_configure.start", bonus_configure_id=configure_id, fields=list(updates))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (configure_id,))
                 row = await cur.fetchone()
@@ -612,7 +612,7 @@ async def upsert_limits(configure_id: int, data: LimitsUpsertRequest) -> list[Bu
     log.info("upsert_configure_limits.start", bonus_configure_id=configure_id, count=len(data.limits))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_EXISTS_CONFIGURE_ID_SQL, (configure_id,))

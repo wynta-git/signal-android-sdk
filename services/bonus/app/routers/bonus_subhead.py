@@ -41,7 +41,7 @@ async def create_bonus_subhead(payload: BonusSubheadCreate, ctx: PortalAuthDep) 
     - **owner**: primary accountable person (username or email)
     - **created_by**: actor performing the creation
     """
-    payload.created_by = ctx.user_id
+    payload.created_by = ctx.username
     return await add_bonus_subhead(payload)
 
 
@@ -59,7 +59,7 @@ async def patch_bonus_subhead(subhead_id: int, payload: BonusSubheadUpdate, ctx:
     Only fields included in the request body are written. `updated_by` is always required.
     Send `"description": null` to explicitly clear the description.
     """
-    payload.updated_by = ctx.user_id
+    payload.updated_by = ctx.username
     return await update_bonus_subhead(subhead_id, payload)
 
 
@@ -72,7 +72,7 @@ async def put_bonus_subhead_owners(
 
     Each entry is upserted on username. Returns all current owners after the operation.
     """
-    payload.updated_by = ctx.user_id
+    payload.updated_by = ctx.username
     return await upsert_owners(subhead_id, payload)
 
 
@@ -91,7 +91,7 @@ async def put_bonus_subhead_limits(
 
     Each entry is upserted on period_type. Returns all budget periods after the operation.
     """
-    payload.updated_by = ctx.user_id
+    payload.updated_by = ctx.username
     return await upsert_limits(subhead_id, payload)
 
 

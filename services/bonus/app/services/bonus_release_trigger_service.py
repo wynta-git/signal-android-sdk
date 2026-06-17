@@ -3,7 +3,7 @@ import json
 import aiomysql
 import structlog
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 from app.exceptions import (
     BonusCodeNotFoundError,
@@ -124,7 +124,7 @@ async def add_bonus_release_trigger(
     log.info("add_bonus_release_trigger.start", code=data.code, trigger_type=data.trigger_type)
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 if data.configure_id is not None:
                     await cur.execute(_EXISTS_CONFIGURE_SQL, (data.configure_id,))
@@ -183,7 +183,7 @@ async def get_bonus_release_trigger(trigger_id: int) -> BonusReleaseTriggerRespo
     log.info("get_bonus_release_trigger.start", trigger_id=trigger_id)
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (trigger_id,))
@@ -220,7 +220,7 @@ async def update_bonus_release_trigger(
     log.info("update_bonus_release_trigger.start", trigger_id=trigger_id, fields=list(updates))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (trigger_id,))
                 row = await cur.fetchone()

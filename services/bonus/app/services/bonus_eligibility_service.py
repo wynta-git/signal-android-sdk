@@ -3,7 +3,7 @@ from __future__ import annotations
 import aiomysql
 import structlog
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 from app.exceptions import (
     BonusEligibilityDuplicateError,
@@ -115,7 +115,7 @@ async def add_bonus_eligibility(data: BonusEligibilityCreate) -> BonusEligibilit
     })
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
                     _INSERT_SQL,
@@ -159,7 +159,7 @@ async def get_bonus_eligibility(eligibility_id: int) -> BonusEligibilityResponse
     """Return a single bonus_eligibility criterion row."""
     log.info("get_bonus_eligibility.start", eligibility_id=eligibility_id)
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             await conn.commit()  # force fresh MVCC snapshot
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (eligibility_id,))
@@ -189,7 +189,7 @@ async def update_bonus_eligibility(
     log.info("update_bonus_eligibility.start", eligibility_id=eligibility_id, fields=list(updates))
 
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_SQL, (eligibility_id,))
                 row = await cur.fetchone()

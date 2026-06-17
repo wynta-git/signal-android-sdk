@@ -19,7 +19,7 @@ async def create_bonus_configure_code(
     payload: BonusConfigureCodeCreate,
     ctx: PortalAuthDep,
 ) -> BonusConfigureCodeResponse:
-    payload.created_by = ctx.user_id
+    payload.created_by = ctx.username
     return await add_bonus_configure_code(payload)
 
 
@@ -29,5 +29,5 @@ async def patch_bonus_configure_code(
     payload: BonusConfigureCodeUpdate,
     ctx: PortalAuthDep,
 ) -> BonusConfigureCodeResponse:
-    payload.updated_by = ctx.user_id
+    payload.updated_by = ctx.username
     return await update_bonus_configure_code(code_id, payload)

@@ -55,7 +55,7 @@ async def patch_bonus_head(head_id: int, payload: BonusHeadUpdate, ctx: PortalAu
     Only fields included in the request body are written. `updated_by` is always required.
     Send `"description": null` to explicitly clear the description.
     """
-    payload.updated_by = ctx.user_id
+    payload.updated_by = ctx.username
     return await update_bonus_head(head_id, payload)
 
 
@@ -69,7 +69,7 @@ async def put_bonus_head_owners(
     Each entry is upserted on username — role, active, and updated_by are
     overwritten on conflict. Returns all current owners after the operation.
     """
-    payload.updated_by = ctx.user_id
+    payload.updated_by = ctx.username
     return await upsert_owners(head_id, payload)
 
 
@@ -84,7 +84,7 @@ async def put_bonus_head_limits(
     Pass `null` for budget_limit to mark a period as uncapped.
     Returns all budget periods (with current usage) after the operation.
     """
-    payload.updated_by = ctx.user_id
+    payload.updated_by = ctx.username
     return await upsert_limits(head_id, payload)
 
 
@@ -106,7 +106,7 @@ async def create_bonus_head(payload: BonusHeadCreate, ctx: PortalAuthDep) -> Bon
     - **owner**: primary accountable person (username or email)
     - **created_by**: actor performing the creation
     """
-    payload.created_by = ctx.user_id
+    payload.created_by = ctx.username
     return await add_bonus_head(payload)
 
 

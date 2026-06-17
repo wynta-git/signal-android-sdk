@@ -46,7 +46,7 @@ async def create_bonus_release_trigger(
     - **trigger_config**: free-form JSON for additional conditions (optional)
     - **created_by**: actor performing the creation
     """
-    payload.created_by = ctx.user_id
+    payload.created_by = ctx.username
     return await add_bonus_release_trigger(payload)
 
 
@@ -68,7 +68,7 @@ async def patch_bonus_release_trigger(
     Only fields included in the request body are written. ``updated_by`` is always
     required. To update ``trigger_config``, send the full replacement object.
     """
-    payload.updated_by = ctx.user_id
+    payload.updated_by = ctx.username
     return await update_bonus_release_trigger(trigger_id, payload)
 
 

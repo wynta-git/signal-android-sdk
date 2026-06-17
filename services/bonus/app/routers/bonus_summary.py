@@ -5,7 +5,7 @@ from fastapi import APIRouter
 
 from app.exceptions import DatabaseError
 from app.models.bonus_summary import BonusSummary
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 
 log = structlog.get_logger(__name__)
 
@@ -36,7 +36,7 @@ async def get_bonus_summary(site_id: int) -> BonusSummary:
     """Return KPI counts and monthly budget summary for a site."""
     log.info("get_bonus_summary.start", site_id=site_id)
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_SUMMARY_SQL, (site_id,) * 6)
                 row = await cur.fetchone()

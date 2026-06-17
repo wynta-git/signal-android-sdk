@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 import aiomysql
 import structlog
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import POOL_BONUS, get_connection
 from app.exceptions import (
     DatabaseError,
     PlayerBonusAlreadyRevertedError,
@@ -50,7 +50,7 @@ _APPLICABLE_CODES_SQL = """
 async def list_applicable_codes(user_id: str, chip_type: str) -> list[ApplicableCodeResponse]:
     log.info("player_bonus.list_applicable_codes", user_id=user_id, chip_type=chip_type)
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_APPLICABLE_CODES_SQL, (chip_type,))
                 rows = await cur.fetchall()
@@ -112,7 +112,7 @@ _SELECT_CONSUMED_SQL = """
 async def consume_bonus(data: PlayerBonusConsumeCreate) -> PlayerBonusConsumedResponse:
     log.info("player_bonus.consume", user_id=data.user_id, consume_txn_id=data.consume_txn_id)
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_CONSUME_EXISTS_SQL, (data.consume_txn_id,))
                 if await cur.fetchone():
@@ -178,7 +178,7 @@ _UPDATE_GRANT_CONSUMED_DEC_SQL = """
 async def revert_consumption(consume_txn_id: str) -> PlayerBonusRevertResponse:
     log.info("player_bonus.revert", consume_txn_id=consume_txn_id)
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_SELECT_CONSUMED_FOR_REVERT_SQL, (consume_txn_id,))
                 row = await cur.fetchone()
@@ -235,7 +235,7 @@ async def get_player_bonus_summary(user_id: str) -> list[PlayerBonusSummaryRespo
         lambda: {"bonus_balance": D(0), "pending_bonus": D(0), "wagering_required": D(0)}
     )
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_BONUS_BALANCE_BY_CHIP_SQL, (user_id,))
                 for chip, val in await cur.fetchall():
@@ -348,7 +348,7 @@ async def list_player_transactions(
     p = user_id
     c = chip_type
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_TRANSACTIONS_SQL, (p, c, p, c, p, c, p, c, p, c, limit, offset))
                 rows = await cur.fetchall()
@@ -403,7 +403,7 @@ async def get_player_transaction_detail(
 ) -> PlayerBonusTransactionDetail:
     log.info("player_bonus.transaction_detail", user_id=user_id, txn_id=txn_id)
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_GRANT_DETAIL_SQL, (txn_id,))
                 grant = await cur.fetchone()
@@ -484,7 +484,7 @@ _REFERRAL_CODE_SQL = """
 async def get_player_referral_code(user_id: str) -> PlayerReferralCodeResponse:
     log.info("player_bonus.referral_code", user_id=user_id)
     try:
-        async with get_connection() as conn:
+        async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_REFERRAL_CODE_SQL, (user_id,))
                 row = await cur.fetchone()
