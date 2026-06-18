@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     clickhouse_username: str = "default"
     clickhouse_password: str = ""
 
+    log_dir: str = ""
+    log_level: str = "INFO"
+
     debug: bool = False
     version: str = "0.1.0"
 

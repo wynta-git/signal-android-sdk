@@ -72,6 +72,7 @@ class TriggerSummary(BaseModel):
 
     id:             int
     trigger_type:   str
+    release_type:   str                   = "BONUS_RELEASE"
     trigger_config: dict[str, Any] | None = None
     active:         bool
 

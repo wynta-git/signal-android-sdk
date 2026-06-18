@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import logging.handlers
+import os
 import signal
 
 import structlog
@@ -9,6 +12,27 @@ from app.config import settings
 from app.db import close_pool, init_pool
 from app.event_processor.consumer import run_consumer
 from shared.clients.redis import make_redis_client
+
+
+def _configure_logging() -> None:
+    level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+
+    if settings.log_dir:
+        os.makedirs(settings.log_dir, exist_ok=True)
+        log_path = os.path.join(settings.log_dir, "bonus-consumer.log")
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_path,
+            maxBytes=50 * 1024 * 1024,
+            backupCount=7,
+            encoding="utf-8",
+        )
+        handlers.append(file_handler)
+
+    logging.basicConfig(level=level, handlers=handlers, force=True)
+
+
+_configure_logging()
 
 log = structlog.get_logger()
 

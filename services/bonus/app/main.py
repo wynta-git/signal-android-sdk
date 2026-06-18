@@ -1,3 +1,6 @@
+import logging
+import logging.handlers
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -14,6 +17,29 @@ from app.routers.bonus_head import register_exception_handlers
 from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_configure_code, bonus_release_trigger, bonus_eligibility, bonus_summary, player_bonus
 from shared.clients.redis import make_redis_client
 from shared.cors import CORS_ORIGINS
+
+
+def _configure_logging() -> None:
+    from app.config import settings
+
+    level = getattr(logging, settings.log_level.upper(), logging.INFO)
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+
+    if settings.log_dir:
+        os.makedirs(settings.log_dir, exist_ok=True)
+        log_path = os.path.join(settings.log_dir, "bonus-service.log")
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_path,
+            maxBytes=50 * 1024 * 1024,   # 50 MB per file
+            backupCount=7,                # keep 7 rotated files
+            encoding="utf-8",
+        )
+        handlers.append(file_handler)
+
+    logging.basicConfig(level=level, handlers=handlers, force=True)
+
+
+_configure_logging()
 
 structlog.configure(
     processors=[

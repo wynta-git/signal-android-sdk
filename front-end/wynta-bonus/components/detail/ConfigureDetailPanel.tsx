@@ -365,25 +365,50 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
         </div>
       )}
 
-      <div className="section-label">Release Triggers · {(cfg.triggers ?? []).length}</div>
-      {(cfg.triggers ?? []).length === 0 ? (
-        <div style={{ padding: 16, border: '1px dashed var(--g200)', borderRadius: 'var(--rl)', textAlign: 'center', fontSize: 12, color: 'var(--g400)', marginBottom: 8 }}>
-          No triggers — bonus cannot release until a trigger is configured.
-        </div>
-      ) : (
-        <div className="mb-6">
-          {(cfg.triggers ?? []).map(t => (
-            <TriggerCard key={t.id} trigger={t} configureId={cfg.id} dispatch={dispatch} />
-          ))}
-        </div>
-      )}
-      <button
-        className="btn btn-secondary btn-sm"
-        style={{ marginTop: 8 }}
-        onClick={() => onAction({ type: 'NEW_TRIGGER', parentId: cfg.id })}
-      >
-        <Icon name="plus" size={12}/> Add Trigger
-      </button>
+      {(() => {
+        const allTriggers = cfg.triggers ?? [];
+        const bonusTriggers = allTriggers.filter(t => !t.release_type || t.release_type === 'BONUS_RELEASE');
+        const chunkTriggers = allTriggers.filter(t => t.release_type === 'CHUNK_RELEASE');
+        return (
+          <>
+            <div className="section-row">
+              <div className="section-label">Bonus Release · {bonusTriggers.length}</div>
+              <button className="btn btn-secondary btn-sm" onClick={() => dispatch(openDrawer({ type: 'NEW_TRIGGER', parentId: cfg.id, releaseType: 'BONUS_RELEASE' }))}>
+                <Icon name="plus" size={12}/> Add
+              </button>
+            </div>
+            {bonusTriggers.length === 0 ? (
+              <div style={{ padding: 16, border: '1px dashed var(--g200)', borderRadius: 'var(--rl)', textAlign: 'center', fontSize: 12, color: 'var(--g400)', marginBottom: 8 }}>
+                No bonus release triggers configured.
+              </div>
+            ) : (
+              <div className="mb-4">
+                {bonusTriggers.map(t => (
+                  <TriggerCard key={t.id} trigger={t} configureId={cfg.id} dispatch={dispatch} />
+                ))}
+              </div>
+            )}
+
+            <div className="section-row" style={{ marginTop: 16 }}>
+              <div className="section-label">Chunk Release · {chunkTriggers.length}</div>
+              <button className="btn btn-secondary btn-sm" onClick={() => dispatch(openDrawer({ type: 'NEW_TRIGGER', parentId: cfg.id, releaseType: 'CHUNK_RELEASE' }))}>
+                <Icon name="plus" size={12}/> Add
+              </button>
+            </div>
+            {chunkTriggers.length === 0 ? (
+              <div style={{ padding: 16, border: '1px dashed var(--g200)', borderRadius: 'var(--rl)', textAlign: 'center', fontSize: 12, color: 'var(--g400)', marginBottom: 8 }}>
+                No chunk release triggers configured.
+              </div>
+            ) : (
+              <div className="mb-6">
+                {chunkTriggers.map(t => (
+                  <TriggerCard key={t.id} trigger={t} configureId={cfg.id} dispatch={dispatch} />
+                ))}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
     </div>
 

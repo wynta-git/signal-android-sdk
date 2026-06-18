@@ -13,7 +13,7 @@ from shared.clients.mongo import create_campaign_indexes, make_mongo_client
 from shared.clients.redis import make_redis_client
 from shared.logging_config import configure_logging
 
-configure_logging(debug=settings.debug)
+configure_logging(debug=settings.debug, log_dir=settings.log_dir or None, log_level=settings.log_level)
 log = structlog.get_logger()
 
 

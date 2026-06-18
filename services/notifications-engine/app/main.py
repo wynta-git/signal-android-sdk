@@ -9,7 +9,7 @@ from shared.logging_config import configure_logging
 from app.config import settings
 from app.consumer import consumer_loop
 
-configure_logging(debug=settings.debug)
+configure_logging(debug=settings.debug, log_dir=settings.log_dir or None, log_level=settings.log_level)
 log = structlog.get_logger()
 
 

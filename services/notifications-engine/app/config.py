@@ -20,6 +20,9 @@ class Settings(BaseSettings):
 
     health_port: int = 8005
 
+    log_dir: str = ""
+    log_level: str = "INFO"
+
     debug: bool = False
     version: str = "0.1.0"
 

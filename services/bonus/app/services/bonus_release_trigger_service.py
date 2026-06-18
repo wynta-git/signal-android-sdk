@@ -39,18 +39,18 @@ _EXISTS_CONFIGURE_SQL = "SELECT id FROM bonus_configure WHERE id = %s LIMIT 1"
 
 _EXISTS_TRIGGER_SQL = (
     "SELECT 1 FROM bonus_release_trigger "
-    "WHERE configure_id = %s AND trigger_type = %s LIMIT 1"
+    "WHERE configure_id = %s AND trigger_type = %s AND release_type = %s LIMIT 1"
 )
 
 _INSERT_SQL = """
     INSERT INTO bonus_release_trigger
-        (configure_id, site_id, trigger_type, trigger_config,
+        (configure_id, site_id, trigger_type, release_type, trigger_config,
          active, created_by, updated_by, row_hash)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_SQL = """
-    SELECT id, configure_id, site_id, trigger_type, trigger_config,
+    SELECT id, configure_id, site_id, trigger_type, release_type, trigger_config,
            active, created_by, updated_by, created_at, updated_at
     FROM bonus_release_trigger
     WHERE id = %s
@@ -64,6 +64,7 @@ _DELETE_SQL = "DELETE FROM bonus_release_trigger WHERE id = %s"
 
 _PATCHABLE: dict[str, str] = {
     "trigger_type":   "trigger_type",
+    "release_type":   "release_type",
     "trigger_config": "trigger_config",
     "active":         "active",
 }
@@ -74,9 +75,9 @@ _PATCHABLE: dict[str, str] = {
 
 
 def _row_to_response(row: tuple) -> BonusReleaseTriggerResponse:
-    # id[0] configure_id[1] site_id[2] trigger_type[3] trigger_config[4]
-    # active[5] created_by[6] updated_by[7] created_at[8] updated_at[9]
-    raw_cfg = row[4]
+    # id[0] configure_id[1] site_id[2] trigger_type[3] release_type[4]
+    # trigger_config[5] active[6] created_by[7] updated_by[8] created_at[9] updated_at[10]
+    raw_cfg = row[5]
     if isinstance(raw_cfg, str):
         try:
             raw_cfg = json.loads(raw_cfg)
@@ -84,10 +85,10 @@ def _row_to_response(row: tuple) -> BonusReleaseTriggerResponse:
             raw_cfg = None
     return BonusReleaseTriggerResponse(
         id=row[0], configure_id=row[1], site_id=row[2],
-        trigger_type=row[3], trigger_config=raw_cfg,
-        active=bool(row[5]),
-        created_by=row[6], updated_by=row[7],
-        created_at=_as_dt(row[8]), updated_at=_as_dt(row[9]),
+        trigger_type=row[3], release_type=row[4], trigger_config=raw_cfg,
+        active=bool(row[6]),
+        created_by=row[7], updated_by=row[8],
+        created_at=_as_dt(row[9]), updated_at=_as_dt(row[10]),
     )
 
 
@@ -140,7 +141,7 @@ async def add_bonus_release_trigger(
                         raise BonusCodeNotFoundError(data.site_id, data.code)
                     configure_id = code_row[0]
 
-                await cur.execute(_EXISTS_TRIGGER_SQL, (configure_id, data.trigger_type))
+                await cur.execute(_EXISTS_TRIGGER_SQL, (configure_id, data.trigger_type, data.release_type))
                 if await cur.fetchone():
                     raise BonusReleaseTriggerDuplicateError(configure_id, data.trigger_type)
 
@@ -150,7 +151,7 @@ async def add_bonus_release_trigger(
                 await cur.execute(
                     _INSERT_SQL,
                     (
-                        configure_id, data.site_id, data.trigger_type, cfg_json,
+                        configure_id, data.site_id, data.trigger_type, data.release_type, cfg_json,
                         int(data.active), data.created_by, data.created_by, row_hash,
                     ),
                 )
@@ -264,9 +265,10 @@ async def update_bonus_release_trigger(
                     "configure_id":   configure_id_row,
                     "site_id":        site_id,
                     "trigger_type":   updates.get("trigger_type", row[3]),
+                    "release_type":   updates.get("release_type", row[4]),
                     "trigger_config": json.dumps(new_cfg_parsed, sort_keys=True) if new_cfg_parsed else None,
-                    "active":         updates.get("active", int(row[5])),
-                    "created_by":     row[6],
+                    "active":         updates.get("active", int(row[6])),
+                    "created_by":     row[7],
                     "updated_by":     data.updated_by,
                 }
                 updates["row_hash"] = _compute_row_hash(hash_fields)

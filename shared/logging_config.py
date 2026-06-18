@@ -30,17 +30,23 @@ def _project_root() -> Path:
 def configure_logging(
     debug: bool = False,
     log_dir: str | None = None,
-    max_bytes: int = 10 * 1024 * 1024,  # 10 MB
-    backup_count: int = 5,
-    log_to_stdout: bool = False,
+    log_level: str = "INFO",
+    max_bytes: int = 50 * 1024 * 1024,  # 50 MB
+    backup_count: int = 7,
+    log_to_stdout: bool = True,
     log_to_file: bool = True,
 ) -> None:
-    level = logging.DEBUG if debug else logging.INFO
+    if debug:
+        level = logging.DEBUG
+    else:
+        level = getattr(logging, log_level.upper(), logging.INFO)
+
     service_name = _detect_service_name()
 
+    # Default to {project_root}/logs/; override with log_dir env var
     log_folder = Path(log_dir) if log_dir else _project_root() / "logs"
     log_folder.mkdir(parents=True, exist_ok=True)
-    log_file = log_folder / f"{service_name}.{os.getpid()}.log"
+    log_file = log_folder / f"{service_name}.log"
 
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,

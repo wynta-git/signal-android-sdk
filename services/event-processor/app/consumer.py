@@ -28,7 +28,7 @@ async def _resolve_table(
     as project_id into the event so the writer uses the correct value.
     """
     raw_site_id = event.get("site_id")
-    if raw_site_id is None:
+    if not raw_site_id:
         return str(event.get("project_id") or _UNKNOWN_TABLE), event
 
     site_id = int(raw_site_id)

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     segment_prefetch_lead_minutes: int = 15
     segment_prefetch_interval_seconds: int = 30
 
+    log_dir: str = ""
+    log_level: str = "INFO"
+
     debug: bool = False
     version: str = "0.1.0"
 

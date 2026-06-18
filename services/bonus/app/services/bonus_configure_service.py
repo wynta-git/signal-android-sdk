@@ -90,7 +90,7 @@ _SELECT_CODES_SQL = """
 """
 
 _SELECT_TRIGGERS_FOR_IDS_SQL = """
-    SELECT id, configure_id, trigger_type, trigger_config, active
+    SELECT id, configure_id, trigger_type, release_type, trigger_config, active
     FROM bonus_release_trigger
     WHERE configure_id IN ({})
     ORDER BY id
@@ -379,9 +379,9 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
         ],
         triggers=[
             TriggerSummary(
-                id=r[0], trigger_type=r[2],
-                trigger_config=r[3] if isinstance(r[3], dict) else None,
-                active=bool(r[4]),
+                id=r[0], trigger_type=r[2], release_type=r[3],
+                trigger_config=r[4] if isinstance(r[4], dict) else None,
+                active=bool(r[5]),
             )
             for r in trigger_rows
         ],
@@ -427,9 +427,9 @@ async def list_bonus_configures_by_subhead(subhead_id: int) -> list[BonusConfigu
         cfg_id = r[1]
         triggers_by_cfg.setdefault(cfg_id, []).append(
             TriggerSummary(
-                id=r[0], trigger_type=r[2],
-                trigger_config=r[3] if isinstance(r[3], dict) else None,
-                active=bool(r[4]),
+                id=r[0], trigger_type=r[2], release_type=r[3],
+                trigger_config=r[4] if isinstance(r[4], dict) else None,
+                active=bool(r[5]),
             )
         )
 

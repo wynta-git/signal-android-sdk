@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     custom_audience_max_bytes: int = 52_428_800   # 50 MB
     custom_audience_max_rows: int = 500_000
 
+    log_dir: str = ""
+    log_level: str = "INFO"
+
     debug: bool = False
     version: str = "0.1.0"
 

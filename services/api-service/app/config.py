@@ -29,6 +29,9 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = CORS_ORIGINS
 
+    log_dir: str = ""
+    log_level: str = "INFO"
+
     debug: bool = False
     version: str = "0.1.0"
 

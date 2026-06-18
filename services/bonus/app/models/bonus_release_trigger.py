@@ -26,6 +26,8 @@ TriggerType = Literal[
     "MILESTONE",
 ]
 
+ReleaseType = Literal["BONUS_RELEASE", "CHUNK_RELEASE"]
+
 
 class BonusReleaseTriggerCreate(BaseModel):
     """Request payload for creating a bonus_release_trigger row.
@@ -38,6 +40,7 @@ class BonusReleaseTriggerCreate(BaseModel):
     site_id:        int                     = Field(..., ge=1)
     code:           str | None              = Field(None, min_length=1, max_length=50)
     trigger_type:   TriggerType
+    release_type:   ReleaseType             = "BONUS_RELEASE"
     trigger_config: dict[str, Any] | None   = None
     active:         bool                    = True
     created_by:     str                     = ""
@@ -56,6 +59,7 @@ class BonusReleaseTriggerResponse(BaseModel):
     configure_id:   int
     site_id:        int
     trigger_type:   str
+    release_type:   str
     trigger_config: dict[str, Any] | None
     active:         bool
     created_by:     str
@@ -70,6 +74,7 @@ class BonusReleaseTriggerUpdate(BaseModel):
     """PATCH payload — all fields optional; updated_by always required."""
 
     trigger_type:   TriggerType | None      = None
+    release_type:   ReleaseType | None      = None
     trigger_config: dict[str, Any] | None   = None
     active:         bool | None             = None
     updated_by:     str                     = ""

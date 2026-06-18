@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     common_db_pool_minsize: int = 1
     common_db_pool_maxsize: int = 5
 
+    log_dir: str = ""
+    log_level: str = "INFO"
+
     debug: bool = False
     version: str = "0.1.0"
 

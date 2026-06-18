@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     trigger_cache_ttl: int = 300  # seconds
 
+    # Logging — set BONUS_LOG_DIR to enable file output, e.g. /var/log/bonus-service
+    # Leave empty to log to stdout only.
+    log_dir: str = ""
+    log_level: str = "INFO"
+
     model_config = SettingsConfigDict(env_prefix="BONUS_", env_file=".env", extra="ignore")
 
     @field_validator("portal_jwt_public_key", mode="before")

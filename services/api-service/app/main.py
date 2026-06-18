@@ -21,7 +21,7 @@ from shared.clients.mongo import load_event_routes, make_mongo_client
 from shared.clients.mysql import close_pool, init_pool
 from shared.clients.redis import make_redis_client
 
-configure_logging(debug=settings.debug)
+configure_logging(debug=settings.debug, log_dir=settings.log_dir or None, log_level=settings.log_level)
 log = structlog.get_logger()
 
 MAX_BODY_BYTES = 1 * 1024 * 1024  # 1 MB

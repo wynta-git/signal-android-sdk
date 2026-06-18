@@ -40,6 +40,11 @@ export default function TriggerForm({
       : () => undefined,
   );
 
+  const [releaseType, setReleaseType] = useState<"BONUS_RELEASE" | "CHUNK_RELEASE">(
+    (existing?.release_type as "BONUS_RELEASE" | "CHUNK_RELEASE")
+      ?? state.releaseType
+      ?? "BONUS_RELEASE"
+  );
   const [triggerType, setTriggerType] =
     useState<(typeof TRIGGER_TYPES)[number]>(
       (existing?.trigger_type as (typeof TRIGGER_TYPES)[number]) ?? "DEPOSIT"
@@ -49,6 +54,7 @@ export default function TriggerForm({
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
+      release_type: releaseType,
       trigger_type: triggerType,
       trigger_config: null,
       active,
@@ -66,6 +72,22 @@ export default function TriggerForm({
             </span>
           </div>
         )}
+        <div className="field-group">
+          <label>Release Type</label>
+          <div className="seg" style={{ "--cols": 2 } as React.CSSProperties}>
+            <button type="button" className={releaseType === "BONUS_RELEASE" ? "active" : ""} onClick={() => setReleaseType("BONUS_RELEASE")}>
+              Bonus Release
+            </button>
+            <button type="button" className={releaseType === "CHUNK_RELEASE" ? "active" : ""} onClick={() => setReleaseType("CHUNK_RELEASE")}>
+              Chunk Release
+            </button>
+          </div>
+          <div className="helper" style={{ marginTop: 6 }}>
+            {releaseType === "BONUS_RELEASE"
+              ? "Bonus is granted when this event occurs."
+              : "An already-granted chunk is released when this event occurs."}
+          </div>
+        </div>
         <div className="field-group">
           <label>Trigger Type</label>
           <div className="seg" style={{ "--cols": 2 } as React.CSSProperties}>

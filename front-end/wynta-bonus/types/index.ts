@@ -81,6 +81,7 @@ export interface Trigger {
   id: number;
   configure_id?: number;
   trigger_type: string;
+  release_type?: string;
   trigger_config?: Record<string, unknown> | null;
   active?: boolean;
   [key: string]: unknown;
@@ -285,6 +286,7 @@ export interface DrawerState {
   id?: number;
   parentId?: number;
   scope?: 'head' | 'subhead' | 'configure';
+  releaseType?: 'BONUS_RELEASE' | 'CHUNK_RELEASE';
   trigger?: Record<string, unknown>;
   configure?: Record<string, unknown>;
 }
