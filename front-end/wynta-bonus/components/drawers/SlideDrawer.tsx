@@ -21,6 +21,7 @@ import {
   fetchConfigure,
   fetchConfiguresBySubhead,
   createTrigger,
+  updateTrigger,
   createPromoCode,
   updatePromoCode,
   createEligibility,
@@ -49,6 +50,7 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   CLONE_PROMOCODE: { title: "Clone Promo Code", icon: "copy" },
   NEW_ELIGIBILITY: { title: "Add Eligibility Criterion", icon: "filter" },
   NEW_TRIGGER: { title: "Add Release Trigger", icon: "zap" },
+  EDIT_TRIGGER: { title: "Edit Release Trigger", icon: "pencil" },
   EDIT_BUDGET: { title: "Manage Budget", icon: "wallet" },
   EDIT_OWNERS: { title: "Manage Owners", icon: "users" },
   NEW_MANUAL_BONUS: { title: "New Manual Campaign", icon: "send" },
@@ -342,6 +344,19 @@ export default function SlideDrawer() {
           }),
         ).unwrap();
         dispatch(fetchConfigure(drawerState.parentId));
+        dispatch(closeDrawer());
+      } else if (
+        drawerState?.type === "EDIT_TRIGGER" &&
+        drawerState.id != null
+      ) {
+        await dispatch(
+          updateTrigger({
+            triggerId: drawerState.id,
+            patch: { ...data, updated_by: currentUser },
+          }),
+        ).unwrap();
+        if (drawerState.parentId != null)
+          dispatch(fetchConfigure(drawerState.parentId));
         dispatch(closeDrawer());
       } else if (
         drawerState?.type === "NEW_ELIGIBILITY" &&

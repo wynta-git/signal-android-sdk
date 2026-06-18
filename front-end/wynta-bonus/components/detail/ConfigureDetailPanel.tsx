@@ -1,7 +1,8 @@
 'use client';
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { createEligibility, fetchConfigure } from '../../store/slices/configuresSlice';
+import { createEligibility, deleteTrigger, fetchConfigure } from '../../store/slices/configuresSlice';
+import { openDrawer } from '../../store/slices/uiSlice';
 import Icon from 'wynta-react-common/components/Icon';
 import Badge from 'wynta-react-common/components/Badge';
 import Toggle from 'wynta-react-common/components/Toggle';
@@ -231,6 +232,23 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
             </div>
           </div>
           <Badge active={t.active}/>
+          <button
+            className="btn btn-ghost btn-sm btn-icon-only"
+            title="Edit trigger"
+            onClick={() => dispatch(openDrawer({ type: 'EDIT_TRIGGER', id: t.id, parentId: cfg.id, trigger: t as unknown as Record<string, unknown> }))}
+          >
+            <Icon name="pencil" size={12}/>
+          </button>
+          <button
+            className="btn btn-ghost btn-sm btn-icon-only"
+            title="Delete trigger"
+            onClick={async () => {
+              if (!window.confirm(`Delete ${t.trigger_type} trigger?`)) return;
+              await dispatch(deleteTrigger({ triggerId: t.id, configureId: cfg.id }));
+            }}
+          >
+            <Icon name="trash-2" size={12}/>
+          </button>
         </div>
       ))}
       <button

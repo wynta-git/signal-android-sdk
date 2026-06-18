@@ -273,6 +273,7 @@ export type DrawerType =
   | 'CLONE_PROMOCODE'
   | 'NEW_ELIGIBILITY'
   | 'NEW_TRIGGER'
+  | 'EDIT_TRIGGER'
   | 'EDIT_BUDGET'
   | 'EDIT_OWNERS'
   | 'NEW_MANUAL_BONUS'
@@ -283,6 +284,7 @@ export interface DrawerState {
   id?: number;
   parentId?: number;
   scope?: 'head' | 'subhead' | 'configure';
+  trigger?: Record<string, unknown>;
 }
 
 export interface ContextMenuState {

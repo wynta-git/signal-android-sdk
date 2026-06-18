@@ -17,6 +17,7 @@ from app.models.bonus_release_trigger import (
 )
 from app.services.bonus_release_trigger_service import (
     add_bonus_release_trigger,
+    delete_bonus_release_trigger,
     get_bonus_release_trigger,
     update_bonus_release_trigger,
 )
@@ -70,6 +71,12 @@ async def patch_bonus_release_trigger(
     """
     payload.updated_by = ctx.user_id
     return await update_bonus_release_trigger(trigger_id, payload)
+
+
+@router.delete("/{trigger_id}", status_code=204)
+async def delete_bonus_release_trigger_endpoint(trigger_id: int) -> None:
+    """Hard-delete a release trigger."""
+    await delete_bonus_release_trigger(trigger_id)
 
 
 # ---------------------------------------------------------------------------

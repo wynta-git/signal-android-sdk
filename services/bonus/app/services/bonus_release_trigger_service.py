@@ -56,6 +56,8 @@ _SELECT_SQL = """
     WHERE id = %s
 """
 
+_DELETE_SQL = "DELETE FROM bonus_release_trigger WHERE id = %s"
+
 # ---------------------------------------------------------------------------
 # Patchable columns
 # ---------------------------------------------------------------------------
@@ -198,6 +200,25 @@ async def get_bonus_release_trigger(trigger_id: int) -> BonusReleaseTriggerRespo
         raise DatabaseError(str(exc)) from exc
 
     return _row_to_response(row)
+
+
+async def delete_bonus_release_trigger(trigger_id: int) -> None:
+    """Hard-delete a bonus_release_trigger row by id."""
+    log.info("delete_bonus_release_trigger.start", trigger_id=trigger_id)
+    try:
+        async with get_connection(POOL_BONUS) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_SELECT_SQL, (trigger_id,))
+                if await cur.fetchone() is None:
+                    raise BonusReleaseTriggerNotFoundError(trigger_id)
+                await cur.execute(_DELETE_SQL, (trigger_id,))
+                await conn.commit()
+    except BonusReleaseTriggerNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("delete_bonus_release_trigger.db_error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+    log.info("delete_bonus_release_trigger.done", trigger_id=trigger_id)
 
 
 async def update_bonus_release_trigger(

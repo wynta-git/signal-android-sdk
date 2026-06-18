@@ -386,6 +386,32 @@ export const api = {
     }
     return res.json() as Promise<Trigger>;
   },
+  async updateTrigger(triggerId: number, patch: Record<string, unknown>) {
+    const res = await fetch(`${BONUS_API}/bonus-release-triggers/${triggerId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to update trigger",
+      );
+    }
+    return res.json() as Promise<Trigger>;
+  },
+  async deleteTrigger(triggerId: number) {
+    const res = await fetch(`${BONUS_API}/bonus-release-triggers/${triggerId}`, {
+      method: "DELETE",
+      headers: { ...authHeaders() },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to delete trigger",
+      );
+    }
+  },
   async createEligibility(
     configureId: number,
     payload: Record<string, unknown>,

@@ -14,6 +14,8 @@ export const fetchPromoCode   = createAsyncThunk<PromoCode, number>('configures/
 export const createPromoCode  = createAsyncThunk<PromoCode, { configureId: number; payload: Record<string, unknown> }>('configures/createPromoCode', ({ configureId, payload }) => api.createPromoCode(configureId, payload));
 export const updatePromoCode  = createAsyncThunk<PromoCode, { codeId: number; patch: Record<string, unknown> }>('configures/updatePromoCode', ({ codeId, patch }) => api.updatePromoCode(codeId, patch));
 export const createTrigger    = createAsyncThunk<Trigger, { configureId: number; payload: Record<string, unknown> }>('configures/createTrigger', ({ configureId, payload }) => api.createTrigger(configureId, payload));
+export const updateTrigger    = createAsyncThunk<Trigger, { triggerId: number; patch: Record<string, unknown> }>('configures/updateTrigger', ({ triggerId, patch }) => api.updateTrigger(triggerId, patch));
+export const deleteTrigger    = createAsyncThunk<{ triggerId: number; configureId: number }, { triggerId: number; configureId: number }>('configures/deleteTrigger', async ({ triggerId, configureId }) => { await api.deleteTrigger(triggerId); return { triggerId, configureId }; });
 export const createEligibility = createAsyncThunk<EligibilityRule, { configureId: number; payload: Record<string, unknown> }>('configures/createEligibility', ({ configureId, payload }) => api.createEligibility(configureId, payload));
 
 const configuresSlice = createSlice({
@@ -61,6 +63,16 @@ const configuresSlice = createSlice({
         const t = action.payload;
         const cfg = t.configure_id !== undefined ? state.entities[t.configure_id] : undefined;
         if (cfg) cfg.triggers = [...(cfg.triggers || []), t];
+      })
+      .addCase(updateTrigger.fulfilled, (state, action) => {
+        const t = action.payload;
+        const cfg = t.configure_id !== undefined ? state.entities[t.configure_id] : undefined;
+        if (cfg) cfg.triggers = (cfg.triggers || []).map(x => Number(x.id) === Number(t.id) ? t : x);
+      })
+      .addCase(deleteTrigger.fulfilled, (state, action) => {
+        const { triggerId, configureId } = action.payload;
+        const cfg = state.entities[configureId];
+        if (cfg) cfg.triggers = (cfg.triggers || []).filter(x => Number(x.id) !== triggerId);
       })
       .addCase(createEligibility.fulfilled, (state, action) => {
         const e = action.payload;

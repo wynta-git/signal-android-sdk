@@ -31,6 +31,10 @@ export default function TriggerForm({
   onCancel,
   onSubmit,
 }: TriggerFormProps) {
+  const isEdit = state.type === 'EDIT_TRIGGER';
+  const existing = state.trigger;
+  const existingConfig = (existing?.trigger_config ?? {}) as Record<string, unknown>;
+
   const cfg = useAppSelector(
     state.parentId != null
       ? selectConfigureById(state.parentId)
@@ -38,12 +42,14 @@ export default function TriggerForm({
   );
 
   const [triggerType, setTriggerType] =
-    useState<(typeof TRIGGER_TYPES)[number]>("DEPOSIT");
-  const [minAmount, setMinAmount] = useState("");
-  const [maxAmount, setMaxAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
-  const [product, setProduct] = useState("");
-  const [active, setActive] = useState(true);
+    useState<(typeof TRIGGER_TYPES)[number]>(
+      (existing?.trigger_type as (typeof TRIGGER_TYPES)[number]) ?? "DEPOSIT"
+    );
+  const [minAmount, setMinAmount] = useState(existingConfig.min_amount != null ? String(existingConfig.min_amount) : "");
+  const [maxAmount, setMaxAmount] = useState(existingConfig.max_amount != null ? String(existingConfig.max_amount) : "");
+  const [paymentMethod, setPaymentMethod] = useState((existingConfig.payment_method as string) ?? "");
+  const [product, setProduct] = useState((existingConfig.product as string) ?? "");
+  const [active, setActive] = useState(existing?.active !== undefined ? Boolean(existing.active) : true);
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,7 +157,7 @@ export default function TriggerForm({
       <DrawerFooter
         submitting={submitting}
         onCancel={onCancel}
-        label="Add Trigger"
+        label={isEdit ? "Save Changes" : "Add Trigger"}
       />
     </form>
   );
