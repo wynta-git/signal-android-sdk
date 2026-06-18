@@ -2,9 +2,11 @@ import json
 
 import aiomysql
 import structlog
+from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
 
+from app.config import settings
 from app.exceptions import (
     BonusCodeNotFoundError,
     BonusReleaseTriggerDuplicateError,
@@ -13,9 +15,11 @@ from app.exceptions import (
     DatabaseError,
 )
 from app.models.bonus_release_trigger import (
+    BonusConfigureSummary,
     BonusReleaseTriggerCreate,
     BonusReleaseTriggerResponse,
     BonusReleaseTriggerUpdate,
+    TriggerWithConfigResponse,
 )
 from app.services.bonus_head_service import (
     _as_dt,
@@ -57,6 +61,49 @@ _SELECT_SQL = """
 """
 
 _DELETE_SQL = "DELETE FROM bonus_release_trigger WHERE id = %s"
+
+_SELECT_WITH_CONFIG_SQL = """
+    SELECT
+        brt.id,
+        brt.configure_id,
+        brt.site_id,
+        brt.trigger_type,
+        brt.release_type,
+        brt.min_trigger_amount,
+        brt.max_trigger_amount,
+        brt.payment_method,
+        brt.product,
+        brt.occurrence,
+        brt.trigger_config,
+        brt.active,
+        bc.id,
+        bc.subhead_id,
+        bc.name,
+        bc.description,
+        bc.start_date,
+        bc.end_date,
+        bc.applicability_frequency,
+        bc.wager_multiplier,
+        bc.no_of_chunks,
+        bc.release_bucket,
+        bc.chunk_expiry_days,
+        bc.bonus_expiry_days,
+        bc.wager_chip_type,
+        bc.credit_chip_type,
+        bc.bonus_amount_fixed,
+        bc.bonus_amount_percent,
+        bc.bonus_amount_max,
+        bc.priority,
+        bc.active,
+        bs.head_id
+    FROM bonus_release_trigger brt
+    JOIN bonus_configure bc ON bc.id = brt.configure_id
+    JOIN bonus_subhead bs ON bs.id = bc.subhead_id
+    WHERE brt.site_id = %s
+    ORDER BY bc.priority ASC, brt.id ASC
+"""
+
+_CACHE_KEY_SITE_TRIGGERS = "pam:bonus:site_triggers:{site_id}"
 
 # ---------------------------------------------------------------------------
 # Patchable columns
@@ -297,3 +344,98 @@ async def update_bonus_release_trigger(
     assert updated_row is not None
     log.info("update_bonus_release_trigger.done", trigger_id=trigger_id)
     return _row_to_response(updated_row)
+
+
+def _row_to_trigger_with_config(row: tuple) -> TriggerWithConfigResponse:
+    # brt columns: id[0] configure_id[1] site_id[2] trigger_type[3] release_type[4]
+    #              min_trigger_amount[5] max_trigger_amount[6] payment_method[7]
+    #              product[8] occurrence[9] trigger_config[10] active[11]
+    # bc columns:  id[12] subhead_id[13] name[14] description[15] start_date[16]
+    #              end_date[17] applicability_frequency[18] wager_multiplier[19]
+    #              no_of_chunks[20] release_bucket[21] chunk_expiry_days[22]
+    #              bonus_expiry_days[23] wager_chip_type[24] credit_chip_type[25]
+    #              bonus_amount_fixed[26] bonus_amount_percent[27] bonus_amount_max[28]
+    #              priority[29] active[30]
+    raw_cfg = row[10]
+    if isinstance(raw_cfg, str):
+        try:
+            raw_cfg = json.loads(raw_cfg)
+        except Exception:
+            raw_cfg = None
+
+    return TriggerWithConfigResponse(
+        id=row[0],
+        configure_id=row[1],
+        site_id=row[2],
+        trigger_type=row[3],
+        release_type=row[4],
+        min_trigger_amount=row[5],
+        max_trigger_amount=row[6],
+        payment_method=row[7],
+        product=row[8],
+        occurrence=row[9],
+        trigger_config=raw_cfg,
+        active=bool(row[11]),
+        configure=BonusConfigureSummary(
+            id=row[12],
+            subhead_id=row[13],
+            head_id=row[31],
+            name=row[14],
+            description=row[15],
+            start_date=_as_dt(row[16]),
+            end_date=_as_dt(row[17]),
+            applicability_frequency=row[18],
+            wager_multiplier=row[19],
+            no_of_chunks=row[20],
+            release_bucket=row[21],
+            chunk_expiry_days=row[22],
+            bonus_expiry_days=row[23],
+            wager_chip_type=row[24],
+            credit_chip_type=row[25],
+            bonus_amount_fixed=row[26],
+            bonus_amount_percent=row[27],
+            bonus_amount_max=row[28],
+            priority=row[29],
+            active=bool(row[30]),
+        ),
+    )
+
+
+async def get_triggers_with_config_by_site(
+    redis: Redis,
+    site_id: int,
+) -> list[TriggerWithConfigResponse]:
+    """Return all release triggers with their bonus configure for a site.
+
+    Checks Redis first; on a miss fetches from DB, serialises, and caches
+    with ``settings.trigger_cache_ttl`` seconds TTL.
+    """
+    cache_key = _CACHE_KEY_SITE_TRIGGERS.format(site_id=site_id)
+
+    cached = await redis.get(cache_key)
+    if cached:
+        log.debug("get_triggers_with_config_by_site.cache_hit", site_id=site_id)
+        raw: list[dict] = json.loads(cached)
+        return [TriggerWithConfigResponse.model_validate(r) for r in raw]
+
+    log.debug("get_triggers_with_config_by_site.cache_miss", site_id=site_id)
+
+    try:
+        async with get_connection(POOL_BONUS) as conn:
+            await conn.commit()
+            async with conn.cursor() as cur:
+                await cur.execute(_SELECT_WITH_CONFIG_SQL, (site_id,))
+                rows = await cur.fetchall()
+    except Exception as exc:
+        log.error("get_triggers_with_config_by_site.db_error", site_id=site_id, error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+    result = [_row_to_trigger_with_config(r) for r in rows]
+
+    await redis.set(
+        cache_key,
+        json.dumps([r.model_dump(mode="json") for r in result]),
+        ex=settings.trigger_cache_ttl,
+    )
+    log.debug("get_triggers_with_config_by_site.cached", site_id=site_id, count=len(result))
+    return result

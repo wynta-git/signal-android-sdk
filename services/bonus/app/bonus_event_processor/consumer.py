@@ -7,7 +7,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from redis.asyncio import Redis
 
 from app.config import settings
-from app.event_processor.processor import process_bonus_event
+from app.bonus_event_processor.processor import process_bonus_event
 
 log = structlog.get_logger()
 
@@ -15,11 +15,11 @@ _MAX_RETRIES = 3
 _RETRY_BACKOFF = 1.0  # seconds, doubles each attempt
 
 
-async def _process_with_retry(event: dict[str, Any]) -> bool:
+async def _process_with_retry(redis: Redis, event: dict[str, Any]) -> bool:
     """Try to process a single event; return False after all retries exhausted."""
     for attempt in range(_MAX_RETRIES):
         try:
-            await process_bonus_event(event)
+            await process_bonus_event(redis, event)
             return True
         except Exception as exc:
             delay = _RETRY_BACKOFF * (2 ** attempt)
@@ -56,7 +56,7 @@ async def _send_to_dlq(
         log.error("bonus_dlq_flush_failed", error=str(exc))
 
 
-async def run_consumer(redis: Redis) -> None:  # noqa: ARG001 — redis passed for future use
+async def run_consumer(redis: Redis) -> None:
     consumer = AIOKafkaConsumer(
         settings.kafka_topic,
         bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -97,7 +97,7 @@ async def run_consumer(redis: Redis) -> None:  # noqa: ARG001 — redis passed f
 
             failed: list[dict[str, Any]] = []
             for event in events:
-                success = await _process_with_retry(event)
+                success = await _process_with_retry(redis, event)
                 if not success:
                     failed.append(event)
 

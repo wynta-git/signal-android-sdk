@@ -10,7 +10,7 @@ import structlog
 
 from app.config import settings
 from app.db import close_pool, init_pool
-from app.event_processor.consumer import run_consumer
+from app.bonus_event_processor.consumer import run_consumer
 from shared.clients.redis import make_redis_client
 
 
@@ -30,6 +30,10 @@ def _configure_logging() -> None:
         handlers.append(file_handler)
 
     logging.basicConfig(level=level, handlers=handlers, force=True)
+
+    # aiokafka is extremely noisy at DEBUG — cap it at WARNING
+    logging.getLogger("aiokafka").setLevel(logging.WARNING)
+    logging.getLogger("kafka").setLevel(logging.WARNING)
 
 
 _configure_logging()

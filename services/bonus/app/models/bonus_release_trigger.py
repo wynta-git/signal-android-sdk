@@ -7,6 +7,7 @@ bonus_release_trigger columns:
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -68,6 +69,49 @@ class BonusReleaseTriggerResponse(BaseModel):
     updated_at:     datetime
 
     model_config = {"from_attributes": True}
+
+
+class BonusConfigureSummary(BaseModel):
+    """Bonus configure fields embedded inside TriggerWithConfigResponse."""
+
+    id:                         int
+    subhead_id:                 int
+    head_id:                    int
+    name:                       str
+    description:                str | None
+    start_date:                 datetime
+    end_date:                   datetime
+    applicability_frequency:    str
+    wager_multiplier:           Decimal
+    no_of_chunks:               int
+    release_bucket:             str | None
+    chunk_expiry_days:          int | None
+    bonus_expiry_days:          int | None
+    wager_chip_type:            str
+    credit_chip_type:           str
+    bonus_amount_fixed:         Decimal | None
+    bonus_amount_percent:       Decimal | None
+    bonus_amount_max:           Decimal | None
+    priority:                   int
+    active:                     bool
+
+
+class TriggerWithConfigResponse(BaseModel):
+    """Release trigger row with its parent bonus_configure embedded."""
+
+    id:                  int
+    configure_id:        int
+    site_id:             int
+    trigger_type:        str
+    release_type:        str
+    min_trigger_amount:  Decimal | None
+    max_trigger_amount:  Decimal | None
+    payment_method:      str | None
+    product:             str | None
+    occurrence:          int
+    trigger_config:      dict[str, Any] | None
+    active:              bool
+    configure:           BonusConfigureSummary
 
 
 class BonusReleaseTriggerUpdate(BaseModel):
