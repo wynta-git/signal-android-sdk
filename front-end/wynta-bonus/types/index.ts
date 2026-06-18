@@ -274,6 +274,7 @@ export type DrawerType =
   | 'NEW_ELIGIBILITY'
   | 'NEW_TRIGGER'
   | 'EDIT_TRIGGER'
+  | 'EDIT_CHUNKS'
   | 'EDIT_BUDGET'
   | 'EDIT_OWNERS'
   | 'NEW_MANUAL_BONUS'
@@ -285,6 +286,7 @@ export interface DrawerState {
   parentId?: number;
   scope?: 'head' | 'subhead' | 'configure';
   trigger?: Record<string, unknown>;
+  configure?: Record<string, unknown>;
 }
 
 export interface ContextMenuState {

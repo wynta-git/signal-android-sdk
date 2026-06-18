@@ -49,9 +49,6 @@ export default function TriggerRow({ trigger, configureId }: TriggerRowProps) {
 
   const minAmt = fmtAmount(cfg.min_amount);
   const maxAmt = fmtAmount(cfg.max_amount);
-  const occ = cfg.occurrence;
-  const occLabel = occ === 0 ? 'Every' : occ === 1 ? '1st only' : occ != null ? `#${occ}` : 'Every';
-
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation();
     dispatch(openDrawer({
@@ -82,10 +79,6 @@ export default function TriggerRow({ trigger, configureId }: TriggerRowProps) {
         </span>
 
         <div className="code-meta">
-          <div className="kv">
-            <span className="k">Occurrence</span>
-            <span className="v">{occLabel}</span>
-          </div>
           {(minAmt || maxAmt) && (
             <div className="kv">
               <span className="k">Amount</span>

@@ -5,6 +5,7 @@ import ConfigureForm from './forms/ConfigureForm';
 import PromoCodeForm from './forms/PromoCodeForm';
 import EligibilityForm from './forms/EligibilityForm';
 import TriggerForm from './forms/TriggerForm';
+import ChunkForm from './forms/ChunkForm';
 import BudgetForm from './forms/BudgetForm';
 import OwnersForm from './forms/OwnersForm';
 import ManualBonusForm from './forms/ManualBonusForm';
@@ -32,6 +33,7 @@ export default function DrawerForm({ state, submitting, onCancel, onSubmit }: Dr
     case 'NEW_ELIGIBILITY':  return <EligibilityForm state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'NEW_TRIGGER':      return <TriggerForm    state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_TRIGGER':     return <TriggerForm    state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
+    case 'EDIT_CHUNKS':      return <ChunkForm      state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_BUDGET':      return <BudgetForm     state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_OWNERS':      return <OwnersForm     state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'NEW_MANUAL_BONUS': return <ManualBonusForm state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;

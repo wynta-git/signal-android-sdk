@@ -105,8 +105,6 @@ function TriggerCard({ trigger, configureId, dispatch }: { trigger: any; configu
   const [open, setOpen] = useState(false);
   const cfg: Record<string, unknown> = (trigger.trigger_config && typeof trigger.trigger_config === 'object') ? trigger.trigger_config : {};
   const color = TTYPE_COLORS[trigger.trigger_type as string] ?? { bg: 'var(--g100)', color: 'var(--g600)' };
-  const occ = cfg.occurrence;
-  const occLabel = occ === 0 ? 'Every' : occ === 1 ? '1st only' : occ != null ? `#${occ}` : 'Every';
   const minAmt = fmtAmt(cfg.min_amount);
   const maxAmt = fmtAmt(cfg.max_amount);
 
@@ -117,10 +115,6 @@ function TriggerCard({ trigger, configureId, dispatch }: { trigger: any; configu
           {trigger.trigger_type}
         </span>
         <div className="code-meta">
-          <div className="kv">
-            <span className="k">Occurrence</span>
-            <span className="v">{occLabel}</span>
-          </div>
           {(minAmt || maxAmt) && (
             <div className="kv">
               <span className="k">Amount</span>
@@ -223,18 +217,15 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
     return null;
   })();
 
-  const fields = [
-    { label: 'Wager',           value: '×' + cfg.wager_multiplier },
-    { label: 'Chunks',          value: cfg.no_of_chunks + '×' },
-    { label: 'Bonus Expiry',    value: cfg.bonus_expiry_days + ' days' },
-    { label: 'Wager/Chunk',     value: wagerPerChunk },
-    { label: 'Fixed Amount',  value: cfg.bonus_amount_fixed == null ? null : formatINRCompact(Number(cfg.bonus_amount_fixed)) },
-    { label: 'Percent Match', value: cfg.bonus_amount_percent == null ? null : cfg.bonus_amount_percent + '%' },
-    { label: 'Max Bonus',     value: cfg.bonus_amount_max == null ? '∞' : formatINRCompact(Number(cfg.bonus_amount_max)) },
-    { label: 'CB Fixed',      value: cfg.cashback_bonus_amount_fixed == null ? null : formatINRCompact(Number(cfg.cashback_bonus_amount_fixed)) },
-    { label: 'CB Percent',    value: cfg.cashback_bonus_amount_percent == null ? null : cfg.cashback_bonus_amount_percent + '%' },
-    { label: 'CB Max',        value: cfg.cashback_bonus_amount_max == null ? null : formatINRCompact(Number(cfg.cashback_bonus_amount_max)) },
-  ];
+  const hasCashback =
+    cfg.cashback_bonus_amount_fixed != null ||
+    cfg.cashback_bonus_amount_percent != null;
+
+  const bonusAmountLabel = cfg.bonus_amount_fixed != null
+    ? formatINRCompact(Number(cfg.bonus_amount_fixed))
+    : cfg.bonus_amount_percent != null
+      ? cfg.bonus_amount_percent + '%' + (cfg.bonus_amount_max != null ? ` (max ${formatINRCompact(Number(cfg.bonus_amount_max))})` : '')
+      : null;
 
   return (
     <React.Fragment key={`cfg-${cfg.id}`}>
@@ -286,23 +277,77 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
       </div>
       <div className="mb-6"><UsageBreakdown usage={getUsage('configure', cfg.id)} /></div>
 
-      <div className="section-label">Bonus Mechanics</div>
-      <div className="stat-grid mb-6">
-        {fields.map((f, i) => (
-          <div key={i} className="stat-tile">
-            <div className="label">{f.label}</div>
-            <div className={'value' + (f.value === null ? ' muted' : '')}>{f.value === null ? '—' : f.value}</div>
-          </div>
-        ))}
+      <div className="section-row">
+        <div className="section-label">Bonus Mechanics</div>
+        <button
+          className="btn btn-ghost btn-sm btn-icon-only"
+          title="Edit mechanics"
+          onClick={() => dispatch(openDrawer({ type: 'EDIT_CHUNKS', id: cfg.id, configure: cfg as unknown as Record<string, unknown> } as import('../../types').DrawerState))}
+        >
+          <Icon name="pencil" size={13}/>
+        </button>
       </div>
-
-      <div className="section-label">Validity Window</div>
-      <div className="card" style={{ padding: '24px 22px 16px', marginBottom: 24 }}>
-        <ValidityBar start={cfg.start_date ?? ''} end={cfg.end_date ?? ''} />
-        <div style={{ marginTop: 18, display: 'flex', gap: 28, fontSize: 11.5, color: 'var(--g500)' }}>
-          <span><strong style={{ color: 'var(--g700)' }}>Chunk expiry</strong> · {cfg.chunk_expiry_days} days</span>
-          <span><strong style={{ color: 'var(--g700)' }}>Bonus expiry</strong> · {cfg.bonus_expiry_days} days</span>
-          <span><strong style={{ color: 'var(--g700)' }}>Chips</strong> · wager {cfg.wager_chip_type}, credit {cfg.credit_chip_type}</span>
+      <div className="card mb-6" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {/* Bonus amount */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--g100)' }}>
+          <span style={{ fontSize: 12, color: 'var(--g500)' }}>Bonus Amount</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: bonusAmountLabel == null ? 'var(--g300)' : 'var(--g800)' }}>{bonusAmountLabel ?? '—'}</span>
+        </div>
+        {/* Wager */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--g100)' }}>
+          <span style={{ fontSize: 12, color: 'var(--g500)' }}>Wager Multiplier</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: cfg.wager_multiplier == null ? 'var(--g300)' : 'var(--g800)' }}>
+            {cfg.wager_multiplier != null ? `×${cfg.wager_multiplier}` : '—'}
+          </span>
+        </div>
+        {/* Chunks */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--g100)' }}>
+          <span style={{ fontSize: 12, color: 'var(--g500)' }}>Chunks</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--g800)' }}>
+            {cfg.no_of_chunks ?? 1}× {wagerPerChunk ? <span style={{ color: 'var(--g400)', fontWeight: 400 }}>· {wagerPerChunk}/chunk</span> : null}
+          </span>
+        </div>
+        {/* Expiry */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--g100)' }}>
+          <span style={{ fontSize: 12, color: 'var(--g500)' }}>Chunk Expiry</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: cfg.chunk_expiry_days == null ? 'var(--g300)' : 'var(--g800)' }}>
+            {cfg.chunk_expiry_days != null ? `${cfg.chunk_expiry_days} days` : '—'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--g100)' }}>
+          <span style={{ fontSize: 12, color: 'var(--g500)' }}>Bonus Expiry</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: cfg.bonus_expiry_days == null ? 'var(--g300)' : 'var(--g800)' }}>
+            {cfg.bonus_expiry_days != null ? `${cfg.bonus_expiry_days} days` : '—'}
+          </span>
+        </div>
+        {/* Chips */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: hasCashback ? '1px solid var(--g100)' : 'none' }}>
+          <span style={{ fontSize: 12, color: 'var(--g500)' }}>Chips</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--g800)' }}>
+            wager <span style={{ color: 'var(--blue)' }}>{cfg.wager_chip_type ?? '—'}</span>
+            {' · '}credit <span style={{ color: 'var(--blue)' }}>{cfg.credit_chip_type ?? '—'}</span>
+          </span>
+        </div>
+        {/* Cashback */}
+        {hasCashback && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--g100)' }}>
+            <span style={{ fontSize: 12, color: 'var(--g500)' }}>Cashback</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--g800)' }}>
+              {cfg.cashback_bonus_amount_fixed != null
+                ? formatINRCompact(Number(cfg.cashback_bonus_amount_fixed))
+                : cfg.cashback_bonus_amount_percent != null
+                  ? cfg.cashback_bonus_amount_percent + '%'
+                  : '—'}
+              {cfg.cashback_bonus_amount_max != null && (
+                <span style={{ color: 'var(--g400)', fontWeight: 400 }}> · max {formatINRCompact(Number(cfg.cashback_bonus_amount_max))}</span>
+              )}
+            </span>
+          </div>
+        )}
+        {/* Validity Window */}
+        <div style={{ marginTop: 16, padding: '10px 0 4px' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--g400)' }}>Validity Window</span>
+          <ValidityBar start={cfg.start_date ?? ''} end={cfg.end_date ?? ''} />
         </div>
       </div>
 

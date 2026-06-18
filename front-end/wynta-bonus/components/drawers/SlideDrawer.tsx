@@ -51,6 +51,7 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   NEW_ELIGIBILITY: { title: "Add Eligibility Criterion", icon: "filter" },
   NEW_TRIGGER: { title: "Add Release Trigger", icon: "zap" },
   EDIT_TRIGGER: { title: "Edit Release Trigger", icon: "pencil" },
+  EDIT_CHUNKS: { title: "Edit Bonus Mechanics", icon: "layers" },
   EDIT_BUDGET: { title: "Manage Budget", icon: "wallet" },
   EDIT_OWNERS: { title: "Manage Owners", icon: "users" },
   NEW_MANUAL_BONUS: { title: "New Manual Campaign", icon: "send" },
@@ -296,6 +297,18 @@ export default function SlideDrawer() {
             } as unknown as import("../../types").BonusConfigure,
           }),
         ).unwrap();
+        dispatch(closeDrawer());
+      } else if (
+        drawerState?.type === "EDIT_CHUNKS" &&
+        drawerState.id != null
+      ) {
+        await dispatch(
+          updateConfigure({
+            id: drawerState.id,
+            patch: { ...data, updated_by: currentUser } as unknown as import("../../types").BonusConfigure,
+          }),
+        ).unwrap();
+        dispatch(fetchConfigure(drawerState.id));
         dispatch(closeDrawer());
       } else if (
         drawerState?.type === "EDIT_BUDGET" &&

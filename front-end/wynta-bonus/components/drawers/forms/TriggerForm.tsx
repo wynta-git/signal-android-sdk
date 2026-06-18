@@ -33,7 +33,6 @@ export default function TriggerForm({
 }: TriggerFormProps) {
   const isEdit = state.type === 'EDIT_TRIGGER';
   const existing = state.trigger;
-  const existingConfig = (existing?.trigger_config ?? {}) as Record<string, unknown>;
 
   const cfg = useAppSelector(
     state.parentId != null
@@ -45,22 +44,13 @@ export default function TriggerForm({
     useState<(typeof TRIGGER_TYPES)[number]>(
       (existing?.trigger_type as (typeof TRIGGER_TYPES)[number]) ?? "DEPOSIT"
     );
-  const [minAmount, setMinAmount] = useState(existingConfig.min_amount != null ? String(existingConfig.min_amount) : "");
-  const [maxAmount, setMaxAmount] = useState(existingConfig.max_amount != null ? String(existingConfig.max_amount) : "");
-  const [paymentMethod, setPaymentMethod] = useState((existingConfig.payment_method as string) ?? "");
-  const [product, setProduct] = useState((existingConfig.product as string) ?? "");
   const [active, setActive] = useState(existing?.active !== undefined ? Boolean(existing.active) : true);
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    const cfg: Record<string, unknown> = {};
-    if (minAmount) cfg.min_amount = Number(minAmount);
-    if (maxAmount) cfg.max_amount = Number(maxAmount);
-    if (paymentMethod) cfg.payment_method = paymentMethod;
-    if (product) cfg.product = product;
     onSubmit({
       trigger_type: triggerType,
-      trigger_config: Object.keys(cfg).length ? cfg : null,
+      trigger_config: null,
       active,
     });
   };
@@ -89,61 +79,6 @@ export default function TriggerForm({
                 {t}
               </button>
             ))}
-          </div>
-        </div>
-        <div className="field-group">
-          <div className="row-2">
-            <div>
-              <label>Min trigger amount (₹)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={minAmount}
-                onChange={(e) => setMinAmount(e.target.value)}
-                placeholder="500"
-              />
-            </div>
-            <div>
-              <label>Max trigger amount (₹)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={maxAmount}
-                onChange={(e) => setMaxAmount(e.target.value)}
-                placeholder="10000"
-              />
-            </div>
-          </div>
-        </div>
-        <div className="field-group">
-          <div className="row-2">
-            <div>
-              <label>Payment method</label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              >
-                <option value="">Any</option>
-                <option>UPI</option>
-                <option>NETBANKING</option>
-                <option>CARD</option>
-                <option>WALLET</option>
-              </select>
-            </div>
-            <div>
-              <label>Product</label>
-              <select
-                value={product}
-                onChange={(e) => setProduct(e.target.value)}
-              >
-                <option value="">Any</option>
-                <option>POKER</option>
-                <option>CASINO</option>
-                <option>RUMMY</option>
-              </select>
-            </div>
           </div>
         </div>
         <div className="field-group">
