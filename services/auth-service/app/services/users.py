@@ -2,7 +2,7 @@ import json
 
 from pydantic import BaseModel
 
-from shared.clients.mysql import get_connection
+from shared.clients.mysql import get_connection,POOL_COMMON
 from shared.clients.redis import get_str, set_with_ttl
 
 from app.cache import get_redis
@@ -38,7 +38,7 @@ async def get_users_by_site(site_id: int) -> list[UserResponse]:
     if cached:
         return [UserResponse.model_validate(row) for row in json.loads(cached)]
 
-    async with get_connection() as conn:
+    async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_SQL, (site_id,))
             rows = await cur.fetchall()
