@@ -80,7 +80,7 @@ interface ExtendedConfigure {
 }
 
 const TTYPE_COLORS: Record<string, { bg: string; color: string }> = {
-  DEPOSIT:         { bg: 'rgba(0,145,224,0.13)',   color: 'var(--blue)' },
+  DEPOSIT_SUCCESS: { bg: 'rgba(0,145,224,0.13)',   color: 'var(--blue)' },
   REGISTRATION:    { bg: 'rgba(16,185,129,0.13)',  color: 'var(--ok)' },
   PROMO_CODE:      { bg: 'rgba(16,185,129,0.13)',  color: 'var(--ok)' },
   MANUAL:          { bg: 'rgba(245,158,11,0.15)',  color: 'var(--warn)' },

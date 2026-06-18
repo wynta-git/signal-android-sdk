@@ -29,8 +29,8 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
       { id: 4, key: 'payment.method',      value: 'UPI,CARD',  value_type: 'ENUM',   description: 'UPI or card', active: true },
     ],
     triggers: [
-      { id: 1, trigger_type: 'DEPOSIT',  min_trigger_amount: '500',  max_trigger_amount: '10000', payment_method: 'UPI',  product: 'SLOTS', occurrence: 1, active: true },
-      { id: 2, trigger_type: 'DEPOSIT',  description: 'Via promo code WELCOME100', min_trigger_amount: '500',  max_trigger_amount: '10000', payment_method: null, product: 'SLOTS', occurrence: 1, active: true },
+      { id: 1, trigger_type: 'DEPOSIT_SUCCESS',  min_trigger_amount: '500',  max_trigger_amount: '10000', payment_method: 'UPI',  product: 'SLOTS', occurrence: 1, active: true },
+      { id: 2, trigger_type: 'DEPOSIT_SUCCESS',  description: 'Via promo code WELCOME100', min_trigger_amount: '500',  max_trigger_amount: '10000', payment_method: null, product: 'SLOTS', occurrence: 1, active: true },
     ],
     promo_codes: [],
     eligibilities: [],
@@ -58,7 +58,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
       { id: 6, key: 'player.first_deposit', value: 'true', value_type: 'BOOL', description: 'FTD only',    active: true },
     ],
     triggers: [
-      { id: 3, trigger_type: 'DEPOSIT', min_trigger_amount: '500', max_trigger_amount: '5000', payment_method: null, product: 'CASINO', occurrence: 1, active: true },
+      { id: 3, trigger_type: 'DEPOSIT_SUCCESS', min_trigger_amount: '500', max_trigger_amount: '5000', payment_method: null, product: 'CASINO', occurrence: 1, active: true },
     ],
     promo_codes: [],
     eligibilities: [],
@@ -83,7 +83,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
     ],
     eligibility: [],
     triggers: [
-      { id: 4, trigger_type: 'DEPOSIT', min_trigger_amount: '100', max_trigger_amount: '499', payment_method: null, product: null, occurrence: 1, active: true },
+      { id: 4, trigger_type: 'DEPOSIT_SUCCESS', min_trigger_amount: '100', max_trigger_amount: '499', payment_method: null, product: null, occurrence: 1, active: true },
     ],
     promo_codes: [],
     eligibilities: [],
@@ -219,7 +219,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
       { id: 11, key: 'day_of_week',          value: 'FRI',   value_type: 'STRING', description: 'Friday only',      active: true },
     ],
     triggers: [
-      { id: 6, trigger_type: 'DEPOSIT', description: 'Friday deposit via code FRIDAY50', min_trigger_amount: '500', max_trigger_amount: '10000', payment_method: null, product: 'SLOTS', occurrence: 1, active: true },
+      { id: 6, trigger_type: 'DEPOSIT_SUCCESS', description: 'Friday deposit via code FRIDAY50', min_trigger_amount: '500', max_trigger_amount: '10000', payment_method: null, product: 'SLOTS', occurrence: 1, active: true },
     ],
     promo_codes: [],
     eligibilities: [],
@@ -300,7 +300,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
       { id: 15, key: 'deposit.amount_min', value: '50000', value_type: 'NUMBER', description: 'Min ₹50,000', active: true },
     ],
     triggers: [
-      { id: 8, trigger_type: 'DEPOSIT', description: 'VIP first deposit via code VIP-WELCOME', min_trigger_amount: '50000', max_trigger_amount: '500000', payment_method: 'NETBANKING', product: null, occurrence: 1, active: true },
+      { id: 8, trigger_type: 'DEPOSIT_SUCCESS', description: 'VIP first deposit via code VIP-WELCOME', min_trigger_amount: '50000', max_trigger_amount: '500000', payment_method: 'NETBANKING', product: null, occurrence: 1, active: true },
     ],
     promo_codes: [],
     eligibilities: [],
@@ -328,7 +328,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
       { id: 16, key: 'deposit.amount_min', value: '50000', value_type: 'NUMBER', description: '₹50k floor', active: true },
     ],
     triggers: [
-      { id: 9, trigger_type: 'DEPOSIT', min_trigger_amount: '50000', max_trigger_amount: '5000000', payment_method: null, product: null, occurrence: 0, active: true },
+      { id: 9, trigger_type: 'DEPOSIT_SUCCESS', min_trigger_amount: '50000', max_trigger_amount: '5000000', payment_method: null, product: null, occurrence: 0, active: true },
     ],
     promo_codes: [],
     eligibilities: [],
@@ -372,7 +372,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
     triggers: [
       {
         id: 10,
-        trigger_type: 'DEPOSIT',
+        trigger_type: 'DEPOSIT_SUCCESS',
         description: 'First deposit — any amount',
         min_trigger_amount: '1',
         max_trigger_amount: '500000',
@@ -411,7 +411,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
     triggers: [
       {
         id: 11,
-        trigger_type: 'DEPOSIT',
+        trigger_type: 'DEPOSIT_SUCCESS',
         description: 'Min ₹1,000 deposit by April-born player',
         min_trigger_amount: '1000',
         max_trigger_amount: '500000',
@@ -463,7 +463,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
       },
       {
         id: 13,
-        trigger_type: 'DEPOSIT',
+        trigger_type: 'DEPOSIT_SUCCESS',
         description: 'Weekly settlement — Monday 10:00 IST',
         min_trigger_amount: '0',
         max_trigger_amount: '50000',
@@ -519,7 +519,7 @@ export const MOCK_CONFIGURES: Record<number, BonusConfigure> = {
     triggers: [
       {
         id: 14,
-        trigger_type: 'DEPOSIT',
+        trigger_type: 'DEPOSIT_SUCCESS',
         min_trigger_amount: '0',
         max_trigger_amount: '25000',
         payment_method: null,

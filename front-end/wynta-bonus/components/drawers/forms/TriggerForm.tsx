@@ -8,7 +8,7 @@ import DrawerFooter from "../../../components/drawers/DrawerFooter";
 import type { DrawerState } from "../../../types";
 
 const TRIGGER_TYPES = [
-  "DEPOSIT",
+  "DEPOSIT_SUCCESS",
   "REGISTRATION",
   "APP_VISIT",
   "BET_PLACED",
@@ -47,7 +47,7 @@ export default function TriggerForm({
   );
   const [triggerType, setTriggerType] =
     useState<(typeof TRIGGER_TYPES)[number]>(
-      (existing?.trigger_type as (typeof TRIGGER_TYPES)[number]) ?? "DEPOSIT"
+      (existing?.trigger_type as (typeof TRIGGER_TYPES)[number]) ?? "DEPOSIT_SUCCESS"
     );
   const [active, setActive] = useState(existing?.active !== undefined ? Boolean(existing.active) : true);
 

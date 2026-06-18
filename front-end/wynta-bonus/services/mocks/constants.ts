@@ -34,7 +34,7 @@ export const BRANDS = [
 ];
 
 export const FREQUENCIES: string[]    = ['EVERYTIME','ONCE','MONTHLY','WEEKLY'];
-export const TRIGGER_TYPES: string[]  = ['DEPOSIT','WAGER','LOSS','CODE'];
+export const TRIGGER_TYPES: string[]  = ['DEPOSIT_SUCCESS','WAGER','LOSS','CODE'];
 export const VALUE_TYPES: string[]    = ['STRING','NUMBER','BOOL','ENUM'];
 
 export const USAGE_PERIODS = [

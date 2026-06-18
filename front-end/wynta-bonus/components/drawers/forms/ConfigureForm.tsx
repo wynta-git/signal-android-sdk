@@ -33,7 +33,7 @@ const FREQUENCIES: { value: string; label: string; hint: string }[] = [
 ];
 
 const TRIGGER_TYPES = [
-  "DEPOSIT",
+  "DEPOSIT_SUCCESS",
   "REGISTRATION",
   "APP_VISIT",
   "BET_PLACED",
@@ -286,7 +286,7 @@ export default function ConfigureForm({
 
   // ── Step 2 (trigger part) ─────────────────────────────────────────────────
   const [triggerEnabled, setTriggerEnabled] = useState(false);
-  const [triggerType, setTriggerType] = useState<string>("DEPOSIT");
+  const [triggerType, setTriggerType] = useState<string>("DEPOSIT_SUCCESS");
   const [triggerConfigRows, setTriggerConfigRows] = useState<
     { key: string; value: string }[]
   >([]);

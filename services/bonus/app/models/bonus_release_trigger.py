@@ -15,7 +15,7 @@ TriggerType = Literal[
     "LOGIN",
     "REGISTRATION",
     "APP_VISIT",
-    "DEPOSIT",
+    "DEPOSIT_SUCCESS",
     "BET_PLACED",
     "LEADERBOARD_WON",
     "TOURNAMENT_WON",
