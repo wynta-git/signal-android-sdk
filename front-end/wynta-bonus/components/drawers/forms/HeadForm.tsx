@@ -127,8 +127,8 @@ export default function HeadForm({
               Select owner…
             </option>
             {users.map((u) => (
-              <option key={u.id} value={u.username}>
-                {u.username} — {u.user_type}
+              <option key={u.id} value={u.display_name}>
+                {u.display_name} — {u.role}
               </option>
             ))}
           </select>

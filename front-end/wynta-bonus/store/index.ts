@@ -21,23 +21,13 @@ import usersReducer, {
 } from "wynta-react-common/store/slices/usersSlice";
 import type { SelectedNode } from "../types";
 
-function decodeJwtPayload(token: string): Record<string, unknown> {
-  try {
-    return JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-  } catch {
-    return {};
-  }
-}
 
 const initOnAuthMiddleware: Middleware = (storeApi) => (next) => (action) => {
   const result = next(action);
 
-  if (action.type === "users/auth/fulfilled") {
-    // Auth token is now registered — safe to fetch brand-gated data.
-    // Decode the portal JWT to get project_id for the brands query.
-    const portalToken: string | undefined = (action as { payload?: { data?: { token?: string } } }).payload?.data?.token;
-    const programId = portalToken ? Number(decodeJwtPayload(portalToken).project_id) || 1 : 1;
-    storeApi.dispatch(fetchBrands(programId) as never);
+  const typedAction = action as { type?: string; payload?: { data?: { token?: string } } };
+  if (typedAction.type === "users/auth/fulfilled") {
+    storeApi.dispatch(fetchBrands() as never);
     storeApi.dispatch(fetchSegments() as never);
   }
   return result;

@@ -36,8 +36,8 @@ const initialState: UsersState = {
 
 // ── Thunks ────────────────────────────────────────────────────────────────────
 
-export const fetchUsers = createAsyncThunk<SystemUser[]>("users/fetchAll", () =>
-  api.fetchUsers(),
+export const fetchUsers = createAsyncThunk<SystemUser[], number>("users/fetchAll", (siteId) =>
+  api.fetchUsers(siteId),
 );
 
 export const authenticateWithBridgeToken = createAsyncThunk<

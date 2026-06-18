@@ -55,6 +55,7 @@ CREATE TABLE `bonus_release_trigger` (
     -- references bonus_configure.id
     `site_id`        INT            NOT NULL,
     `trigger_type`   VARCHAR(50)    NOT NULL,
+    `release_type` VARCHAR(20) NOT NULL DEFAULT 'BONUS_RELEASE',
     -- DEPOSIT | REGISTRATION | MANUAL | REFERRAL | PROMO_CODE | MILESTONE | …
     `trigger_config` JSON           DEFAULT NULL,
     -- free-form key-value qualifying conditions

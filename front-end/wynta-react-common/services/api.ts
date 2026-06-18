@@ -15,8 +15,8 @@ function authHeaders(): HeadersInit {
 }
 
 export const api = {
-  async fetchUsers(): Promise<SystemUser[]> {
-    const res = await fetch(`${AUTH_API}/users`, { headers: authHeaders() });
+  async fetchUsers(siteId: number): Promise<SystemUser[]> {
+    const res = await fetch(`${AUTH_API}/users?site_id=${siteId}`, { headers: authHeaders() });
     if (!res.ok) throw new Error("Failed to fetch users");
     return res.json();
   },

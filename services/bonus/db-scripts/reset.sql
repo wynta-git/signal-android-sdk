@@ -329,7 +329,7 @@ CREATE TABLE `bonus_manual_bulk_pending` (
     `bulk_grant_id`        BIGINT        NOT NULL,
     -- references bonus_manual_bulk_grant.id
     `site_id`              INT           NOT NULL,
-    `user_id`              VARCHAR(50)   NOT NULL,
+    `pam_user_id`          VARCHAR(50)   NOT NULL,
     -- player to receive the bonus
     `bonus_grant_id`       BIGINT        DEFAULT NULL,
     -- references bonus_grant.id; populated on successful processing
@@ -343,10 +343,10 @@ CREATE TABLE `bonus_manual_bulk_pending` (
     `processed_at`         DATETIME      DEFAULT NULL,
     -- timestamp when this record was last attempted
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bulk_pending_grant_user`       (`bulk_grant_id`, `user_id`),
+    UNIQUE KEY `uk_bulk_pending_grant_user`       (`bulk_grant_id`, `pam_user_id`),
     KEY `idx_bulk_pending_bulk_grant_id`          (`bulk_grant_id`),
     KEY `idx_bulk_pending_site_status`            (`site_id`, `status`),
-    KEY `idx_bulk_pending_user_id`                (`user_id`),
+    KEY `idx_bulk_pending_pam_user_id`            (`pam_user_id`),
     KEY `idx_bulk_pending_expire_at`              (`expire_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -364,7 +364,7 @@ CREATE TABLE `bonus_grant` (
     `head_id`            INT           NOT NULL,
     -- references bonus_head.id
     `site_id`            INT           NOT NULL,
-    `user_id`            VARCHAR(50)   NOT NULL,
+    `pam_user_id`        VARCHAR(50)   NOT NULL,
 
     -- ── Config snapshot (copied from bonus_configure at grant time) ───────────
     `bonus_code`         VARCHAR(50)   DEFAULT NULL,
@@ -407,7 +407,7 @@ CREATE TABLE `bonus_grant` (
     KEY `idx_bonus_grant_configure_id`           (`configure_id`),
     KEY `idx_bonus_grant_subhead_id`             (`subhead_id`),
     KEY `idx_bonus_grant_head_id`                (`head_id`),
-    KEY `idx_bonus_grant_user_id`                (`user_id`),
+    KEY `idx_bonus_grant_pam_user_id`            (`pam_user_id`),
     KEY `idx_bonus_grant_site_date`              (`site_id`, `created_at`),
     KEY `idx_bonus_grant_bonus_code`             (`bonus_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

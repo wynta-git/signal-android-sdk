@@ -19,9 +19,8 @@ export interface Brand {
 
 export interface SystemUser {
   id: number;
-  username: string;
-  email: string;
-  user_type: string;
+  display_name: string;
+  role: string;
 }
 
 export interface AuthResponse {

@@ -98,10 +98,6 @@ export default function BonusAdminApp() {
   const prevBrandRef = useRef<number | null>(null);
 
   useEffect(() => {
-    dispatch(fetchUsers());
-  }, [dispatch]);
-
-  useEffect(() => {
     console.log(
       "selectedBrand changed:",
       selectedBrand,
@@ -114,6 +110,7 @@ export default function BonusAdminApp() {
     prevBrandRef.current = selectedBrand;
     const nodeAtLoad = isSwitch ? null : selectedNode;
 
+    dispatch(fetchUsers(selectedBrand));
     dispatch(fetchHeads(selectedBrand))
       .unwrap()
       .then((list) => {

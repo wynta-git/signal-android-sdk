@@ -58,7 +58,7 @@ export default function OwnersForm({ state, submitting, onCancel, onSubmit }: Ow
   // Selectable usernames: system users plus anything already assigned
   // (older records may reference users that no longer exist in the list).
   const usernameOptions = Array.from(
-    new Set([...users.map((u) => u.username), ...existing.map((o) => o.username)]),
+    new Set([...users.map((u) => u.display_name), ...existing.map((o) => o.username)]),
   ).sort();
 
   const handle = (e: React.FormEvent) => {
