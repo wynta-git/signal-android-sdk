@@ -236,8 +236,8 @@ export default function CampaignStatsReport({ onOpenBuilder }: Props) {
   const s = data?.summary;
   const summaryCards: CardProps[] = [
     { label: 'Total Sent',          value: fmt(s?.total_sent?.value),                    change: s?.total_sent?.change_pct },
-    { label: 'Avg Open Rate',       value: s?.avg_open_rate?.tracked ? `${s.avg_open_rate.value}%` : '—', change: s?.avg_open_rate?.change_pct },
-    { label: 'Avg CTR',             value: s?.avg_ctr?.tracked ? `${s.avg_ctr.value}%` : '—',             change: s?.avg_ctr?.change_pct },
+    { label: 'Avg Open Rate',       value: s?.avg_open_rate?.tracked ? fmtPct(s.avg_open_rate.value) : '—', change: s?.avg_open_rate?.change_pct },
+    { label: 'Avg CTR',             value: s?.avg_ctr?.tracked ? fmtPct(s.avg_ctr.value) : '—',             change: s?.avg_ctr?.change_pct },
     { label: 'Conversions',         value: fmt(s?.conversions?.value),                  change: s?.conversions?.change_pct },
     { label: 'Revenue Influenced',  value: fmt(s?.revenue_influenced?.value, true),     change: s?.revenue_influenced?.change_pct },
   ];
