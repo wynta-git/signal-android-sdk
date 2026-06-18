@@ -1,8 +1,8 @@
 'use client';
 import React from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { createEligibility, deleteTrigger, fetchConfigure } from '../../store/slices/configuresSlice';
-import { openDrawer } from '../../store/slices/uiSlice';
+import { createEligibility, fetchConfigure } from '../../store/slices/configuresSlice';
+import TriggerRow from './TriggerRow';
 import Icon from 'wynta-react-common/components/Icon';
 import Badge from 'wynta-react-common/components/Badge';
 import Toggle from 'wynta-react-common/components/Toggle';
@@ -219,37 +219,7 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
           No triggers — bonus cannot release until a trigger is configured.
         </div>
       ) : (cfg.triggers ?? []).map(t => (
-        <div key={t.id} className="trigger-row">
-          <span className={'ttype ' + t.trigger_type}>{t.trigger_type}</span>
-          <div className="tinfo">
-            <div className="occ">
-              {t.occurrence === 0 ? 'Every occurrence' : t.occurrence === 1 ? 'First only' : t.occurrence != null ? `Occurrence #${t.occurrence}` : '—'}
-            </div>
-            <div className="meta">
-              {formatINRCompact(Number(t.min_trigger_amount ?? 0))} – {formatINRCompact(Number(t.max_trigger_amount ?? 0))} ·
-              {' '}{t.payment_method ?? 'ANY'} · {t.product ?? 'ANY'}
-              {t.description && <> · <span style={{ color: 'var(--g500)' }}>{t.description}</span></>}
-            </div>
-          </div>
-          <Badge active={t.active}/>
-          <button
-            className="btn btn-ghost btn-sm btn-icon-only"
-            title="Edit trigger"
-            onClick={() => dispatch(openDrawer({ type: 'EDIT_TRIGGER', id: t.id, parentId: cfg.id, trigger: t as unknown as Record<string, unknown> }))}
-          >
-            <Icon name="pencil" size={12}/>
-          </button>
-          <button
-            className="btn btn-ghost btn-sm btn-icon-only"
-            title="Delete trigger"
-            onClick={async () => {
-              if (!window.confirm(`Delete ${t.trigger_type} trigger?`)) return;
-              await dispatch(deleteTrigger({ triggerId: t.id, configureId: cfg.id }));
-            }}
-          >
-            <Icon name="trash-2" size={12}/>
-          </button>
-        </div>
+        <TriggerRow key={t.id} trigger={t as Parameters<typeof TriggerRow>[0]['trigger']} configureId={cfg.id} />
       ))}
       <button
         className="btn btn-secondary btn-sm"
