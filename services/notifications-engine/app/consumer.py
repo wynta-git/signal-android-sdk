@@ -165,7 +165,7 @@ async def handle_send_job(
         title=rendered.title,
         body=rendered.body,
         image_url=rendered.image_url,
-        extra={},
+        extra={"campaign_id": job.campaign_id, "campaign_run_id": job.campaign_run_id},
     )
 
     # 5. Fan-out: one delivery per device token

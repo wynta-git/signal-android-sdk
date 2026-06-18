@@ -238,6 +238,7 @@ async def get_campaign_stats(
     project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
+    ch: ChDep,
     window_days: int = Query(default=7, ge=1, le=90),
     channel: str = Query(default="all"),
     segment_id: str | None = Query(default=None),
@@ -261,6 +262,7 @@ async def get_campaign_stats(
     (
         curr_raw, prev_raw,
         campaign_docs, run_rows,
+        ch_events_by_campaign,
     ) = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now),
         get_dashboard_delivery_stats(db, project_id, prev_since, since),
@@ -270,6 +272,7 @@ async def get_campaign_stats(
             {"$match": {"project_id": project_id}},
             {"$group": {"_id": "$campaign_id", "total_sent": {"$sum": "$sent_count"}}},
         ]).to_list(length=None),
+        _query_notification_events_by_campaign(ch, project_id, since, until=now),
     )
 
     # ── Summary ─────────────────────────────────────────────────────────────
@@ -279,14 +282,24 @@ async def get_campaign_stats(
     curr_sent = _sum_status(curr, "sent")
     prev_sent = _sum_status(prev, "sent")
 
+    total_opens  = sum(v["opens"]  for v in ch_events_by_campaign.values())
+    total_clicks = sum(v["clicks"] for v in ch_events_by_campaign.values())
+    tracked = bool(ch_events_by_campaign)
+
     summary = {
         "total_sent": {
             "value":      curr_sent,
             "change_pct": _change_pct(curr_sent, prev_sent),
         },
-        "avg_open_rate":     {"value": None, "tracked": False},
-        "avg_ctr":           {"value": None, "tracked": False},
-        "conversions":       {"value": None, "tracked": False},
+        "avg_open_rate": {
+            "value":   _safe_rate(total_opens, curr_sent),
+            "tracked": tracked,
+        },
+        "avg_ctr": {
+            "value":   _safe_rate(total_clicks, curr_sent),
+            "tracked": tracked,
+        },
+        "conversions":        {"value": None, "tracked": False},
         "revenue_influenced": {"value": None, "tracked": False},
     }
 
@@ -296,14 +309,14 @@ async def get_campaign_stats(
     trend: list[dict] = []
     for date_str in window_dates:
         real_by_ch: dict[str, int] = {}
-        for ch, statuses in curr.items():
+        for ch_key, statuses in curr.items():
             for st, dates in statuses.items():
                 if st == "sent" and date_str in dates:
-                    real_by_ch[ch] = real_by_ch.get(ch, 0) + dates[date_str]
+                    real_by_ch[ch_key] = real_by_ch.get(ch_key, 0) + dates[date_str]
 
         point: dict[str, Any] = {"date": date_str}
-        for tier, ch in zip(_TIER_LABELS, _CHANNEL_TIERS):
-            point[tier] = real_by_ch.get(ch, 0)
+        for tier, ch_key in zip(_TIER_LABELS, _CHANNEL_TIERS):
+            point[tier] = real_by_ch.get(ch_key, 0)
         trend.append(point)
 
     # ── Campaign table ────────────────────────────────────────────────────────
@@ -311,13 +324,15 @@ async def get_campaign_stats(
     campaigns_out = []
     for d in campaign_docs:
         cid = d["campaign_id"]
+        sent = sent_by_campaign.get(cid, 0)
+        ev   = ch_events_by_campaign.get(cid, {})
         campaigns_out.append({
             "campaign_id": cid,
             "name":        d["name"],
             "channel":     d["channel"],
-            "sent":        sent_by_campaign.get(cid, 0),
-            "open_rate":   None,
-            "ctr":         None,
+            "sent":        sent,
+            "open_rate":   _safe_rate(ev.get("opens", 0), sent),
+            "ctr":         _safe_rate(ev.get("clicks", 0), sent),
             "conversions": None,
             "status":      d["status"],
         })
@@ -336,6 +351,41 @@ async def get_campaign_stats(
 # ---------------------------------------------------------------------------
 
 _ALL_CHANNELS = ("email", "push", "sms", "whatsapp", "telegram", "in_app")
+
+
+async def _query_notification_events_by_campaign(
+    ch: Any,
+    project_id: str,
+    since: datetime,
+    until: datetime,
+) -> dict[str, dict[str, int]]:
+    """Query ClickHouse for notification_opened/clicked counts per campaign_id.
+
+    Returns {campaign_id: {opens: N, clicks: N}}. Returns {} on error.
+    """
+    tbl = _ch_table(project_id)
+    query = f"""
+        SELECT
+            campaign_id,
+            countIf(event_name = 'notification_opened')  AS opens,
+            countIf(event_name = 'notification_clicked') AS clicks
+        FROM {tbl}
+        WHERE event_name IN ('notification_opened', 'notification_clicked')
+          AND timestamp >= {{since:DateTime}}
+          AND timestamp <  {{until:DateTime}}
+          AND campaign_id IS NOT NULL
+        GROUP BY campaign_id
+    """
+    try:
+        result = await ch.query(query, parameters={"since": since, "until": until})
+        return {
+            row["campaign_id"]: {"opens": int(row["opens"]), "clicks": int(row["clicks"])}
+            for row in result.named_results()
+            if row.get("campaign_id")
+        }
+    except Exception:
+        log.warning("clickhouse.notification_events_by_campaign.failed", project_id=project_id)
+        return {}
 
 
 async def _query_notification_events(
