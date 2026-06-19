@@ -3,323 +3,122 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PAM — End-to-End Demo</title>
+  <title>PAM — End-to-End Demo (20 Users)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --bg: #f5f6fa;
-      --surface: #ffffff;
-      --surface2: #f0f1f5;
-      --border: #dde1ea;
-      --accent: #4f46e5;
-      --accent2: #7c3aed;
-      --text: #1a1d2e;
-      --text-dim: #7c84a0;
-      --green: #16a34a;
-      --green-bg: #f0fdf4;
-      --red: #dc2626;
-      --red-bg: #fef2f2;
-      --blue: #2563eb;
-      --blue-bg: #eff6ff;
+      --bg: #f5f6fa; --surface: #ffffff; --surface2: #f0f1f5;
+      --border: #dde1ea; --accent: #4f46e5; --accent2: #7c3aed;
+      --text: #1a1d2e; --text-dim: #7c84a0;
+      --green: #16a34a; --green-bg: #f0fdf4;
+      --red: #dc2626; --red-bg: #fef2f2;
+      --blue: #2563eb; --blue-bg: #eff6ff;
       --orange: #ea580c;
       --mono: 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
       --radius: 10px;
     }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* ── Header ── */
-    .header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 14px 24px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 1px 4px rgba(0,0,0,.06);
-    }
-
-    .header-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-right: 8px;
-    }
-
-    .header-brand .logo {
-      width: 32px; height: 32px;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      color: #fff; font-weight: 900; font-size: 14px; letter-spacing: -1px;
-    }
-
-    .header-brand h1 {
-      font-size: 16px; font-weight: 800;
-      color: var(--accent); letter-spacing: .5px;
-    }
-
-    .header-brand .subtitle {
-      font-size: 11px; color: var(--text-dim); font-weight: 500;
-    }
-
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    .header-brand { display: flex; align-items: center; gap: 10px; margin-right: 8px; }
+    .header-brand .logo { width: 32px; height: 32px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 14px; letter-spacing: -1px; }
+    .header-brand h1 { font-size: 16px; font-weight: 800; color: var(--accent); letter-spacing: .5px; }
+    .header-brand .subtitle { font-size: 11px; color: var(--text-dim); font-weight: 500; }
     .cfg { display: flex; flex-direction: column; gap: 2px; }
     .cfg label { font-size: 10px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
-    .cfg input {
-      border: 1px solid var(--border); border-radius: 6px;
-      padding: 5px 8px; font-size: 12px; font-family: var(--mono);
-      color: var(--text); background: var(--surface2);
-      width: 200px; outline: none;
-    }
+    .cfg input { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 12px; font-family: var(--mono); color: var(--text); background: var(--surface2); width: 200px; outline: none; }
     .cfg input:focus { border-color: var(--accent); }
-
     .header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-
-    .btn {
-      padding: 8px 16px; border-radius: 7px; font-size: 13px;
-      font-weight: 600; cursor: pointer; border: none;
-      transition: all .15s; white-space: nowrap;
-    }
+    .btn { padding: 8px 16px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all .15s; white-space: nowrap; }
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { background: #4338ca; }
     .btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
     .btn-ghost { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
     .btn-ghost:hover { color: var(--text); border-color: #b0b8cc; }
-
-    /* ── Pipeline diagram ── */
-    .pipeline-bar {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 12px 24px;
-      display: flex;
-      align-items: center;
-      gap: 0;
-      overflow-x: auto;
-    }
-
-    .pipe-node {
-      display: flex; flex-direction: column; align-items: center; gap: 3px;
-      padding: 6px 12px; border-radius: 8px;
-      font-size: 11px; font-weight: 600; color: var(--text-dim);
-      background: var(--surface2); border: 1px solid var(--border);
-      white-space: nowrap; min-width: 80px; text-align: center;
-      transition: all .2s;
-    }
+    .pipeline-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 0; overflow-x: auto; }
+    .pipe-node { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); white-space: nowrap; min-width: 80px; text-align: center; transition: all .2s; }
     .pipe-node .node-icon { font-size: 16px; }
     .pipe-node.active { background: var(--blue-bg); border-color: var(--blue); color: var(--blue); }
     .pipe-node.done { background: var(--green-bg); border-color: var(--green); color: var(--green); }
     .pipe-node.error { background: var(--red-bg); border-color: var(--red); color: var(--red); }
-
-    .pipe-arrow {
-      color: var(--border); font-size: 18px; padding: 0 4px;
-      flex-shrink: 0; font-weight: 300;
-    }
-
-    /* ── Main layout ── */
-    .main {
-      display: flex;
-      flex: 1;
-      gap: 0;
-    }
-
-    /* ── Steps sidebar ── */
-    .steps-nav {
-      width: 200px; flex-shrink: 0;
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      padding: 16px 0;
-      position: sticky;
-      top: 113px;
-      height: calc(100vh - 113px);
-      overflow-y: auto;
-    }
-
-    .steps-nav-title {
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .8px; color: var(--text-dim);
-      padding: 0 16px 8px;
-    }
-
-    .nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 16px; cursor: pointer;
-      font-size: 12px; color: var(--text-dim);
-      transition: background .1s;
-    }
+    .pipe-arrow { color: var(--border); font-size: 18px; padding: 0 4px; flex-shrink: 0; font-weight: 300; }
+    .main { display: flex; flex: 1; gap: 0; }
+    .steps-nav { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); padding: 16px 0; position: sticky; top: 113px; height: calc(100vh - 113px); overflow-y: auto; }
+    .steps-nav-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--text-dim); padding: 0 16px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 16px; cursor: pointer; font-size: 12px; color: var(--text-dim); transition: background .1s; }
     .nav-item:hover { background: var(--surface2); color: var(--text); }
     .nav-item.active { background: var(--blue-bg); color: var(--blue); font-weight: 600; }
     .nav-item.done { color: var(--green); }
     .nav-item.error { color: var(--red); }
-
-    .nav-dot {
-      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-      background: var(--border);
-    }
+    .nav-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--border); }
     .nav-item.active .nav-dot { background: var(--blue); }
     .nav-item.done .nav-dot { background: var(--green); }
     .nav-item.error .nav-dot { background: var(--red); }
     .nav-item.running .nav-dot { background: var(--blue); animation: pulse 1s infinite; }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: .5; transform: scale(1.3); }
-    }
-
-    /* ── Steps content ── */
-    .steps-content {
-      flex: 1;
-      padding: 20px 24px;
-      overflow-y: auto;
-      max-width: 860px;
-    }
-
-    .step-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      margin-bottom: 12px;
-      overflow: hidden;
-      transition: box-shadow .2s;
-    }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.3); } }
+    .steps-content { flex: 1; padding: 20px 24px; overflow-y: auto; max-width: 880px; }
+    .step-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; transition: box-shadow .2s; }
     .step-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.06); }
     .step-card.active { border-color: var(--blue); }
     .step-card.done { border-color: var(--green); }
     .step-card.error { border-color: var(--red); }
-
-    .step-header {
-      display: flex; align-items: center; gap: 12px;
-      padding: 14px 16px; cursor: pointer;
-    }
-
-    .step-num {
-      width: 28px; height: 28px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 700; flex-shrink: 0;
-      background: var(--surface2); color: var(--text-dim);
-    }
+    .step-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; background: var(--surface2); color: var(--text-dim); }
     .step-card.active .step-num { background: var(--blue-bg); color: var(--blue); }
     .step-card.done .step-num { background: var(--green-bg); color: var(--green); }
     .step-card.error .step-num { background: var(--red-bg); color: var(--red); }
     .step-card.running .step-num { background: var(--blue-bg); color: var(--blue); animation: pulse 1s infinite; }
-
     .step-meta { flex: 1; }
     .step-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
     .step-desc { font-size: 12px; color: var(--text-dim); }
-
-    .step-status {
-      font-size: 11px; font-weight: 600; padding: 3px 10px;
-      border-radius: 20px; flex-shrink: 0;
-    }
-    .step-card.active .step-status, .step-card.running .step-status {
-      background: var(--blue-bg); color: var(--blue);
-    }
+    .step-status { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; flex-shrink: 0; }
+    .step-card.active .step-status, .step-card.running .step-status { background: var(--blue-bg); color: var(--blue); }
     .step-card.done .step-status { background: var(--green-bg); color: var(--green); }
     .step-card.error .step-status { background: var(--red-bg); color: var(--red); }
-    .step-card:not(.active):not(.done):not(.error):not(.running) .step-status {
-      background: var(--surface2); color: var(--text-dim);
-    }
-
-    .step-body {
-      display: none;
-      padding: 0 16px 16px;
-      border-top: 1px solid var(--border);
-    }
+    .step-card:not(.active):not(.done):not(.error):not(.running) .step-status { background: var(--surface2); color: var(--text-dim); }
+    .step-body { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
     .step-body.open { display: block; }
-
-    .endpoint-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 6px; padding: 4px 10px;
-      font-size: 11px; font-family: var(--mono);
-      color: var(--text-dim); margin: 12px 0 8px;
-    }
+    .endpoint-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 11px; font-family: var(--mono); color: var(--text-dim); margin: 12px 0 8px; }
     .method { font-weight: 700; }
     .method.POST { color: var(--blue); }
     .method.GET { color: var(--green); }
-
-    .section-label {
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .5px; color: var(--text-dim); margin-bottom: 4px; margin-top: 10px;
-    }
-
-    .code-block {
-      background: #1e1e2e; color: #cdd6f4;
-      border-radius: 7px; padding: 12px;
-      font-size: 12px; font-family: var(--mono);
-      overflow-x: auto; white-space: pre;
-      line-height: 1.6;
-    }
+    .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); margin-bottom: 4px; margin-top: 10px; }
+    .code-block { background: #1e1e2e; color: #cdd6f4; border-radius: 7px; padding: 12px; font-size: 12px; font-family: var(--mono); overflow-x: auto; white-space: pre; line-height: 1.6; }
     .code-block.response-ok { border-left: 3px solid var(--green); }
     .code-block.response-err { border-left: 3px solid var(--red); }
-
     .multi-endpoint { display: flex; flex-direction: column; gap: 8px; }
-    .endpoint-row {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 12px; font-family: var(--mono);
-    }
+    .endpoint-row { display: flex; align-items: center; gap: 8px; font-size: 12px; font-family: var(--mono); }
     .svc-status { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
     .svc-status.ok { background: var(--green); }
     .svc-status.err { background: var(--red); }
     .svc-status.checking { background: var(--blue); animation: pulse 1s infinite; }
-
-    .verify-box {
-      background: #1e1e2e; color: #cdd6f4;
-      border-radius: 7px; padding: 12px;
-      font-size: 12px; font-family: var(--mono);
-      border-left: 3px solid var(--orange);
-    }
-
-    .tag { display: inline-block; font-size: 10px; font-weight: 600;
-      padding: 2px 7px; border-radius: 4px; }
-    .tag-push { background: #ede9fe; color: #6d28d9; }
-    .tag-event { background: #dbeafe; color: #1d4ed8; }
-
-    .summary-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-      margin-top: 10px;
-    }
-    .summary-cell {
-      background: var(--surface2); border-radius: 7px; padding: 10px;
-      text-align: center;
-    }
+    .verify-box { background: #1e1e2e; color: #cdd6f4; border-radius: 7px; padding: 12px; font-size: 12px; font-family: var(--mono); border-left: 3px solid var(--orange); }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    .summary-cell { background: var(--surface2); border-radius: 7px; padding: 10px; text-align: center; }
     .summary-cell .val { font-size: 22px; font-weight: 800; color: var(--accent); }
     .summary-cell .lbl { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-
-    /* ── Progress bar ── */
-    .progress-wrap {
-      background: var(--border); border-radius: 3px; height: 4px;
-      margin-top: 4px; overflow: hidden;
-    }
-    .progress-bar {
-      height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
-      border-radius: 3px; transition: width .4s ease;
-    }
+    .progress-wrap { background: var(--border); border-radius: 3px; height: 4px; margin-top: 4px; overflow: hidden; }
+    .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 3px; transition: width .4s ease; }
+    .user-tier-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-right: 4px; }
+    .tier-vip { background: #fef3c7; color: #b45309; }
+    .tier-regular { background: #dbeafe; color: #1d4ed8; }
+    .tier-withdrawer { background: #fce7f3; color: #9d174d; }
+    .tier-new { background: #f0fdf4; color: #166534; }
+    .info-box { border-radius: 8px; padding: 10px 14px; font-size: 12px; line-height: 1.7; margin-bottom: 8px; }
+    .info-box.blue { background: var(--blue-bg); border: 1px solid #bfdbfe; }
+    .info-box.green { background: var(--green-bg); border: 1px solid #bbf7d0; }
+    .info-box.orange { background: #fff7ed; border: 1px solid #fed7aa; }
   </style>
 </head>
 <body>
 
-<!-- ── Header ── -->
 <div class="header">
   <div class="header-brand">
     <div class="logo">P</div>
     <div>
       <h1>PAM Platform</h1>
-      <div class="subtitle">End-to-End Demo</div>
+      <div class="subtitle">End-to-End Demo — 20 Users</div>
     </div>
   </div>
-
   <div class="cfg">
     <label>Host</label>
     <input id="cfgHost" value="http://3.7.48.14" placeholder="http://3.7.48.14">
@@ -330,21 +129,16 @@
   </div>
   <div class="cfg">
     <label>Service Account</label>
-    <input id="cfgSvcUser" value="portal-ui" style="width:140px">
+    <input id="cfgSvcUser" value="portal-ui" style="width:130px">
   </div>
   <div class="cfg">
     <label>Password</label>
-    <input id="cfgSvcPass" value="glgportal2026" type="password" style="width:140px">
+    <input id="cfgSvcPass" value="glgportal2026" type="password" style="width:130px">
   </div>
   <div class="cfg">
     <label>Project ID</label>
-    <input id="cfgProject" value="proj_demo" style="width:100px">
+    <input id="cfgProject" value="proj_demo" style="width:90px">
   </div>
-  <div class="cfg">
-    <label>Test User ID</label>
-    <input id="cfgUser1" value="user001" style="width:100px">
-  </div>
-
   <div class="header-actions">
     <div style="text-align:right">
       <div style="font-size:11px;color:var(--text-dim)" id="progressLabel">Ready</div>
@@ -353,11 +147,10 @@
       </div>
     </div>
     <button class="btn btn-ghost" onclick="resetDemo()">Reset</button>
-    <button class="btn btn-primary" id="runBtn" onclick="runAll()">▶ Run Full Demo</button>
+    <button class="btn btn-primary" id="runBtn" onclick="runAll()">&#9654; Run Full Demo</button>
   </div>
 </div>
 
-<!-- ── Pipeline diagram ── -->
 <div class="pipeline-bar">
   <div class="pipe-node" id="pipe-api"><span class="node-icon">📡</span>API Service</div>
   <div class="pipe-arrow">→</div>
@@ -374,26 +167,20 @@
   <div class="pipe-node" id="pipe-notif"><span class="node-icon">🔔</span>Notifications</div>
 </div>
 
-<!-- ── Main ── -->
 <div class="main">
-
-  <!-- Sidebar nav -->
   <div class="steps-nav">
     <div class="steps-nav-title">Steps</div>
     <div id="stepsNav"></div>
   </div>
-
-  <!-- Steps content -->
   <div class="steps-content" id="stepsContent"></div>
-
 </div>
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
   portalJwt: null,
-  segmentId: null,
-  campaignId: null,
+  segments: { buyers: null, hvd: null, gamers: null, withdrawers: null },
+  campaigns: { purchase: null, hvd: null, reengagement: null },
   templateId: null,
   runId: Date.now().toString(36),
 };
@@ -404,119 +191,46 @@ const token   = () => cfg('cfgToken');
 const svcUser = () => cfg('cfgSvcUser');
 const svcPass = () => cfg('cfgSvcPass');
 const projId  = () => cfg('cfgProject');
-const demoUser1 = () => cfg('cfgUser1') || `demo_${state.runId}_001`;
-const demoUser2 = () => `demo_${state.runId}_002`;
 
-// ── Step definitions ────────────────────────────────────────────────────────
-const STEPS = [
-  {
-    id: 'health',
-    title: 'Health Check',
-    desc: 'Verify all services are reachable and healthy',
-    pipeNodes: ['pipe-api'],
-    run: stepHealth,
-  },
-  {
-    id: 'jwt',
-    title: 'Get Portal JWT',
-    desc: 'Authenticate with auth-service to get a signed JWT for internal APIs',
-    pipeNodes: [],
-    run: stepGetJwt,
-  },
-  {
-    id: 'track',
-    title: 'Track Events',
-    desc: 'Send app_opened, screen_viewed, and purchase_completed events for two demo users',
-    pipeNodes: ['pipe-api', 'pipe-kafka'],
-    run: stepTrackEvents,
-  },
-  {
-    id: 'identify',
-    title: 'Identify Users',
-    desc: 'Upsert user profiles with plan, country, and level traits into MongoDB',
-    pipeNodes: ['pipe-api', 'pipe-mongo'],
-    run: stepIdentify,
-  },
-  {
-    id: 'deposits',
-    title: 'Track Deposit Events',
-    desc: 'Send deposit_success events with amounts for both demo users — populates ClickHouse amount column for report metrics',
-    pipeNodes: ['pipe-api', 'pipe-kafka', 'pipe-ch'],
-    run: stepDepositEvents,
-  },
-  {
-    id: 'segment',
-    title: 'Create Segment',
-    desc: 'Define a "Demo Buyers" segment matching users who completed a purchase in the last 30 days',
-    pipeNodes: ['pipe-seg'],
-    run: stepCreateSegment,
-  },
-  {
-    id: 'evaluate',
-    title: 'Evaluate Segment',
-    desc: 'Run evaluation — queries ClickHouse events and MongoDB traits to compute membership',
-    pipeNodes: ['pipe-seg', 'pipe-ch', 'pipe-mongo'],
-    run: stepEvaluate,
-  },
-  {
-    id: 'membership',
-    title: 'Check Membership',
-    desc: 'Verify which demo users are inside (and outside) the segment',
-    pipeNodes: ['pipe-seg'],
-    run: stepMembership,
-  },
-  {
-    id: 'template',
-    title: 'Create Notification Template',
-    desc: 'Create a push notification template with personalised title and body',
-    pipeNodes: ['pipe-camp'],
-    run: stepCreateTemplate,
-  },
-  {
-    id: 'campaign',
-    title: 'Create & Activate Campaign',
-    desc: 'Create an event-triggered campaign targeting the Demo Buyers segment and activate it',
-    pipeNodes: ['pipe-camp'],
-    run: stepCreateCampaign,
-  },
-  {
-    id: 'cron',
-    title: 'Create Daily Campaign',
-    desc: 'Create a recurring daily campaign — engine converts the schedule to a cron expression and computes next_run_at on activation',
-    pipeNodes: ['pipe-camp'],
-    run: stepCreateCronCampaign,
-  },
-  {
-    id: 'immediate',
-    title: 'Create Immediate Campaign',
-    desc: 'Create a campaign with trigger.type=immediate — activates straight to running with next_run_at=now, scheduler picks it up within one poll cycle',
-    pipeNodes: ['pipe-camp'],
-    run: stepCreateImmediateCampaign,
-  },
-  {
-    id: 'trigger',
-    title: 'Fire Trigger Event',
-    desc: 'Send a purchase_completed event — the event campaign intercepts it from Kafka and emits a send job',
-    pipeNodes: ['pipe-api', 'pipe-kafka', 'pipe-camp'],
-    run: stepFireTrigger,
-  },
-  {
-    id: 'delivery',
-    title: 'Notification Delivery',
-    desc: 'Campaign engine produces to pam.campaigns.send.v1 → notifications-engine delivers (or logs no_device_tokens for test users)',
-    pipeNodes: ['pipe-notif'],
-    run: stepDelivery,
-  },
-  {
-    id: 'engagement',
-    title: 'Simulate Notification Engagement',
-    desc: 'Send notification_opened and notification_clicked events — populates ClickHouse channel column for open_rate and CTR metrics',
-    pipeNodes: ['pipe-api', 'pipe-kafka', 'pipe-ch'],
-    run: stepNotificationEngagement,
-  },
-];
+// ── 20 demo users ──────────────────────────────────────────────────────────
+function demoUsers() {
+  const tiers    = ['vip','vip','vip','vip','vip','regular','regular','regular','regular','regular','withdrawer','withdrawer','withdrawer','withdrawer','withdrawer','new','new','new','new','new'];
+  const plans    = ['pro','pro','pro','pro','pro','premium','premium','premium','premium','premium','free','free','free','free','free','free','free','free','free','free'];
+  const levels   = [75,70,65,60,55, 35,30,28,25,22, 12,10,9,8,7, 5,4,3,2,1];
+  const countries = ['IN','US','UK','AU','CA'];
 
-// ── HTTP helpers ─────────────────────────────────────────────────────────────
+  return Array.from({length: 20}, (_, i) => {
+    const n        = i + 1;
+    const platform = i % 2 === 0 ? 'android' : 'ios';
+    return {
+      id:       `demo_${state.runId}_${String(n).padStart(3,'0')}`,
+      name:     `Demo User ${String(n).padStart(2,'0')}`,
+      platform,
+      os:       platform === 'android' ? 'android-14' : 'ios-17',
+      sdk:      platform === 'android' ? { name: 'pam-android', version: '2.1.0' } : { name: 'pam-ios', version: '2.0.3' },
+      tier:     tiers[i],
+      plan:     plans[i],
+      level:    levels[i],
+      country:  countries[i % 5],
+    };
+  });
+}
+
+// ── Event factory ──────────────────────────────────────────────────────────
+function makeEvent(eventName, u, properties, offsetSecs = 0) {
+  return {
+    event_id:       newUUID(),
+    event_name:     eventName,
+    user_id:        u.id,
+    timestamp:      ts(offsetSecs),
+    sdk:            u.sdk,
+    device:         { platform: u.platform, os: u.os },
+    properties,
+    schema_version: 1,
+  };
+}
+
+// ── HTTP helper ────────────────────────────────────────────────────────────
 async function api(method, url, body, headers = {}) {
   const opts = { method, headers: { 'Content-Type': 'application/json', ...headers } };
   if (body) opts.body = JSON.stringify(body);
@@ -526,17 +240,15 @@ async function api(method, url, body, headers = {}) {
   return { status: r.status, ok: r.ok, data };
 }
 
-// ── Step runners ─────────────────────────────────────────────────────────────
-
+// ── Step 1 — Health ────────────────────────────────────────────────────────
 async function stepHealth(card) {
   const services = [
-    { name: 'api-service',        url: `${host()}:8001/api/v1/events/health` },
-    { name: 'auth-service',       url: `${host()}:8002/api/v1/system/health` },
-    { name: 'segmentation',       url: `${host()}:8003/health` },
-    { name: 'campaign-engine',    url: `${host()}:8004/health` },
-    { name: 'notifications',      url: `${host()}:8005/health` },
+    { name: 'api-service',     url: `${host()}:8001/api/v1/events/health` },
+    { name: 'auth-service',    url: `${host()}:8002/api/v1/system/health` },
+    { name: 'segmentation',    url: `${host()}:8003/health` },
+    { name: 'campaign-engine', url: `${host()}:8004/health` },
+    { name: 'notifications',   url: `${host()}:8005/health` },
   ];
-
   const rows = card.querySelector('.multi-endpoint');
   rows.innerHTML = services.map(s => `
     <div class="endpoint-row" id="hrow-${s.name}">
@@ -544,29 +256,25 @@ async function stepHealth(card) {
       <span style="color:var(--text-dim);width:160px">${s.name}</span>
       <span style="font-size:11px;color:var(--text-dim)">${s.url}</span>
     </div>`).join('');
-
   let allOk = true;
   for (const svc of services) {
     const dot = document.getElementById(`hst-${svc.name}`);
     try {
       const r = await fetch(svc.url, { signal: AbortSignal.timeout(4000) });
-      if (r.ok) { dot.className = 'svc-status ok'; }
-      else { dot.className = 'svc-status err'; allOk = false; }
-    } catch {
-      dot.className = 'svc-status err'; allOk = false;
-    }
+      dot.className = r.ok ? 'svc-status ok' : 'svc-status err';
+      if (!r.ok) allOk = false;
+    } catch { dot.className = 'svc-status err'; allOk = false; }
   }
   if (!allOk) throw new Error('One or more services are unreachable');
   return 'All 5 services healthy';
 }
 
+// ── Step 2 — JWT ───────────────────────────────────────────────────────────
 async function stepGetJwt(card) {
   showRequest(card, 'POST', `${host()}:8002/api/v1/system/portal_token`,
     { username: svcUser(), password: '***', project_id: projId() });
-
-  const r = await api('POST', `${host()}:8002/api/v1/system/portal_token`, {
-    username: svcUser(), password: svcPass(), project_id: projId(),
-  });
+  const r = await api('POST', `${host()}:8002/api/v1/system/portal_token`,
+    { username: svcUser(), password: svcPass(), project_id: projId() });
   showResponse(card, r);
   if (!r.ok) throw new Error(r.data?.detail || 'Auth failed');
   state.portalJwt = r.data?.data?.token;
@@ -574,143 +282,463 @@ async function stepGetJwt(card) {
   return 'Portal JWT obtained';
 }
 
-async function stepTrackEvents(card) {
-  const events = [
-    { event_id: newUUID(), event_name: 'app_opened', user_id: demoUser1(),
-      timestamp: ts(0), sdk: { name: 'pam-android', version: '2.1.0' },
-      device: { platform: 'android', os: 'android-14' },
-      properties: { from_background: false }, schema_version: 1 },
-    { event_id: newUUID(), event_name: 'screen_viewed', user_id: demoUser1(),
-      timestamp: ts(5), sdk: { name: 'pam-android', version: '2.1.0' },
-      device: { platform: 'android', os: 'android-14' },
-      properties: { screen_name: 'home', referrer: 'push_notification' }, schema_version: 1 },
-    { event_id: newUUID(), event_name: 'purchase_completed', user_id: demoUser1(),
-      timestamp: ts(60), sdk: { name: 'pam-android', version: '2.1.0' },
-      device: { platform: 'android', os: 'android-14' },
-      properties: { order_id: `ORD-${state.runId}-1`, amount: 999, currency: 'INR',
-        items: [{ sku: 'COIN-500', qty: 1, price: 999 }] }, schema_version: 1 },
-    { event_id: newUUID(), event_name: 'app_opened', user_id: demoUser2(),
-      timestamp: ts(0), sdk: { name: 'pam-ios', version: '2.0.3' },
-      device: { platform: 'ios', os: 'ios-17' },
-      properties: { from_background: true }, schema_version: 1 },
-    { event_id: newUUID(), event_name: 'screen_viewed', user_id: demoUser2(),
-      timestamp: ts(10), sdk: { name: 'pam-ios', version: '2.0.3' },
-      device: { platform: 'ios', os: 'ios-17' },
-      properties: { screen_name: 'home', referrer: 'direct' }, schema_version: 1 },
-  ];
+// ── Step 3 — App Events (all 20) ────────────────────────────────────────────
+async function stepAppEvents(card) {
+  const users = demoUsers();
+  const events = [];
+  users.forEach((u, i) => {
+    events.push(makeEvent('app_opened',    u, { from_background: i % 3 === 0 }, i * 2 + 120));
+    events.push(makeEvent('login',         u, { method: i % 2 === 0 ? 'email' : 'google', session_id: newUUID() }, i * 2 + 60));
+    events.push(makeEvent('screen_viewed', u, { screen_name: ['home','lobby','wallet','promotions'][i % 4], referrer: 'direct' }, i * 2));
+  });
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [`${events.length} events — app_opened, login, screen_viewed × 20 users`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
+    { Authorization: `Bearer ${token()}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error('App events failed');
+  return `${r.data.accepted} accepted → 20 users × 3 events (app_opened, login, screen_viewed)`;
+}
+
+// ── Step 4 — Purchase Events (users 1–10) ──────────────────────────────────
+async function stepPurchaseEvents(card) {
+  const users  = demoUsers();
+  const events = [];
+  const amounts = [3999, 2999, 1999, 1499, 999, 899, 799, 699, 599, 499];
+
+  // VIP (1-5): 2 purchases each
+  users.slice(0, 5).forEach((u, i) => {
+    events.push(makeEvent('purchase_completed', u, {
+      order_id: `ORD-VIP-${state.runId}-${i}-A`,
+      amount: amounts[i], currency: 'INR',
+      items: [{ sku: `COIN-${amounts[i]}`, qty: 1, price: amounts[i] }],
+    }, 180 + i * 5));
+    events.push(makeEvent('purchase_completed', u, {
+      order_id: `ORD-VIP-${state.runId}-${i}-B`,
+      amount: Math.round(amounts[i] / 2), currency: 'INR',
+      items: [{ sku: `COIN-${Math.round(amounts[i]/2)}`, qty: 1, price: Math.round(amounts[i]/2) }],
+    }, 90 + i * 5));
+  });
+
+  // Regular (6-10): 1 purchase each
+  users.slice(5, 10).forEach((u, i) => {
+    events.push(makeEvent('purchase_completed', u, {
+      order_id: `ORD-REG-${state.runId}-${i}`,
+      amount: amounts[5 + i], currency: 'INR',
+      items: [{ sku: `COIN-${amounts[5+i]}`, qty: 1, price: amounts[5+i] }],
+    }, 120 + i * 5));
+  });
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="info-box blue" style="margin-top:10px">
+      <strong>VIP users (1–5):</strong> 2 purchases each — qualifies for Buyers segment<br>
+      <strong>Regular users (6–10):</strong> 1 purchase each — also qualifies for Buyers segment<br>
+      <strong>Withdrawers &amp; New (11–20):</strong> no purchases — will NOT be in Buyers segment
+    </div>`);
 
   showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
-    { events: [{ '...': `${events.length} events` }] });
-
-  const r = await api('POST', `${host()}:8001/api/v1/events/track`,
-    { events },
-    { Authorization: `Bearer ${token()}` }
-  );
+    { events: [`${events.length} purchase_completed events for users 1–10`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
+    { Authorization: `Bearer ${token()}` });
   showResponse(card, r);
-  if (!r.ok) throw new Error('Track failed');
-  const { accepted, rejected } = r.data;
-  return `${accepted} accepted, ${rejected} rejected → Kafka`;
+  if (!r.ok) throw new Error('Purchase events failed');
+  return `${r.data.accepted} accepted — VIP: 2 purchases ea, Regular: 1 purchase ea`;
 }
 
+// ── Step 5 — Deposit Events ────────────────────────────────────────────────
+async function stepDepositEvents(card) {
+  const users  = demoUsers();
+  const events = [];
+
+  // VIP (1-5): 3 deposits each → qualifies for HVD segment
+  users.slice(0, 5).forEach((u, i) => {
+    [2500 + i*200, 1800 + i*150, 3200 + i*300].forEach((amount, d) => {
+      events.push(makeEvent('deposit_success', u, {
+        amount, currency: 'INR',
+        transaction_id: `DEP-VIP-${state.runId}-${i}-${d}`,
+        method: ['upi','card','netbanking'][d],
+      }, (i * 3 + d) * 15));
+    });
+  });
+
+  // Regular (6-10): 1 deposit each
+  users.slice(5, 10).forEach((u, i) => {
+    events.push(makeEvent('deposit_success', u, {
+      amount: 600 + i * 100, currency: 'INR',
+      transaction_id: `DEP-REG-${state.runId}-${i}`,
+      method: 'upi',
+    }, i * 20));
+  });
+
+  // Withdrawers (11-15): 1 deposit each (before they withdraw)
+  users.slice(10, 15).forEach((u, i) => {
+    events.push(makeEvent('deposit_success', u, {
+      amount: 200 + i * 50, currency: 'INR',
+      transaction_id: `DEP-WD-${state.runId}-${i}`,
+      method: 'upi',
+    }, i * 25 + 200));
+  });
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="info-box blue" style="margin-top:10px">
+      <strong>VIP (1–5):</strong> 3 deposits each (₹1,800–₹4,700) — 3+ threshold for HVD segment<br>
+      <strong>Regular (6–10):</strong> 1 deposit each — below HVD threshold<br>
+      <strong>Withdrawers (11–15):</strong> 1 deposit each (they will later withdraw)
+    </div>`);
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [`${events.length} deposit_success events`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
+    { Authorization: `Bearer ${token()}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Deposit events failed');
+  return `${r.data.accepted} accepted — VIP: 3 deposits ea, Regular: 1, Withdrawers: 1 → ClickHouse`;
+}
+
+// ── Step 6 — Withdrawal Events ──────────────────────────────────────────────
+async function stepWithdrawalEvents(card) {
+  const users  = demoUsers();
+  const events = [];
+
+  // Withdrawers (11-15): 1-2 withdrawals → qualifies for Withdrawers segment
+  users.slice(10, 15).forEach((u, i) => {
+    events.push(makeEvent('withdrawal_success', u, {
+      amount: 150 + i * 30, currency: 'INR',
+      transaction_id: `WD-${state.runId}-${i}-1`,
+      method: 'upi', status: 'processed',
+    }, i * 12));
+    if (i % 2 === 0) {
+      events.push(makeEvent('withdrawal_success', u, {
+        amount: 80 + i * 10, currency: 'INR',
+        transaction_id: `WD-${state.runId}-${i}-2`,
+        method: 'bank_transfer', status: 'processed',
+      }, i * 12 + 300));
+    }
+  });
+
+  // Some new users (16-18) also withdrew
+  users.slice(15, 18).forEach((u, i) => {
+    events.push(makeEvent('withdrawal_success', u, {
+      amount: 50 + i * 20, currency: 'INR',
+      transaction_id: `WD-NEW-${state.runId}-${i}`,
+      method: 'upi', status: 'processed',
+    }, i * 10));
+  });
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="info-box orange" style="margin-top:10px">
+      <strong>Withdrawers (11–15):</strong> 1–2 withdrawals each — will qualify for Re-engagement segment<br>
+      <strong>New users (16–18):</strong> 1 withdrawal each — also qualify for Re-engagement segment<br>
+      These users represent churn risk and will be targeted by the re-engagement campaign.
+    </div>`);
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [`${events.length} withdrawal_success events (users 11–18)`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
+    { Authorization: `Bearer ${token()}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Withdrawal events failed');
+  return `${r.data.accepted} accepted — ${events.length} withdrawals for users 11–18 → Re-engagement segment`;
+}
+
+// ── Step 7 — Game Events ────────────────────────────────────────────────────
+async function stepGameEvents(card) {
+  const users  = demoUsers();
+  const games  = ['slots','roulette','blackjack','poker','crash'];
+  const events = [];
+
+  // VIP (1-5): 5 game_played + 1 level_up each
+  users.slice(0, 5).forEach((u, i) => {
+    for (let g = 0; g < 5; g++) {
+      events.push(makeEvent('game_played', u, {
+        game_id: games[g % games.length],
+        bet_amount: 100 + g * 50,
+        result: g % 2 === 0 ? 'win' : 'loss',
+        profit: g % 2 === 0 ? 200 + g * 30 : -(50 + g * 20),
+        session_id: newUUID(),
+      }, (i * 5 + g) * 8));
+    }
+    events.push(makeEvent('level_up', u, {
+      from_level: levels[i] - 1, to_level: levels[i], xp_earned: 1500,
+    }, i * 20));
+  });
+
+  // Regular (6-10): 3 game_played each → qualifies for Gamers segment
+  users.slice(5, 10).forEach((u, i) => {
+    for (let g = 0; g < 3; g++) {
+      events.push(makeEvent('game_played', u, {
+        game_id: games[(i + g) % games.length],
+        bet_amount: 50 + g * 25,
+        result: g === 0 ? 'win' : 'loss',
+        profit: g === 0 ? 100 : -40,
+        session_id: newUUID(),
+      }, (i * 3 + g) * 12));
+    }
+    if (i % 2 === 0) {
+      events.push(makeEvent('level_up', u, {
+        from_level: 19 + i * 2, to_level: 20 + i * 2, xp_earned: 600,
+      }, i * 30));
+    }
+  });
+
+  // Withdrawers (11-15): 2 game_played — NOT enough for Gamers segment
+  users.slice(10, 15).forEach((u, i) => {
+    for (let g = 0; g < 2; g++) {
+      events.push(makeEvent('game_played', u, {
+        game_id: games[(i + g) % games.length],
+        bet_amount: 25, result: 'loss', profit: -25,
+        session_id: newUUID(),
+      }, (i * 2 + g) * 18));
+    }
+  });
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="info-box blue" style="margin-top:10px">
+      <strong>VIP (1–5):</strong> 5 games + level_up — qualifies for Gamers segment (≥3)<br>
+      <strong>Regular (6–10):</strong> 3 games — exactly meets Gamers threshold<br>
+      <strong>Withdrawers (11–15):</strong> 2 games only — below threshold, NOT in Gamers segment
+    </div>`);
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [`${events.length} game events (game_played, level_up)`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
+    { Authorization: `Bearer ${token()}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Game events failed');
+  return `${r.data.accepted} accepted — VIP: 5 games+lvlup, Regular: 3 games, Withdrawers: 2 games → ClickHouse`;
+}
+
+// ── Step 8 — Bonus Events ───────────────────────────────────────────────────
+async function stepBonusEvents(card) {
+  const users  = demoUsers();
+  const events = [];
+
+  // VIP (1-5): deposit match bonus
+  users.slice(0, 5).forEach((u, i) => {
+    events.push(makeEvent('bonus_claimed', u, {
+      bonus_id: `BONUS-VIP-${state.runId}-${i}`,
+      bonus_type: 'deposit_match',
+      amount: 500 + i * 100, currency: 'INR',
+      wagering_requirement: 5,
+    }, i * 30 + 60));
+  });
+
+  // New users (16-18): welcome bonus
+  users.slice(15, 18).forEach((u, i) => {
+    events.push(makeEvent('bonus_claimed', u, {
+      bonus_id: `BONUS-NEW-${state.runId}-${i}`,
+      bonus_type: 'welcome',
+      amount: 100, currency: 'INR',
+      wagering_requirement: 10,
+    }, i * 20));
+  });
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [`${events.length} bonus_claimed events`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
+    { Authorization: `Bearer ${token()}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Bonus events failed');
+  return `${r.data.accepted} accepted — VIP: deposit_match bonus, New users (16–18): welcome bonus`;
+}
+
+// ── Step 9 — Identify Users ─────────────────────────────────────────────────
 async function stepIdentify(card) {
-  const users = [
-    { user_id: demoUser1(), traits: { name: 'Demo User One', plan: 'pro', country: 'IN', level: 42 }, timestamp: new Date().toISOString() },
-    { user_id: demoUser2(), traits: { name: 'Demo User Two', plan: 'free', country: 'IN', level: 8 }, timestamp: new Date().toISOString() },
-  ];
+  const users = demoUsers();
 
-  showRequest(card, 'POST', `${host()}:8001/api/v1/events/identify`, users[0]);
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/identify`, {
+    user_id: users[0].id,
+    traits: { name: users[0].name, plan: users[0].plan, country: users[0].country, level: users[0].level, tier: users[0].tier },
+    timestamp: new Date().toISOString(),
+    '...': `+ ${users.length - 1} more identify calls`,
+  });
 
-  const results = [];
+  let success = 0, failed = 0, lastR = null;
   for (const u of users) {
-    const r = await api('POST', `${host()}:8001/api/v1/events/identify`, u,
-      { Authorization: `Bearer ${token()}` });
-    results.push(r);
+    const r = await api('POST', `${host()}:8001/api/v1/events/identify`, {
+      user_id: u.id,
+      traits: { name: u.name, plan: u.plan, country: u.country, level: u.level, tier: u.tier },
+      timestamp: new Date().toISOString(),
+    }, { Authorization: `Bearer ${token()}` });
+    if (r.ok) success++; else failed++;
+    lastR = r;
+    const statusEl = document.getElementById(`card-identify`)?.querySelector('.step-status');
+    if (statusEl) statusEl.textContent = `${success}/20 identified…`;
   }
-  showResponse(card, results[results.length - 1]);
-  if (results.some(r => !r.ok)) throw new Error('Identify failed for one or more users');
-  return `${users.length} user profiles upserted → MongoDB`;
+
+  if (lastR) showResponse(card, lastR);
+  if (failed > 0) throw new Error(`${failed}/${users.length} identify calls failed`);
+  return `${success}/20 profiles upserted → MongoDB  (VIP×5 pro, Regular×5 premium, Withdrawers×5 free, New×5 free)`;
 }
 
-async function stepCreateSegment(card) {
-  state.segmentId = `demo-buyers-${state.runId}`;
+// ── Step 10 — Buyers Segment ────────────────────────────────────────────────
+async function stepCreateBuyersSegment(card) {
+  state.segments.buyers = `seg-buyers-${state.runId}`;
   const body = {
-    segment_id: state.segmentId,
+    segment_id: state.segments.buyers,
     name: `Demo Buyers (${state.runId})`,
     rule: {
-      version: 1,
-      match: 'all',
-      filters: [{
-        type: 'event',
-        event_name: 'purchase_completed',
-        frequency: { op: 'gte', count: 1 },
-        time_window: { last_days: 30 },
-      }],
+      version: 1, match: 'all',
+      filters: [{ type: 'event', event_name: 'purchase_completed',
+        frequency: { op: 'gte', count: 1 }, time_window: { last_days: 30 } }],
     },
-    refresh_strategy: 'one_time',
-    created_by: 'pam-demo',
+    refresh_strategy: 'one_time', created_by: 'pam-demo',
   };
-
   showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments`, body);
   const r = await api('POST', `${host()}:8003/api/v1/segment/segments`, body,
     { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
-  if (r.status === 409) return 'Segment already exists (reused)';
+  if (r.status === 409) return 'Buyers segment already exists';
   if (!r.ok) throw new Error(JSON.stringify(r.data));
-  state.segmentId = r.data.segment_id;
-  return `Segment "${state.segmentId}" created`;
+  state.segments.buyers = r.data.segment_id;
+  return `"${state.segments.buyers}" — expect users 1–10 (purchase_completed ≥ 1)`;
 }
 
-async function stepEvaluate(card) {
-  showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments/${state.segmentId}/evaluate`, null);
-  const r = await api('POST', `${host()}:8003/api/v1/segment/segments/${state.segmentId}/evaluate`,
-    null, { Authorization: `Bearer ${state.portalJwt}` });
+// ── Step 11 — HVD Segment ───────────────────────────────────────────────────
+async function stepCreateHvdSegment(card) {
+  state.segments.hvd = `seg-hvd-${state.runId}`;
+  const body = {
+    segment_id: state.segments.hvd,
+    name: `High Value Depositors (${state.runId})`,
+    rule: {
+      version: 1, match: 'all',
+      filters: [{ type: 'event', event_name: 'deposit_success',
+        frequency: { op: 'gte', count: 3 }, time_window: { last_days: 30 } }],
+    },
+    refresh_strategy: 'one_time', created_by: 'pam-demo',
+  };
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments`, body);
+  const r = await api('POST', `${host()}:8003/api/v1/segment/segments`, body,
+    { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
+  if (r.status === 409) return 'HVD segment already exists';
   if (!r.ok) throw new Error(JSON.stringify(r.data));
-  const { size } = r.data;
-  return `Evaluation complete — ${size} member${size !== 1 ? 's' : ''} matched`;
+  state.segments.hvd = r.data.segment_id;
+  return `"${state.segments.hvd}" — expect users 1–5 only (deposit_success ≥ 3)`;
 }
 
-async function stepMembership(card) {
-  const checks = [
-    { user_id: demoUser1(), expect: true },
-    { user_id: demoUser2(), expect: false },
-  ];
+// ── Step 12 — Gamers Segment ────────────────────────────────────────────────
+async function stepCreateGamersSegment(card) {
+  state.segments.gamers = `seg-gamers-${state.runId}`;
+  const body = {
+    segment_id: state.segments.gamers,
+    name: `Active Gamers (${state.runId})`,
+    rule: {
+      version: 1, match: 'all',
+      filters: [{ type: 'event', event_name: 'game_played',
+        frequency: { op: 'gte', count: 3 }, time_window: { last_days: 30 } }],
+    },
+    refresh_strategy: 'one_time', created_by: 'pam-demo',
+  };
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments`, body);
+  const r = await api('POST', `${host()}:8003/api/v1/segment/segments`, body,
+    { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (r.status === 409) return 'Gamers segment already exists';
+  if (!r.ok) throw new Error(JSON.stringify(r.data));
+  state.segments.gamers = r.data.segment_id;
+  return `"${state.segments.gamers}" — expect users 1–10 (game_played ≥ 3)`;
+}
 
-  const results = [];
-  for (const c of checks) {
-    const r = await api('GET',
-      `${host()}:8003/api/v1/segment/segments/${state.segmentId}/members/${c.user_id}`,
-      null, { Authorization: `Bearer ${state.portalJwt}` });
-    results.push({ user: c.user_id, is_member: r.data?.is_member, ok: r.ok });
-  }
+// ── Step 13 — Withdrawers Segment ──────────────────────────────────────────
+async function stepCreateWithdrawersSegment(card) {
+  state.segments.withdrawers = `seg-wd-${state.runId}`;
+  const body = {
+    segment_id: state.segments.withdrawers,
+    name: `Recent Withdrawers (${state.runId})`,
+    rule: {
+      version: 1, match: 'all',
+      filters: [{ type: 'event', event_name: 'withdrawal_success',
+        frequency: { op: 'gte', count: 1 }, time_window: { last_days: 7 } }],
+    },
+    refresh_strategy: 'one_time', created_by: 'pam-demo',
+  };
+  showRequest(card, 'POST', `${host()}:8003/api/v1/segment/segments`, body);
+  const r = await api('POST', `${host()}:8003/api/v1/segment/segments`, body,
+    { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (r.status === 409) return 'Withdrawers segment already exists';
+  if (!r.ok) throw new Error(JSON.stringify(r.data));
+  state.segments.withdrawers = r.data.segment_id;
+  return `"${state.segments.withdrawers}" — expect users 11–18 (withdrawal_success ≥ 1 in last 7 days)`;
+}
 
-  const grid = `<div class="summary-grid">
-    ${results.map(r => `
-      <div class="summary-cell">
-        <div class="val" style="font-size:14px;color:${r.is_member ? 'var(--green)' : 'var(--text-dim)'}">${r.is_member ? '✓ In' : '✗ Out'}</div>
-        <div class="lbl">${r.user.slice(-3)}</div>
-      </div>`).join('')}
+// ── Step 14 — Evaluate All Segments ────────────────────────────────────────
+async function stepEvaluateAll(card) {
+  const segEntries = Object.entries(state.segments).filter(([, v]) => v);
+  if (segEntries.length === 0) throw new Error('No segments created');
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="section-label" style="margin-top:12px">Running ${segEntries.length} evaluations in parallel</div>`);
+
+  const results = await Promise.all(
+    segEntries.map(([key, segId]) =>
+      api('POST', `${host()}:8003/api/v1/segment/segments/${segId}/evaluate`,
+          null, { Authorization: `Bearer ${state.portalJwt}` })
+        .then(r => ({ key, segId, size: r.data?.size ?? '?', ok: r.ok, data: r.data }))
+    )
+  );
+
+  // Show sizes
+  const grid = `<div class="summary-grid" style="grid-template-columns:repeat(4,1fr);margin-top:8px">
+    ${results.map(r => `<div class="summary-cell">
+      <div class="val" style="color:${r.ok ? 'var(--accent)' : 'var(--red)'}">${r.ok ? r.size : '✗'}</div>
+      <div class="lbl">${r.key}</div>
+    </div>`).join('')}
   </div>`;
-  card.querySelector('.step-body .extra')?.remove();
-  const extra = document.createElement('div');
-  extra.className = 'extra'; extra.innerHTML = grid;
-  card.querySelector('.step-body').appendChild(extra);
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', grid);
 
-  const inCount = results.filter(r => r.is_member).length;
-  return `${inCount} of ${results.length} demo users in segment`;
+  const failed = results.filter(r => !r.ok);
+  if (failed.length > 0) throw new Error(`${failed.length} evaluations failed`);
+  return results.map(r => `${r.key}: ${r.size}`).join(' · ');
 }
 
+// ── Step 15 — Check Memberships ─────────────────────────────────────────────
+async function stepMemberships(card) {
+  const users = demoUsers();
+  const checks = [
+    { user: users[0],  seg: 'buyers',     label: 'u01→buyers',  expect: true  },
+    { user: users[0],  seg: 'hvd',        label: 'u01→hvd',     expect: true  },
+    { user: users[0],  seg: 'gamers',     label: 'u01→gamers',  expect: true  },
+    { user: users[5],  seg: 'buyers',     label: 'u06→buyers',  expect: true  },
+    { user: users[5],  seg: 'hvd',        label: 'u06→hvd',     expect: false },
+    { user: users[10], seg: 'withdrawers',label: 'u11→wd',      expect: true  },
+    { user: users[10], seg: 'buyers',     label: 'u11→buyers',  expect: false },
+    { user: users[19], seg: 'gamers',     label: 'u20→gamers',  expect: false },
+  ].filter(c => state.segments[c.seg]);
+
+  const results = await Promise.all(
+    checks.map(c =>
+      api('GET',
+        `${host()}:8003/api/v1/segment/segments/${state.segments[c.seg]}/members/${c.user.id}`,
+        null, { Authorization: `Bearer ${state.portalJwt}` })
+        .then(r => ({ ...c, is_member: r.data?.is_member, ok: r.ok }))
+    )
+  );
+
+  const grid = `<div class="summary-grid" style="grid-template-columns:repeat(4,1fr);margin-top:8px">
+    ${results.map(r => `<div class="summary-cell">
+      <div class="val" style="font-size:13px;color:${r.is_member ? 'var(--green)' : 'var(--text-dim)'}">${r.is_member ? '✓ In' : '✗ Out'}</div>
+      <div class="lbl" style="font-size:10px">${r.label}</div>
+    </div>`).join('')}
+  </div>`;
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', grid);
+
+  const correct = results.filter(r => r.is_member === r.expect).length;
+  return `${correct}/${results.length} membership checks matched expected outcomes`;
+}
+
+// ── Step 16 — Notification Template ────────────────────────────────────────
 async function stepCreateTemplate(card) {
   const body = {
     name: `Demo Push Template (${state.runId})`,
     channel: 'push',
     body: {
-      title: 'Thanks for your purchase! 🎉',
-      message: 'Here is a reward for being a valued player.',
+      title: 'Exclusive reward waiting for you!',
+      message: 'Log in now and claim your personalised bonus. Limited time offer.',
       deep_link: 'app://rewards',
     },
   };
-
   showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}/templates`, body);
   const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}/templates`,
     body, { Authorization: `Bearer ${state.portalJwt}` });
@@ -720,305 +748,268 @@ async function stepCreateTemplate(card) {
   return `Template "${state.templateId}" created`;
 }
 
-async function stepCreateCampaign(card) {
+// ── Step 17 — Purchase Campaign ─────────────────────────────────────────────
+async function stepCreatePurchaseCampaign(card) {
   const body = {
-    name: `Demo Campaign (${state.runId})`,
+    name: `Demo Purchase Campaign (${state.runId})`,
     trigger: { type: 'event', event_name: 'purchase_completed' },
-    audience: { segment_id: state.segmentId },
+    audience: { segment_id: state.segments.buyers },
     channel: { type: 'push', template_id: state.templateId },
   };
-
   showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`, body);
   const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`,
     body, { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
   if (!r.ok) throw new Error(JSON.stringify(r.data));
-  state.campaignId = r.data.campaign_id;
+  state.campaigns.purchase = r.data.campaign_id;
 
-  // Activate
   const ra = await api('POST',
-    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.campaignId}/activate`,
+    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.campaigns.purchase}/activate`,
     null, { Authorization: `Bearer ${state.portalJwt}` });
-
-  const el = document.createElement('div');
-  el.innerHTML = `<div class="section-label" style="margin-top:10px">Activate response</div>
-    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(ra.data, null, 2)}</div>`;
-  card.querySelector('.step-body').appendChild(el);
-
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="section-label" style="margin-top:10px">Activate response</div>
+    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(ra.data, null, 2)}</div>`);
   if (!ra.ok) throw new Error('Activate failed');
-  return `"${state.campaignId}" → ${ra.data.status}`;
+  return `"${state.campaigns.purchase}" → ${ra.data.status} (fires on purchase_completed for Buyers segment)`;
 }
 
-async function stepCreateCronCampaign(card) {
+// ── Step 18 — Daily HVD Campaign ────────────────────────────────────────────
+async function stepCreateHvdCampaign(card) {
   const SCHEDULE = { type: 'daily', schedule_time: '09:00', timezone: 'Asia/Kolkata' };
   const body = {
-    name: `Demo Daily Campaign (${state.runId})`,
+    name: `Demo HVD Daily Campaign (${state.runId})`,
     trigger: { type: 'scheduled', schedule: SCHEDULE },
-    audience: { segment_id: state.segmentId },
+    audience: { segment_id: state.segments.hvd },
     channel: { type: 'push', template_id: state.templateId },
   };
 
-  // Explain the schedule
-  const body_el = card.querySelector('.step-body');
-  const explain = document.createElement('div');
-  explain.innerHTML = `
-    <div style="background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:8px;
-      padding:10px 14px;font-size:12px;line-height:1.7;margin-bottom:4px">
-      <strong>Schedule:</strong> <code style="font-family:var(--mono)">daily at 09:00 IST</code>
-      — the engine converts this to a cron expression and stores it internally.<br>
-      On activation the campaign-engine computes <code style="font-family:var(--mono)">next_run_at</code>
-      and sets status to <code style="font-family:var(--mono)">"running"</code>.
-      The <strong>scheduler-service</strong> polls MongoDB every second, locks campaigns
-      whose <code style="font-family:var(--mono)">next_run_at ≤ now</code>, fans out send
-      jobs for all segment members, then advances <code style="font-family:var(--mono)">next_run_at</code>
-      to the next cron tick.
-    </div>`;
-  body_el.appendChild(explain);
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="info-box blue" style="margin-top:10px">
+      <strong>Audience:</strong> High Value Depositors (users 1–5 only)<br>
+      <strong>Schedule:</strong> daily at 09:00 IST — engine converts to cron, computes next_run_at on activation
+    </div>`);
 
   showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`, body);
   const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`,
     body, { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
   if (!r.ok) throw new Error(JSON.stringify(r.data));
-  state.cronCampaignId = r.data.campaign_id;
+  state.campaigns.hvd = r.data.campaign_id;
 
-  // Activate — sets status=running and next_run_at
   const ra = await api('POST',
-    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.cronCampaignId}/activate`,
+    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.campaigns.hvd}/activate`,
     null, { Authorization: `Bearer ${state.portalJwt}` });
 
-  // Fetch the full campaign doc to show next_run_at
   const rd = await api('GET',
-    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.cronCampaignId}`,
+    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.campaigns.hvd}`,
     null, { Authorization: `Bearer ${state.portalJwt}` });
-
   const nextRun = rd.data?.next_run_at ? new Date(rd.data.next_run_at).toLocaleTimeString() : '—';
-  const el = document.createElement('div');
-  el.innerHTML = `
-    <div class="section-label" style="margin-top:10px">Activate response</div>
-    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(ra.data, null, 2)}</div>
-    <div class="section-label" style="margin-top:10px">Campaign detail (next_run_at)</div>
-    <div class="code-block response-ok">${JSON.stringify({
-      campaign_id: rd.data?.campaign_id,
-      status: rd.data?.status,
-      trigger: rd.data?.trigger,
-      next_run_at: rd.data?.next_run_at,
-      audience: rd.data?.audience,
-    }, null, 2)}</div>
-    <div style="margin-top:8px;background:var(--green-bg);border:1px solid #bbf7d0;
-      border-radius:8px;padding:10px 14px;font-size:12px">
-      Next scheduled fire: <strong>${nextRun}</strong>
-      — scheduler-service will pick this up, check segment membership, and emit send jobs
-      for all members of <em>${state.segmentId}</em>.
-    </div>`;
-  body_el.appendChild(el);
 
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="section-label" style="margin-top:10px">Activate + next_run_at</div>
+    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify({
+      status: ra.data?.status, next_run_at: rd.data?.next_run_at
+    }, null, 2)}</div>`);
   if (!ra.ok) throw new Error('Activate failed');
-  return `"${state.cronCampaignId}" → ${ra.data.status}, next run at ${nextRun}`;
+  return `"${state.campaigns.hvd}" → ${ra.data.status}, next fire at ${nextRun}`;
 }
 
-async function stepCreateImmediateCampaign(card) {
+// ── Step 19 — Re-engagement Campaign ───────────────────────────────────────
+async function stepCreateReengagementCampaign(card) {
   const body = {
-    name: `Demo Immediate Campaign (${state.runId})`,
+    name: `Demo Re-engagement Campaign (${state.runId})`,
     trigger: { type: 'scheduled', schedule: { type: 'immediate' } },
-    audience: { segment_id: state.segmentId },
+    audience: { segment_id: state.segments.withdrawers },
     channel: { type: 'push', template_id: state.templateId },
   };
 
-  const body_el = card.querySelector('.step-body');
-  const explain = document.createElement('div');
-  explain.innerHTML = `
-    <div style="background:var(--blue-bg);border:1px solid #bfdbfe;border-radius:8px;
-      padding:10px 14px;font-size:12px;line-height:1.7;margin-bottom:4px">
-      <strong>Immediate trigger</strong> — fires once for all current segment members as soon
-      as it is activated. The engine sets
-      <code style="font-family:var(--mono)">status = "running"</code> and
-      <code style="font-family:var(--mono)">next_run_at = now</code> immediately on activation.
-      The <strong>scheduler-service</strong> picks it up in the next poll cycle, fans out send
-      jobs for all segment members, then marks the campaign
-      <code style="font-family:var(--mono)">"completed"</code>.
-    </div>`;
-  body_el.appendChild(explain);
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="info-box orange" style="margin-top:10px">
+      <strong>Audience:</strong> Recent Withdrawers (users 11–18) — churn risk segment<br>
+      <strong>Trigger:</strong> immediate — fires once for all segment members on activation, then marks completed
+    </div>`);
 
   showRequest(card, 'POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`, body);
   const r = await api('POST', `${host()}:8004/api/v1/campaign/projects/${projId()}`,
     body, { Authorization: `Bearer ${state.portalJwt}` });
   showResponse(card, r);
   if (!r.ok) throw new Error(JSON.stringify(r.data));
-  state.immediateCampaignId = r.data.campaign_id;
+  state.campaigns.reengagement = r.data.campaign_id;
 
-  // Activate — sets status=running and next_run_at=now immediately
   const ra = await api('POST',
-    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.immediateCampaignId}/activate`,
+    `${host()}:8004/api/v1/campaign/projects/${projId()}/${state.campaigns.reengagement}/activate`,
     null, { Authorization: `Bearer ${state.portalJwt}` });
 
-  const el = document.createElement('div');
-  el.innerHTML = `
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
     <div class="section-label" style="margin-top:10px">Activate response</div>
-    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(ra.data, null, 2)}</div>
-    <div style="margin-top:8px;background:var(--green-bg);border:1px solid #bbf7d0;
-      border-radius:8px;padding:10px 14px;font-size:12px">
-      Campaign is now <strong>running</strong> — scheduler-service will pick it up within
-      one poll cycle and fan out send jobs for all members of <em>${state.segmentId}</em>,
-      then mark it <strong>completed</strong>.
-    </div>`;
-  body_el.appendChild(el);
-
+    <div class="code-block ${ra.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(ra.data, null, 2)}</div>`);
   if (!ra.ok) throw new Error('Activate failed');
-  return `"${state.immediateCampaignId}" → ${ra.data.status} (fires immediately)`;
+  return `"${state.campaigns.reengagement}" → ${ra.data.status} (fires immediately for withdrawers)`;
 }
 
-async function stepFireTrigger(card) {
-  const body = {
-    events: [{
-      event_id: newUUID(),
-      event_name: 'purchase_completed',
-      schema_version: 1,
-      user_id: demoUser1(),
-      timestamp: new Date().toISOString(),
-      sdk: { name: 'pam-android', version: '2.1.0' },
-      device: { platform: 'android', os: 'android-14' },
-      properties: {
-        order_id: `ORD-TRIGGER-${state.runId}`,
-        amount: 499,
-        currency: 'INR',
-        items: [{ sku: 'COIN-250', qty: 1, price: 499 }],
-      },
-    }],
-  };
+// ── Step 20 — Fire Trigger Events ───────────────────────────────────────────
+async function stepFireTriggers(card) {
+  const users  = demoUsers().slice(0, 5); // VIP users fire more purchases
+  const events = users.map((u, i) => makeEvent('purchase_completed', u, {
+    order_id:  `ORD-TRIGGER-${state.runId}-${i}`,
+    amount:    1999 - i * 200, currency: 'INR',
+    items:     [{ sku: `COIN-TRIGGER-${i}`, qty: 1, price: 1999 - i * 200 }],
+  }));
 
-  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`, body);
-  const r = await api('POST', `${host()}:8001/api/v1/events/track`, body,
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="info-box blue" style="margin-top:10px">
+      Firing <strong>purchase_completed</strong> for 5 VIP users simultaneously.
+      Campaign-engine consumes from Kafka, checks each user is a member of the
+      Buyers segment, then produces a send job to <code style="font-family:var(--mono);font-size:11px">pam.campaigns.send.v1</code>.
+    </div>`);
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [`${events.length} purchase_completed events (VIP users 1–5)`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
     { Authorization: `Bearer ${token()}` });
   showResponse(card, r);
-  if (!r.ok) throw new Error('Track failed');
-  return 'Event accepted → campaign-engine will intercept from Kafka';
+  if (!r.ok) throw new Error('Trigger events failed');
+  return `${r.data.accepted} accepted → campaign-engine will intercept from Kafka for ${events.length} users`;
 }
 
+// ── Step 21 — Delivery ──────────────────────────────────────────────────────
 async function stepDelivery(card) {
-  // Wait a moment for the pipeline to process
   await sleep(3000);
-
-  const body = card.querySelector('.step-body');
-  const note = document.createElement('div');
-  note.innerHTML = `
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
     <div class="section-label">What happened</div>
-    <div style="font-size:13px;line-height:1.7;color:var(--text);background:var(--surface2);
-      border-radius:8px;padding:12px;margin-bottom:10px">
-      The <strong>campaign-engine</strong> consumed the <code style="font-family:var(--mono);font-size:11px">purchase_completed</code>
-      event from Kafka, checked that <em>${demoUser1()}</em> is a member of the
-      <em>Demo Buyers</em> segment, and produced a send job to
-      <code style="font-family:var(--mono);font-size:11px">pam.campaigns.send.v1</code>.
-      The <strong>notifications-engine</strong> consumed it and wrote a delivery record to MongoDB.
+    <div style="font-size:13px;line-height:1.7;color:var(--text);background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:10px">
+      <strong>Purchase campaign:</strong> campaign-engine checked segment membership for the 5 triggered users,
+      produced send jobs to <code style="font-family:var(--mono);font-size:11px">pam.campaigns.send.v1</code>.<br>
+      <strong>Re-engagement campaign:</strong> scheduler-service fanned out send jobs for all ~8 withdrawal users.<br>
+      notifications-engine consumed both queues and wrote delivery records to MongoDB.
     </div>
-    <div class="section-label">Verify in MongoDB</div>
-    <div class="verify-box">
-/home/ubuntu/pam/.venv/bin/python - &lt;&lt;'EOF'
+    <div class="section-label">Verify delivery records in MongoDB</div>
+    <div class="verify-box">python3 - &lt;&lt;'EOF'
 import pymongo, json
 client = pymongo.MongoClient("mongodb://admin:glgpam2026@172.31.6.243:27017/pam?authSource=admin")
 docs = list(client.pam.notification_deliveries.find(
-    {"project_id": "${projId()}", "user_id": "${demoUser1()}"},
-    {"_id": 0}
-).sort("attempted_at", -1).limit(3))
-for d in docs:
-    print(json.dumps(d, default=str, indent=2))
+    {"project_id": "${projId()}"},
+    {"_id":0,"user_id":1,"campaign_id":1,"status":1,"error":1,"attempted_at":1}
+).sort("attempted_at",-1).limit(20))
+for d in docs: print(json.dumps(d, default=str))
 EOF</div>
     <div style="margin-top:10px;font-size:12px;color:var(--text-dim)">
-      Expected: <code style="font-family:var(--mono);font-size:11px">status: "failed", error.code: "no_device_tokens"</code>
-      — correct for test users with no registered FCM/APNs token. With a real device token the status would be <code style="font-family:var(--mono);font-size:11px">"sent"</code>.
-    </div>`;
-  body.appendChild(note);
-
-  return 'Pipeline complete — verify delivery in MongoDB';
+      Expected: <code style="font-family:var(--mono);font-size:11px">status:"failed", error.code:"no_device_tokens"</code>
+      — correct for test users with no registered FCM/APNs tokens.
+    </div>`);
+  return 'Pipeline complete — verify delivery records in MongoDB';
 }
 
-async function stepDepositEvents(card) {
-  const events = [
-    { event_id: newUUID(), event_name: 'deposit_success', user_id: demoUser1(),
-      timestamp: ts(0), sdk: { name: 'pam-android', version: '2.1.0' },
-      device: { platform: 'android', os: 'android-14' },
-      properties: { amount: 1500, currency: 'INR', transaction_id: `TXN-${state.runId}-1` },
-      schema_version: 1 },
-    { event_id: newUUID(), event_name: 'deposit_success', user_id: demoUser2(),
-      timestamp: ts(0), sdk: { name: 'pam-ios', version: '2.0.3' },
-      device: { platform: 'ios', os: 'ios-17' },
-      properties: { amount: 800, currency: 'INR', transaction_id: `TXN-${state.runId}-2` },
-      schema_version: 1 },
-  ];
+// ── Step 22 — Notification Engagement (all 20) ─────────────────────────────
+async function stepEngagement(card) {
+  const users      = demoUsers();
+  const campaignId = state.campaigns.purchase || 'demo';
+  const events     = [];
+
+  // VIP (1-5): 100% open rate + 100% CTR
+  users.slice(0, 5).forEach(u => {
+    events.push(makeEvent('notification_opened',  u, { channel: 'push', campaign_id: campaignId }, 0));
+    events.push(makeEvent('notification_clicked', u, { channel: 'push', campaign_id: campaignId, action: 'view_offer' }, 0));
+  });
+
+  // Regular (6-10): 100% open, 80% click
+  users.slice(5, 10).forEach((u, i) => {
+    events.push(makeEvent('notification_opened', u, { channel: 'push', campaign_id: campaignId }, 0));
+    if (i < 4) events.push(makeEvent('notification_clicked', u, { channel: 'push', campaign_id: campaignId }, 0));
+  });
+
+  // Withdrawers (11-15): 60% open, no click
+  users.slice(10, 15).forEach((u, i) => {
+    if (i < 3) events.push(makeEvent('notification_opened', u, { channel: 'push', campaign_id: campaignId }, 0));
+  });
+
+  // New (16-20): 20% open, no click
+  users.slice(15, 20).forEach((u, i) => {
+    if (i === 0) events.push(makeEvent('notification_opened', u, { channel: 'push', campaign_id: campaignId }, 0));
+  });
+
+  const opens  = events.filter(e => e.event_name === 'notification_opened').length;
+  const clicks = events.filter(e => e.event_name === 'notification_clicked').length;
+  const openRate = Math.round((opens  / 20)    * 100);
+  const ctr      = Math.round((clicks / opens) * 100);
 
   showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
-    { events: [{ '...': `${events.length} deposit_success events` }] });
-
-  const r = await api('POST', `${host()}:8001/api/v1/events/track`,
-    { events },
-    { Authorization: `Bearer ${token()}` }
-  );
+    { events: [`${events.length} engagement events across all 20 users`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
+    { Authorization: `Bearer ${token()}` });
   showResponse(card, r);
-  if (!r.ok) throw new Error('Deposit track failed');
-  const { accepted, rejected } = r.data;
-  return `${accepted} accepted (₹1,500 + ₹800) → Kafka → ClickHouse amount column`;
+  if (!r.ok) throw new Error('Engagement events failed');
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="summary-grid" style="margin-top:10px">
+      <div class="summary-cell"><div class="val">${opens}</div><div class="lbl">Opens</div></div>
+      <div class="summary-cell"><div class="val">${clicks}</div><div class="lbl">Clicks</div></div>
+      <div class="summary-cell"><div class="val">${openRate}%</div><div class="lbl">Open Rate</div></div>
+      <div class="summary-cell"><div class="val">${ctr}%</div><div class="lbl">CTR</div></div>
+    </div>
+    <div class="info-box green" style="margin-top:10px;font-size:12px">
+      <strong>VIP (1–5):</strong> 100% open + 100% CTR &nbsp;|&nbsp;
+      <strong>Regular (6–10):</strong> 100% open + 80% CTR &nbsp;|&nbsp;
+      <strong>Withdrawers (11–15):</strong> 60% open + 0% CTR &nbsp;|&nbsp;
+      <strong>New (16–20):</strong> 20% open + 0% CTR
+    </div>`);
+
+  return `${r.data.accepted} accepted — ${opens} opens (${openRate}% rate), ${clicks} clicks (${ctr}% CTR) → ClickHouse`;
 }
 
-async function stepNotificationEngagement(card) {
-  const campaignId = state.campaignId || 'demo';
-  const events = [
-    { event_id: newUUID(), event_name: 'notification_opened', user_id: demoUser1(),
-      timestamp: ts(0), sdk: { name: 'pam-android', version: '2.1.0' },
-      device: { platform: 'android', os: 'android-14' },
-      properties: { channel: 'push', campaign_id: campaignId },
-      schema_version: 1 },
-    { event_id: newUUID(), event_name: 'notification_clicked', user_id: demoUser1(),
-      timestamp: ts(0), sdk: { name: 'pam-android', version: '2.1.0' },
-      device: { platform: 'android', os: 'android-14' },
-      properties: { channel: 'push', campaign_id: campaignId },
-      schema_version: 1 },
-    { event_id: newUUID(), event_name: 'notification_opened', user_id: demoUser2(),
-      timestamp: ts(0), sdk: { name: 'pam-ios', version: '2.0.3' },
-      device: { platform: 'ios', os: 'ios-17' },
-      properties: { channel: 'push', campaign_id: campaignId },
-      schema_version: 1 },
-  ];
+// ── STEPS definition ────────────────────────────────────────────────────────
+const STEPS = [
+  { id: 'health',        title: 'Health Check',               desc: 'Verify all 5 services are reachable',                             pipeNodes: ['pipe-api'],                                  run: stepHealth },
+  { id: 'jwt',           title: 'Get Portal JWT',              desc: 'Authenticate with auth-service for internal API access',           pipeNodes: [],                                            run: stepGetJwt },
+  { id: 'app_events',    title: 'Track App Events',            desc: 'app_opened, login, screen_viewed × 20 demo users',                pipeNodes: ['pipe-api','pipe-kafka'],                     run: stepAppEvents },
+  { id: 'purchase_events',title: 'Track Purchase Events',      desc: 'purchase_completed — VIP users×2, Regular users×1 (users 1–10)', pipeNodes: ['pipe-api','pipe-kafka'],                     run: stepPurchaseEvents },
+  { id: 'deposit_events', title: 'Track Deposit Events',       desc: 'deposit_success — VIP×3, Regular×1, Withdrawers×1',              pipeNodes: ['pipe-api','pipe-kafka','pipe-ch'],            run: stepDepositEvents },
+  { id: 'withdrawal_events',title: 'Track Withdrawal Events',  desc: 'withdrawal_success — users 11–18 (churn signal)',                 pipeNodes: ['pipe-api','pipe-kafka','pipe-ch'],            run: stepWithdrawalEvents },
+  { id: 'game_events',   title: 'Track Game Events',           desc: 'game_played + level_up — VIP×5, Regular×3, Withdrawers×2',       pipeNodes: ['pipe-api','pipe-kafka','pipe-ch'],            run: stepGameEvents },
+  { id: 'bonus_events',  title: 'Track Bonus Events',          desc: 'bonus_claimed — VIP deposit_match + New welcome bonuses',         pipeNodes: ['pipe-api','pipe-kafka','pipe-ch'],            run: stepBonusEvents },
+  { id: 'identify',      title: 'Identify Users',              desc: 'Upsert all 20 user profiles with plan, tier, level, country',    pipeNodes: ['pipe-api','pipe-mongo'],                     run: stepIdentify },
+  { id: 'seg_buyers',    title: 'Segment: Buyers',             desc: 'purchase_completed ≥ 1 in last 30 days → expect users 1–10',     pipeNodes: ['pipe-seg'],                                  run: stepCreateBuyersSegment },
+  { id: 'seg_hvd',       title: 'Segment: HVD',                desc: 'deposit_success ≥ 3 in last 30 days → expect users 1–5 only',   pipeNodes: ['pipe-seg'],                                  run: stepCreateHvdSegment },
+  { id: 'seg_gamers',    title: 'Segment: Active Gamers',      desc: 'game_played ≥ 3 in last 30 days → expect users 1–10',            pipeNodes: ['pipe-seg'],                                  run: stepCreateGamersSegment },
+  { id: 'seg_withdrawers',title: 'Segment: Withdrawers',       desc: 'withdrawal_success ≥ 1 in last 7 days → expect users 11–18',    pipeNodes: ['pipe-seg'],                                  run: stepCreateWithdrawersSegment },
+  { id: 'evaluate_all',  title: 'Evaluate All Segments',       desc: 'Run all 4 segment evaluations in parallel via ClickHouse+MongoDB',pipeNodes: ['pipe-seg','pipe-ch','pipe-mongo'],           run: stepEvaluateAll },
+  { id: 'memberships',   title: 'Check Memberships',           desc: 'Spot-check representative users across all 4 segments',          pipeNodes: ['pipe-seg'],                                  run: stepMemberships },
+  { id: 'template',      title: 'Create Template',             desc: 'Create push notification template with personalised body',        pipeNodes: ['pipe-camp'],                                 run: stepCreateTemplate },
+  { id: 'campaign_purchase', title: 'Campaign: Purchase',      desc: 'Event-triggered campaign for Buyers — fires on purchase_completed', pipeNodes: ['pipe-camp'],                             run: stepCreatePurchaseCampaign },
+  { id: 'campaign_hvd',  title: 'Campaign: Daily HVD',         desc: 'Daily 09:00 IST campaign for High Value Depositors (VIP only)',  pipeNodes: ['pipe-camp'],                                 run: stepCreateHvdCampaign },
+  { id: 'campaign_reeng',title: 'Campaign: Re-engagement',     desc: 'Immediate campaign targeting Recent Withdrawers (churn recovery)', pipeNodes: ['pipe-camp'],                              run: stepCreateReengagementCampaign },
+  { id: 'trigger',       title: 'Fire Trigger Events',         desc: 'Send purchase_completed for 5 VIP users — activates purchase campaign', pipeNodes: ['pipe-api','pipe-kafka','pipe-camp'], run: stepFireTriggers },
+  { id: 'delivery',      title: 'Notification Delivery',       desc: 'Campaign emits send jobs → notifications-engine delivers',        pipeNodes: ['pipe-notif'],                                run: stepDelivery },
+  { id: 'engagement',    title: 'Simulate Engagement',         desc: 'notification_opened + clicked for all 20 users → open_rate & CTR in ClickHouse', pipeNodes: ['pipe-api','pipe-kafka','pipe-ch'], run: stepEngagement },
+];
 
-  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
-    { events: [{ '...': `${events.length} engagement events` }] });
-
-  const r = await api('POST', `${host()}:8001/api/v1/events/track`,
-    { events },
-    { Authorization: `Bearer ${token()}` }
-  );
-  showResponse(card, r);
-  if (!r.ok) throw new Error('Engagement track failed');
-  const { accepted } = r.data;
-  return `${accepted} accepted — 2 opens, 1 click on push channel → open_rate & CTR`;
-}
+// helper used in game events (avoids ReferenceError)
+const levels = [75,70,65,60,55,35,30,28,25,22,12,10,9,8,7,5,4,3,2,1];
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function showRequest(card, method, url, body) {
-  const body_el = card.querySelector('.step-body');
-  const existing = body_el.querySelector('.req-block');
-  if (existing) existing.remove();
+  const be = card.querySelector('.step-body');
+  be.querySelector('.req-block')?.remove();
   const el = document.createElement('div');
   el.className = 'req-block';
   el.innerHTML = `
     <div class="endpoint-badge">
-      <span class="method ${method}">${method}</span>
-      <span>${url}</span>
+      <span class="method ${method}">${method}</span><span>${url}</span>
     </div>
     ${body ? `<div class="section-label">Request</div>
     <div class="code-block">${JSON.stringify(body, null, 2)}</div>` : ''}`;
-  body_el.appendChild(el);
+  be.appendChild(el);
 }
 
 function showResponse(card, r) {
-  const body_el = card.querySelector('.step-body');
-  const existing = body_el.querySelector('.resp-block');
-  if (existing) existing.remove();
+  const be = card.querySelector('.step-body');
+  be.querySelector('.resp-block')?.remove();
   const el = document.createElement('div');
   el.className = 'resp-block';
   el.innerHTML = `
     <div class="section-label">Response <span style="color:${r.ok ? 'var(--green)' : 'var(--red)'}">HTTP ${r.status}</span></div>
     <div class="code-block ${r.ok ? 'response-ok' : 'response-err'}">${JSON.stringify(r.data, null, 2)}</div>`;
-  body_el.appendChild(el);
+  be.appendChild(el);
 }
 
 function newUUID() {
@@ -1034,7 +1025,7 @@ function ts(offsetSecs) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ── Step state management ────────────────────────────────────────────────────
+// ── Step state management ─────────────────────────────────────────────────────
 const stepStates = {};
 
 function setStepState(id, st, msg = '') {
@@ -1045,21 +1036,19 @@ function setStepState(id, st, msg = '') {
   nav.className  = `nav-item ${st}`;
   const statusEl = card.querySelector('.step-status');
   const icons = { idle: 'Idle', running: '⏳ Running…', done: '✓ Done', error: '✗ Failed', active: 'Next' };
-  statusEl.textContent = msg ? (st === 'done' ? msg : icons[st]) : icons[st];
-  if (st === 'done' && msg) statusEl.textContent = msg;
+  statusEl.textContent = (st === 'done' && msg) ? msg : icons[st];
   updateProgress();
   updatePipeline();
 }
 
 function expandCard(id) {
-  const b = document.getElementById(`body-${id}`);
-  if (b) b.classList.add('open');
+  document.getElementById(`body-${id}`)?.classList.add('open');
   document.getElementById(`card-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function updateProgress() {
   const done = Object.values(stepStates).filter(s => s === 'done').length;
-  const pct = Math.round((done / STEPS.length) * 100);
+  const pct  = Math.round((done / STEPS.length) * 100);
   document.getElementById('progressBar').style.width = pct + '%';
   document.getElementById('progressLabel').textContent =
     pct === 100 ? '✓ Demo complete' : `${done} / ${STEPS.length} steps`;
@@ -1071,7 +1060,7 @@ function updatePipeline() {
     const st = stepStates[s.id] || 'idle';
     s.pipeNodes?.forEach(n => {
       if (!nodeMap[n] || st === 'running') nodeMap[n] = st;
-      else if (st === 'done' && nodeMap[n] !== 'running') nodeMap[n] = 'done';
+      else if (st === 'done'  && nodeMap[n] !== 'running') nodeMap[n] = 'done';
       else if (st === 'error' && nodeMap[n] !== 'running' && nodeMap[n] !== 'done') nodeMap[n] = 'error';
     });
   });
@@ -1081,17 +1070,15 @@ function updatePipeline() {
   });
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
+// ── Render ─────────────────────────────────────────────────────────────────────
 function renderUI() {
-  const nav = document.getElementById('stepsNav');
+  const nav     = document.getElementById('stepsNav');
   const content = document.getElementById('stepsContent');
-  nav.innerHTML = '';
-  content.innerHTML = '';
+  nav.innerHTML = content.innerHTML = '';
 
   STEPS.forEach((step, i) => {
     stepStates[step.id] = 'idle';
 
-    // Nav item
     const ni = document.createElement('div');
     ni.className = 'nav-item';
     ni.id = `nav-${step.id}`;
@@ -1099,9 +1086,8 @@ function renderUI() {
     ni.onclick = () => expandCard(step.id);
     nav.appendChild(ni);
 
-    // Card
     const extra = step.id === 'health' ? '<div class="multi-endpoint"></div>' : '';
-    const card = document.createElement('div');
+    const card  = document.createElement('div');
     card.className = 'step-card';
     card.id = `card-${step.id}`;
     card.innerHTML = `
@@ -1113,19 +1099,16 @@ function renderUI() {
         </div>
         <div class="step-status">Idle</div>
       </div>
-      <div class="step-body" id="body-${step.id}">
-        ${extra}
-      </div>`;
+      <div class="step-body" id="body-${step.id}">${extra}</div>`;
     content.appendChild(card);
   });
 }
 
 function toggleCard(id) {
-  const b = document.getElementById(`body-${id}`);
-  b.classList.toggle('open');
+  document.getElementById(`body-${id}`)?.classList.toggle('open');
 }
 
-// ── Run ───────────────────────────────────────────────────────────────────────
+// ── Run ────────────────────────────────────────────────────────────────────────
 let running = false;
 
 async function runAll() {
@@ -1137,20 +1120,17 @@ async function runAll() {
     setStepState(step.id, 'running');
     expandCard(step.id);
     const card = document.getElementById(`card-${step.id}`);
-
     try {
       const msg = await step.run(card);
       setStepState(step.id, 'done', msg || 'Done');
     } catch (err) {
       setStepState(step.id, 'error', err.message || 'Error');
       card.querySelector('.step-body').classList.add('open');
-      const errEl = document.createElement('div');
-      errEl.innerHTML = `<div class="code-block response-err">${err.message}</div>`;
-      card.querySelector('.step-body').appendChild(errEl);
+      card.querySelector('.step-body').insertAdjacentHTML('beforeend',
+        `<div class="code-block response-err">${err.message}</div>`);
       break;
     }
-
-    await sleep(300);
+    await sleep(200);
   }
 
   running = false;
@@ -1159,20 +1139,18 @@ async function runAll() {
 
 function resetDemo() {
   if (running) return;
-  state.portalJwt = null;
-  state.segmentId = null;
-  state.campaignId = null;
+  state.portalJwt  = null;
+  state.segments   = { buyers: null, hvd: null, gamers: null, withdrawers: null };
+  state.campaigns  = { purchase: null, hvd: null, reengagement: null };
   state.templateId = null;
-  state.cronCampaignId = null;
-  state.immediateCampaignId = null;
-  state.runId = Date.now().toString(36);
+  state.runId      = Date.now().toString(36);
   renderUI();
   document.getElementById('progressBar').style.width = '0%';
   document.getElementById('progressLabel').textContent = 'Ready';
   document.querySelectorAll('.pipe-node').forEach(n => n.className = 'pipe-node');
 }
 
-// ── Boot ─────────────────────────────────────────────────────────────────────
+// ── Boot ───────────────────────────────────────────────────────────────────────
 renderUI();
 </script>
 </body>
