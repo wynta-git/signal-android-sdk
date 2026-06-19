@@ -647,6 +647,7 @@ async def get_segment_analysis(
     project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
+    ch: ChDep,
     window_days: int = Query(default=7, ge=1, le=90),
     segment_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
@@ -657,11 +658,37 @@ async def get_segment_analysis(
     now   = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
 
-    # Always fetch all segments for summary stats; apply segment filter only for the table
-    all_seg_docs = await db["segments"].find(
-        {"project_id": project_id},
-        {"_id": 0, "segment_id": 1, "name": 1, "members_count": 1, "last_refresh_time": 1},
-    ).sort("members_count", -1).to_list(length=None)
+    # ── Parallel fetches ─────────────────────────────────────────────────────
+    (
+        all_seg_docs,
+        segment_campaigns,
+        run_rows,
+        ch_events_by_campaign,
+        conversions_by_campaign,
+        optin_agg,
+        total_users_count,
+    ) = await asyncio.gather(
+        db["segments"].find(
+            {"project_id": project_id},
+            {"_id": 0, "segment_id": 1, "name": 1, "members_count": 1, "last_refresh_time": 1},
+        ).sort("members_count", -1).to_list(length=None),
+        db["campaigns"].find(
+            {"project_id": project_id, "audience.segment_id": {"$exists": True}},
+            {"_id": 0, "campaign_id": 1, "audience": 1},
+        ).to_list(length=None),
+        db["campaign_runs"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$campaign_id", "total_sent": {"$sum": "$sent_count"}}},
+        ]).to_list(length=None),
+        _query_notification_events_by_campaign(ch, project_id, since, now),
+        _query_conversions_by_campaign(ch, project_id, since, now),
+        db["device_tokens"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$user_id"}},
+            {"$count": "total"},
+        ]).to_list(length=1),
+        db["users"].count_documents({"project_id": project_id}),
+    )
 
     table_docs = (
         [s for s in all_seg_docs if s["segment_id"] == segment_id]
@@ -669,21 +696,46 @@ async def get_segment_analysis(
         else all_seg_docs[:limit]
     )
 
-    # Summary across all segments
+    # ── Per-segment engagement helpers ───────────────────────────────────────
+    # Map segment_id → [campaign_ids] for campaigns that target it
+    seg_to_campaigns: dict[str, list[str]] = {}
+    for c in segment_campaigns:
+        sid = c.get("audience", {}).get("segment_id")
+        if sid:
+            seg_to_campaigns.setdefault(sid, []).append(c["campaign_id"])
+
+    sent_by_campaign = {r["_id"]: r["total_sent"] for r in run_rows}
+
+    def _seg_open_rate(sid: str) -> float | None:
+        cids = seg_to_campaigns.get(sid, [])
+        opens = sum(ch_events_by_campaign.get(cid, {}).get("opens", 0) for cid in cids)
+        sent  = sum(sent_by_campaign.get(cid, 0) for cid in cids)
+        return _safe_rate(opens, sent)
+
+    def _seg_conversions(sid: str) -> int | None:
+        cids = seg_to_campaigns.get(sid, [])
+        if not cids or not conversions_by_campaign:
+            return None
+        return sum(conversions_by_campaign.get(cid, {}).get("conversions", 0) for cid in cids)
+
+    # ── Summary ──────────────────────────────────────────────────────────────
     non_null = [s["members_count"] for s in all_seg_docs if s.get("members_count") is not None]
-    total_segments = len(all_seg_docs)
+    total_segments  = len(all_seg_docs)
     reachable_users = sum(non_null)
     avg_size = round(reachable_users / len(non_null)) if non_null else 0
+
+    push_opted_in = optin_agg[0]["total"] if optin_agg else 0
+    opt_in_rate   = _safe_rate(push_opted_in, total_users_count)
 
     summary = {
         "total_segments":   {"value": total_segments},
         "reachable_users":  {"value": reachable_users},
         "segment_growth":   {"value": None, "tracked": False},
         "avg_segment_size": {"value": avg_size},
-        "opt_in_rate":      {"value": None, "tracked": False},
+        "opt_in_rate":      {"value": opt_in_rate, "tracked": opt_in_rate is not None},
     }
 
-    # Trend: top 3 segments by size, flat members_count per day (no historical data)
+    # ── Trend: top 3 segments, flat members_count per day (no historical snapshots) ──
     top3 = all_seg_docs[:3]
     window_dates = [str((since + timedelta(days=i)).date()) for i in range(window_days)]
     _tier_labels = ("primary", "secondary", "tertiary")
@@ -694,7 +746,7 @@ async def get_segment_analysis(
             point[label] = top3[i].get("members_count") or 0 if i < len(top3) else 0
         trend.append(point)
 
-    # Segment status: live if refreshed within 48 h, else paused
+    # ── Segment table ────────────────────────────────────────────────────────
     def _seg_status(doc: dict) -> str:
         lr = doc.get("last_refresh_time")
         if not lr:
@@ -709,8 +761,8 @@ async def get_segment_analysis(
             "name":       s["name"],
             "users":      s.get("members_count") or 0,
             "growth_7d":  None,
-            "open_rate":  None,
-            "conversion": None,
+            "open_rate":  _seg_open_rate(s["segment_id"]),
+            "conversion": _seg_conversions(s["segment_id"]),
             "status":     _seg_status(s),
         }
         for s in table_docs
