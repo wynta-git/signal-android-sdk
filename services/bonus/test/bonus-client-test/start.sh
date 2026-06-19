@@ -39,12 +39,12 @@ if [[ ! -d node_modules ]]; then
   npm install --silent
 fi
 
-free_port 3099
+free_port 3010
 
 echo "┌─────────────────────────────────────────────────┐"
 echo "│  Bonus Client Test — dev start                   │"
 echo "│                                                   │"
-echo "│  UI  →  http://localhost:3099                     │"
+echo "│  UI  →  http://localhost:3010                     │"
 echo "│                                                   │"
 echo "│  Bonus service must be running on :8010           │"
 echo "│  (run services/bonus/bonus-start.sh separately)   │"

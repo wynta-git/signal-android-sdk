@@ -267,7 +267,7 @@ export default function Home() {
   return (
     <div className="app">
       <h1>Bonus Client Test</h1>
-      <p className="subtitle">S2S test client — PAM bonus player APIs · http://localhost:8010</p>
+      <p className="subtitle">S2S test client — PAM bonus player APIs · http://localhost:3010</p>
 
       <div className="tabs">
         {TABS.map((t, i) => (
