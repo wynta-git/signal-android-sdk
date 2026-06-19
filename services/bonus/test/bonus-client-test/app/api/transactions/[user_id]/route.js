@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { buildS2SHeaders } from '@/lib/s2s';
 
 export async function GET(request, { params }) {
+  const clientId = request.headers.get('x-s2s-client-id');
+  const secret   = request.headers.get('x-s2s-client-secret');
   const { user_id } = await params;
   const { searchParams } = new URL(request.url);
   const qs = searchParams.toString();
@@ -9,7 +11,7 @@ export async function GET(request, { params }) {
 
   const res = await fetch(upstream, {
     method: 'GET',
-    headers: buildS2SHeaders('GET', qs, null),
+    headers: buildS2SHeaders(clientId, secret, 'GET', qs, null),
   });
 
   const data = await res.json();

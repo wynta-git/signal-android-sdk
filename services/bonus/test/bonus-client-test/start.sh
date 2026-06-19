@@ -29,8 +29,6 @@ cd "$SCRIPT_DIR"
 if [[ ! -f .env.local ]]; then
   echo "[env]      .env.local not found — copying from .env.local.example"
   cp .env.local.example .env.local
-  echo "[env]      Edit .env.local and set S2S_CLIENT_ID and S2S_CLIENT_SECRET, then re-run."
-  exit 1
 fi
 
 # ── Install deps if needed ────────────────────────────────────────────────────

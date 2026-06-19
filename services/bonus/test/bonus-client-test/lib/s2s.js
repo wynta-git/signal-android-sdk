@@ -1,8 +1,6 @@
 import crypto from 'crypto';
 
-export function buildS2SHeaders(method, queryString, bodyJson) {
-  const clientId  = process.env.S2S_CLIENT_ID;
-  const secret    = process.env.S2S_CLIENT_SECRET;
+export function buildS2SHeaders(clientId, secret, method, queryString, bodyJson) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const rawBody   = method === 'POST' ? (bodyJson ?? '') : '';
   const qs        = queryString ?? '';

@@ -2,12 +2,14 @@ import { NextResponse } from 'next/server';
 import { buildS2SHeaders } from '@/lib/s2s';
 
 export async function POST(request, { params }) {
+  const clientId = request.headers.get('x-s2s-client-id');
+  const secret   = request.headers.get('x-s2s-client-secret');
   const { consume_txn_id } = await params;
   const upstream = `${process.env.BONUS_API_URL}/api/v1/user-bonuses/consume/${consume_txn_id}/revert`;
 
   const res = await fetch(upstream, {
     method: 'POST',
-    headers: buildS2SHeaders('POST', '', ''),
+    headers: buildS2SHeaders(clientId, secret, 'POST', '', ''),
     body: '',
   });
 

@@ -23,8 +23,51 @@ h1 {
 .subtitle {
   font-size: 0.8rem;
   color: #64748b;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
+
+/* Credentials bar */
+.creds-bar {
+  display: flex;
+  gap: 12px;
+  background: #1e2330;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.cred-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.cred-field label {
+  font-size: 0.72rem;
+  color: #64748b;
+  white-space: nowrap;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cred-field input {
+  flex: 1;
+  background: #0f1117;
+  border: 1px solid #2d3748;
+  border-radius: 6px;
+  padding: 6px 10px;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  outline: none;
+}
+
+.cred-field input:focus { border-color: #4f6ef7; }
 
 /* Tabs */
 .tabs {
