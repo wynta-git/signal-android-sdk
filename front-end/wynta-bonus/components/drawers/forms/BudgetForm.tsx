@@ -1,9 +1,9 @@
 "use client";
-import { useState } from "react";
-import { useAppSelector } from "../../../store/hooks";
+import { useEffect, useRef, useState } from "react";
+import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectHeadById } from "../../../store/slices/headsSlice";
 import { selectSubheadById } from "../../../store/slices/subheadsSlice";
-import { selectConfigureById } from "../../../store/slices/configuresSlice";
+import { fetchConfigure, selectConfigureById } from "../../../store/slices/configuresSlice";
 import Icon from "wynta-react-common/components/Icon";
 import DrawerFooter from "../../../components/drawers/DrawerFooter";
 import { limitMap, validateBudget } from "../../../utils/budget";
@@ -22,6 +22,7 @@ export default function BudgetForm({
   onCancel,
   onSubmit,
 }: BudgetFormProps) {
+  const dispatch = useAppDispatch();
   const scope = state.scope ?? "head";
 
   const headEntity = useAppSelector(
@@ -102,6 +103,33 @@ export default function BudgetForm({
     weekly?: string;
     monthly?: string;
   }>({});
+
+  // For configure scope: the list endpoint doesn't return budget — fetch the
+  // full detail so we get the existing limits.
+  useEffect(() => {
+    if (scope === "configure" && state.id != null) {
+      dispatch(fetchConfigure(state.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, state.id]);
+
+  // Once budget arrives (async), seed the inputs — but only before the user
+  // has made any edits (tracked by the ref).
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || ownBudget.length === 0) return;
+    seeded.current = true;
+    const d = ownBudget.find((b) => b.period_type === "DAILY");
+    const w = ownBudget.find((b) => b.period_type === "WEEKLY");
+    const m = ownBudget.find((b) => b.period_type === "MONTHLY");
+    const toStr = (p: typeof d) => {
+      const v = p?.limit ?? p?.budget_limit;
+      return v != null ? String(v) : "";
+    };
+    setDaily(toStr(d));
+    setWeekly(toStr(w));
+    setMonthly(toStr(m));
+  }, [ownBudget]);
 
   const validate = (): boolean => {
     const parentLimits =

@@ -265,6 +265,14 @@ export const api = {
       const sub = await res.json();
       return (sub.budget ?? []) as BudgetPeriod[];
     }
+    if (scope === "configure") {
+      const res = await fetch(`${BONUS_API}/bonus-configures/${id}`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`Failed to fetch budget for configure ${id}`);
+      const cfg = await res.json();
+      return (cfg.budget ?? []) as BudgetPeriod[];
+    }
     await delay();
     return getBudget(scope, id) as BudgetPeriod[];
   },
