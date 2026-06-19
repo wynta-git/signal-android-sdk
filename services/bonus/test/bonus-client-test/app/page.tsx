@@ -412,7 +412,7 @@ function ProcessingScreen({
         );
         if (res.ok) {
           const data = (await res.json()) as BonusSummary[];
-          const cash = data.find(d => d.chip_type === 'cash');
+          const cash = data.find(d => d.chip_type.toLowerCase() === 'cash');
           const hasBonus =
             cash &&
             (parseFloat(cash.bonus_balance) > 0 || parseFloat(cash.pending_bonus) > 0);
@@ -448,14 +448,26 @@ function ProcessingScreen({
 
 function WalletScreen({
   creds,
-  summary,
   nav,
 }: {
   creds: Creds;
-  summary: BonusSummary[];
   nav: (t: Tab) => void;
 }) {
-  const hasAny = summary.length > 0;
+  const [summary, setSummary] = useState<BonusSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/summary/${encodeURIComponent(creds.userId)}`,
+          { headers: s2sHeaders(creds) },
+        );
+        if (res.ok) setSummary((await res.json()) as BonusSummary[]);
+      } catch { /* show empty */ }
+      setLoading(false);
+    })();
+  }, [creds]);
 
   return (
     <div className="screen has-tabs">
@@ -464,7 +476,8 @@ function WalletScreen({
         <span className="header-label">Bonus Wallet</span>
       </div>
       <div className="screen-body">
-        {!hasAny && (
+        {loading && <Spinner />}
+        {!loading && summary.length === 0 && (
           <div className="empty-state">
             <div className="empty-icon">🎁</div>
             <div className="empty-title">No Active Bonus</div>
@@ -474,12 +487,14 @@ function WalletScreen({
         {summary.map(s => {
           const released = parseFloat(s.bonus_balance);
           const pending = parseFloat(s.pending_bonus);
+          const wagering = parseFloat(s.wagering_required);
           const total = released + pending;
+          const isCash = s.chip_type.toLowerCase() === 'cash';
           return (
             <div key={s.chip_type} className="wallet-card">
               <div className="wallet-card-header">
                 <span className="chip-badge">
-                  {s.chip_type === 'cash' ? '💵 Cash' : `🎮 ${s.chip_type}`}
+                  {isCash ? '💵 Cash' : `🎮 ${s.chip_type}`}
                 </span>
               </div>
               <div className="wallet-balance">₹{fmt(s.bonus_balance)}</div>
@@ -502,6 +517,17 @@ function WalletScreen({
                   ? `${((released / total) * 100).toFixed(0)}% released`
                   : 'No bonus balance'}
               </div>
+              {wagering > 0 && (
+                <div style={{ marginTop: 12, background: '#0f172a', borderRadius: 10, padding: '10px 12px' }}>
+                  <div style={{ fontSize: '0.62rem', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+                    Wagering Progress
+                  </div>
+                  <ProgressBar value={wagering > 0 ? 0 : 1} max={wagering} />
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 4 }}>
+                    ₹{fmt(wagering)} remaining to unlock pending bonus
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -714,7 +740,7 @@ function HomeScreen({
     })();
   }, [creds]);
 
-  const cash = summary.find(s => s.chip_type === 'cash');
+  const cash = summary.find(s => s.chip_type.toLowerCase() === 'cash');
   const totalBonus = cash
     ? parseFloat(cash.bonus_balance) + parseFloat(cash.pending_bonus)
     : 0;
@@ -840,7 +866,6 @@ export default function Home() {
       {screen === 'WALLET' && creds && (
         <WalletScreen
           creds={creds}
-          summary={summary}
           nav={handleNav}
         />
       )}
