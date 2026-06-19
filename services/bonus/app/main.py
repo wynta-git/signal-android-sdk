@@ -94,7 +94,7 @@ app.include_router(bonus_eligibility.router,     prefix=route_prefix, dependenci
 app.include_router(bonus_summary.router,         prefix=route_prefix, dependencies=_portal)
 
 # Player bonus router — S2S auth required (called by game servers)
-app.include_router(player_bonus.router,          prefix="/api/v1",    dependencies=_s2s)
+app.include_router(player_bonus.router,          prefix=route_prefix, dependencies=_s2s)
 register_exception_handlers(app)
 bonus_subhead.register_exception_handlers(app)
 bonus_release_trigger.register_exception_handlers(app)

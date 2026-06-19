@@ -1,5 +1,5 @@
 """
-Tests for GET /api/v1/user-bonuses/applicable-codes
+Tests for GET /api/v1/bonus/user-bonuses/applicable-codes
 
 Run with:
     cd services/bonus
@@ -19,7 +19,7 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 
 BASE = "http://test"
-ENDPOINT = "/api/v1/user-bonuses/applicable-codes"
+ENDPOINT = "/api/v1/bonus/user-bonuses/applicable-codes"
 CLIENT_ID = "test-client"
 SECRET = "test-secret"
 

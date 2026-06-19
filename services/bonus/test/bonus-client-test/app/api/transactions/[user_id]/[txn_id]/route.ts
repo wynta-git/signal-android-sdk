@@ -13,7 +13,7 @@ export async function GET(
   const { user_id, txn_id } = await params;
   const clientId = request.headers.get('x-s2s-client-id') ?? '';
   const secret = request.headers.get('x-s2s-client-secret') ?? '';
-  const upstream = `${process.env.BONUS_API_URL}/api/v1/user-bonuses/${encodeURIComponent(user_id)}/transactions/${encodeURIComponent(txn_id)}`;
+  const upstream = `${process.env.BONUS_API_URL}/api/v1/bonus/user-bonuses/${encodeURIComponent(user_id)}/transactions/${encodeURIComponent(txn_id)}`;
   const res = await fetch(upstream, {
     method: 'GET',
     headers: buildS2SHeaders(clientId, secret, 'GET', '', null),

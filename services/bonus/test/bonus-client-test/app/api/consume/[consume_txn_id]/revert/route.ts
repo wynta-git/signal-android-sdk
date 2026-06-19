@@ -14,7 +14,7 @@ export async function POST(
   const clientId = request.headers.get('x-s2s-client-id') ?? '';
   const secret = request.headers.get('x-s2s-client-secret') ?? '';
   const bodyJson = await request.text();
-  const upstream = `${process.env.BONUS_API_URL}/api/v1/user-bonuses/consume/${consume_txn_id}/revert`;
+  const upstream = `${process.env.BONUS_API_URL}/api/v1/bonus/user-bonuses/consume/${consume_txn_id}/revert`;
   const res = await fetch(upstream, {
     method: 'POST',
     headers: buildS2SHeaders(clientId, secret, 'POST', '', bodyJson),
