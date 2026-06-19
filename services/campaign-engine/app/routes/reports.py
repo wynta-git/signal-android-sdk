@@ -263,6 +263,7 @@ async def get_campaign_stats(
         curr_raw, prev_raw,
         campaign_docs, run_rows,
         ch_events_by_campaign,
+        conversions_by_campaign,
     ) = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now),
         get_dashboard_delivery_stats(db, project_id, prev_since, since),
@@ -273,6 +274,7 @@ async def get_campaign_stats(
             {"$group": {"_id": "$campaign_id", "total_sent": {"$sum": "$sent_count"}}},
         ]).to_list(length=None),
         _query_notification_events_by_campaign(ch, project_id, since, until=now),
+        _query_conversions_by_campaign(ch, project_id, since, until=now),
     )
 
     # ── Summary ─────────────────────────────────────────────────────────────
@@ -285,6 +287,10 @@ async def get_campaign_stats(
     total_opens  = sum(v["opens"]  for v in ch_events_by_campaign.values())
     total_clicks = sum(v["clicks"] for v in ch_events_by_campaign.values())
     tracked = bool(ch_events_by_campaign)
+
+    conv_tracked = bool(conversions_by_campaign)
+    total_conversions = sum(v["conversions"] for v in conversions_by_campaign.values())
+    total_revenue     = sum(v["revenue"]     for v in conversions_by_campaign.values())
 
     summary = {
         "total_sent": {
@@ -299,8 +305,14 @@ async def get_campaign_stats(
             "value":   _safe_rate(total_clicks, curr_sent),
             "tracked": tracked,
         },
-        "conversions":        {"value": None, "tracked": False},
-        "revenue_influenced": {"value": None, "tracked": False},
+        "conversions": {
+            "value":   total_conversions if conv_tracked else None,
+            "tracked": conv_tracked,
+        },
+        "revenue_influenced": {
+            "value":   round(total_revenue, 2) if conv_tracked else None,
+            "tracked": conv_tracked,
+        },
     }
 
     # ── Trend (primary/secondary/tertiary by channel tier) ──────────────────
@@ -326,6 +338,7 @@ async def get_campaign_stats(
         cid = d["campaign_id"]
         sent = sent_by_campaign.get(cid, 0)
         ev   = ch_events_by_campaign.get(cid, {})
+        conv = conversions_by_campaign.get(cid)
         campaigns_out.append({
             "campaign_id": cid,
             "name":        d["name"],
@@ -333,7 +346,8 @@ async def get_campaign_stats(
             "sent":        sent,
             "open_rate":   _safe_rate(ev.get("opens", 0), sent),
             "ctr":         _safe_rate(ev.get("clicks", 0), sent),
-            "conversions": None,
+            "conversions":        conv["conversions"]             if conv else None,
+            "revenue_influenced": round(conv["revenue"], 2) if conv else None,
             "status":      d["status"],
         })
     campaigns_out.sort(key=lambda c: c["sent"], reverse=True)
@@ -351,6 +365,62 @@ async def get_campaign_stats(
 # ---------------------------------------------------------------------------
 
 _ALL_CHANNELS = ("email", "push", "sms", "whatsapp", "telegram", "in_app")
+
+
+async def _query_conversions_by_campaign(
+    ch: Any,
+    project_id: str,
+    since: datetime,
+    until: datetime,
+    attribution_hours: int = 24,
+) -> dict[str, dict[str, Any]]:
+    """Last-touch attribution: deposit_success within `attribution_hours` of a notification open/click.
+
+    Returns {campaign_id: {conversions: N, revenue: float}}.
+    Only campaigns that had at least one attributed deposit appear in the result.
+    Returns {} on any ClickHouse error so callers degrade gracefully.
+    """
+    tbl = _ch_table(project_id)
+    query = f"""
+        SELECT
+            n.campaign_id,
+            uniq(d.user_id)  AS conversions,
+            sum(d.amount)    AS revenue
+        FROM (
+            SELECT user_id, campaign_id, max(timestamp) AS last_touch
+            FROM {tbl}
+            WHERE event_name IN ('notification_opened', 'notification_clicked')
+              AND campaign_id IS NOT NULL
+              AND campaign_id != ''
+              AND timestamp >= {{since:DateTime}}
+              AND timestamp <  {{until:DateTime}}
+            GROUP BY user_id, campaign_id
+        ) AS n
+        INNER JOIN (
+            SELECT user_id, amount, timestamp
+            FROM {tbl}
+            WHERE event_name = 'deposit_success'
+              AND amount > 0
+              AND timestamp >= {{since:DateTime}}
+              AND timestamp <  addHours({{until:DateTime}}, {attribution_hours})
+        ) AS d ON n.user_id = d.user_id
+        WHERE d.timestamp >= n.last_touch
+          AND d.timestamp <= addHours(n.last_touch, {attribution_hours})
+        GROUP BY n.campaign_id
+    """
+    try:
+        result = await ch.query(query, parameters={"since": since, "until": until})
+        return {
+            row["campaign_id"]: {
+                "conversions": int(row["conversions"]),
+                "revenue":     float(row["revenue"] or 0),
+            }
+            for row in result.named_results()
+            if row.get("campaign_id")
+        }
+    except Exception:
+        log.warning("clickhouse.conversions_by_campaign.failed", project_id=project_id)
+        return {}
 
 
 async def _query_notification_events_by_campaign(
