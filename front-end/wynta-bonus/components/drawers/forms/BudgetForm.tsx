@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { selectHeadById } from "../../../store/slices/headsSlice";
 import { selectSubheadById } from "../../../store/slices/subheadsSlice";
-import { fetchConfigure, selectConfigureById } from "../../../store/slices/configuresSlice";
+import { selectConfigureById } from "../../../store/slices/configuresSlice";
+import { fetchBudget, selectBudget } from "../../../store/slices/budgetsSlice";
 import Icon from "wynta-react-common/components/Icon";
 import DrawerFooter from "../../../components/drawers/DrawerFooter";
 import { limitMap, validateBudget } from "../../../utils/budget";
@@ -49,6 +50,20 @@ export default function BudgetForm({
       : () => undefined,
   );
 
+  const configureBudget: BudgetPeriod[] =
+    useAppSelector(
+      scope === "configure" && state.id != null
+        ? selectBudget("configure", state.id)
+        : () => undefined,
+    ) ?? [];
+
+  const budgetFetched = useAppSelector(
+    (s) =>
+      scope === "configure" && state.id != null
+        ? s.budgets.status[`configure:${state.id}`] === "succeeded"
+        : true,
+  );
+
   const sourceName: string =
     scope === "head"
       ? (headEntity?.name ?? "")
@@ -62,12 +77,11 @@ export default function BudgetForm({
       : scope === "subhead"
         ? (subheadEntity?.budget ?? [])
         : scope === "configure"
-          ? (configureEntity?.budget ?? [])
+          ? configureBudget
           : [];
 
   const inherits =
-    scope === "configure" &&
-    (configureEntity?.budget == null || configureEntity.budget.length === 0);
+    scope === "configure" && budgetFetched && configureBudget.length === 0;
 
   const scopeLabel =
     { head: "Head", subhead: "Subhead", configure: "Configure" }[scope] ??
@@ -104,11 +118,12 @@ export default function BudgetForm({
     monthly?: string;
   }>({});
 
-  // For configure scope: the list endpoint doesn't return budget — fetch the
-  // full detail so we get the existing limits.
+  // For configure scope: list endpoint omits budget. Fetch via budgetsSlice so
+  // the result lands in isolated storage that won't be overwritten by a
+  // concurrent fetchConfiguresBySubhead call.
   useEffect(() => {
     if (scope === "configure" && state.id != null) {
-      dispatch(fetchConfigure(state.id));
+      dispatch(fetchBudget({ scope: "configure", id: state.id }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, state.id]);
