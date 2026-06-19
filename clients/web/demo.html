@@ -957,6 +957,215 @@ async function stepEngagement(card) {
   return `${r.data.accepted} accepted — ${opens} opens (${openRate}% rate), ${clicks} clicks (${ctr}% CTR) → ClickHouse`;
 }
 
+// ── Step 23 — Post-Engagement Deposits (Attribution) ─────────────────────────
+async function stepPostEngagementDeposits(card) {
+  const users = demoUsers();
+  const events = [];
+
+  // VIP (1-5) all clicked → deposit now (within 24h attribution window)
+  const vipAmounts = [1500, 1800, 2100, 2400, 2700];
+  users.slice(0, 5).forEach((u, i) => {
+    events.push(makeEvent('deposit_success', u, {
+      amount: vipAmounts[i], currency: 'INR',
+      transaction_id: `DEP-ATTR-VIP-${state.runId}-${i}`,
+      method: ['upi','card','netbanking','upi','card'][i],
+    }, 0));
+  });
+
+  // Regular (6-9) clicked → deposit now
+  const regAmounts = [500, 600, 700, 800];
+  users.slice(5, 9).forEach((u, i) => {
+    events.push(makeEvent('deposit_success', u, {
+      amount: regAmounts[i], currency: 'INR',
+      transaction_id: `DEP-ATTR-REG-${state.runId}-${i}`,
+      method: 'upi',
+    }, 0));
+  });
+
+  const totalRev = [...vipAmounts, ...regAmounts].reduce((a, b) => a + b, 0);
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="info-box green" style="margin-top:10px">
+      These deposits fire <strong>after</strong> the notification_clicked events in step 22,
+      so they fall inside the 24 h attribution window and will be counted as conversions.
+      <br><strong>VIP (1–5):</strong> ₹1,500–₹2,700 &nbsp;|&nbsp;
+      <strong>Regular (6–9):</strong> ₹500–₹800
+    </div>`);
+
+  showRequest(card, 'POST', `${host()}:8001/api/v1/events/track`,
+    { events: [`${events.length} deposit_success events (post-engagement)`] });
+  const r = await api('POST', `${host()}:8001/api/v1/events/track`, { events },
+    { Authorization: `Bearer ${token()}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error('Post-engagement deposits failed');
+  return `${r.data.accepted} accepted — 9 users × deposit (₹${totalRev.toLocaleString('en-IN')} total) → attribution window`;
+}
+
+// ── Step 24 — Report: Campaign Stats ─────────────────────────────────────────
+async function stepReportCampaignStats(card) {
+  const url = `${host()}:8004/api/v1/campaign/projects/${projId()}/reports/campaign-stats?window_days=7`;
+  showRequest(card, 'GET', url, null);
+  const r = await api('GET', url, null, { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(r.data?.detail || 'Report fetch failed');
+
+  const s    = r.data?.summary || {};
+  const sent = s.total_sent?.value;
+  const open = s.avg_open_rate?.value;
+  const ctr  = s.avg_ctr?.value;
+  const conv = s.conversions?.value;
+  const rev  = s.revenue_influenced?.value;
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="summary-grid" style="margin-top:10px">
+      <div class="summary-cell"><div class="val">${sent ?? '—'}</div><div class="lbl">Total Sent</div></div>
+      <div class="summary-cell"><div class="val">${open != null ? (open*100).toFixed(1)+'%' : '—'}</div><div class="lbl">Avg Open Rate</div></div>
+      <div class="summary-cell"><div class="val">${ctr != null ? (ctr*100).toFixed(1)+'%' : '—'}</div><div class="lbl">Avg CTR</div></div>
+      <div class="summary-cell"><div class="val" style="color:${conv != null ? 'var(--green)' : 'var(--text-dim)'}">${conv ?? '—'}</div><div class="lbl">Conversions</div></div>
+    </div>
+    <div class="summary-grid" style="margin-top:8px;grid-template-columns:1fr 1fr">
+      <div class="summary-cell">
+        <div class="val" style="font-size:16px;color:${rev != null ? 'var(--green)' : 'var(--text-dim)'}">
+          ${rev != null ? '₹'+rev.toLocaleString('en-IN') : '—'}
+        </div>
+        <div class="lbl">Revenue Influenced</div>
+      </div>
+      <div class="summary-cell">
+        <div class="val">${(r.data?.campaigns || []).length}</div>
+        <div class="lbl">Campaigns in Window</div>
+      </div>
+    </div>
+    ${(r.data?.campaigns || []).length ? `
+    <div class="section-label" style="margin-top:10px">Per-campaign breakdown</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface2);text-align:left">
+          <th style="padding:6px 10px;font-weight:600">Campaign</th>
+          <th style="padding:6px 10px;font-weight:600">Sent</th>
+          <th style="padding:6px 10px;font-weight:600">Open Rate</th>
+          <th style="padding:6px 10px;font-weight:600">CTR</th>
+          <th style="padding:6px 10px;font-weight:600">Conversions</th>
+          <th style="padding:6px 10px;font-weight:600">Revenue</th>
+        </tr></thead>
+        <tbody>
+          ${(r.data.campaigns||[]).map(c => `
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:6px 10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name}">${c.name}</td>
+            <td style="padding:6px 10px">${c.sent}</td>
+            <td style="padding:6px 10px">${c.open_rate != null ? (c.open_rate*100).toFixed(1)+'%' : '—'}</td>
+            <td style="padding:6px 10px">${c.ctr != null ? (c.ctr*100).toFixed(1)+'%' : '—'}</td>
+            <td style="padding:6px 10px;color:${c.conversions != null ? 'var(--green)' : 'var(--text-dim)'}">${c.conversions ?? '—'}</td>
+            <td style="padding:6px 10px;color:${c.revenue_influenced != null ? 'var(--green)' : 'var(--text-dim)'}">${c.revenue_influenced != null ? '₹'+c.revenue_influenced.toLocaleString('en-IN') : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}`);
+
+  return `Sent: ${sent ?? '—'}, Open: ${open != null ? (open*100).toFixed(1)+'%' : '—'}, CTR: ${ctr != null ? (ctr*100).toFixed(1)+'%' : '—'}, Conv: ${conv ?? '—'}, Rev: ${rev != null ? '₹'+rev : '—'}`;
+}
+
+// ── Step 25 — Report: Channel Delivery ───────────────────────────────────────
+async function stepReportChannelDelivery(card) {
+  const url = `${host()}:8004/api/v1/campaign/projects/${projId()}/reports/channel-delivery?window_days=7`;
+  showRequest(card, 'GET', url, null);
+  const r = await api('GET', url, null, { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(r.data?.detail || 'Report fetch failed');
+
+  const s       = r.data?.summary || {};
+  const total   = s.total_messages?.value;
+  const deliv   = s.delivery_rate?.value;
+  const bounce  = s.bounce_rate?.value;
+  const optOuts = s.opt_outs_7d?.value;
+  const actCh   = s.active_channels?.value;
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="summary-grid" style="margin-top:10px">
+      <div class="summary-cell"><div class="val">${total ?? '—'}</div><div class="lbl">Total Messages</div></div>
+      <div class="summary-cell"><div class="val">${deliv != null ? (deliv*100).toFixed(1)+'%' : '—'}</div><div class="lbl">Delivery Rate</div></div>
+      <div class="summary-cell"><div class="val">${bounce != null ? (bounce*100).toFixed(1)+'%' : '—'}</div><div class="lbl">Bounce Rate</div></div>
+      <div class="summary-cell"><div class="val" style="color:${s.opt_outs_7d?.tracked ? 'var(--text)' : 'var(--text-dim)'}">${optOuts ?? '—'}</div><div class="lbl">Opt-Outs (7d)</div></div>
+    </div>
+    ${(r.data?.channels || []).length ? `
+    <div class="section-label" style="margin-top:10px">Per-channel breakdown</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface2);text-align:left">
+          <th style="padding:6px 10px;font-weight:600">Channel</th>
+          <th style="padding:6px 10px;font-weight:600">Messages</th>
+          <th style="padding:6px 10px;font-weight:600">Delivery</th>
+          <th style="padding:6px 10px;font-weight:600">Bounce</th>
+          <th style="padding:6px 10px;font-weight:600">Open Rate</th>
+          <th style="padding:6px 10px;font-weight:600">CTR</th>
+        </tr></thead>
+        <tbody>
+          ${(r.data.channels||[]).map(c => `
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:6px 10px;font-weight:600">${c.channel}</td>
+            <td style="padding:6px 10px">${c.messages}</td>
+            <td style="padding:6px 10px">${c.delivery_rate != null ? (c.delivery_rate*100).toFixed(1)+'%' : '—'}</td>
+            <td style="padding:6px 10px">${c.bounce_rate != null ? (c.bounce_rate*100).toFixed(1)+'%' : '—'}</td>
+            <td style="padding:6px 10px">${c.open_rate != null ? (c.open_rate*100).toFixed(1)+'%' : '—'}</td>
+            <td style="padding:6px 10px">${c.ctr != null ? (c.ctr*100).toFixed(1)+'%' : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : ''}`);
+
+  return `Messages: ${total ?? '—'}, Delivery: ${deliv != null ? (deliv*100).toFixed(1)+'%' : '—'}, Active channels: ${actCh ?? '—'}, Opt-outs: ${optOuts ?? '—'}`;
+}
+
+// ── Step 26 — Report: Segment Analysis ───────────────────────────────────────
+async function stepReportSegmentAnalysis(card) {
+  const url = `${host()}:8004/api/v1/campaign/projects/${projId()}/reports/segment-analysis?window_days=7`;
+  showRequest(card, 'GET', url, null);
+  const r = await api('GET', url, null, { Authorization: `Bearer ${state.portalJwt}` });
+  showResponse(card, r);
+  if (!r.ok) throw new Error(r.data?.detail || 'Report fetch failed');
+
+  const s         = r.data?.summary || {};
+  const totalSegs = s.total_segments?.value;
+  const reachable = s.reachable_users?.value;
+  const optIn     = s.opt_in_rate?.value;
+  const avgSize   = s.avg_segment_size?.value;
+  const segs      = r.data?.segments || [];
+
+  card.querySelector('.step-body').insertAdjacentHTML('beforeend', `
+    <div class="summary-grid" style="margin-top:10px">
+      <div class="summary-cell"><div class="val">${totalSegs ?? '—'}</div><div class="lbl">Total Segments</div></div>
+      <div class="summary-cell"><div class="val">${reachable?.toLocaleString('en-IN') ?? '—'}</div><div class="lbl">Reachable Users</div></div>
+      <div class="summary-cell"><div class="val" style="color:${optIn != null ? 'var(--accent)' : 'var(--text-dim)'}">${optIn != null ? (optIn*100).toFixed(1)+'%' : '—'}</div><div class="lbl">Push Opt-In Rate</div></div>
+      <div class="summary-cell"><div class="val">${avgSize?.toLocaleString('en-IN') ?? '—'}</div><div class="lbl">Avg Segment Size</div></div>
+    </div>
+    ${segs.length ? `
+    <div class="section-label" style="margin-top:10px">Segments — open_rate &amp; conversion now live</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface2);text-align:left">
+          <th style="padding:6px 10px;font-weight:600">Segment</th>
+          <th style="padding:6px 10px;font-weight:600">Users</th>
+          <th style="padding:6px 10px;font-weight:600">Open Rate</th>
+          <th style="padding:6px 10px;font-weight:600">Conversions</th>
+          <th style="padding:6px 10px;font-weight:600">Status</th>
+        </tr></thead>
+        <tbody>
+          ${segs.slice(0, 10).map(sg => `
+          <tr style="border-top:1px solid var(--border)">
+            <td style="padding:6px 10px">${sg.name}</td>
+            <td style="padding:6px 10px">${sg.users}</td>
+            <td style="padding:6px 10px;color:${sg.open_rate != null ? 'var(--green)' : 'var(--text-dim)'}">${sg.open_rate != null ? (sg.open_rate*100).toFixed(1)+'%' : '—'}</td>
+            <td style="padding:6px 10px;color:${sg.conversion != null ? 'var(--green)' : 'var(--text-dim)'}">${sg.conversion ?? '—'}</td>
+            <td style="padding:6px 10px"><span style="font-size:10px;padding:2px 7px;border-radius:4px;background:${sg.status==='live'?'var(--green-bg)':'var(--surface2)'};color:${sg.status==='live'?'var(--green)':'var(--text-dim)'}">${sg.status}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : '<div class="info-box orange" style="margin-top:10px">No segments with data in this window yet — check that evaluation ran.</div>'}`);
+
+  const withOpen = segs.filter(sg => sg.open_rate != null).length;
+  const withConv = segs.filter(sg => sg.conversion != null).length;
+  return `Segments: ${totalSegs}, Reachable: ${reachable ?? '—'}, Opt-In: ${optIn != null ? (optIn*100).toFixed(1)+'%' : '—'}, ${withOpen}/${segs.length} with open_rate, ${withConv}/${segs.length} with conversions`;
+}
+
 // ── STEPS definition ────────────────────────────────────────────────────────
 const STEPS = [
   { id: 'health',        title: 'Health Check',               desc: 'Verify all 5 services are reachable',                             pipeNodes: ['pipe-api'],                                  run: stepHealth },
@@ -980,7 +1189,11 @@ const STEPS = [
   { id: 'campaign_reeng',title: 'Campaign: Re-engagement',     desc: 'Immediate campaign targeting Recent Withdrawers (churn recovery)', pipeNodes: ['pipe-camp'],                              run: stepCreateReengagementCampaign },
   { id: 'trigger',       title: 'Fire Trigger Events',         desc: 'Send purchase_completed for 5 VIP users — activates purchase campaign', pipeNodes: ['pipe-api','pipe-kafka','pipe-camp'], run: stepFireTriggers },
   { id: 'delivery',      title: 'Notification Delivery',       desc: 'Campaign emits send jobs → notifications-engine delivers',        pipeNodes: ['pipe-notif'],                                run: stepDelivery },
-  { id: 'engagement',    title: 'Simulate Engagement',         desc: 'notification_opened + clicked for all 20 users → open_rate & CTR in ClickHouse', pipeNodes: ['pipe-api','pipe-kafka','pipe-ch'], run: stepEngagement },
+  { id: 'engagement',       title: 'Simulate Engagement',          desc: 'notification_opened + clicked for all 20 users → open_rate & CTR in ClickHouse',   pipeNodes: ['pipe-api','pipe-kafka','pipe-ch'],       run: stepEngagement },
+  { id: 'post_deposits',    title: 'Post-Engagement Deposits',     desc: 'deposit_success for users who clicked — lands inside 24 h attribution window',      pipeNodes: ['pipe-api','pipe-kafka','pipe-ch'],       run: stepPostEngagementDeposits },
+  { id: 'report_camp_stats',title: 'Report: Campaign Stats',       desc: 'Verify conversions, revenue_influenced, open_rate, CTR — all now from ClickHouse',   pipeNodes: ['pipe-camp'],                            run: stepReportCampaignStats },
+  { id: 'report_ch_delivery',title: 'Report: Channel Delivery',    desc: 'Verify delivery_rate, bounce_rate, opt_outs_7d per channel',                         pipeNodes: ['pipe-camp'],                            run: stepReportChannelDelivery },
+  { id: 'report_seg',       title: 'Report: Segment Analysis',     desc: 'Verify opt_in_rate, per-segment open_rate and conversions — now live',                pipeNodes: ['pipe-camp','pipe-mongo'],               run: stepReportSegmentAnalysis },
 ];
 
 // helper used in game events (avoids ReferenceError)
