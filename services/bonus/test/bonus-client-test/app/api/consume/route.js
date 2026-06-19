@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { buildS2SHeaders } from '@/lib/s2s';
 
+export const runtime = 'nodejs';
+
 export async function POST(request) {
   const clientId = request.headers.get('x-s2s-client-id');
   const secret   = request.headers.get('x-s2s-client-secret');
