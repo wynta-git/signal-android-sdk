@@ -1,6 +1,7 @@
 "use client";
-import React, { useState } from "react";
-import { useAppSelector } from "../../../store/hooks";
+import React, { useEffect, useState } from "react";
+import { useAppDispatch, useAppSelector } from "../../../store/hooks";
+import { fetchHead, selectHeadById } from "../../../store/slices/headsSlice";
 import { selectSubheadById } from "../../../store/slices/subheadsSlice";
 import { selectConfigureById } from "../../../store/slices/configuresSlice";
 import { selectAllSegments } from "wynta-react-common/store/slices/segmentsSlice";
@@ -161,6 +162,21 @@ export default function ConfigureForm({
 
   const cfg = cfgFromStore;
 
+  const dispatch = useAppDispatch();
+
+  const parentHeadId =
+    parentSub?.head_id ?? (parentSub as { parent_head_id?: number } | undefined)?.parent_head_id;
+  const parentHead = useAppSelector(
+    parentHeadId != null ? selectHeadById(parentHeadId) : () => undefined,
+  );
+
+  useEffect(() => {
+    if (parentHeadId != null && (!parentHead || parentHead.budget.length === 0)) {
+      dispatch(fetchHead(parentHeadId));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parentHeadId]);
+
   const toLocalDT = (utcStr: string) => {
     const d = new Date(utcStr.includes("T") ? utcStr : utcStr + "T00:00:00Z");
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -247,20 +263,34 @@ export default function ConfigureForm({
   // Active
   const [active, setActive] = useState(cfg ? cfg.active : true);
 
-  // ── Step 2: Budget ────────────────────────────────────────────────────────
-  const subLimitVal = (type: "DAILY" | "WEEKLY" | "MONTHLY") => {
+  // ── Step 3: Budget ────────────────────────────────────────────────────────
+  const subLimitVal = (type: "DAILY" | "WEEKLY" | "MONTHLY"): number | null => {
     const p = parentSub?.budget?.find((b) => b.period_type === type);
     const v = p?.budget_limit ?? p?.limit;
     return v != null ? Number(v) : null;
+  };
+  const headLimitVal = (type: "DAILY" | "WEEKLY" | "MONTHLY"): number | null => {
+    const p = parentHead?.budget?.find((b) => b.period_type === type);
+    const v = p?.budget_limit ?? p?.limit;
+    return v != null ? Number(v) : null;
+  };
+  const cfgLimitStr = (type: "DAILY" | "WEEKLY" | "MONTHLY") => {
+    const p = cfg?.budget?.find((b) => b.period_type === type);
+    const v = p?.budget_limit ?? p?.limit;
+    return v != null ? String(v) : "";
   };
   const subLimitStr = (type: "DAILY" | "WEEKLY" | "MONTHLY") => {
     const v = subLimitVal(type);
     return v != null ? String(v) : "";
   };
-  const [dailyLimit, setDailyLimit] = useState(() => subLimitStr("DAILY"));
-  const [weeklyLimit, setWeeklyLimit] = useState(() => subLimitStr("WEEKLY"));
+  const [dailyLimit, setDailyLimit] = useState(() =>
+    mode === "edit" ? cfgLimitStr("DAILY") : subLimitStr("DAILY"),
+  );
+  const [weeklyLimit, setWeeklyLimit] = useState(() =>
+    mode === "edit" ? cfgLimitStr("WEEKLY") : subLimitStr("WEEKLY"),
+  );
   const [monthlyLimit, setMonthlyLimit] = useState(() =>
-    subLimitStr("MONTHLY"),
+    mode === "edit" ? cfgLimitStr("MONTHLY") : subLimitStr("MONTHLY"),
   );
   const [isHardLimit, setIsHardLimit] = useState(false);
   const [budgetErrors, setBudgetErrors] = useState<{
@@ -840,121 +870,90 @@ export default function ConfigureForm({
   );
 
   // ── STEP 3: BUDGET ────────────────────────────────────────────────────────
-  const step3 = (
-    <>
-      <div className="field-group">
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 12,
-          }}
-        >
-          <div>
-            <label>Daily limit (₹)</label>
-            <input
-              type="number"
-              min={0}
-              value={dailyLimit}
-              placeholder="No cap"
-              style={
-                budgetErrors.daily
-                  ? { borderColor: "var(--red, #e53e3e)" }
-                  : undefined
-              }
-              onChange={(e) => {
-                setDailyLimit(e.target.value);
-                setBudgetErrors((p) => ({ ...p, daily: undefined }));
-              }}
-            />
-            {budgetErrors.daily && (
-              <div
-                style={{
-                  color: "var(--red, #e53e3e)",
-                  fontSize: 11,
-                  marginTop: 4,
-                }}
-              >
-                {budgetErrors.daily}
-              </div>
-            )}
-          </div>
-          <div>
-            <label>Weekly limit (₹)</label>
-            <input
-              type="number"
-              min={0}
-              value={weeklyLimit}
-              placeholder="No cap"
-              style={
-                budgetErrors.weekly
-                  ? { borderColor: "var(--red, #e53e3e)" }
-                  : undefined
-              }
-              onChange={(e) => {
-                setWeeklyLimit(e.target.value);
-                setBudgetErrors((p) => ({ ...p, weekly: undefined }));
-              }}
-            />
-            {budgetErrors.weekly && (
-              <div
-                style={{
-                  color: "var(--red, #e53e3e)",
-                  fontSize: 11,
-                  marginTop: 4,
-                }}
-              >
-                {budgetErrors.weekly}
-              </div>
-            )}
-          </div>
-          <div>
-            <label>Monthly limit (₹)</label>
-            <input
-              type="number"
-              min={0}
-              value={monthlyLimit}
-              placeholder="No cap"
-              style={
-                budgetErrors.monthly
-                  ? { borderColor: "var(--red, #e53e3e)" }
-                  : undefined
-              }
-              onChange={(e) => {
-                setMonthlyLimit(e.target.value);
-                setBudgetErrors((p) => ({ ...p, monthly: undefined }));
-              }}
-            />
-            {budgetErrors.monthly && (
-              <div
-                style={{
-                  color: "var(--red, #e53e3e)",
-                  fontSize: 11,
-                  marginTop: 4,
-                }}
-              >
-                {budgetErrors.monthly}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+  const calcPct = (val: string, cap: number | null): number | null => {
+    if (cap == null || val === "" || isNaN(parseFloat(val))) return null;
+    const raw = (parseFloat(val) / cap) * 100;
+    return raw < 1 ? parseFloat(raw.toFixed(2)) : Math.round(raw);
+  };
 
+  const pctStyle = (p: number | null): React.CSSProperties => ({
+    marginLeft: 4,
+    fontWeight: 500,
+    color: p == null ? undefined : p > 100 ? "#D64545" : p >= 80 ? "#C47C00" : "inherit",
+  });
+
+  const budgetField = (
+    label: string,
+    period: "DAILY" | "WEEKLY" | "MONTHLY",
+    value: string,
+    setValue: (v: string) => void,
+    error: string | undefined,
+    clearError: () => void,
+  ) => {
+    const subCap = subLimitVal(period);
+    const headCap = headLimitVal(period);
+    const subPct = calcPct(value, subCap);
+    const headPct = calcPct(value, headCap);
+    return (
+      <div className="field-group">
+        <label>{label}</label>
+        <input
+          type="number"
+          min={0}
+          value={value}
+          placeholder={subCap != null ? `up to ₹${subCap.toLocaleString()}` : "No cap"}
+          style={error ? { borderColor: "var(--red, #e53e3e)" } : undefined}
+          onChange={(e) => { setValue(e.target.value); clearError(); }}
+        />
+        {error ? (
+          <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>{error}</div>
+        ) : (
+          <div style={{ display: "flex", gap: 14, marginTop: 3, fontSize: 11, flexWrap: "wrap" }}>
+            {subCap != null && (
+              <span style={{ color: "var(--g500)" }}>
+                Subhead cap: ₹{subCap.toLocaleString()}
+                {subPct != null && <span style={pctStyle(subPct)}> · {subPct}% of subhead</span>}
+              </span>
+            )}
+            {headCap != null && (
+              <span style={{ color: "var(--g400)" }}>
+                Head cap: ₹{headCap.toLocaleString()}
+                {headPct != null && <span style={pctStyle(headPct)}> · {headPct}% of head</span>}
+              </span>
+            )}
+            {subCap == null && headCap == null && (
+              <span style={{ color: "var(--g400)" }}>leave empty for ∞</span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const budgetSection = (
+    <>
+      {budgetField(
+        "Daily limit (₹)", "DAILY", dailyLimit, setDailyLimit,
+        budgetErrors.daily,
+        () => setBudgetErrors((p) => ({ ...p, daily: undefined })),
+      )}
+      {budgetField(
+        "Weekly limit (₹)", "WEEKLY", weeklyLimit, setWeeklyLimit,
+        budgetErrors.weekly,
+        () => setBudgetErrors((p) => ({ ...p, weekly: undefined })),
+      )}
+      {budgetField(
+        "Monthly limit (₹)", "MONTHLY", monthlyLimit, setMonthlyLimit,
+        budgetErrors.monthly,
+        () => setBudgetErrors((p) => ({ ...p, monthly: undefined })),
+      )}
       <div className="field-group">
         <label>Limit type</label>
         <div className="seg" style={{ "--cols": 2 } as React.CSSProperties}>
-          <button
-            type="button"
-            className={!isHardLimit ? "active" : ""}
-            onClick={() => setIsHardLimit(false)}
-          >
+          <button type="button" className={!isHardLimit ? "active" : ""} onClick={() => setIsHardLimit(false)}>
             Soft limit
           </button>
-          <button
-            type="button"
-            className={isHardLimit ? "active" : ""}
-            onClick={() => setIsHardLimit(true)}
-          >
+          <button type="button" className={isHardLimit ? "active" : ""} onClick={() => setIsHardLimit(true)}>
             Hard limit
           </button>
         </div>
@@ -966,6 +965,8 @@ export default function ConfigureForm({
       </div>
     </>
   );
+
+  const step3 = budgetSection;
 
   // ── STEP 4: SEGMENTS ──────────────────────────────────────────────────────
   const step4 = (
@@ -1180,7 +1181,22 @@ export default function ConfigureForm({
   if (mode === "edit") {
     return (
       <form onSubmit={handle} style={{ display: "contents" }}>
-        <div className="drawer-body">{step1}</div>
+        <div className="drawer-body">
+          {step1}
+          <div className="section-divider" />
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: 12,
+              color: "var(--g600)",
+              marginBottom: 8,
+              marginTop: 4,
+            }}
+          >
+            Budget Limits
+          </div>
+          {budgetSection}
+        </div>
         <DrawerFooter
           submitting={submitting}
           onCancel={onCancel}

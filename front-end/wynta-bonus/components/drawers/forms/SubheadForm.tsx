@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
 import { fetchHead, selectHeadById } from "../../../store/slices/headsSlice";
 import { selectSubheadById } from "../../../store/slices/subheadsSlice";
+import { selectAllUsers } from "wynta-react-common/store/slices/usersSlice";
 import Icon from "wynta-react-common/components/Icon";
 import Toggle from "wynta-react-common/components/Toggle";
 import DrawerFooter from "../../../components/drawers/DrawerFooter";
@@ -31,6 +32,7 @@ export default function SubheadForm({
   onSubmit,
 }: SubheadFormProps) {
   const dispatch = useAppDispatch();
+  const users = useAppSelector(selectAllUsers);
   const subFromStore = useAppSelector(
     state.id != null ? selectSubheadById(state.id) : () => undefined,
   );
@@ -43,7 +45,7 @@ export default function SubheadForm({
 
   const [name, setName] = useState(sub?.name ?? "");
   const [description, setDescription] = useState(sub?.description ?? "");
-  const [owner, setOwner] = useState(sub?.owner ?? "vanessa@wynta.com");
+  const [owner, setOwner] = useState(sub?.owner ?? "");
   const [active, setActive] = useState(sub?.active ?? true);
   const [daily, setDaily] = useState("");
   const [weekly, setWeekly] = useState("");
@@ -110,6 +112,18 @@ export default function SubheadForm({
     const error = errors[field];
     // Errors from typing show immediately; "required" gaps only after submit.
     const visibleError = error && (value !== "" || showErrors) ? error : null;
+
+    const rawPct =
+      cap != null && value !== ""
+        ? (parseFloat(value) / Number(cap)) * 100
+        : null;
+    const pct =
+      rawPct == null
+        ? null
+        : rawPct < 1
+          ? parseFloat(rawPct.toFixed(2))
+          : Math.round(rawPct);
+
     return (
       <div className="field-group">
         <label>{label}</label>
@@ -130,6 +144,17 @@ export default function SubheadForm({
           (parentHead?.budget?.length ?? 0) > 0 && (
             <div className="helper">
               Head cap: {cap != null ? `₹${cap}` : "∞ (uncapped)"}
+              {pct != null && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    color: pct > 100 ? "#D64545" : pct >= 80 ? "#C47C00" : "var(--g500)",
+                    fontWeight: 500,
+                  }}
+                >
+                  · {pct}% of head
+                </span>
+              )}
             </div>
           )
         )}
@@ -167,11 +192,19 @@ export default function SubheadForm({
         </div>
         <div className="field-group">
           <label>Owner</label>
-          <select value={owner} onChange={(e) => setOwner(e.target.value)}>
-            <option>vanessa@wynta.com</option>
-            <option>demo@wynta.com</option>
-            <option>priya@wynta.com</option>
-            <option>ops@wynta.com</option>
+          <select
+            value={owner}
+            onChange={(e) => setOwner(e.target.value)}
+            required
+          >
+            <option value="" disabled>
+              Select owner…
+            </option>
+            {users.map((u) => (
+              <option key={u.id} value={u.display_name}>
+                {u.display_name} — {u.role}
+              </option>
+            ))}
           </select>
         </div>
         {mode === "new" && (

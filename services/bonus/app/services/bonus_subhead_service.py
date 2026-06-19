@@ -148,11 +148,9 @@ async def _write_audit(
         log.warning("audit_write.failed", table=table_name, entity_id=entity_id, error=str(exc))
 
 
-def _validate_business_rules(owner: str, actor: str, actor_field: str) -> None:
+def _validate_business_rules(owner: str) -> None:
     if owner.isdigit():
         raise BonusSubheadValidationError("owner", "owner must be a username or email, not a numeric id")
-    if actor.isdigit():
-        raise BonusSubheadValidationError(actor_field, f"{actor_field} must be a username or email, not a numeric id")
 
 
 def _row_to_response(row: tuple) -> BonusSubheadResponse:
@@ -186,7 +184,7 @@ async def add_bonus_subhead(data: BonusSubheadCreate) -> BonusSubheadResponse:
         BonusSubheadDuplicateError:  when (head_id, name) already exists.
         DatabaseError:               on unexpected DB failures.
     """
-    _validate_business_rules(data.owner, data.created_by, "created_by")
+    _validate_business_rules(data.owner)
 
     log.info("add_bonus_subhead.start", head_id=data.head_id, name=data.name)
 

@@ -288,15 +288,29 @@ export default function SlideDrawer() {
         drawerState?.type === "EDIT_CONFIGURE" &&
         drawerState.id != null
       ) {
+        const { _budget, ...cfgFields } = data;
         await dispatch(
           updateConfigure({
             id: drawerState.id,
             patch: {
-              ...data,
+              ...cfgFields,
               updated_by: currentUser,
             } as unknown as import("../../types").BonusConfigure,
           }),
         ).unwrap();
+        if (Array.isArray(_budget) && (_budget as BudgetPeriod[]).length > 0) {
+          await dispatch(
+            updateBudget({
+              scope: "configure",
+              id: drawerState.id,
+              periods: _budget as BudgetPeriod[],
+              updatedBy: currentUser,
+            }),
+          )
+            .unwrap()
+            .catch(() => {});
+        }
+        dispatch(fetchConfigure(drawerState.id));
         dispatch(closeDrawer());
       } else if (
         drawerState?.type === "EDIT_CHUNKS" &&
