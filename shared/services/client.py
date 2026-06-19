@@ -312,6 +312,27 @@ async def get_site_config(
     return config
 
 
+_SQL_CLIENT_SITE_ID = (
+    "SELECT site_id FROM site_client WHERE client_id = %s AND active = 1 LIMIT 1"
+)
+
+
+async def get_client_site_id(client_id: str, redis: Redis) -> int | None:
+    """Return site_id for an active client_id. Redis-cached for 300 s."""
+    key = f"auth:client:site:{client_id}"
+    cached = await get_str(redis, key)
+    if cached is not None:
+        return int(cached)
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_CLIENT_SITE_ID, (client_id,))
+            row = await cur.fetchone()
+    if row is None:
+        return None
+    await set_with_ttl(redis, key, str(row[0]), 300)
+    return int(row[0])
+
+
 async def get_client_secret(
     client_id: str,
     redis: Redis,

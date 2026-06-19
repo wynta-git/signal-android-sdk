@@ -1,12 +1,15 @@
+from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Security
+from fastapi import Depends, Header, HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from redis.asyncio import Redis
 from shared.auth.portal_token import (
     InvalidPortalTokenError,
     PortalTokenContext,
     validate_portal_token,
 )
+from shared.services.client import get_client_site_id
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -36,3 +39,23 @@ def get_portal_token_context(
 
 
 PortalAuthDep = Annotated[PortalTokenContext, Depends(get_portal_token_context)]
+
+
+@dataclass
+class S2SContext:
+    site_id: int
+    client_id: str
+    redis: Redis
+
+
+async def get_s2s_context(
+    request: Request,
+    x_client_id: str = Header(..., alias="x-client-id"),
+) -> S2SContext:
+    site_id = await get_client_site_id(x_client_id, request.app.state.redis)
+    if site_id is None:
+        raise HTTPException(status_code=401, detail="Unknown client")
+    return S2SContext(site_id=site_id, client_id=x_client_id, redis=request.app.state.redis)
+
+
+S2SContextDep = Annotated[S2SContext, Depends(get_s2s_context)]

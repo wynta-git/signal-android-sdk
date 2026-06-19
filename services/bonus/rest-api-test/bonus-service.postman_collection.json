@@ -3686,7 +3686,8 @@
                   "    pm.test('has consume_txn_id', () => pm.expect(body.consume_txn_id).to.eql('TXN20250519001'));",
                   "    pm.test('has bonus_amount', () => pm.expect(body.bonus_amount).to.exist);",
                   "    pm.test('has consumed_amount', () => pm.expect(body.consumed_amount).to.exist);",
-                  "    pm.test('only expected fields', () => pm.expect(Object.keys(body)).to.have.members(['txn_id','consume_txn_id','bonus_amount','consumed_amount']));",
+                  "    pm.test('has chip_type', () => pm.expect(body.chip_type).to.be.a('string'));",
+                  "    pm.test('only expected fields', () => pm.expect(Object.keys(body)).to.have.members(['txn_id','consume_txn_id','bonus_amount','consumed_amount','chip_type']));",
                   "    pm.collectionVariables.set('consume_txn_id', body.consume_txn_id);",
                   "} else {",
                   "    pm.test('skipped \u2014 no released chunk available (no live data)', () => true);",
@@ -3797,14 +3798,15 @@
                   "const body = pm.response.json();",
                   "pm.test('has txn_id', () => pm.expect(body.txn_id).to.be.a('number'));",
                   "pm.test('has consume_txn_id', () => pm.expect(body.consume_txn_id).to.be.a('string'));",
-                  "pm.test('amount is positive', () => pm.expect(parseFloat(body.amount)).to.be.above(0));"
+                  "pm.test('amount is positive', () => pm.expect(parseFloat(body.amount)).to.be.above(0));",
+                  "pm.test('has chip_type', () => pm.expect(body.chip_type).to.be.a('string'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Revert consumption \u2014 already reverted \u2192 409",
+          "name": "Revert consumption \u2014 already reverted \u2192 404",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/api/v1/user-bonuses/consume/{{consume_txn_id}}/revert",
@@ -3817,7 +3819,7 @@
                 "exec": [
                   "const txnId = pm.collectionVariables.get('consume_txn_id');",
                   "if (!txnId) { pm.test('skipped \u2014 no consume_txn_id set', () => true); return; }",
-                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('404 Not Found (already reverted)', () => pm.response.to.have.status(404));",
                   "pm.test('has detail', () => pm.expect(pm.response.json()).to.have.property('detail'));"
                 ]
               }

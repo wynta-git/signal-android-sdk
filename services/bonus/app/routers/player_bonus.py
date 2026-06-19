@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.exceptions import (
@@ -29,8 +29,10 @@ from app.services.player_bonus_service import (
     revert_consumption,
 )
 
+from shared.services.client import get_client_site_id
+
 if TYPE_CHECKING:
-    from fastapi import FastAPI, Request
+    from fastapi import FastAPI
 
 router = APIRouter(prefix="/user-bonuses", tags=["user-bonuses"])
 
@@ -46,8 +48,13 @@ async def get_applicable_codes(
 @router.post("/consume", response_model=PlayerBonusConsumedResponse, status_code=201)
 async def create_bonus_consumption(
     payload: PlayerBonusConsumeCreate,
+    request: Request,
+    x_client_id: str = Header(..., alias="x-client-id"),
 ) -> PlayerBonusConsumedResponse:
-    return await consume_bonus(payload)
+    site_id = await get_client_site_id(x_client_id, request.app.state.redis)
+    if site_id is None:
+        raise HTTPException(status_code=401, detail="Unknown client")
+    return await consume_bonus(payload, request.app.state.redis, site_id)
 
 
 @router.post("/consume/{consume_txn_id}/revert", response_model=PlayerBonusRevertResponse)

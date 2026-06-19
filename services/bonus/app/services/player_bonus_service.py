@@ -2,8 +2,10 @@ from datetime import datetime, timezone
 
 import aiomysql
 import structlog
+from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
+from shared.services.user import get_or_create_pam_user
 from app.exceptions import (
     DatabaseError,
     PlayerBonusAlreadyRevertedError,
@@ -75,10 +77,10 @@ async def list_applicable_codes(user_id: str, chip_type: str) -> list[Applicable
 # ── 2. Consume bonus ──────────────────────────────────────────────────────────
 
 _NEXT_RELEASE_CHUNK_SQL = """
-    SELECT bc.id, bc.bonus_grant_id, pbg.user_id
+    SELECT bc.id, bc.bonus_grant_id
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
-    WHERE pbg.user_id = %s AND bc.status = 'RELEASE'
+    WHERE pbg.pam_user_id = %s AND bc.status = 'RELEASE'
     ORDER BY bc.id ASC
     LIMIT 1
 """
@@ -109,8 +111,18 @@ _SELECT_CONSUMED_SQL = """
 """
 
 
-async def consume_bonus(data: PlayerBonusConsumeCreate) -> PlayerBonusConsumedResponse:
-    log.info("player_bonus.consume", user_id=data.user_id, consume_txn_id=data.consume_txn_id)
+async def consume_bonus(
+    data: PlayerBonusConsumeCreate,
+    redis: Redis,
+    site_id: int,
+) -> PlayerBonusConsumedResponse:
+    pam_user_id = await get_or_create_pam_user(redis, site_id, data.user_id)
+    log.info(
+        "player_bonus.consume",
+        player_user_id=data.user_id,
+        pam_user_id=pam_user_id,
+        consume_txn_id=data.consume_txn_id,
+    )
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
@@ -118,11 +130,11 @@ async def consume_bonus(data: PlayerBonusConsumeCreate) -> PlayerBonusConsumedRe
                 if await cur.fetchone():
                     raise PlayerBonusConsumedError(0, data.consume_txn_id)
 
-                await cur.execute(_NEXT_RELEASE_CHUNK_SQL, (data.user_id,))
+                await cur.execute(_NEXT_RELEASE_CHUNK_SQL, (pam_user_id,))
                 chunk_row = await cur.fetchone()
                 if not chunk_row:
                     raise PlayerBonusNotFoundError(data.user_id)
-                chunk_id, bonus_grant_id, _ = chunk_row
+                chunk_id, bonus_grant_id = chunk_row
 
                 await cur.execute(
                     _INSERT_CONSUME_SQL,
