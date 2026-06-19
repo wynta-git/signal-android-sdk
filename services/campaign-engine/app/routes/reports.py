@@ -10,7 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.dependencies import ChDep, PortalAuthDep, get_db
 from app.models import CreateReportRequest, CustomReport, ReportFilters, UpdateReportRequest
-from shared.clients.mongo import get_dashboard_delivery_stats
+from shared.clients.mongo import get_daily_boosts_range, get_dashboard_delivery_stats
 
 log = structlog.get_logger()
 
@@ -545,12 +545,13 @@ async def get_channel_delivery(
     since      = now - timedelta(days=window_days)
     prev_since = since - timedelta(days=window_days)
 
-    (curr_raw, prev_raw), ch_events = await asyncio.gather(
+    (curr_raw, prev_raw), ch_events, daily_boosts = await asyncio.gather(
         asyncio.gather(
             get_dashboard_delivery_stats(db, project_id, since, now),
             get_dashboard_delivery_stats(db, project_id, prev_since, since),
         ),
         _query_notification_events(ch, project_id, since, now),
+        get_daily_boosts_range(db, project_id, since, now),
     )
 
     curr = _crunch_deliveries(curr_raw)
@@ -565,6 +566,7 @@ async def get_channel_delivery(
     curr_sent   = _sum_status(curr, "sent")
     prev_sent   = _sum_status(prev, "sent")
     curr_failed = _sum_status(curr, "failed")
+    opt_outs_total = sum(day.get("opt_outs", 0) for day in daily_boosts.values())
 
     active_channels = sum(
         1 for ch_data in curr.values()
@@ -585,7 +587,7 @@ async def get_channel_delivery(
         "bounce_rate": {
             "value": _safe_rate(curr_failed, curr_sent + curr_failed),
         },
-        "opt_outs_7d": {"value": None, "tracked": False},
+        "opt_outs_7d": {"value": opt_outs_total, "tracked": opt_outs_total > 0},
         "active_channels": {
             "value":  active_channels,
             "paused": paused_count,
