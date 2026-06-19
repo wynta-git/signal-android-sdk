@@ -10,7 +10,6 @@ interface Creds {
   userId: string;
   clientId: string;
   secret: string;
-  apiToken: string;
 }
 
 interface PromoCode {
@@ -132,14 +131,13 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 
 function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
   const [userId, setUserId] = useState('P1001');
-  const [clientId, setClientId] = useState('');
-  const [secret, setSecret] = useState('');
-  const [apiToken, setApiToken] = useState('');
+  const [clientId, setClientId] = useState('site1-backend-v0');
+  const [secret, setSecret] = useState('abc@123456');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!userId.trim() || !clientId.trim() || !secret.trim() || !apiToken.trim()) return;
-    onLogin({ userId: userId.trim(), clientId: clientId.trim(), secret: secret.trim(), apiToken: apiToken.trim() });
+    if (!userId.trim() || !clientId.trim() || !secret.trim()) return;
+    onLogin({ userId: userId.trim(), clientId: clientId.trim(), secret: secret.trim() });
   }
 
   return (
@@ -181,19 +179,6 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
               value={secret}
               onChange={e => setSecret(e.target.value)}
               placeholder="••••••••"
-              required
-            />
-          </div>
-
-          <div className="section-label" style={{ marginTop: 22 }}>Event API</div>
-          <div className="input-group">
-            <label>API Token (Bearer)</label>
-            <input
-              type="password"
-              value={apiToken}
-              onChange={e => setApiToken(e.target.value)}
-              placeholder="pam_live_..."
-              autoCapitalize="none"
               required
             />
           </div>
@@ -255,9 +240,7 @@ function DepositScreen({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-s2s-client-id': creds.clientId,
-          'x-s2s-client-secret': creds.secret,
-          'x-api-token': creds.apiToken,
+          ...s2sHeaders(creds),
         },
         body: JSON.stringify({
           user_id: creds.userId,

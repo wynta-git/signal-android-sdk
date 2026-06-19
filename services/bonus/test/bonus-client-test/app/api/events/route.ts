@@ -13,7 +13,8 @@ interface EventBody {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const apiToken = request.headers.get('x-api-token') ?? '';
+  const clientId = request.headers.get('x-s2s-client-id') ?? '';
+  const secret   = request.headers.get('x-s2s-client-secret') ?? '';
   const body = (await request.json()) as EventBody;
 
   const event = {
@@ -21,8 +22,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     event_name: 'deposit_success',
     schema_version: 1,
     user_id: body.user_id,
+    session_id: `sess_${Date.now()}`,
     timestamp: new Date().toISOString(),
     sdk: { name: 'bonus-client-test', version: '1.0.0' },
+    device: { platform: 'web', os: 'simulator', ua: 'bonus-client-test/1.0' },
     properties: {
       transaction_id: body.transaction_id,
       amount: body.amount,
@@ -36,7 +39,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiToken}`,
+      'X-Client-Id': clientId,
+      'X-Client-Secret': secret,
     },
     body: JSON.stringify({ events: [event] }),
   });
