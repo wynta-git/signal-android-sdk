@@ -27,6 +27,24 @@ class ApplicableCodeResponse(BaseModel):
     applicability_frequency: str | None
 
 
+# ── API 1b: validate code ─────────────────────────────────────────────────────
+
+class ValidateCodeRequest(BaseModel):
+    user_id: str = Field(..., min_length=1, max_length=50)
+    chip_type: str = Field(..., pattern=r'^(cash|in_app_purchase)$')
+    code: str = Field(..., min_length=1, max_length=50)
+
+
+class ValidateCodeResponse(BaseModel):
+    valid: bool
+    code: str
+    reason: str | None = None
+    promo_id: int | None = None
+    display_title: str | None = None
+    wager_multiplier: Decimal | None = None
+    no_of_chunks: int | None = None
+
+
 # ── API 2: consume ────────────────────────────────────────────────────────────
 
 class PlayerBonusConsumeCreate(BaseModel):

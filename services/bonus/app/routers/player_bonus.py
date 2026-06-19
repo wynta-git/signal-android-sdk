@@ -18,6 +18,8 @@ from app.models.player_bonus import (
     PlayerBonusTransactionDetail,
     PlayerBonusTransactionSummary,
     PlayerReferralCodeResponse,
+    ValidateCodeRequest,
+    ValidateCodeResponse,
 )
 from app.services.player_bonus_service import (
     consume_bonus,
@@ -27,6 +29,7 @@ from app.services.player_bonus_service import (
     list_applicable_codes,
     list_player_transactions,
     revert_consumption,
+    validate_code,
 )
 
 from shared.services.client import get_client_site_id
@@ -43,6 +46,11 @@ async def get_applicable_codes(
     chip_type: str = Query(..., pattern=r'^(cash|in_app_purchase)$'),
 ) -> list[ApplicableCodeResponse]:
     return await list_applicable_codes(user_id, chip_type)
+
+
+@router.post("/validate-code", response_model=ValidateCodeResponse)
+async def validate_promo_code(payload: ValidateCodeRequest) -> ValidateCodeResponse:
+    return await validate_code(payload.user_id, payload.chip_type, payload.code)
 
 
 @router.post("/consume", response_model=PlayerBonusConsumedResponse, status_code=201)

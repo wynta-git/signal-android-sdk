@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Screen = 'LOGIN' | 'DEPOSIT' | 'PROCESSING' | 'WALLET' | 'TRANSACTIONS' | 'TXN_DETAIL';
+type Screen = 'LOGIN' | 'HOME' | 'DEPOSIT' | 'PROCESSING' | 'WALLET' | 'TRANSACTIONS' | 'TXN_DETAIL';
+type Tab = 'home' | 'deposit' | 'wallet' | 'transactions';
 
 interface Creds {
   userId: string;
@@ -206,6 +207,7 @@ function DepositScreen({
   const [promos, setPromos] = useState<PromoCode[]>([]);
   const [selectedPromo, setSelectedPromo] = useState<PromoCode | null>(null);
   const [promosLoading, setPromosLoading] = useState(true);
+  const [validating, setValidating] = useState(false);
   const [depositing, setDepositing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -231,9 +233,38 @@ function DepositScreen({
 
   async function handleDeposit(e: React.FormEvent) {
     e.preventDefault();
-    if (depositing || !amount) return;
-    setDepositing(true);
+    if (validating || depositing || !amount) return;
     setError(null);
+
+    // Step 1: validate the selected promo code (skip if none selected)
+    if (selectedPromo) {
+      setValidating(true);
+      try {
+        const vRes = await fetch('/api/validate-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...s2sHeaders(creds) },
+          body: JSON.stringify({
+            user_id: creds.userId,
+            chip_type: 'cash',
+            code: selectedPromo.code,
+          }),
+        });
+        const vData = (await vRes.json()) as { valid: boolean; reason?: string };
+        if (!vData.valid) {
+          setError(`Promo code invalid: ${vData.reason ?? 'not applicable'}`);
+          setValidating(false);
+          return;
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Validation failed');
+        setValidating(false);
+        return;
+      }
+      setValidating(false);
+    }
+
+    // Step 2: send deposit_success event
+    setDepositing(true);
     try {
       const txnId = `dep_${creds.userId}_${Date.now()}`;
       const res = await fetch('/api/events', {
@@ -347,9 +378,9 @@ function DepositScreen({
             type="submit"
             className="btn-primary"
             style={{ marginTop: 24 }}
-            disabled={depositing || !amount}
+            disabled={validating || depositing || !amount}
           >
-            {depositing ? 'Processing…' : `Deposit ₹${amount || '0'}`}
+            {validating ? 'Validating promo…' : depositing ? 'Processing…' : `Deposit ₹${amount || '0'}`}
           </button>
         </form>
       </div>
@@ -418,11 +449,11 @@ function ProcessingScreen({
 function WalletScreen({
   creds,
   summary,
-  onTransactions,
+  nav,
 }: {
   creds: Creds;
   summary: BonusSummary[];
-  onTransactions: () => void;
+  nav: (t: Tab) => void;
 }) {
   const hasAny = summary.length > 0;
 
@@ -475,7 +506,7 @@ function WalletScreen({
           );
         })}
       </div>
-      <TabBar active="wallet" onTransactions={onTransactions} />
+      <TabBar active="wallet" nav={nav} />
     </div>
   );
 }
@@ -485,11 +516,11 @@ function WalletScreen({
 function TransactionsScreen({
   creds,
   onDetail,
-  onWallet,
+  nav,
 }: {
   creds: Creds;
   onDetail: (t: Transaction) => void;
-  onWallet: () => void;
+  nav: (t: Tab) => void;
 }) {
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -540,7 +571,7 @@ function TransactionsScreen({
           </div>
         ))}
       </div>
-      <TabBar active="transactions" onWallet={onWallet} />
+      <TabBar active="transactions" nav={nav} />
     </div>
   );
 }
@@ -658,33 +689,108 @@ function TxnDetailScreen({
   );
 }
 
+// ── Home screen ────────────────────────────────────────────────────────────────
+
+function HomeScreen({
+  creds,
+  nav,
+}: {
+  creds: Creds;
+  nav: (t: Tab) => void;
+}) {
+  const [summary, setSummary] = useState<BonusSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/summary/${encodeURIComponent(creds.userId)}`,
+          { headers: s2sHeaders(creds) },
+        );
+        if (res.ok) setSummary((await res.json()) as BonusSummary[]);
+      } catch { /* show empty */ }
+      setLoading(false);
+    })();
+  }, [creds]);
+
+  const cash = summary.find(s => s.chip_type === 'cash');
+  const totalBonus = cash
+    ? parseFloat(cash.bonus_balance) + parseFloat(cash.pending_bonus)
+    : 0;
+
+  return (
+    <div className="screen has-tabs">
+      <div className="screen-header home-header">
+        <div className="home-avatar">{creds.userId.slice(0, 2).toUpperCase()}</div>
+        <div className="home-greeting">
+          <div className="home-hi">Hi, {creds.userId} 👋</div>
+          <div className="home-subtext">Welcome back</div>
+        </div>
+      </div>
+      <div className="screen-body">
+        {/* Bonus balance card */}
+        <div className="home-balance-card">
+          <div className="home-balance-label">Total Bonus Balance</div>
+          {loading ? (
+            <div className="skeleton-line" style={{ height: 40, width: '50%', marginTop: 8 }} />
+          ) : (
+            <div className="home-balance-amount">₹{fmt(totalBonus)}</div>
+          )}
+          {!loading && cash && (
+            <div className="home-balance-row">
+              <div className="home-balance-stat">
+                <span className="home-balance-stat-val">₹{fmt(cash.bonus_balance)}</span>
+                <span className="home-balance-stat-label">Available</span>
+              </div>
+              <div className="home-balance-stat">
+                <span className="home-balance-stat-val">₹{fmt(cash.pending_bonus)}</span>
+                <span className="home-balance-stat-label">Pending</span>
+              </div>
+              <div className="home-balance-stat">
+                <span className="home-balance-stat-val">₹{fmt(cash.wagering_required)}</span>
+                <span className="home-balance-stat-label">Wager Req.</span>
+              </div>
+            </div>
+          )}
+          {!loading && !cash && (
+            <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', marginTop: 8 }}>
+              No active bonus — make a deposit to unlock one
+            </div>
+          )}
+        </div>
+
+        {/* Quick action */}
+        <button className="btn-primary" onClick={() => nav('deposit')} style={{ marginTop: 8 }}>
+          + Make a Deposit
+        </button>
+      </div>
+      <TabBar active="home" nav={nav} />
+    </div>
+  );
+}
+
 // ── Tab bar ────────────────────────────────────────────────────────────────────
 
-function TabBar({
-  active,
-  onWallet,
-  onTransactions,
-}: {
-  active: 'wallet' | 'transactions';
-  onWallet?: () => void;
-  onTransactions?: () => void;
-}) {
+function TabBar({ active, nav }: { active: Tab; nav: (t: Tab) => void }) {
+  const tabs: { key: Tab; icon: string; label: string }[] = [
+    { key: 'home',         icon: '🏠', label: 'Home' },
+    { key: 'deposit',      icon: '💳', label: 'Deposit' },
+    { key: 'wallet',       icon: '💰', label: 'Wallet' },
+    { key: 'transactions', icon: '📋', label: 'History' },
+  ];
   return (
     <div className="tab-bar">
-      <button
-        className={`tab-item ${active === 'wallet' ? 'tab-active' : ''}`}
-        onClick={onWallet}
-      >
-        <span className="tab-icon">💰</span>
-        <span>Wallet</span>
-      </button>
-      <button
-        className={`tab-item ${active === 'transactions' ? 'tab-active' : ''}`}
-        onClick={onTransactions}
-      >
-        <span className="tab-icon">📋</span>
-        <span>Transactions</span>
-      </button>
+      {tabs.map(t => (
+        <button
+          key={t.key}
+          className={`tab-item ${active === t.key ? 'tab-active' : ''}`}
+          onClick={() => nav(t.key)}
+        >
+          <span className="tab-icon">{t.icon}</span>
+          <span>{t.label}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -702,15 +808,25 @@ export default function Home() {
     setScreen('WALLET');
   }, []);
 
+  const handleNav = useCallback((tab: Tab) => {
+    const map: Record<Tab, Screen> = {
+      home: 'HOME', deposit: 'DEPOSIT', wallet: 'WALLET', transactions: 'TRANSACTIONS',
+    };
+    setScreen(map[tab]);
+  }, []);
+
   return (
     <div className="phone-frame">
       {screen === 'LOGIN' && (
         <LoginScreen
           onLogin={c => {
             setCreds(c);
-            setScreen('DEPOSIT');
+            setScreen('HOME');
           }}
         />
+      )}
+      {screen === 'HOME' && creds && (
+        <HomeScreen creds={creds} nav={handleNav} />
       )}
       {screen === 'DEPOSIT' && creds && (
         <DepositScreen
@@ -725,7 +841,7 @@ export default function Home() {
         <WalletScreen
           creds={creds}
           summary={summary}
-          onTransactions={() => setScreen('TRANSACTIONS')}
+          nav={handleNav}
         />
       )}
       {screen === 'TRANSACTIONS' && creds && (
@@ -735,7 +851,7 @@ export default function Home() {
             setSelectedTxn(t);
             setScreen('TXN_DETAIL');
           }}
-          onWallet={() => setScreen('WALLET')}
+          nav={handleNav}
         />
       )}
       {screen === 'TXN_DETAIL' && creds && selectedTxn && (

@@ -24,6 +24,7 @@ from app.models.player_bonus import (
     PlayerBonusTransactionDetail,
     PlayerBonusTransactionSummary,
     PlayerReferralCodeResponse,
+    ValidateCodeResponse,
 )
 
 log = structlog.get_logger(__name__)
@@ -71,6 +72,45 @@ async def list_applicable_codes(user_id: str, chip_type: str) -> list[Applicable
         return results
     except Exception as exc:
         log.error("player_bonus.list_applicable_codes.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+_VALIDATE_CODE_SQL = """
+    SELECT
+        bcc.id, bcc.code, bcc.display_title,
+        bc.wager_multiplier, bc.no_of_chunks
+    FROM bonus_configure_code bcc
+    JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
+    WHERE bcc.active = 1
+      AND bcc.code = %s
+      AND bc.wager_chip_type = %s
+      AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
+      AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
+    LIMIT 1
+"""
+
+
+async def validate_code(user_id: str, chip_type: str, code: str) -> ValidateCodeResponse:
+    log.info("player_bonus.validate_code", user_id=user_id, chip_type=chip_type, code=code)
+    try:
+        async with get_connection(POOL_BONUS) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_VALIDATE_CODE_SQL, (code, chip_type))
+                row = await cur.fetchone()
+        if not row:
+            return ValidateCodeResponse(
+                valid=False, code=code,
+                reason="Code not found or not applicable for this chip type",
+            )
+        return ValidateCodeResponse(
+            valid=True, code=code,
+            promo_id=row[0],
+            display_title=row[2],
+            wager_multiplier=row[3],
+            no_of_chunks=row[4],
+        )
+    except Exception as exc:
+        log.error("player_bonus.validate_code.error", error=str(exc))
         raise DatabaseError(str(exc)) from exc
 
 
