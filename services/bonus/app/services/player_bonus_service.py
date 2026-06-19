@@ -257,7 +257,7 @@ async def revert_consumption(consume_txn_id: str) -> PlayerBonusRevertResponse:
 _BONUS_BALANCE_BY_CHIP_SQL = """
     SELECT wager_chip_type, COALESCE(SUM(release_amount - consume_amount), 0)
     FROM bonus_grant
-    WHERE user_id = %s
+    WHERE pam_user_id = %s
     GROUP BY wager_chip_type
 """
 
@@ -265,7 +265,7 @@ _PENDING_BONUS_BY_CHIP_SQL = """
     SELECT pbg.wager_chip_type, COALESCE(SUM(bc.chunk_amount), 0)
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
-    WHERE pbg.user_id = %s AND bc.status = 'PENDING'
+    WHERE pbg.pam_user_id = %s AND bc.status = 'PENDING'
     GROUP BY pbg.wager_chip_type
 """
 
@@ -274,13 +274,13 @@ _WAGERING_REQUIRED_BY_CHIP_SQL = """
            COALESCE(SUM(bc.required_wager_amount - bc.wager_amount), 0)
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
-    WHERE pbg.user_id = %s AND bc.status = 'PENDING'
+    WHERE pbg.pam_user_id = %s AND bc.status = 'PENDING'
     GROUP BY pbg.wager_chip_type
 """
 
 
-async def get_player_bonus_summary(user_id: str) -> list[PlayerBonusSummaryResponse]:
-    log.info("player_bonus.summary", user_id=user_id)
+async def get_player_bonus_summary(pam_user_id: int) -> list[PlayerBonusSummaryResponse]:
+    log.info("player_bonus.summary", pam_user_id=pam_user_id)
     from collections import defaultdict
     from decimal import Decimal as D
     data: dict[str, dict] = defaultdict(
@@ -289,15 +289,15 @@ async def get_player_bonus_summary(user_id: str) -> list[PlayerBonusSummaryRespo
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
-                await cur.execute(_BONUS_BALANCE_BY_CHIP_SQL, (user_id,))
+                await cur.execute(_BONUS_BALANCE_BY_CHIP_SQL, (pam_user_id,))
                 for chip, val in await cur.fetchall():
                     data[chip]["bonus_balance"] = val
 
-                await cur.execute(_PENDING_BONUS_BY_CHIP_SQL, (user_id,))
+                await cur.execute(_PENDING_BONUS_BY_CHIP_SQL, (pam_user_id,))
                 for chip, val in await cur.fetchall():
                     data[chip]["pending_bonus"] = val
 
-                await cur.execute(_WAGERING_REQUIRED_BY_CHIP_SQL, (user_id,))
+                await cur.execute(_WAGERING_REQUIRED_BY_CHIP_SQL, (pam_user_id,))
                 for chip, val in await cur.fetchall():
                     data[chip]["wagering_required"] = val
 
@@ -321,7 +321,7 @@ _TRANSACTIONS_SQL = """
                'grant'          AS type,
                pbg.created_at
         FROM bonus_grant pbg
-        WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
+        WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
 
         UNION ALL
 
@@ -332,7 +332,7 @@ _TRANSACTIONS_SQL = """
                bc.updated_at    AS created_at
         FROM bonus_chunk bc
         JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
-        WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
+        WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
           AND bc.status != 'PENDING'
 
         UNION ALL
@@ -344,7 +344,7 @@ _TRANSACTIONS_SQL = """
                bcon.created_at
         FROM bonus_consumed bcon
         JOIN bonus_grant pbg ON pbg.id = bcon.bonus_grant_id
-        WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
+        WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
 
         UNION ALL
 
@@ -355,7 +355,7 @@ _TRANSACTIONS_SQL = """
                bce.expired_at  AS created_at
         FROM bonus_chunk_expiry bce
         JOIN bonus_grant pbg ON pbg.id = bce.bonus_grant_id
-        WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
+        WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
 
         UNION ALL
 
@@ -366,7 +366,7 @@ _TRANSACTIONS_SQL = """
                bf.forfeited_at AS created_at
         FROM bonus_forfeit bf
         JOIN bonus_grant pbg ON pbg.id = bf.bonus_grant_id
-        WHERE pbg.user_id = %s AND pbg.wager_chip_type = %s
+        WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
     ) AS ledger
     ORDER BY created_at DESC
     LIMIT %s OFFSET %s
@@ -391,13 +391,13 @@ def _derive_status(
 
 
 async def list_player_transactions(
-    user_id: str,
+    pam_user_id: int,
     chip_type: str,
     limit: int = 50,
     offset: int = 0,
 ) -> list[PlayerBonusTransactionSummary]:
-    log.info("player_bonus.list_transactions", user_id=user_id, chip_type=chip_type)
-    p = user_id
+    log.info("player_bonus.list_transactions", pam_user_id=pam_user_id, chip_type=chip_type)
+    p = pam_user_id
     c = chip_type
     try:
         async with get_connection(POOL_BONUS) as conn:
@@ -420,7 +420,7 @@ async def list_player_transactions(
 # ── 6. Transaction detail ─────────────────────────────────────────────────────
 
 _GRANT_DETAIL_SQL = """
-    SELECT id, user_id, bonus_code, wager_multiplier, no_of_chunks,
+    SELECT id, pam_user_id, bonus_code, wager_multiplier, no_of_chunks,
            chunk_expiry_days, bonus_expiry_days, wager_chip_type, credit_chip_type,
            grant_amount, release_amount, consume_amount, created_at
     FROM bonus_grant
@@ -451,15 +451,15 @@ _EXPIRY_EVENTS_SQL = """
 
 
 async def get_player_transaction_detail(
-    user_id: str, txn_id: int
+    pam_user_id: int, user_id: str, txn_id: int
 ) -> PlayerBonusTransactionDetail:
-    log.info("player_bonus.transaction_detail", user_id=user_id, txn_id=txn_id)
+    log.info("player_bonus.transaction_detail", pam_user_id=pam_user_id, txn_id=txn_id)
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
                 await cur.execute(_GRANT_DETAIL_SQL, (txn_id,))
                 grant = await cur.fetchone()
-                if not grant or grant[1] != user_id:
+                if not grant or str(grant[1]) != str(pam_user_id):
                     raise PlayerBonusNotFoundError(txn_id)
 
                 await cur.execute(_CHUNKS_SQL, (txn_id,))
@@ -472,7 +472,7 @@ async def get_player_transaction_detail(
                 expiry_rows = await cur.fetchall()
 
         (
-            _id, _user_id, bonus_code, wager_multiplier, no_of_chunks,
+            _id, _pam_user_id, bonus_code, wager_multiplier, no_of_chunks,
             chunk_expiry_days, bonus_expiry_days, wager_chip_type, credit_chip_type,
             grant_amount, release_amount, consume_amount_val, created_at,
         ) = grant
@@ -508,7 +508,7 @@ async def get_player_transaction_detail(
         ]
 
         return PlayerBonusTransactionDetail(
-            txn_id=_id, user_id=_user_id, bonus_code=bonus_code,
+            txn_id=_id, user_id=user_id, bonus_code=bonus_code,
             wager_multiplier=wager_multiplier, no_of_chunks=no_of_chunks,
             chunk_expiry_days=chunk_expiry_days, bonus_expiry_days=bonus_expiry_days,
             wager_chip_type=wager_chip_type, credit_chip_type=credit_chip_type,

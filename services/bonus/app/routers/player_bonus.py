@@ -33,6 +33,7 @@ from app.services.player_bonus_service import (
 )
 
 from shared.services.client import get_client_site_id
+from shared.services.user import get_pam_user_id
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -70,19 +71,37 @@ async def revert_bonus_consumption(consume_txn_id: str) -> PlayerBonusRevertResp
     return await revert_consumption(consume_txn_id)
 
 
+async def _resolve_pam_user(request: Request, x_client_id: str, user_id: str) -> int:
+    site_id = await get_client_site_id(x_client_id, request.app.state.redis)
+    if site_id is None:
+        raise HTTPException(status_code=401, detail="Unknown client")
+    pam_id = await get_pam_user_id(request.app.state.redis, site_id, user_id)
+    if pam_id is None:
+        raise HTTPException(status_code=404, detail=f"User {user_id!r} not found")
+    return pam_id
+
+
 @router.get("/{user_id}/summary", response_model=list[PlayerBonusSummaryResponse])
-async def get_summary(user_id: str) -> list[PlayerBonusSummaryResponse]:
-    return await get_player_bonus_summary(user_id)
+async def get_summary(
+    user_id: str,
+    request: Request,
+    x_client_id: str = Header(..., alias="x-client-id"),
+) -> list[PlayerBonusSummaryResponse]:
+    pam_id = await _resolve_pam_user(request, x_client_id, user_id)
+    return await get_player_bonus_summary(pam_id)
 
 
 @router.get("/{user_id}/transactions", response_model=list[PlayerBonusTransactionSummary])
 async def get_transactions(
     user_id: str,
+    request: Request,
     chip_type: str = Query(..., pattern=r'^(cash|in_app_purchase)$'),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    x_client_id: str = Header(..., alias="x-client-id"),
 ) -> list[PlayerBonusTransactionSummary]:
-    return await list_player_transactions(user_id, chip_type, limit, offset)
+    pam_id = await _resolve_pam_user(request, x_client_id, user_id)
+    return await list_player_transactions(pam_id, chip_type, limit, offset)
 
 
 @router.get(
@@ -90,9 +109,13 @@ async def get_transactions(
     response_model=PlayerBonusTransactionDetail,
 )
 async def get_transaction_detail(
-    user_id: str, txn_id: int
+    user_id: str,
+    txn_id: int,
+    request: Request,
+    x_client_id: str = Header(..., alias="x-client-id"),
 ) -> PlayerBonusTransactionDetail:
-    return await get_player_transaction_detail(user_id, txn_id)
+    pam_id = await _resolve_pam_user(request, x_client_id, user_id)
+    return await get_player_transaction_detail(pam_id, user_id, txn_id)
 
 
 @router.get("/{user_id}/referral-code", response_model=PlayerReferralCodeResponse)
