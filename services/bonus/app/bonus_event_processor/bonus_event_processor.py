@@ -15,6 +15,7 @@ from app.bonus_event_processor.grant_writer import (
 )
 from app.bonus_event_processor.trigger_cache import get_triggers
 from shared.clients.mysql import POOL_BONUS, get_connection
+from shared.services.user import get_or_create_pam_user
 
 log = structlog.get_logger()
 
@@ -84,6 +85,8 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
             log.error("bonus_consumer_redis_not_initialized")
             raise RuntimeError("Redis client not initialised — call set_redis() at startup")
 
+        pam_user_id = await get_or_create_pam_user(_redis, site_id, user_id)
+
         try:
             triggers = await get_triggers(_redis, site_id, event_name)
         except Exception as exc:
@@ -123,21 +126,23 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                         continue
 
                     async with conn.cursor() as cur:
-                        if not await check_occurrence(cur, user_id, cfg["id"], t["occurrence"]):
+                        if not await check_occurrence(cur, pam_user_id, cfg["id"], t["occurrence"]):
                             log.info(
                                 "bonus_skipped_occurrence",
                                 user_id=user_id,
+                                pam_user_id=pam_user_id,
                                 configure_id=cfg["id"],
                                 occurrence=t["occurrence"],
                             )
                             continue
 
                         if not await check_applicability(
-                            cur, user_id, cfg["id"], cfg["applicability_frequency"]
+                            cur, pam_user_id, cfg["id"], cfg["applicability_frequency"]
                         ):
                             log.info(
                                 "bonus_skipped_applicability",
                                 user_id=user_id,
+                                pam_user_id=pam_user_id,
                                 configure_id=cfg["id"],
                                 freq=cfg["applicability_frequency"],
                             )
@@ -155,12 +160,13 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                     if grant_amount <= 0:
                         continue
 
-                    grant_id = await write_grant(conn, t, cfg, user_id, site_id, grant_amount)
+                    grant_id = await write_grant(conn, t, cfg, pam_user_id, site_id, grant_amount)
                     log.info(
                         "bonus_granted",
                         grant_id=grant_id,
                         configure_id=cfg["id"],
                         user_id=user_id,
+                        pam_user_id=pam_user_id,
                         site_id=site_id,
                         event_name=event_name,
                         grant_amount=str(grant_amount),

@@ -31,13 +31,12 @@ log = structlog.get_logger(__name__)
 async def handle_bonus_release(
     redis: Redis,
     conn: aiomysql.Connection,
-    event: dict[str, Any],
+    pam_user_id: int,
+    props: dict[str, Any],
     trigger: TriggerWithConfigResponse,
 ) -> None:
     """Evaluate all guards then create a bonus grant for the matched trigger."""
-    user_id: str = event["user_id"]
     site_id: int = trigger.site_id
-    props: dict = event.get("properties") or {}
 
     # ── Amount range ──────────────────────────────────────────────────────────
     trigger_amount: float | None = None
@@ -53,7 +52,7 @@ async def handle_bonus_release(
             log.info(
                 "bonus_release_skipped_min_amount",
                 trigger_id=trigger.id,
-                user_id=user_id,
+                pam_user_id=pam_user_id,
                 min=str(trigger.min_trigger_amount),
                 got=trigger_amount,
             )
@@ -64,7 +63,7 @@ async def handle_bonus_release(
             log.info(
                 "bonus_release_skipped_max_amount",
                 trigger_id=trigger.id,
-                user_id=user_id,
+                pam_user_id=pam_user_id,
                 max=str(trigger.max_trigger_amount),
                 got=trigger_amount,
             )
@@ -75,7 +74,7 @@ async def handle_bonus_release(
     #     log.info(
     #         "bonus_release_skipped_product",
     #         trigger_id=trigger.id,
-    #         user_id=user_id,
+    #         pam_user_id=pam_user_id,
     #         expected=trigger.product,
     #         got=props.get("product"),
     #     )
@@ -88,7 +87,7 @@ async def handle_bonus_release(
     #         log.info(
     #             "bonus_release_skipped_payment_method",
     #             trigger_id=trigger.id,
-    #             user_id=user_id,
+    #             pam_user_id=pam_user_id,
     #             allowed=trigger.payment_method,
     #             got=props.get("payment_method"),
     #         )
@@ -98,22 +97,22 @@ async def handle_bonus_release(
 
     # ── Occurrence + applicability ────────────────────────────────────────────
     async with conn.cursor() as cur:
-        if not await check_occurrence(cur, user_id, cfg.id, trigger.occurrence):
+        if not await check_occurrence(cur, pam_user_id, cfg.id, trigger.occurrence):
             log.info(
                 "bonus_release_skipped_occurrence",
                 trigger_id=trigger.id,
                 configure_id=cfg.id,
-                user_id=user_id,
+                pam_user_id=pam_user_id,
                 occurrence=trigger.occurrence,
             )
             return
 
-        if not await check_applicability(cur, user_id, cfg.id, cfg.applicability_frequency):
+        if not await check_applicability(cur, pam_user_id, cfg.id, cfg.applicability_frequency):
             log.info(
                 "bonus_release_skipped_applicability",
                 trigger_id=trigger.id,
                 configure_id=cfg.id,
-                user_id=user_id,
+                pam_user_id=pam_user_id,
                 freq=cfg.applicability_frequency,
             )
             return
@@ -124,7 +123,7 @@ async def handle_bonus_release(
             "bonus_release_skipped_eligibility",
             trigger_id=trigger.id,
             configure_id=cfg.id,
-            user_id=user_id,
+            pam_user_id=pam_user_id,
         )
         return
 
@@ -135,7 +134,7 @@ async def handle_bonus_release(
             "bonus_release_skipped_zero_amount",
             trigger_id=trigger.id,
             configure_id=cfg.id,
-            user_id=user_id,
+            pam_user_id=pam_user_id,
         )
         return
 
@@ -144,7 +143,7 @@ async def handle_bonus_release(
         conn,
         trigger.model_dump(),
         cfg.model_dump(),
-        user_id,
+        pam_user_id,
         site_id,
         grant_amount,
     )
@@ -154,7 +153,7 @@ async def handle_bonus_release(
         grant_id=grant_id,
         trigger_id=trigger.id,
         configure_id=cfg.id,
-        user_id=user_id,
+        pam_user_id=pam_user_id,
         site_id=site_id,
         grant_amount=str(grant_amount),
     )

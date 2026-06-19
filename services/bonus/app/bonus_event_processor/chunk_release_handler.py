@@ -23,7 +23,7 @@ _NEXT_PENDING_CHUNK_SQL = """
     SELECT bc.id, bc.chunk_amount, bc.bonus_grant_id
     FROM bonus_chunk bc
     JOIN bonus_grant bg ON bg.id = bc.bonus_grant_id
-    WHERE bg.user_id = %s
+    WHERE bg.pam_user_id = %s
       AND bg.configure_id = %s
       AND bc.status = 'PENDING'
     ORDER BY bc.id ASC
@@ -45,12 +45,11 @@ _UPDATE_GRANT_RELEASE_SQL = """
 
 async def handle_chunk_release(
     conn: aiomysql.Connection,
-    event: dict[str, Any],
+    pam_user_id: int,
+    props: dict[str, Any],
     trigger: TriggerWithConfigResponse,
 ) -> None:
     """Release the next pending bonus chunk for the matched trigger."""
-    user_id: str = event["user_id"]
-    props: dict = event.get("properties") or {}
 
     # ── Amount range ──────────────────────────────────────────────────────────
     trigger_amount: float | None = None
@@ -66,7 +65,7 @@ async def handle_chunk_release(
             log.info(
                 "chunk_release_skipped_min_amount",
                 trigger_id=trigger.id,
-                user_id=user_id,
+                pam_user_id=pam_user_id,
                 min=str(trigger.min_trigger_amount),
                 got=trigger_amount,
             )
@@ -77,7 +76,7 @@ async def handle_chunk_release(
             log.info(
                 "chunk_release_skipped_max_amount",
                 trigger_id=trigger.id,
-                user_id=user_id,
+                pam_user_id=pam_user_id,
                 max=str(trigger.max_trigger_amount),
                 got=trigger_amount,
             )
@@ -88,7 +87,7 @@ async def handle_chunk_release(
         log.info(
             "chunk_release_skipped_product",
             trigger_id=trigger.id,
-            user_id=user_id,
+            pam_user_id=pam_user_id,
             expected=trigger.product,
             got=props.get("product"),
         )
@@ -101,7 +100,7 @@ async def handle_chunk_release(
             log.info(
                 "chunk_release_skipped_payment_method",
                 trigger_id=trigger.id,
-                user_id=user_id,
+                pam_user_id=pam_user_id,
                 allowed=trigger.payment_method,
                 got=props.get("payment_method"),
             )
@@ -109,7 +108,7 @@ async def handle_chunk_release(
 
     # ── Find next pending chunk ───────────────────────────────────────────────
     async with conn.cursor() as cur:
-        await cur.execute(_NEXT_PENDING_CHUNK_SQL, (user_id, trigger.configure_id))
+        await cur.execute(_NEXT_PENDING_CHUNK_SQL, (pam_user_id, trigger.configure_id))
         row = await cur.fetchone()
 
     if row is None:
@@ -117,7 +116,7 @@ async def handle_chunk_release(
             "chunk_release_no_pending_chunk",
             trigger_id=trigger.id,
             configure_id=trigger.configure_id,
-            user_id=user_id,
+            pam_user_id=pam_user_id,
         )
         return
 
@@ -135,6 +134,6 @@ async def handle_chunk_release(
         bonus_grant_id=bonus_grant_id,
         trigger_id=trigger.id,
         configure_id=trigger.configure_id,
-        user_id=user_id,
+        pam_user_id=pam_user_id,
         chunk_amount=str(chunk_amount),
     )

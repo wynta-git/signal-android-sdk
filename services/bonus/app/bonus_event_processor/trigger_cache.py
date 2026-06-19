@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from decimal import Decimal
 
@@ -15,11 +16,11 @@ _FETCH_SQL = """
     SELECT
         brt.id,
         brt.configure_id,
-        brt.min_trigger_amount,
-        brt.max_trigger_amount,
-        brt.payment_method,
-        brt.product,
-        brt.occurrence,
+        CAST(brt.trigger_config->>'$.min_amount' AS DECIMAL(15,2)),
+        CAST(brt.trigger_config->>'$.max_amount' AS DECIMAL(15,2)),
+        brt.trigger_config->>'$.payment_method',
+        brt.trigger_config->>'$.product',
+        COALESCE(CAST(brt.trigger_config->>'$.occurrence' AS UNSIGNED), 0),
         bc.id,
         bc.subhead_id,
         bc.start_date,
