@@ -107,3 +107,7 @@ def configure_logging(
         root.addHandler(file_handler)
 
     root.setLevel(level)
+
+    # Silence noisy third-party protocol-level debug logs
+    for noisy in ("aiokafka", "kafka", "clickhouse_connect", "motor", "pymongo", "aiomysql"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
