@@ -104,6 +104,26 @@ class PlayerBonusTransactionSummary(BaseModel):
 
 # ── API 8: transaction detail ─────────────────────────────────────────────────
 
+class ChunkReleaseEvent(BaseModel):
+    id: int
+    chunk_id: int
+    wager_ref: str
+    wager_amount: Decimal
+    release_amount: Decimal
+    created_at: datetime
+
+
+class ChunkConsumeEvent(BaseModel):
+    id: int
+    chunk_id: int
+    consumed_ref: str
+    wager_ref: str
+    amount: Decimal
+    wager_amount: Decimal
+    consumed_amount: Decimal
+    created_at: datetime
+
+
 class BonusChunkDetail(BaseModel):
     id: int
     chunk_ref: str
@@ -114,6 +134,8 @@ class BonusChunkDetail(BaseModel):
     wager_amount: Decimal
     created_at: datetime
     updated_at: datetime
+    releases: list[ChunkReleaseEvent] = []
+    consumes: list[ChunkConsumeEvent] = []
 
 
 class BonusForfeitDetail(BaseModel):

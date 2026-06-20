@@ -502,6 +502,8 @@ body {
   min-height: 72px;
 }
 .txn-row:active { background: #1e1e2c; }
+.txn-row-leaf { cursor: default; opacity: 0.7; }
+.txn-row-leaf:active { background: #181824; }
 .txn-left { flex: 1; min-width: 0; }
 .txn-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .txn-code {
@@ -556,6 +558,41 @@ body {
 }
 .chunk-amount { font-size: 0.98rem; font-weight: 700; color: #f1f5f9; }
 .chunk-wager-label { font-size: 0.7rem; color: #475569; margin-bottom: 7px; }
+
+.chunk-events { margin-top: 12px; border-top: 1px solid #1e2030; padding-top: 10px; }
+.chunk-events-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #334155;
+  margin-bottom: 6px;
+}
+.chunk-event-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  margin-bottom: 5px;
+  font-size: 0.7rem;
+}
+.chunk-event-row.release { background: #0a1a0d; }
+.chunk-event-row.consume { background: #1a0a10; }
+.chunk-event-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.chunk-event-ref { font-family: monospace; color: #94a3b8; font-size: 0.68rem; }
+.chunk-event-date { color: #334155; font-size: 0.62rem; }
+.chunk-event-amounts {
+  display: flex;
+  justify-content: space-between;
+  color: #475569;
+}
+.chunk-event-highlight.release-amt { color: #6ee7b7; font-weight: 600; }
+.chunk-event-row.release .chunk-event-highlight { color: #6ee7b7; font-weight: 600; }
+.chunk-event-row.consume .chunk-event-highlight { color: #f87171; font-weight: 600; }
 
 /* ── Progress bar ─────────────────────────────────────────────────────────── */
 

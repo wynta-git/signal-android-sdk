@@ -12,8 +12,9 @@ type Screen =
   | "PROCESSING"
   | "WALLET"
   | "TRANSACTIONS"
-  | "TXN_DETAIL";
-type Tab = "home" | "deposit" | "bet" | "wallet" | "transactions";
+  | "TXN_DETAIL"
+  | "CONSUME";
+type Tab = "home" | "deposit" | "bet" | "consume" | "wallet" | "transactions";
 
 interface Creds {
   userId: string;
@@ -50,12 +51,34 @@ interface Transaction {
   created_at: string;
 }
 
+interface ChunkReleaseEvent {
+  id: number;
+  chunk_id: number;
+  wager_ref: string;
+  wager_amount: string;
+  release_amount: string;
+  created_at: string;
+}
+
+interface ChunkConsumeEvent {
+  id: number;
+  chunk_id: number;
+  consumed_ref: string;
+  wager_ref: string;
+  amount: string;
+  wager_amount: string;
+  consumed_amount: string;
+  created_at: string;
+}
+
 interface ChunkDetail {
   id: number;
   chunk_amount: string;
   status: string;
   required_wager_amount: string;
   wager_amount: string;
+  releases: ChunkReleaseEvent[];
+  consumes: ChunkConsumeEvent[];
 }
 
 interface TransactionDetail {
@@ -691,8 +714,15 @@ function TransactionsScreen({
             </div>
           </div>
         )}
-        {txns.map((t) => (
-          <div key={t.txn_id} className="txn-row" onClick={() => onDetail(t)}>
+        {txns.map((t) => {
+          const isGrant = t.type === "grant";
+          return (
+          <div
+            key={`${t.type}-${t.txn_id}`}
+            className={`txn-row ${isGrant ? "" : "txn-row-leaf"}`}
+            onClick={isGrant ? () => onDetail(t) : undefined}
+            style={isGrant ? undefined : { cursor: "default" }}
+          >
             <div className="txn-left">
               {t.bonus_code && <span className="txn-code">{t.bonus_code}</span>}
               <div className="txn-type">
@@ -702,10 +732,11 @@ function TransactionsScreen({
             </div>
             <div className="txn-right">
               <div className="txn-amount">₹{fmt(t.amount)}</div>
-              <div className="txn-arrow">›</div>
+              {isGrant && <div className="txn-arrow">›</div>}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       <TabBar active="transactions" nav={nav} />
     </div>
@@ -858,6 +889,42 @@ function TxnDetailScreen({
                     value={wagerDone}
                     max={wagerReq > 0 ? wagerReq : 1}
                   />
+
+                  {c.releases.length > 0 && (
+                    <div className="chunk-events">
+                      <div className="chunk-events-label">Releases</div>
+                      {c.releases.map((r) => (
+                        <div key={r.id} className="chunk-event-row release">
+                          <div className="chunk-event-main">
+                            <span className="chunk-event-ref">{r.wager_ref}</span>
+                            <span className="chunk-event-date">{fmtDate(r.created_at)}</span>
+                          </div>
+                          <div className="chunk-event-amounts">
+                            <span>Wager ₹{fmt(r.wager_amount)}</span>
+                            <span className="chunk-event-highlight">+₹{fmt(r.release_amount)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {c.consumes.length > 0 && (
+                    <div className="chunk-events">
+                      <div className="chunk-events-label">Consumed</div>
+                      {c.consumes.map((con) => (
+                        <div key={con.id} className="chunk-event-row consume">
+                          <div className="chunk-event-main">
+                            <span className="chunk-event-ref">{con.consumed_ref}</span>
+                            <span className="chunk-event-date">{fmtDate(con.created_at)}</span>
+                          </div>
+                          <div className="chunk-event-amounts">
+                            <span>Wager ₹{fmt(con.wager_amount)}</span>
+                            <span className="chunk-event-highlight">−₹{fmt(con.consumed_amount)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -966,6 +1033,142 @@ function HomeScreen({ creds, nav }: { creds: Creds; nav: (t: Tab) => void }) {
   );
 }
 
+// ── Screen: CONSUME ───────────────────────────────────────────────────────────
+
+interface ConsumeResult {
+  txn_id: number;
+  consume_txn_id: string;
+  bonus_amount: string;
+  consumed_amount: string;
+  chip_type: string;
+}
+
+function ConsumeScreen({
+  creds,
+  nav,
+}: {
+  creds: Creds;
+  nav: (t: Tab) => void;
+}) {
+  const [bonusAmount, setBonusAmount] = useState("10");
+  const [wagerAmount, setWagerAmount] = useState("100");
+  const [chipType, setChipType] = useState("cash");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<ConsumeResult | null>(null);
+
+  async function handleConsume(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (loading) return;
+    setError(null);
+    setResult(null);
+    setLoading(true);
+    try {
+      const ts = Date.now();
+      const res = await fetch("/api/consume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...s2sHeaders(creds) },
+        body: JSON.stringify({
+          user_id: creds.userId,
+          consume_txn_id: `con_${creds.userId}_${ts}`,
+          wager_tnx_id: `wgr_${creds.userId}_${ts}`,
+          bonus_amount: parseFloat(bonusAmount),
+          wager_amount: parseFloat(wagerAmount),
+          chip_type: chipType,
+        }),
+      });
+      const data = (await res.json()) as ConsumeResult & { detail?: string };
+      if (res.status === 201) {
+        setResult(data);
+      } else {
+        setError(data.detail ?? `Error ${res.status}`);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Network error");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="screen has-tabs">
+      <div className="screen-header deposit-header">
+        <div className="avatar small">{creds.userId.slice(0, 2).toUpperCase()}</div>
+        <span className="header-label">Consume Bonus</span>
+      </div>
+      <div className="screen-body">
+        {error && <div className="error-toast">{error}</div>}
+
+        {result ? (
+          <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card-title" style={{ color: "#6ee7b7" }}>Consumed ✓</div>
+            <div className="amounts-grid" style={{ marginTop: 12 }}>
+              <div className="amount-cell">
+                <div className="amount-val">₹{fmt(result.consumed_amount)}</div>
+                <div className="amount-label">Consumed</div>
+              </div>
+              <div className="amount-cell">
+                <div className="amount-val">₹{fmt(result.bonus_amount)}</div>
+                <div className="amount-label">Bonus Used</div>
+              </div>
+              <div className="amount-cell">
+                <div className="amount-val">#{result.txn_id}</div>
+                <div className="amount-label">Txn ID</div>
+              </div>
+            </div>
+            <button
+              className="btn-primary"
+              style={{ marginTop: 16 }}
+              onClick={() => setResult(null)}
+            >
+              Consume Again
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleConsume}>
+            <div className="input-group" style={{ marginBottom: 16 }}>
+              <label>Bonus Amount (₹)</label>
+              <input
+                type="number"
+                value={bonusAmount}
+                onChange={(e) => setBonusAmount(e.target.value)}
+                min="0.01"
+                step="0.01"
+                required
+              />
+            </div>
+            <div className="input-group" style={{ marginBottom: 16 }}>
+              <label>Wager Amount (₹)</label>
+              <input
+                type="number"
+                value={wagerAmount}
+                onChange={(e) => setWagerAmount(e.target.value)}
+                min="0"
+                step="0.01"
+                required
+              />
+            </div>
+            <div className="input-group" style={{ marginBottom: 24 }}>
+              <label>Chip Type</label>
+              <select value={chipType} onChange={(e) => setChipType(e.target.value)}>
+                <option value="cash">Cash</option>
+                <option value="in_app_purchase">In-App Purchase</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={loading || !bonusAmount || !wagerAmount}
+            >
+              {loading ? "Consuming…" : `Consume ₹${bonusAmount || "0"}`}
+            </button>
+          </form>
+        )}
+      </div>
+      <TabBar active="consume" nav={nav} />
+    </div>
+  );
+}
+
 // ── Tab bar ────────────────────────────────────────────────────────────────────
 
 function TabBar({ active, nav }: { active: Tab; nav: (t: Tab) => void }) {
@@ -973,6 +1176,7 @@ function TabBar({ active, nav }: { active: Tab; nav: (t: Tab) => void }) {
     { key: "home", icon: "🏠", label: "Home" },
     { key: "deposit", icon: "💳", label: "Deposit" },
     { key: "bet", icon: "🎲", label: "Bet" },
+    { key: "consume", icon: "🔥", label: "Consume" },
     { key: "wallet", icon: "💰", label: "Wallet" },
     { key: "transactions", icon: "📋", label: "History" },
   ];
@@ -1010,6 +1214,7 @@ export default function Home() {
       home: "HOME",
       deposit: "DEPOSIT",
       bet: "BET",
+      consume: "CONSUME",
       wallet: "WALLET",
       transactions: "TRANSACTIONS",
     };
@@ -1043,6 +1248,9 @@ export default function Home() {
           onDeposited={() => setScreen("PROCESSING")}
           onBack={() => setScreen("HOME")}
         />
+      )}
+      {screen === "CONSUME" && creds && (
+        <ConsumeScreen creds={creds} nav={handleNav} />
       )}
       {screen === "PROCESSING" && creds && (
         <ProcessingScreen creds={creds} onDone={handleProcessingDone} />

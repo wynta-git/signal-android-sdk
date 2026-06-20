@@ -17,6 +17,8 @@ from app.models.player_bonus import (
     BonusChunkDetail,
     BonusExpiryDetail,
     BonusForfeitDetail,
+    ChunkConsumeEvent,
+    ChunkReleaseEvent,
     PlayerBonusConsumeCreate,
     PlayerBonusConsumedResponse,
     PlayerBonusRevertResponse,
@@ -449,6 +451,21 @@ _EXPIRY_EVENTS_SQL = """
     ORDER BY expired_at ASC
 """
 
+_RELEASE_EVENTS_SQL = """
+    SELECT bcr.id, bcr.chunk_id, bcr.wager_ref, bcr.wager_amount, bcr.release_amount, bcr.created_at
+    FROM bonus_chunk_release bcr
+    JOIN bonus_chunk bc ON bc.id = bcr.chunk_id
+    WHERE bc.bonus_grant_id = %s
+    ORDER BY bcr.created_at ASC
+"""
+
+_CONSUME_EVENTS_SQL = """
+    SELECT id, chunk_id, consumed_ref, wager_ref, amount, wager_amount, consumed_amount, created_at
+    FROM bonus_consumed
+    WHERE bonus_grant_id = %s
+    ORDER BY created_at ASC
+"""
+
 
 async def get_player_transaction_detail(
     pam_user_id: int, user_id: str, txn_id: int
@@ -471,6 +488,12 @@ async def get_player_transaction_detail(
                 await cur.execute(_EXPIRY_EVENTS_SQL, (txn_id,))
                 expiry_rows = await cur.fetchall()
 
+                await cur.execute(_RELEASE_EVENTS_SQL, (txn_id,))
+                release_rows = await cur.fetchall()
+
+                await cur.execute(_CONSUME_EVENTS_SQL, (txn_id,))
+                consume_rows = await cur.fetchall()
+
         (
             _id, _pam_user_id, bonus_code, wager_multiplier, no_of_chunks,
             chunk_expiry_days, bonus_expiry_days, wager_chip_type, credit_chip_type,
@@ -483,11 +506,29 @@ async def get_player_transaction_detail(
         expired = sum(1 for c in chunk_rows if c[4] == "EXPIRED")
         status = _derive_status(pending, released, consumed_count, expired, 1 if forfeit_row else 0, no_of_chunks)
 
+        releases_by_chunk: dict[int, list[ChunkReleaseEvent]] = {}
+        for r in release_rows:
+            ev = ChunkReleaseEvent(
+                id=r[0], chunk_id=r[1], wager_ref=r[2],
+                wager_amount=r[3], release_amount=r[4], created_at=r[5],
+            )
+            releases_by_chunk.setdefault(r[1], []).append(ev)
+
+        consumes_by_chunk: dict[int, list[ChunkConsumeEvent]] = {}
+        for c in consume_rows:
+            ev = ChunkConsumeEvent(
+                id=c[0], chunk_id=c[1], consumed_ref=c[2], wager_ref=c[3],
+                amount=c[4], wager_amount=c[5], consumed_amount=c[6], created_at=c[7],
+            )
+            consumes_by_chunk.setdefault(c[1], []).append(ev)
+
         chunks = [
             BonusChunkDetail(
                 id=c[0], chunk_ref=c[1], chunk_amount=c[2], wager_multiplier=c[3],
                 status=c[4], required_wager_amount=c[5], wager_amount=c[6],
                 created_at=c[7], updated_at=c[8],
+                releases=releases_by_chunk.get(c[0], []),
+                consumes=consumes_by_chunk.get(c[0], []),
             )
             for c in chunk_rows
         ]

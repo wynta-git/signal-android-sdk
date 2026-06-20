@@ -34,13 +34,13 @@
 
 CREATE TABLE `bonus_consumed` (
     `id`             BIGINT        NOT NULL AUTO_INCREMENT,
-    `consumed_ref`   VARCHAR(20)   NOT NULL,
+    `consumed_ref`   VARCHAR(50)   NOT NULL,
     -- upstream consumption identifier (e.g. C001); unique per chunk
     `chunk_id`       BIGINT        NOT NULL,
     -- references bonus_chunk.id
     `bonus_log_id`   BIGINT        NOT NULL,
     -- references bonus_log.id
-    `wager_ref`         VARCHAR(20)   NOT NULL,
+    `wager_ref`         VARCHAR(50)   NOT NULL,
     -- originating wager transaction identifier; links to bonus_chunk_wager.wager_ref
     `wager_id`          VARCHAR(50)   NOT NULL,
     -- external wager / bet transaction reference from game platform
