@@ -72,7 +72,7 @@ async def process_bonus_event(redis: Redis, event: dict[str, Any]) -> None:
 
     all_triggers = await get_triggers_with_config_by_site(redis, site_id)
 
-    matching = [t for t in all_triggers if t.trigger_type == event_name and t.active]
+    matching = [t for t in all_triggers if t.trigger_type.upper() == event_name and t.active]
 
     if not matching:
         log.debug("bonus_no_matching_triggers", event_name=event_name, site_id=site_id)

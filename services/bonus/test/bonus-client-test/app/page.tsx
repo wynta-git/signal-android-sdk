@@ -1,11 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from "react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Screen = 'LOGIN' | 'HOME' | 'DEPOSIT' | 'PROCESSING' | 'WALLET' | 'TRANSACTIONS' | 'TXN_DETAIL';
-type Tab = 'home' | 'deposit' | 'wallet' | 'transactions';
+type Screen =
+  | "LOGIN"
+  | "HOME"
+  | "DEPOSIT"
+  | "BET"
+  | "PROCESSING"
+  | "WALLET"
+  | "TRANSACTIONS"
+  | "TXN_DETAIL";
+type Tab = "home" | "deposit" | "bet" | "wallet" | "transactions";
 
 interface Creds {
   userId: string;
@@ -66,20 +74,24 @@ interface TransactionDetail {
 
 function s2sHeaders(creds: Creds): HeadersInit {
   return {
-    'x-s2s-client-id': creds.clientId,
-    'x-s2s-client-secret': creds.secret,
+    "x-s2s-client-id": creds.clientId,
+    "x-s2s-client-secret": creds.secret,
   };
 }
 
 function fmt(val: string | number): string {
-  const n = typeof val === 'string' ? parseFloat(val) : val;
-  return isNaN(n) ? '0.00' : n.toFixed(2);
+  const n = typeof val === "string" ? parseFloat(val) : val;
+  return isNaN(n) ? "0.00" : n.toFixed(2);
 }
 
 function fmtDate(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    return new Date(iso).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   } catch {
     return iso;
@@ -93,27 +105,24 @@ function Spinner() {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  ACTIVE:   { bg: '#0a280a', color: '#6ee7b7' },
-  active:   { bg: '#0a280a', color: '#6ee7b7' },
-  PENDING:  { bg: '#281800', color: '#fbbf24' },
-  pending:  { bg: '#281800', color: '#fbbf24' },
-  EXPIRED:  { bg: '#280a0a', color: '#f87171' },
-  expired:  { bg: '#280a0a', color: '#f87171' },
-  FORFEITED:{ bg: '#280a0a', color: '#f87171' },
-  RELEASE:  { bg: '#0a1a38', color: '#93c5fd' },
-  GRANT:    { bg: '#18082a', color: '#c4b5fd' },
-  CONSUMED: { bg: '#18082a', color: '#c4b5fd' },
-  CONSUMED_PARTIALLY: { bg: '#18082a', color: '#a78bfa' },
-  REVERT:   { bg: '#1c1208', color: '#d97706' },
+  ACTIVE: { bg: "#0a280a", color: "#6ee7b7" },
+  active: { bg: "#0a280a", color: "#6ee7b7" },
+  PENDING: { bg: "#281800", color: "#fbbf24" },
+  pending: { bg: "#281800", color: "#fbbf24" },
+  EXPIRED: { bg: "#280a0a", color: "#f87171" },
+  expired: { bg: "#280a0a", color: "#f87171" },
+  FORFEITED: { bg: "#280a0a", color: "#f87171" },
+  RELEASE: { bg: "#0a1a38", color: "#93c5fd" },
+  GRANT: { bg: "#18082a", color: "#c4b5fd" },
+  CONSUMED: { bg: "#18082a", color: "#c4b5fd" },
+  CONSUMED_PARTIALLY: { bg: "#18082a", color: "#a78bfa" },
+  REVERT: { bg: "#1c1208", color: "#d97706" },
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const c = STATUS_COLORS[status] ?? { bg: '#1e2030', color: '#64748b' };
+  const c = STATUS_COLORS[status] ?? { bg: "#1e2030", color: "#64748b" };
   return (
-    <span
-      className="status-badge"
-      style={{ background: c.bg, color: c.color }}
-    >
+    <span className="status-badge" style={{ background: c.bg, color: c.color }}>
       {status}
     </span>
   );
@@ -131,14 +140,18 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 // ── Screen 1: LOGIN ────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
-  const [userId, setUserId] = useState('P1001');
-  const [clientId, setClientId] = useState('site1-backend-v0');
-  const [secret, setSecret] = useState('abc@123456');
+  const [userId, setUserId] = useState("P1001");
+  const [clientId, setClientId] = useState("site1-backend-v0");
+  const [secret, setSecret] = useState("abc@123456");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!userId.trim() || !clientId.trim() || !secret.trim()) return;
-    onLogin({ userId: userId.trim(), clientId: clientId.trim(), secret: secret.trim() });
+    onLogin({
+      userId: userId.trim(),
+      clientId: clientId.trim(),
+      secret: secret.trim(),
+    });
   }
 
   return (
@@ -155,19 +168,21 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
             <label>Player ID (user_id)</label>
             <input
               value={userId}
-              onChange={e => setUserId(e.target.value)}
+              onChange={(e) => setUserId(e.target.value)}
               placeholder="P1001"
               autoCapitalize="none"
               required
             />
           </div>
 
-          <div className="section-label" style={{ marginTop: 22 }}>Server-to-Server Credentials</div>
+          <div className="section-label" style={{ marginTop: 22 }}>
+            Server-to-Server Credentials
+          </div>
           <div className="input-group">
             <label>Client ID</label>
             <input
               value={clientId}
-              onChange={e => setClientId(e.target.value)}
+              onChange={(e) => setClientId(e.target.value)}
               placeholder="game_server"
               autoCapitalize="none"
               required
@@ -178,13 +193,17 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
             <input
               type="password"
               value={secret}
-              onChange={e => setSecret(e.target.value)}
+              onChange={(e) => setSecret(e.target.value)}
               placeholder="••••••••"
               required
             />
           </div>
 
-          <button type="submit" className="btn-primary" style={{ marginTop: 28 }}>
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{ marginTop: 28 }}
+          >
             Continue →
           </button>
         </form>
@@ -198,12 +217,17 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
 function DepositScreen({
   creds,
   onDeposited,
+  onBack,
+  mode = "deposit",
 }: {
   creds: Creds;
   onDeposited: () => void;
+  onBack: () => void;
+  mode?: "deposit" | "bet";
 }) {
-  const [amount, setAmount] = useState('500');
-  const [paymentMethod, setPaymentMethod] = useState('upi');
+  const isbet = mode === "bet";
+  const [amount, setAmount] = useState("500");
+  const [paymentMethod, setPaymentMethod] = useState("upi");
   const [promos, setPromos] = useState<PromoCode[]>([]);
   const [selectedPromo, setSelectedPromo] = useState<PromoCode | null>(null);
   const [promosLoading, setPromosLoading] = useState(true);
@@ -221,7 +245,7 @@ function DepositScreen({
         if (res.ok) {
           const data = (await res.json()) as PromoCode[];
           setPromos(data);
-          const autoApply = data.find(p => p.auto_apply);
+          const autoApply = data.find((p) => p.auto_apply);
           if (autoApply) setSelectedPromo(autoApply);
         }
       } catch {
@@ -236,27 +260,30 @@ function DepositScreen({
     if (validating || depositing || !amount) return;
     setError(null);
 
-    // Step 1: validate the selected promo code (skip if none selected)
-    if (selectedPromo) {
+    // Step 1: validate the selected promo code (skip for bet mode or if none selected)
+    if (!isbet && selectedPromo) {
       setValidating(true);
       try {
-        const vRes = await fetch('/api/validate-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...s2sHeaders(creds) },
+        const vRes = await fetch("/api/validate-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...s2sHeaders(creds) },
           body: JSON.stringify({
             user_id: creds.userId,
-            chip_type: 'cash',
+            chip_type: "cash",
             code: selectedPromo.code,
           }),
         });
-        const vData = (await vRes.json()) as { valid: boolean; reason?: string };
+        const vData = (await vRes.json()) as {
+          valid: boolean;
+          reason?: string;
+        };
         if (!vData.valid) {
-          setError(`Promo code invalid: ${vData.reason ?? 'not applicable'}`);
+          setError(`Promo code invalid: ${vData.reason ?? "not applicable"}`);
           setValidating(false);
           return;
         }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Validation failed');
+        setError(err instanceof Error ? err.message : "Validation failed");
         setValidating(false);
         return;
       }
@@ -266,19 +293,20 @@ function DepositScreen({
     // Step 2: send deposit_success event
     setDepositing(true);
     try {
-      const txnId = `dep_${creds.userId}_${Date.now()}`;
-      const res = await fetch('/api/events', {
-        method: 'POST',
+      const txnId = `${isbet ? "bet" : "dep"}_${creds.userId}_${Date.now()}`;
+      const res = await fetch("/api/events", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...s2sHeaders(creds),
         },
         body: JSON.stringify({
           user_id: creds.userId,
           amount: parseFloat(amount),
-          currency: 'INR',
+          currency: "INR",
           payment_method: paymentMethod,
           transaction_id: txnId,
+          event_name: isbet ? "bet_placed" : "deposit_success",
         }),
       });
       if (res.status === 202) {
@@ -289,98 +317,150 @@ function DepositScreen({
         setDepositing(false);
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Network error');
+      setError(err instanceof Error ? err.message : "Network error");
       setDepositing(false);
     }
   }
 
   function togglePromo(p: PromoCode) {
-    setSelectedPromo(prev => (prev?.promo_id === p.promo_id ? null : p));
+    setSelectedPromo((prev) => (prev?.promo_id === p.promo_id ? null : p));
   }
 
   return (
     <div className="screen">
       <div className="screen-header deposit-header">
-        <div className="avatar">{creds.userId.slice(0, 2).toUpperCase()}</div>
+        <button className="back-btn" onClick={onBack} aria-label="Back">
+          ‹
+        </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="header-user-id">{creds.userId}</div>
-          <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>Make a Deposit</div>
+          <div
+            style={{
+              fontSize: "0.7rem",
+              color: "rgba(255,255,255,0.45)",
+              marginTop: 1,
+            }}
+          >
+            {isbet ? "Place a Bet" : "Make a Deposit"}
+          </div>
         </div>
       </div>
       <div className="screen-body">
         {error && <div className="error-toast">{error}</div>}
         <form onSubmit={handleDeposit}>
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div className="card-title">Deposit Details</div>
-            <div className="input-row">
-              <div className="input-group" style={{ flex: 2 }}>
-                <label>Amount (₹)</label>
-                <input
-                  type="number"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  min="1"
-                  step="1"
-                  required
-                />
-              </div>
-              <div className="input-group" style={{ flex: 1.6 }}>
-                <label>Method</label>
-                <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
-                  <option value="upi">UPI</option>
-                  <option value="card">Card</option>
-                  <option value="netbanking">Netbanking</option>
-                  <option value="wallet">Wallet</option>
-                </select>
-              </div>
+          {isbet ? (
+            <div className="input-group" style={{ marginBottom: 24 }}>
+              <label>Bet Amount (₹)</label>
+              <input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                min="1"
+                step="1"
+                required
+              />
             </div>
-          </div>
-
-          <div className="section-label">Applicable Bonuses</div>
-
-          {promosLoading ? (
-            <div className="promo-skeleton">
-              <div className="skeleton-line" />
-              <div className="skeleton-line medium" />
-              <div className="skeleton-line short" />
-            </div>
-          ) : promos.length === 0 ? (
-            <div className="empty-state-small">No applicable bonuses for this account</div>
           ) : (
-            <div className="promo-list">
-              {promos.map(p => (
-                <div
-                  key={p.promo_id}
-                  className={`promo-card ${selectedPromo?.promo_id === p.promo_id ? 'selected' : ''}`}
-                  onClick={() => togglePromo(p)}
-                >
-                  <div className="promo-top">
-                    {p.badge_text && <span className="promo-badge">{p.badge_text}</span>}
-                    {p.auto_apply && <span className="promo-badge auto">Auto</span>}
-                    <span className="promo-code">{p.code}</span>
+            <>
+              <div className="card" style={{ marginBottom: 20 }}>
+                <div className="card-title">Deposit Details</div>
+                <div className="input-row">
+                  <div className="input-group" style={{ flex: 2 }}>
+                    <label>Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      min="1"
+                      step="1"
+                      required
+                    />
                   </div>
-                  <div className="promo-title">{p.display_title ?? p.code}</div>
-                  {p.display_description && (
-                    <div className="promo-desc">{p.display_description}</div>
-                  )}
-                  <div className="promo-meta">
-                    {p.max_amount && <span>Up to ₹{fmt(p.max_amount)}</span>}
-                    <span>{p.wager_multiplier}× wager · {p.no_of_chunks} chunk{p.no_of_chunks !== 1 ? 's' : ''}</span>
-                    {p.cta_text && <span>{p.cta_text}</span>}
+                  <div className="input-group" style={{ flex: 1.6 }}>
+                    <label>Method</label>
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                    >
+                      <option value="upi">UPI</option>
+                      <option value="card">Card</option>
+                      <option value="netbanking">Netbanking</option>
+                      <option value="wallet">Wallet</option>
+                    </select>
                   </div>
-                  <div className={`promo-check ${selectedPromo?.promo_id === p.promo_id ? 'checked' : ''}`}>✓</div>
                 </div>
-              ))}
-            </div>
+              </div>
+
+              <div className="section-label">Applicable Bonuses</div>
+
+              {promosLoading ? (
+                <div className="promo-skeleton">
+                  <div className="skeleton-line" />
+                  <div className="skeleton-line medium" />
+                  <div className="skeleton-line short" />
+                </div>
+              ) : promos.length === 0 ? (
+                <div className="empty-state-small">
+                  No applicable bonuses for this account
+                </div>
+              ) : (
+                <div className="promo-list">
+                  {promos.map((p) => (
+                    <div
+                      key={p.promo_id}
+                      className={`promo-card ${selectedPromo?.promo_id === p.promo_id ? "selected" : ""}`}
+                      onClick={() => togglePromo(p)}
+                    >
+                      <div className="promo-top">
+                        {p.badge_text && (
+                          <span className="promo-badge">{p.badge_text}</span>
+                        )}
+                        {p.auto_apply && (
+                          <span className="promo-badge auto">Auto</span>
+                        )}
+                        <span className="promo-code">{p.code}</span>
+                      </div>
+                      <div className="promo-title">
+                        {p.display_title ?? p.code}
+                      </div>
+                      {p.display_description && (
+                        <div className="promo-desc">
+                          {p.display_description}
+                        </div>
+                      )}
+                      <div className="promo-meta">
+                        {p.max_amount && (
+                          <span>Up to ₹{fmt(p.max_amount)}</span>
+                        )}
+                        <span>
+                          {p.wager_multiplier}× wager · {p.no_of_chunks} chunk
+                          {p.no_of_chunks !== 1 ? "s" : ""}
+                        </span>
+                        {p.cta_text && <span>{p.cta_text}</span>}
+                      </div>
+                      <div
+                        className={`promo-check ${selectedPromo?.promo_id === p.promo_id ? "checked" : ""}`}
+                      >
+                        ✓
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
           <button
             type="submit"
             className="btn-primary"
-            style={{ marginTop: 24 }}
-            disabled={validating || depositing || !amount}
+            style={{ marginTop: isbet ? 0 : 24 }}
+            disabled={depositing || !amount}
           >
-            {validating ? 'Validating promo…' : depositing ? 'Processing…' : `Deposit ₹${amount || '0'}`}
+            {depositing
+              ? "Processing…"
+              : isbet
+                ? `Place Bet ₹${amount || "0"}`
+                : `Deposit ₹${amount || "0"}`}
           </button>
         </form>
       </div>
@@ -397,7 +477,7 @@ function ProcessingScreen({
   creds: Creds;
   onDone: (summary: BonusSummary[]) => void;
 }) {
-  const [status, setStatus] = useState('Processing your deposit…');
+  const [status, setStatus] = useState("Processing your deposit…");
   const pollCount = useRef(0);
   const MAX_POLLS = 6;
 
@@ -412,10 +492,11 @@ function ProcessingScreen({
         );
         if (res.ok) {
           const data = (await res.json()) as BonusSummary[];
-          const cash = data.find(d => d.chip_type.toLowerCase() === 'cash');
+          const cash = data.find((d) => d.chip_type.toLowerCase() === "cash");
           const hasBonus =
             cash &&
-            (parseFloat(cash.bonus_balance) > 0 || parseFloat(cash.pending_bonus) > 0);
+            (parseFloat(cash.bonus_balance) > 0 ||
+              parseFloat(cash.pending_bonus) > 0);
           if (hasBonus || pollCount.current >= MAX_POLLS) {
             clearInterval(interval);
             onDone(data);
@@ -446,13 +527,7 @@ function ProcessingScreen({
 
 // ── Screen 4: WALLET ───────────────────────────────────────────────────────────
 
-function WalletScreen({
-  creds,
-  nav,
-}: {
-  creds: Creds;
-  nav: (t: Tab) => void;
-}) {
+function WalletScreen({ creds, nav }: { creds: Creds; nav: (t: Tab) => void }) {
   const [summary, setSummary] = useState<BonusSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -464,7 +539,9 @@ function WalletScreen({
           { headers: s2sHeaders(creds) },
         );
         if (res.ok) setSummary((await res.json()) as BonusSummary[]);
-      } catch { /* show empty */ }
+      } catch {
+        /* show empty */
+      }
       setLoading(false);
     })();
   }, [creds]);
@@ -472,7 +549,9 @@ function WalletScreen({
   return (
     <div className="screen has-tabs">
       <div className="screen-header wallet-header">
-        <div className="avatar small">{creds.userId.slice(0, 2).toUpperCase()}</div>
+        <div className="avatar small">
+          {creds.userId.slice(0, 2).toUpperCase()}
+        </div>
         <span className="header-label">Bonus Wallet</span>
       </div>
       <div className="screen-body">
@@ -481,20 +560,22 @@ function WalletScreen({
           <div className="empty-state">
             <div className="empty-icon">🎁</div>
             <div className="empty-title">No Active Bonus</div>
-            <div className="empty-desc">Make a deposit with an applicable promo code to unlock a bonus</div>
+            <div className="empty-desc">
+              Make a deposit with an applicable promo code to unlock a bonus
+            </div>
           </div>
         )}
-        {summary.map(s => {
+        {summary.map((s) => {
           const released = parseFloat(s.bonus_balance);
           const pending = parseFloat(s.pending_bonus);
           const wagering = parseFloat(s.wagering_required);
           const total = released + pending;
-          const isCash = s.chip_type.toLowerCase() === 'cash';
+          const isCash = s.chip_type.toLowerCase() === "cash";
           return (
             <div key={s.chip_type} className="wallet-card">
               <div className="wallet-card-header">
                 <span className="chip-badge">
-                  {isCash ? '💵 Cash' : `🎮 ${s.chip_type}`}
+                  {isCash ? "💵 Cash" : `🎮 ${s.chip_type}`}
                 </span>
               </div>
               <div className="wallet-balance">₹{fmt(s.bonus_balance)}</div>
@@ -505,25 +586,50 @@ function WalletScreen({
                   <div className="wallet-stat-label">Pending</div>
                 </div>
                 <div className="wallet-stat">
-                  <div className="wallet-stat-val">₹{fmt(s.wagering_required)}</div>
+                  <div className="wallet-stat-val">
+                    ₹{fmt(s.wagering_required)}
+                  </div>
                   <div className="wallet-stat-label">Wager Req.</div>
                 </div>
               </div>
               <div style={{ marginBottom: 6 }}>
                 <ProgressBar value={released} max={total > 0 ? total : 1} />
               </div>
-              <div style={{ fontSize: '0.65rem', color: '#334155', marginTop: 4 }}>
+              <div
+                style={{ fontSize: "0.65rem", color: "#334155", marginTop: 4 }}
+              >
                 {total > 0
                   ? `${((released / total) * 100).toFixed(0)}% released`
-                  : 'No bonus balance'}
+                  : "No bonus balance"}
               </div>
               {wagering > 0 && (
-                <div style={{ marginTop: 12, background: '#0f172a', borderRadius: 10, padding: '10px 12px' }}>
-                  <div style={{ fontSize: '0.62rem', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+                <div
+                  style={{
+                    marginTop: 12,
+                    background: "#0f172a",
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.62rem",
+                      color: "#475569",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                      marginBottom: 6,
+                    }}
+                  >
                     Wagering Progress
                   </div>
                   <ProgressBar value={wagering > 0 ? 0 : 1} max={wagering} />
-                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 4 }}>
+                  <div
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "#64748b",
+                      marginTop: 4,
+                    }}
+                  >
                     ₹{fmt(wagering)} remaining to unlock pending bonus
                   </div>
                 </div>
@@ -569,7 +675,9 @@ function TransactionsScreen({
   return (
     <div className="screen has-tabs">
       <div className="screen-header txn-header">
-        <div className="avatar small">{creds.userId.slice(0, 2).toUpperCase()}</div>
+        <div className="avatar small">
+          {creds.userId.slice(0, 2).toUpperCase()}
+        </div>
         <span className="header-label">Transactions</span>
       </div>
       <div className="screen-body">
@@ -578,10 +686,12 @@ function TransactionsScreen({
           <div className="empty-state">
             <div className="empty-icon">📋</div>
             <div className="empty-title">No Transactions</div>
-            <div className="empty-desc">Your bonus transactions will appear here</div>
+            <div className="empty-desc">
+              Your bonus transactions will appear here
+            </div>
           </div>
         )}
-        {txns.map(t => (
+        {txns.map((t) => (
           <div key={t.txn_id} className="txn-row" onClick={() => onDetail(t)}>
             <div className="txn-left">
               {t.bonus_code && <span className="txn-code">{t.bonus_code}</span>}
@@ -634,9 +744,13 @@ function TxnDetailScreen({
   return (
     <div className="screen">
       <div className="screen-header txn-header">
-        <button className="back-btn" onClick={onBack} aria-label="Back">‹</button>
+        <button className="back-btn" onClick={onBack} aria-label="Back">
+          ‹
+        </button>
         <div className="detail-header-row">
-          <span className="header-label">{txn.bonus_code ?? `Txn #${txn.txn_id}`}</span>
+          <span className="header-label">
+            {txn.bonus_code ?? `Txn #${txn.txn_id}`}
+          </span>
           {detail && <StatusBadge status={detail.status} />}
         </div>
       </div>
@@ -667,33 +781,68 @@ function TxnDetailScreen({
 
             <div
               style={{
-                background: '#181824',
-                border: '1px solid #252535',
+                background: "#181824",
+                border: "1px solid #252535",
                 borderRadius: 14,
-                padding: '12px 14px',
+                padding: "12px 14px",
                 marginBottom: 20,
-                display: 'flex',
+                display: "flex",
                 gap: 20,
-                flexWrap: 'wrap',
+                flexWrap: "wrap",
               }}
             >
               <div>
-                <div style={{ fontSize: '0.62rem', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 2 }}>Wager Multiplier</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#cbd5e1' }}>{detail.wager_multiplier}×</div>
+                <div
+                  style={{
+                    fontSize: "0.62rem",
+                    color: "#334155",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    marginBottom: 2,
+                  }}
+                >
+                  Wager Multiplier
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    color: "#cbd5e1",
+                  }}
+                >
+                  {detail.wager_multiplier}×
+                </div>
               </div>
               <div>
-                <div style={{ fontSize: '0.62rem', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 2 }}>Chunks</div>
-                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#cbd5e1' }}>{detail.no_of_chunks}</div>
+                <div
+                  style={{
+                    fontSize: "0.62rem",
+                    color: "#334155",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    marginBottom: 2,
+                  }}
+                >
+                  Chunks
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    color: "#cbd5e1",
+                  }}
+                >
+                  {detail.no_of_chunks}
+                </div>
               </div>
             </div>
 
-            <div className="section-label">
-              Chunks ({detail.chunks.length})
-            </div>
+            <div className="section-label">Chunks ({detail.chunks.length})</div>
             {detail.chunks.map((c, i) => {
               const wagerDone = parseFloat(c.wager_amount);
               const wagerReq = parseFloat(c.required_wager_amount);
-              const pct = wagerReq > 0 ? Math.min(100, (wagerDone / wagerReq) * 100) : 0;
+              const pct =
+                wagerReq > 0 ? Math.min(100, (wagerDone / wagerReq) * 100) : 0;
               return (
                 <div key={c.id ?? i} className="chunk-card">
                   <div className="chunk-header">
@@ -701,10 +850,14 @@ function TxnDetailScreen({
                     <StatusBadge status={c.status} />
                   </div>
                   <div className="chunk-wager-label">
-                    Wagered ₹{fmt(c.wager_amount)} of ₹{fmt(c.required_wager_amount)}
+                    Wagered ₹{fmt(c.wager_amount)} of ₹
+                    {fmt(c.required_wager_amount)}
                     {wagerReq > 0 && ` (${pct.toFixed(0)}%)`}
                   </div>
-                  <ProgressBar value={wagerDone} max={wagerReq > 0 ? wagerReq : 1} />
+                  <ProgressBar
+                    value={wagerDone}
+                    max={wagerReq > 0 ? wagerReq : 1}
+                  />
                 </div>
               );
             })}
@@ -717,13 +870,7 @@ function TxnDetailScreen({
 
 // ── Home screen ────────────────────────────────────────────────────────────────
 
-function HomeScreen({
-  creds,
-  nav,
-}: {
-  creds: Creds;
-  nav: (t: Tab) => void;
-}) {
+function HomeScreen({ creds, nav }: { creds: Creds; nav: (t: Tab) => void }) {
   const [summary, setSummary] = useState<BonusSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -735,12 +882,14 @@ function HomeScreen({
           { headers: s2sHeaders(creds) },
         );
         if (res.ok) setSummary((await res.json()) as BonusSummary[]);
-      } catch { /* show empty */ }
+      } catch {
+        /* show empty */
+      }
       setLoading(false);
     })();
   }, [creds]);
 
-  const cash = summary.find(s => s.chip_type.toLowerCase() === 'cash');
+  const cash = summary.find((s) => s.chip_type.toLowerCase() === "cash");
   const totalBonus = cash
     ? parseFloat(cash.bonus_balance) + parseFloat(cash.pending_bonus)
     : 0;
@@ -748,7 +897,9 @@ function HomeScreen({
   return (
     <div className="screen has-tabs">
       <div className="screen-header home-header">
-        <div className="home-avatar">{creds.userId.slice(0, 2).toUpperCase()}</div>
+        <div className="home-avatar">
+          {creds.userId.slice(0, 2).toUpperCase()}
+        </div>
         <div className="home-greeting">
           <div className="home-hi">Hi, {creds.userId} 👋</div>
           <div className="home-subtext">Welcome back</div>
@@ -759,35 +910,54 @@ function HomeScreen({
         <div className="home-balance-card">
           <div className="home-balance-label">Total Bonus Balance</div>
           {loading ? (
-            <div className="skeleton-line" style={{ height: 40, width: '50%', marginTop: 8 }} />
+            <div
+              className="skeleton-line"
+              style={{ height: 40, width: "50%", marginTop: 8 }}
+            />
           ) : (
             <div className="home-balance-amount">₹{fmt(totalBonus)}</div>
           )}
           {!loading && cash && (
             <div className="home-balance-row">
               <div className="home-balance-stat">
-                <span className="home-balance-stat-val">₹{fmt(cash.bonus_balance)}</span>
+                <span className="home-balance-stat-val">
+                  ₹{fmt(cash.bonus_balance)}
+                </span>
                 <span className="home-balance-stat-label">Available</span>
               </div>
               <div className="home-balance-stat">
-                <span className="home-balance-stat-val">₹{fmt(cash.pending_bonus)}</span>
+                <span className="home-balance-stat-val">
+                  ₹{fmt(cash.pending_bonus)}
+                </span>
                 <span className="home-balance-stat-label">Pending</span>
               </div>
               <div className="home-balance-stat">
-                <span className="home-balance-stat-val">₹{fmt(cash.wagering_required)}</span>
+                <span className="home-balance-stat-val">
+                  ₹{fmt(cash.wagering_required)}
+                </span>
                 <span className="home-balance-stat-label">Wager Req.</span>
               </div>
             </div>
           )}
           {!loading && !cash && (
-            <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.4)', marginTop: 8 }}>
+            <div
+              style={{
+                fontSize: "0.78rem",
+                color: "rgba(255,255,255,0.4)",
+                marginTop: 8,
+              }}
+            >
               No active bonus — make a deposit to unlock one
             </div>
           )}
         </div>
 
         {/* Quick action */}
-        <button className="btn-primary" onClick={() => nav('deposit')} style={{ marginTop: 8 }}>
+        <button
+          className="btn-primary"
+          onClick={() => nav("deposit")}
+          style={{ marginTop: 8 }}
+        >
           + Make a Deposit
         </button>
       </div>
@@ -800,17 +970,18 @@ function HomeScreen({
 
 function TabBar({ active, nav }: { active: Tab; nav: (t: Tab) => void }) {
   const tabs: { key: Tab; icon: string; label: string }[] = [
-    { key: 'home',         icon: '🏠', label: 'Home' },
-    { key: 'deposit',      icon: '💳', label: 'Deposit' },
-    { key: 'wallet',       icon: '💰', label: 'Wallet' },
-    { key: 'transactions', icon: '📋', label: 'History' },
+    { key: "home", icon: "🏠", label: "Home" },
+    { key: "deposit", icon: "💳", label: "Deposit" },
+    { key: "bet", icon: "🎲", label: "Bet" },
+    { key: "wallet", icon: "💰", label: "Wallet" },
+    { key: "transactions", icon: "📋", label: "History" },
   ];
   return (
     <div className="tab-bar">
-      {tabs.map(t => (
+      {tabs.map((t) => (
         <button
           key={t.key}
-          className={`tab-item ${active === t.key ? 'tab-active' : ''}`}
+          className={`tab-item ${active === t.key ? "tab-active" : ""}`}
           onClick={() => nav(t.key)}
         >
           <span className="tab-icon">{t.icon}</span>
@@ -824,66 +995,76 @@ function TabBar({ active, nav }: { active: Tab; nav: (t: Tab) => void }) {
 // ── Root ───────────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [screen, setScreen] = useState<Screen>('LOGIN');
+  const [screen, setScreen] = useState<Screen>("LOGIN");
   const [creds, setCreds] = useState<Creds | null>(null);
   const [summary, setSummary] = useState<BonusSummary[]>([]);
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
 
   const handleProcessingDone = useCallback((s: BonusSummary[]) => {
     setSummary(s);
-    setScreen('WALLET');
+    setScreen("WALLET");
   }, []);
 
   const handleNav = useCallback((tab: Tab) => {
     const map: Record<Tab, Screen> = {
-      home: 'HOME', deposit: 'DEPOSIT', wallet: 'WALLET', transactions: 'TRANSACTIONS',
+      home: "HOME",
+      deposit: "DEPOSIT",
+      bet: "BET",
+      wallet: "WALLET",
+      transactions: "TRANSACTIONS",
     };
     setScreen(map[tab]);
   }, []);
 
   return (
     <div className="phone-frame">
-      {screen === 'LOGIN' && (
+      {screen === "LOGIN" && (
         <LoginScreen
-          onLogin={c => {
+          onLogin={(c) => {
             setCreds(c);
-            setScreen('HOME');
+            setScreen("HOME");
           }}
         />
       )}
-      {screen === 'HOME' && creds && (
+      {screen === "HOME" && creds && (
         <HomeScreen creds={creds} nav={handleNav} />
       )}
-      {screen === 'DEPOSIT' && creds && (
+      {screen === "DEPOSIT" && creds && (
         <DepositScreen
           creds={creds}
-          onDeposited={() => setScreen('PROCESSING')}
+          onDeposited={() => setScreen("PROCESSING")}
+          onBack={() => setScreen("HOME")}
         />
       )}
-      {screen === 'PROCESSING' && creds && (
+      {screen === "BET" && creds && (
+        <DepositScreen
+          creds={creds}
+          mode="bet"
+          onDeposited={() => setScreen("PROCESSING")}
+          onBack={() => setScreen("HOME")}
+        />
+      )}
+      {screen === "PROCESSING" && creds && (
         <ProcessingScreen creds={creds} onDone={handleProcessingDone} />
       )}
-      {screen === 'WALLET' && creds && (
-        <WalletScreen
-          creds={creds}
-          nav={handleNav}
-        />
+      {screen === "WALLET" && creds && (
+        <WalletScreen creds={creds} nav={handleNav} />
       )}
-      {screen === 'TRANSACTIONS' && creds && (
+      {screen === "TRANSACTIONS" && creds && (
         <TransactionsScreen
           creds={creds}
-          onDetail={t => {
+          onDetail={(t) => {
             setSelectedTxn(t);
-            setScreen('TXN_DETAIL');
+            setScreen("TXN_DETAIL");
           }}
           nav={handleNav}
         />
       )}
-      {screen === 'TXN_DETAIL' && creds && selectedTxn && (
+      {screen === "TXN_DETAIL" && creds && selectedTxn && (
         <TxnDetailScreen
           creds={creds}
           txn={selectedTxn}
-          onBack={() => setScreen('TRANSACTIONS')}
+          onBack={() => setScreen("TRANSACTIONS")}
         />
       )}
     </div>

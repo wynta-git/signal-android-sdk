@@ -83,28 +83,28 @@ async def handle_chunk_release(
             return
 
     # ── Product ───────────────────────────────────────────────────────────────
-    if trigger.product and trigger.product != props.get("product"):
-        log.info(
-            "chunk_release_skipped_product",
-            trigger_id=trigger.id,
-            pam_user_id=pam_user_id,
-            expected=trigger.product,
-            got=props.get("product"),
-        )
-        return
+    # if trigger.product and trigger.product != props.get("product"):
+    #     log.info(
+    #         "chunk_release_skipped_product",
+    #         trigger_id=trigger.id,
+    #         pam_user_id=pam_user_id,
+    #         expected=trigger.product,
+    #         got=props.get("product"),
+    #     )
+    #     return
 
-    # ── Payment method ────────────────────────────────────────────────────────
-    if trigger.payment_method:
-        allowed = {m.strip() for m in trigger.payment_method.split(",")}
-        if props.get("payment_method") not in allowed:
-            log.info(
-                "chunk_release_skipped_payment_method",
-                trigger_id=trigger.id,
-                pam_user_id=pam_user_id,
-                allowed=trigger.payment_method,
-                got=props.get("payment_method"),
-            )
-            return
+    # # ── Payment method ────────────────────────────────────────────────────────
+    # if trigger.payment_method:
+    #     allowed = {m.strip() for m in trigger.payment_method.split(",")}
+    #     if props.get("payment_method") not in allowed:
+    #         log.info(
+    #             "chunk_release_skipped_payment_method",
+    #             trigger_id=trigger.id,
+    #             pam_user_id=pam_user_id,
+    #             allowed=trigger.payment_method,
+    #             got=props.get("payment_method"),
+    #         )
+    #         return
 
     # ── Find next pending chunk ───────────────────────────────────────────────
     async with conn.cursor() as cur:

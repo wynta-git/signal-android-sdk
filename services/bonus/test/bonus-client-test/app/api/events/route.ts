@@ -10,6 +10,7 @@ interface EventBody {
   currency: string;
   payment_method: string;
   transaction_id: string;
+  event_name?: string;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const event = {
     event_id: randomUUID(),
-    event_name: 'deposit_success',
+    event_name: body.event_name ?? 'deposit_success',
     schema_version: 1,
     user_id: body.user_id,
     session_id: `sess_${Date.now()}`,
