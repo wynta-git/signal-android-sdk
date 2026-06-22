@@ -1,8 +1,21 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Icon from '../../components/Icon';
 import { DEFAULT_CONNECTORS } from '../constants';
 import type { Connector } from '../types';
+
+const API_BASE = process.env.NEXT_PUBLIC_WYNTA_API_URL ?? '';
+const AUTH_HEADERS: Record<string, string> = process.env.NEXT_PUBLIC_WYNTA_API_TOKEN
+  ? { Authorization: process.env.NEXT_PUBLIC_WYNTA_API_TOKEN }
+  : {};
+
+// Maps API current_provider value → connector id in DEFAULT_CONNECTORS
+const PROVIDER_TO_ID: Record<string, string> = {
+  gsuite:   'google-smtp',
+  mailgun:  'mailgun',
+  sendgrid: 'sendgrid-em',
+  exchange: 'ms-exchange',
+};
 
 type FilterType = 'all' | 'connected' | 'disconnected';
 
@@ -76,6 +89,57 @@ export default function ConnectorSettings() {
   const [connectors, setConnectors] = useState<Connector[]>(DEFAULT_CONNECTORS);
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
+  const [connectModal, setConnectModal] = useState<string | null>(null);
+  // Google fields
+  const [modalEmail, setModalEmail]     = useState('');
+  const [modalPassword, setModalPassword] = useState('');
+  // Mailgun fields
+  const [mgDomain, setMgDomain]   = useState('');
+  const [mgApiKey, setMgApiKey]   = useState('');
+  const [mgRegion, setMgRegion]   = useState('');
+  // MS Exchange fields
+  const [exEmail, setExEmail]     = useState('');
+  const [exPassword, setExPassword] = useState('');
+  // SendGrid fields
+  const [sgEmail, setSgEmail]     = useState('');
+  const [sgApiKey, setSgApiKey]   = useState('');
+  // Verify state
+  const [verifying, setVerifying]       = useState(false);
+  const [verifyResult, setVerifyResult] = useState<'success' | 'error' | null>(null);
+  const [verifyMsg, setVerifyMsg]       = useState('');
+  // Save state
+  const [saving, setSaving]         = useState(false);
+  const [saveError, setSaveError]   = useState('');
+  // Manage mode (opened from a connected connector)
+  const [isManage, setIsManage]     = useState(false);
+  // Saved non-sensitive fields per connector id
+  const [savedFields, setSavedFields] = useState<Record<string, Record<string, string>>>({});
+  // Raw data from the connectors API (for pre-filling Manage modal)
+  const [connectorApiData, setConnectorApiData] = useState<Record<string, unknown> | null>(null);
+  const fetchedRef = useRef(false);
+
+  function loadConnectors() {
+    fetch(`${API_BASE}/api/v1/workspace/settings/connectors/`, { headers: AUTH_HEADERS })
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+      .then(data => {
+        const d = data?.data ?? {};
+        const provider: string = ((d.current_provider as string) ?? '').toLowerCase();
+        const connectedId = PROVIDER_TO_ID[provider] ?? null;
+        setConnectors(cs => cs.map(c =>
+          c.category === 'Email'
+            ? { ...c, status: c.id === connectedId ? 'connected' : 'disconnected' }
+            : c
+        ));
+        setConnectorApiData(d);
+      })
+      .catch(() => {});
+  }
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    loadConnectors();
+  }, []);
 
   const visible = useMemo(() => {
     return connectors.filter(c => {
@@ -95,6 +159,102 @@ export default function ConnectorSettings() {
         ? { ...c, status: c.status === 'connected' ? 'disconnected' : 'connected' }
         : c
     ));
+  }
+
+  function openConnect(id: string) {
+    setIsManage(false);
+    setModalEmail(''); setModalPassword('');
+    setMgDomain(''); setMgApiKey(''); setMgRegion('');
+    setExEmail(''); setExPassword('');
+    setSgEmail(''); setSgApiKey('');
+    setVerifyResult(null); setVerifyMsg('');
+    setSaveError('');
+    setConnectModal(id);
+  }
+
+  function openManage(id: string) {
+    setIsManage(true);
+    const api = connectorApiData ?? {};
+    const f   = savedFields[id] ?? {};
+    // API fields take precedence over locally-cached savedFields
+    const emailVal  = ((api.emailaddress as string) || (api.username as string) || f.email || '');
+    const domainVal = ((api.domain as string) || f.domain || '');
+    const regionVal = api.region != null ? String(api.region as number) : (f.region ?? '');
+    setModalEmail(emailVal); setModalPassword('');
+    setMgDomain(domainVal); setMgApiKey(''); setMgRegion(regionVal);
+    setExEmail(emailVal); setExPassword('');
+    setSgEmail(emailVal); setSgApiKey('');
+    setVerifyResult(null); setVerifyMsg('');
+    setSaveError('');
+    setConnectModal(id);
+  }
+
+  function closeModal() {
+    setConnectModal(null);
+    setIsManage(false);
+    setVerifyResult(null); setVerifyMsg('');
+    setSaveError('');
+  }
+
+  function verifyCredentials(payload: Record<string, unknown>) {
+    setVerifying(true);
+    setVerifyResult(null);
+    setVerifyMsg('');
+    fetch(`${API_BASE}/api/v1/workspace/settings/connectors/verify/`, {
+      method: 'POST',
+      headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(res => res.json().then(d => ({ ok: res.ok, d })))
+      .then(({ ok, d }) => {
+        if (ok) {
+          setVerifyResult('success');
+          setVerifyMsg(d?.message ?? 'Credentials verified successfully.');
+        } else {
+          setVerifyResult('error');
+          setVerifyMsg(d?.message ?? d?.detail ?? 'Verification failed.');
+        }
+      })
+      .catch(() => { setVerifyResult('error'); setVerifyMsg('Network error.'); })
+      .finally(() => setVerifying(false));
+  }
+
+  function disconnectConnector(id: string) {
+    fetch(`${API_BASE}/api/v1/workspace/settings/connectors/disconnect/`, {
+      method: 'POST',
+      headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); })
+      .then(() => loadConnectors())
+      .catch(() => loadConnectors());
+  }
+
+  function saveConnection(connectorId: string, payload: Record<string, unknown>, fields: Record<string, string>) {
+    setSaving(true);
+    setSaveError('');
+    fetch(`${API_BASE}/api/v1/workspace/settings/connectors/connect/`, {
+      method: 'POST',
+      headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(res => res.json().then(d => ({ ok: res.ok, d })))
+      .then(({ ok, d }) => {
+        if (ok) {
+          setSavedFields(sf => ({ ...sf, [connectorId]: fields }));
+          closeModal();
+          loadConnectors();
+        } else {
+          setSaveError(d?.message ?? d?.detail ?? 'Failed to save connection.');
+        }
+      })
+      .catch(() => setSaveError('Network error.'))
+      .finally(() => setSaving(false));
+  }
+
+  function handleDisconnectFromModal(id: string) {
+    closeModal();
+    disconnectConnector(id);
   }
 
   const chipStyle = (active: boolean): React.CSSProperties => ({
@@ -169,28 +329,40 @@ export default function ConnectorSettings() {
                       <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{connector.description}</div>
                     </div>
 
-                    <span style={{ fontSize: 12, color: '#9ca3af', marginRight: 4, flexShrink: 0 }}>
-                      {isConnected ? 'Connected' : isError ? 'Error' : 'Not Connected'}
-                    </span>
+                    {isConnected ? (
+                      <span style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        fontSize: 12, fontWeight: 500, color: '#16a34a',
+                        background: '#f0fdf4', border: '1px solid #bbf7d0',
+                        borderRadius: 20, padding: '3px 10px', flexShrink: 0,
+                      }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', flexShrink: 0 }} />
+                        Connected
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: '#9ca3af', marginRight: 4, flexShrink: 0 }}>
+                        {isError ? 'Error' : 'Not Connected'}
+                      </span>
+                    )}
 
                     <button
                       type="button"
-                      onClick={() => toggle(connector.id)}
+                      onClick={() => isConnected ? openManage(connector.id) : openConnect(connector.id)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         padding: '6px 16px', borderRadius: 6, flexShrink: 0,
-                        border: isConnected ? '1px solid #e5e7eb' : 'none',
+                        border: isConnected ? '1px solid #d1d5db' : 'none',
                         background: isConnected ? '#fff' : '#0091E0',
                         color: isConnected ? '#374151' : '#fff',
                         fontSize: 12, fontWeight: 600, cursor: 'pointer',
                       }}
                     >
                       <Icon
-                        name={isConnected ? 'link-2-off' : isError ? 'refresh-cw' : 'link'}
+                        name={isConnected ? 'settings' : isError ? 'refresh-cw' : 'link'}
                         size={13}
                         color={isConnected ? '#374151' : '#fff'}
                       />
-                      {isConnected ? 'Disconnect' : isError ? 'Reconnect' : 'Connect'}
+                      {isConnected ? 'Manage' : isError ? 'Reconnect' : 'Connect'}
                     </button>
                   </div>
                 );
@@ -200,6 +372,186 @@ export default function ConnectorSettings() {
         );
       })}
 
+      {/* ── MS Exchange modal ── */}
+      {connectModal === 'ms-exchange' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{isManage ? 'Manage MS Exchange' : 'Connect MS Exchange'}</span>
+              <button type="button" onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', lineHeight: 1, padding: 2 }}>×</button>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Email Address</label>
+              <input type="email" value={exEmail} onChange={e => setExEmail(e.target.value)} placeholder="you@company.com"
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Password</label>
+              <input type="password" value={exPassword} onChange={e => setExPassword(e.target.value)} placeholder="Exchange password"
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+            </div>
+            {verifyMsg && <div style={{ marginBottom: 8, fontSize: 12, color: verifyResult === 'success' ? '#10b981' : '#ef4444' }}>{verifyMsg}</div>}
+            {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {isManage && (
+                <button type="button" onClick={() => handleDisconnectFromModal('ms-exchange')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 16px', border: 'none', borderRadius: 20, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  Disconnect
+                </button>
+              )}
+              <button type="button" disabled={verifying}
+                onClick={() => verifyCredentials({ emailclient: 'exchange', username: exEmail, password: exPassword, emailaddress: exEmail })}
+                style={{ flex: 1, height: 40, border: '1px solid #d1d5db', borderRadius: 20, background: '#fff', fontSize: 13, color: '#374151', cursor: verifying ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: verifying ? 0.7 : 1 }}>
+                {verifying ? 'Testing…' : 'Test'}
+              </button>
+              <button type="button" disabled={saving}
+                onClick={() => saveConnection('ms-exchange', { emailclient: 'exchange', username: exEmail, password: exPassword, emailaddress: exEmail }, { email: exEmail })}
+                style={{ flex: 1, height: 40, border: 'none', borderRadius: 20, background: '#0091E0', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── SendGrid modal ── */}
+      {connectModal === 'sendgrid-em' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{isManage ? 'Manage SendGrid' : 'Connect SendGrid'}</span>
+              <button type="button" onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', lineHeight: 1, padding: 2 }}>×</button>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>From Email Address</label>
+              <input type="email" value={sgEmail} onChange={e => setSgEmail(e.target.value)} placeholder="noreply@yourdomain.com"
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>API Key</label>
+              <input type="password" value={sgApiKey} onChange={e => setSgApiKey(e.target.value)} placeholder="SG.xxxxxxxxxxxxxxxx"
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+            </div>
+            {verifyMsg && <div style={{ marginBottom: 8, fontSize: 12, color: verifyResult === 'success' ? '#10b981' : '#ef4444' }}>{verifyMsg}</div>}
+            {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {isManage && (
+                <button type="button" onClick={() => handleDisconnectFromModal('sendgrid-em')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 16px', border: 'none', borderRadius: 20, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  Disconnect
+                </button>
+              )}
+              <button type="button" disabled={verifying}
+                onClick={() => verifyCredentials({ emailclient: 'sendgrid', emailaddress: sgEmail, gridapikey: sgApiKey })}
+                style={{ flex: 1, height: 40, border: '1px solid #d1d5db', borderRadius: 20, background: '#fff', fontSize: 13, color: '#374151', cursor: verifying ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: verifying ? 0.7 : 1 }}>
+                {verifying ? 'Testing…' : 'Test'}
+              </button>
+              <button type="button" disabled={saving}
+                onClick={() => saveConnection('sendgrid-em', { emailclient: 'sendgrid', emailaddress: sgEmail, gridapikey: sgApiKey }, { email: sgEmail })}
+                style={{ flex: 1, height: 40, border: 'none', borderRadius: 20, background: '#0091E0', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mailgun modal ── */}
+      {connectModal === 'mailgun' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{isManage ? 'Manage Mailgun' : 'Connect Mailgun'}</span>
+              <button type="button" onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', lineHeight: 1, padding: 2 }}>×</button>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Domain</label>
+              <input type="text" value={mgDomain} onChange={e => setMgDomain(e.target.value)} placeholder="mg.yourdomain.com"
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>API Key</label>
+              <input type="password" value={mgApiKey} onChange={e => setMgApiKey(e.target.value)} placeholder="key-xxxxxxxxxxxxxxxx"
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Region</label>
+              <select value={mgRegion} onChange={e => setMgRegion(e.target.value)}
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none', background: '#fff', appearance: 'auto' }}>
+                <option value="">Select region</option>
+                <option value="2">US</option>
+                <option value="1">EU</option>
+              </select>
+            </div>
+            {verifyMsg && <div style={{ marginBottom: 8, fontSize: 12, color: verifyResult === 'success' ? '#10b981' : '#ef4444' }}>{verifyMsg}</div>}
+            {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {isManage && (
+                <button type="button" onClick={() => handleDisconnectFromModal('mailgun')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 16px', border: 'none', borderRadius: 20, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  Disconnect
+                </button>
+              )}
+              <button type="button" disabled={verifying}
+                onClick={() => verifyCredentials({ emailclient: 'mailgun', domain: mgDomain, apikey: mgApiKey, region: mgRegion ? parseInt(mgRegion) : 0 })}
+                style={{ flex: 1, height: 40, border: '1px solid #d1d5db', borderRadius: 20, background: '#fff', fontSize: 13, color: '#374151', cursor: verifying ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: verifying ? 0.7 : 1 }}>
+                {verifying ? 'Testing…' : 'Test'}
+              </button>
+              <button type="button" disabled={saving}
+                onClick={() => saveConnection('mailgun', { emailclient: 'mailgun', domain: mgDomain, apikey: mgApiKey, region: mgRegion ? parseInt(mgRegion) : 0 }, { domain: mgDomain, region: mgRegion })}
+                style={{ flex: 1, height: 40, border: 'none', borderRadius: 20, background: '#0091E0', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Google modal ── */}
+      {connectModal === 'google-smtp' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#111827' }}>{isManage ? 'Manage Google' : 'Connect Google'}</span>
+              <button type="button" onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', lineHeight: 1, padding: 2 }}>×</button>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Email Address</label>
+              <input type="email" value={modalEmail} onChange={e => setModalEmail(e.target.value)} placeholder="you@gmail.com"
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>App Password</label>
+              <input type="password" value={modalPassword} onChange={e => setModalPassword(e.target.value)} placeholder="Google app password"
+                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+            </div>
+            {verifyMsg && <div style={{ marginBottom: 8, fontSize: 12, color: verifyResult === 'success' ? '#10b981' : '#ef4444' }}>{verifyMsg}</div>}
+            {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {isManage && (
+                <button type="button" onClick={() => handleDisconnectFromModal('google-smtp')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 16px', border: 'none', borderRadius: 20, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  Disconnect
+                </button>
+              )}
+              <button type="button" disabled={verifying}
+                onClick={() => verifyCredentials({ emailclient: 'gsuite', username: modalEmail, password: modalPassword, emailaddress: modalEmail })}
+                style={{ flex: 1, height: 40, border: '1px solid #d1d5db', borderRadius: 20, background: '#fff', fontSize: 13, color: '#374151', cursor: verifying ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: verifying ? 0.7 : 1 }}>
+                {verifying ? 'Testing…' : 'Test'}
+              </button>
+              <button type="button" disabled={saving}
+                onClick={() => saveConnection('google-smtp', { emailclient: 'gsuite', username: modalEmail, password: modalPassword, emailaddress: modalEmail }, { email: modalEmail })}
+                style={{ flex: 1, height: 40, border: 'none', borderRadius: 20, background: '#0091E0', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

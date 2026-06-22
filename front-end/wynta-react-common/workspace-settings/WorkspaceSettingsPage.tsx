@@ -31,25 +31,29 @@ export default function WorkspaceSettingsPage({
   const ActiveComponent = TAB_COMPONENTS[activeTab] ?? GeneralSettings;
 
   return (
-    <div style={{ padding: '24px 24px 24px', minHeight: '100%', background: 'rgb(255, 255, 255)', position: 'relative' }}>
-      <h3 style={{ fontSize: 18, fontWeight: 500, color: '#222222', margin: '0 0 16px' }}>
-        Workspace Settings
-      </h3>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 42px)', background: '#fff', overflow: 'hidden' }}>
+      {/* Fixed header: title + tabs */}
+      <div style={{ flexShrink: 0, padding: '24px 24px 0' }}>
+        <h3 style={{ fontSize: 18, fontWeight: 500, color: '#222222', margin: '0 0 16px' }}>
+          Workspace Settings
+        </h3>
+        <WorkspaceSettingsTabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
 
-      <WorkspaceSettingsTabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+      {/* Scrollable content — sticky elements inside here work correctly */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px' }}>
+        <ActiveComponent />
+      </div>
 
-      <ActiveComponent />
-
+      {/* Footer always visible at bottom */}
       <div style={{
+        flexShrink: 0,
         background: '#ffffff',
         color: '#000',
-        left: 0,
         fontSize: 14,
         padding: '17px 15px 15px',
-        position: 'absolute',
-        bottom: 0,
-        right: 0,
         textAlign: 'center',
+        borderTop: '1px solid #f3f4f6',
       }}>
         © Copyright 2026 Demo Affiliates, Powered by Wynta.
       </div>

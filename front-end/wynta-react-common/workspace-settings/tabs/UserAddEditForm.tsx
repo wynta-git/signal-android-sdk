@@ -1,5 +1,9 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+const API_BASE = process.env.NEXT_PUBLIC_WYNTA_API_URL ?? '';
+const AUTH_HEADERS: Record<string, string> = process.env.NEXT_PUBLIC_WYNTA_API_TOKEN
+  ? { Authorization: process.env.NEXT_PUBLIC_WYNTA_API_TOKEN }
+  : {};
 
 type MenuItems = Record<string, string[]>;
 
@@ -47,19 +51,25 @@ export default function UserAddEditForm({ mode, userId, onBack, onSaved }: Props
   const [fields, setFields]       = useState({ email: '', first_name: '', last_name: '', role: '' });
   const [selected, setSelected]   = useState<Set<string>>(new Set());
   const [permSearch, setPermSearch] = useState('');
-  const [saving, setSaving]       = useState(false);
+  const [saving, setSaving]             = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting]         = useState(false);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
     const reqs: Promise<unknown>[] = [
-      fetch('/api/v1/users/form-data/', { credentials: 'include' }).then(r => r.json()),
+      fetch(`${API_BASE}/api/v1/users/form-data/`, { headers: AUTH_HEADERS }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
     ];
     if (mode === 'edit' && userId != null) {
-      reqs.push(fetch(`/api/v1/users/${userId}/`, { credentials: 'include' }).then(r => r.json()));
+      reqs.push(fetch(`${API_BASE}/api/v1/users/${userId}/`, { headers: AUTH_HEADERS }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }));
     }
     Promise.all(reqs)
       .then(([fd, ud]) => {
-        const formData = fd as { menu_items?: MenuItems };
-        setMenuItems(formData?.menu_items ?? {});
+        const formData = fd as { data?: { menu_items?: MenuItems }; menu_items?: MenuItems };
+        const menuItemsData: MenuItems = formData?.data?.menu_items ?? formData?.menu_items ?? {};
+        setMenuItems(menuItemsData);
         if (ud) {
           const u = ((ud as { data?: Record<string, unknown> })?.data ?? ud) as Record<string, unknown>;
           setFields({
@@ -68,8 +78,42 @@ export default function UserAddEditForm({ mode, userId, onBack, onSaved }: Props
             last_name:  String(u.last_name  ?? ''),
             role:       String(u.role       ?? ''),
           });
-          const perms = (u.permissions as string[] | undefined) ?? [];
-          setSelected(new Set(perms));
+          // API returns flat ordered "options" array: parent name then its children
+          // Process sequentially to resolve ambiguous names (e.g. "Deductions" is
+          // both a top-level leaf AND a child of "Settings")
+          const rawOptions: string[] =
+            (u.options as string[] | undefined) ??
+            (u.permissions as string[] | undefined) ??
+            [];
+          const normalized: string[] = [];
+          let ctx: string | null = null;
+          for (const item of rawOptions) {
+            const isParentKey = item in menuItemsData;
+            if (isParentKey && (menuItemsData[item] as string[]).length > 0) {
+              // Parent with children — set context, don't add
+              ctx = item;
+              continue;
+            }
+            // Check if item is a child of current context first
+            if (ctx && (menuItemsData[ctx] as string[]).includes(item)) {
+              normalized.push(`${ctx}/${item}`);
+              continue;
+            }
+            // Leaf parent not under current context
+            if (isParentKey) {
+              normalized.push(item);
+              ctx = null;
+              continue;
+            }
+            // Search all parents
+            for (const [parent, children] of Object.entries(menuItemsData)) {
+              if ((children as string[]).includes(item)) {
+                normalized.push(`${parent}/${item}`);
+                break;
+              }
+            }
+          }
+          setSelected(new Set(normalized));
         }
       })
       .catch(() => setFormError('Failed to load form data'))
@@ -143,16 +187,44 @@ export default function UserAddEditForm({ mode, userId, onBack, onSaved }: Props
       .filter((x): x is [string, string[]] => x != null);
   }, [entries, permSearch]);
 
+  function buildOptions(): string[] {
+    const result: string[] = [];
+    for (const [parent, children] of Object.entries(menuItems)) {
+      if (children.length === 0) {
+        if (selected.has(parent)) result.push(parent);
+      } else {
+        const sel = children.filter(c => selected.has(`${parent}/${c}`));
+        if (sel.length > 0) { result.push(parent); sel.forEach(c => result.push(c)); }
+      }
+    }
+    return result;
+  }
+
+  function handleDelete() {
+    if (userId == null) return;
+    setDeleting(true);
+    fetch(`${API_BASE}/api/v1/users/${userId}/`, { method: 'DELETE', headers: AUTH_HEADERS })
+      .then(res => { if (!res.ok) throw new Error('Delete failed'); onBack(); })
+      .catch(e => { setFormError((e as Error).message); setShowDeleteModal(false); })
+      .finally(() => setDeleting(false));
+  }
+
   function handleSubmit() {
     setSaving(true);
     setFormError(null);
-    const url    = mode === 'add' ? '/api/v1/users/' : `/api/v1/users/${userId}/`;
+    const url    = mode === 'add' ? `${API_BASE}/api/v1/users/` : `${API_BASE}/api/v1/users/${userId}/`;
     const method = mode === 'add' ? 'POST' : 'PUT';
+    const payload = {
+      email:     fields.email,
+      firstname: fields.first_name,
+      lastname:  fields.last_name,
+      role:      fields.role,
+      options:   buildOptions(),
+    };
     fetch(url, {
       method,
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...fields, permissions: Array.from(selected) }),
+      headers: { 'Content-Type': 'application/json', ...AUTH_HEADERS },
+      body: JSON.stringify(payload),
     })
       .then(res => { if (!res.ok) throw new Error('Save failed'); onSaved(); })
       .catch(e => setFormError((e as Error).message))
@@ -180,18 +252,41 @@ export default function UserAddEditForm({ mode, userId, onBack, onSaved }: Props
   return (
     <div style={{ paddingTop: 8 }}>
       {/* Breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 14 }}>
-        <span onClick={onBack} style={{ color: '#6b7280', cursor: 'pointer' }}>Users</span>
-        <span style={{ color: '#9ca3af' }}>›</span>
-        <span style={{ color: '#111827', fontWeight: 500 }}>
-          {mode === 'add' ? 'Add User' : 'Edit User'}
-        </span>
-        <span style={{
-          width: 16, height: 16, borderRadius: '50%',
-          border: '1px solid #d1d5db',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 10, color: '#6b7280',
-        }}>i</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, fontSize: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span onClick={onBack} style={{ color: '#6b7280', cursor: 'pointer' }}>Users</span>
+          <span style={{ color: '#9ca3af' }}>›</span>
+          <span style={{ color: '#111827', fontWeight: 500 }}>
+            {mode === 'add' ? 'Add User' : 'Edit User'}
+          </span>
+          <span style={{
+            width: 16, height: 16, borderRadius: '50%',
+            border: '1px solid #d1d5db',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 10, color: '#6b7280',
+          }}>i</span>
+        </div>
+        {mode === 'edit' && (
+          <button
+            type="button"
+            onClick={() => setShowDeleteModal(true)}
+            style={{
+              height: 34, padding: '0 14px',
+              background: '#fff', color: '#ef4444',
+              border: '1px solid #fca5a5', borderRadius: 4,
+              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+            Delete
+          </button>
+        )}
       </div>
 
       {formError && (
@@ -334,11 +429,7 @@ export default function UserAddEditForm({ mode, userId, onBack, onSaved }: Props
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-        padding: '12px 0', borderTop: '1px solid rgba(231,234,243,0.7)',
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '16px 0', borderTop: '1px solid rgba(231,234,243,0.7)', marginTop: 8, position: 'sticky', bottom: 0, background: '#fff', zIndex: 10 }}>
         <button
           type="button"
           onClick={handleSubmit}
@@ -355,6 +446,53 @@ export default function UserAddEditForm({ mode, userId, onBack, onSaved }: Props
           {saving ? 'SAVING…' : 'SUBMIT'}
         </button>
       </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 8, padding: 24,
+            maxWidth: 400, width: '90%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#111827' }}>Delete User</h3>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6b7280' }}>
+              Are you sure you want to delete this user? This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                style={{
+                  padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 4,
+                  background: '#fff', fontSize: 13, cursor: 'pointer', color: '#374151',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{
+                  padding: '8px 16px', border: 'none', borderRadius: 4,
+                  background: '#ef4444', color: '#fff', fontSize: 13,
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

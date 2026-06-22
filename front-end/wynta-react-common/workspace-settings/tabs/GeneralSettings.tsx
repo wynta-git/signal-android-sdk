@@ -1,9 +1,24 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { DEFAULT_WORKSPACE } from '../constants';
 import type { WorkspaceInfo } from '../types';
+const API_BASE = process.env.NEXT_PUBLIC_WYNTA_API_URL ?? '';
+const AUTH_HEADERS: Record<string, string> = process.env.NEXT_PUBLIC_WYNTA_API_TOKEN
+  ? { Authorization: process.env.NEXT_PUBLIC_WYNTA_API_TOKEN }
+  : {};
 
 interface TimezoneOption { value: string; label: string; }
+
+interface GeneralApiData {
+  timezone:          string;
+  timezones:         string[];
+  workspace_logo_url: string;
+  avatar_url:        string;
+  initials:          string;
+  email:             string;
+  first_name:        string;
+  last_name:         string;
+}
 
 const inputStyle: React.CSSProperties = {
   height: 36, padding: '0 10px',
@@ -35,37 +50,43 @@ export default function GeneralSettings() {
   const [timezones, setTimezones] = useState<TimezoneOption[]>([]);
   const [tzLoading, setTzLoading] = useState(true);
   const [tzError, setTzError]     = useState(false);
+  const [apiData, setApiData]     = useState<GeneralApiData | null>(null);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
-    fetch('/api/v1/workspace/settings/general/', { credentials: 'include' })
-      .then(res => res.json())
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    fetch(`${API_BASE}/api/v1/workspace/settings/general/`, { headers: AUTH_HEADERS })
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => {
-        console.log('[GeneralSettings] API response:', data);
-        const raw: unknown[] =
-          data?.data?.timezones ??
-          data?.data?.timezone_list ??
-          data?.timezones ??
-          data?.timezone_list ??
-          (Array.isArray(data?.data) ? data.data : null) ??
-          [];
-        const tzList: TimezoneOption[] = raw.map((tz: unknown) =>
-          typeof tz === 'string'
-            ? { value: tz, label: tz }
-            : (tz as TimezoneOption)
-        );
+        const d: GeneralApiData = data?.data ?? {};
+        setApiData(d);
+        const raw: string[] = d.timezones ?? [];
+        const tzList: TimezoneOption[] = raw.map(tz => ({ value: tz, label: tz }));
         if (tzList.length > 0) {
           setTimezones(tzList);
-          const utc = tzList.find(tz => tz.value === 'UTC') ?? tzList[0];
-          setInfo(v => ({ ...v, timezone: utc.value }));
+          setInfo(v => ({ ...v, timezone: d.timezone ?? tzList[0].value }));
         }
       })
-      .catch((err) => { console.error('[GeneralSettings] fetch error:', err); setTzError(true); })
+      .catch(() => setTzError(true))
       .finally(() => setTzLoading(false));
   }, []);
 
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
   function handleSubmit() {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setSubmitting(true);
+    setSubmitError('');
+    fetch(`${API_BASE}/api/v1/workspace/settings/general/`, {
+      method: 'POST',
+      headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timezone: info.timezone }),
+    })
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+      .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2500); })
+      .catch(e => setSubmitError((e as Error).message))
+      .finally(() => setSubmitting(false));
   }
 
   return (
@@ -76,16 +97,26 @@ export default function GeneralSettings() {
         <div style={cardStyle}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 18 }}>Avatar</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              width: 80, height: 80, borderRadius: '50%',
-              background: '#0091E0', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 26, fontWeight: 700, letterSpacing: -1,
-            }}>
-              WE
+            {apiData?.avatar_url ? (
+              <img
+                src={apiData.avatar_url}
+                alt="avatar"
+                style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%',
+                background: '#0091E0', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 26, fontWeight: 700, letterSpacing: -1,
+              }}>
+                {apiData?.initials ?? '??'}
+              </div>
+            )}
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginTop: 4 }}>
+              {apiData ? [apiData.first_name, apiData.last_name].filter(Boolean).join(' ') || apiData.email : ''}
             </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginTop: 4 }}>Webby Gomes</div>
-            <div style={{ fontSize: 12, color: '#6b7280' }}>webtest@gmail.com</div>
+            <div style={{ fontSize: 12, color: '#6b7280' }}>{apiData?.email ?? ''}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
             <label style={{
@@ -107,15 +138,23 @@ export default function GeneralSettings() {
         <div style={cardStyle}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 18 }}>Workspace Logo</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              width: 80, height: 80, borderRadius: '50%',
-              background: '#0091E0', color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 26, fontWeight: 700,
-            }}>
-              D
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#0091E0', marginTop: 4 }}>Demo Affiliates</div>
+            {apiData?.workspace_logo_url ? (
+              <img
+                src={apiData.workspace_logo_url}
+                alt="workspace logo"
+                style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%',
+                background: '#e5e7eb', color: '#9ca3af',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 26, fontWeight: 700,
+              }}>
+                ?
+              </div>
+            )}
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#0091E0', marginTop: 4 }}>Workspace Logo</div>
             <div style={{ fontSize: 12, color: '#6b7280' }}>Current workspace logo</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
@@ -164,21 +203,23 @@ export default function GeneralSettings() {
         border: '0.0625rem solid rgba(231, 234, 243, 0.7)',
         borderBottom: 'none', borderLeft: 'none',
       }}>
-        <span style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 24 }}>
+        <span style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, paddingRight: 24 }}>
+          {submitError && <span style={{ fontSize: 12, color: '#ef4444' }}>{submitError}</span>}
           <button
             type="button"
             onClick={handleSubmit}
+            disabled={submitting}
             style={{
               height: 40, padding: '0 32px',
               background: saved ? '#10b981' : '#0091E0',
               color: '#fff', border: 'none', borderRadius: 4,
-              fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              fontSize: 14, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 8,
-              transition: 'background 0.2s',
+              transition: 'background 0.2s', opacity: submitting ? 0.7 : 1,
             }}
           >
-            {saved ? 'SAVED' : 'SUBMIT'}
-            {!saved && <span style={{ fontSize: 16, lineHeight: 1 }}>»</span>}
+            {saved ? 'SAVED' : submitting ? 'Saving…' : 'SUBMIT'}
+            {!saved && !submitting && <span style={{ fontSize: 16, lineHeight: 1 }}>»</span>}
           </button>
         </span>
       </div>

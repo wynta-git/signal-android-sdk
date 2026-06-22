@@ -1,6 +1,10 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import UserAddEditForm from './UserAddEditForm';
+const API_BASE = process.env.NEXT_PUBLIC_WYNTA_API_URL ?? '';
+const AUTH_HEADERS: Record<string, string> = process.env.NEXT_PUBLIC_WYNTA_API_TOKEN
+  ? { Authorization: process.env.NEXT_PUBLIC_WYNTA_API_TOKEN }
+  : {};
 
 interface ApiUser {
   id: number | null;
@@ -55,14 +59,14 @@ export default function UserSettings() {
   const [sort, setSort]               = useState<{ col: UserSortCol; dir: 'asc' | 'desc' } | null>(null);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [page, setPage]               = useState(1);
-  const [deleteId, setDeleteId]       = useState<number | null>(null);
-  const [deleting, setDeleting]       = useState(false);
+  const [hoveredRow, setHoveredRow]   = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   function loadUsers() {
     setLoading(true);
     setError(false);
-    fetch('/api/v1/users/', { credentials: 'include' })
-      .then(res => res.json())
+    fetch(`${API_BASE}/api/v1/users/`, { headers: AUTH_HEADERS })
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => {
         const list: ApiUser[] = data?.data ?? [];
         setUsers(list.map((u, i) => ({
@@ -79,16 +83,11 @@ export default function UserSettings() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { loadUsers(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleDelete() {
-    if (deleteId == null) return;
-    setDeleting(true);
-    fetch(`/api/v1/users/${deleteId}/`, { method: 'DELETE', credentials: 'include' })
-      .then(() => { setDeleteId(null); loadUsers(); })
-      .catch(() => {})
-      .finally(() => setDeleting(false));
-  }
+  useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    loadUsers();
+  }, []);
 
   const filtered = useMemo(() => {
     let list = [...users];
@@ -152,7 +151,7 @@ export default function UserSettings() {
       <UserAddEditForm
         mode="edit"
         userId={editUserId}
-        onBack={() => setView('list')}
+        onBack={() => { setView('list'); loadUsers(); }}
         onSaved={() => { setView('list'); loadUsers(); }}
       />
     );
@@ -215,62 +214,41 @@ export default function UserSettings() {
                     <SortIcon dir={sort?.col === col.key ? sort.dir : null} />
                   </th>
                 ))}
-                <th style={{ ...thBase, ...thBorder, cursor: 'default' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={6} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 24 }}>
+                  <td colSpan={5} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 24 }}>
                     Loading users…
                   </td>
                 </tr>
               )}
               {!loading && error && (
                 <tr>
-                  <td colSpan={6} style={{ ...tdBase, textAlign: 'center', color: '#ef4444', padding: 24 }}>
+                  <td colSpan={5} style={{ ...tdBase, textAlign: 'center', color: '#ef4444', padding: 24 }}>
                     Failed to load users
                   </td>
                 </tr>
               )}
               {!loading && !error && paginated.map(user => (
-                <tr key={user.key}>
+                <tr
+                  key={user.key}
+                  onClick={() => { if (user.id != null) { setEditUserId(user.id); setView('edit'); } }}
+                  onMouseEnter={() => setHoveredRow(user.key)}
+                  onMouseLeave={() => setHoveredRow(null)}
+                  style={{ background: hoveredRow === user.key ? '#f0f9ff' : 'transparent', cursor: 'pointer' }}
+                >
                   <td style={{ ...tdBase, color: '#2563eb' }}>{user.email}</td>
                   <td style={{ ...tdBase, ...thBorder }}>{user.firstName}</td>
                   <td style={{ ...tdBase, ...thBorder }}>{user.lastName}</td>
                   <td style={{ ...tdBase, ...thBorder, textTransform: 'capitalize' }}>{user.role}</td>
                   <td style={{ ...tdBase, ...thBorder }}>{user.joinedAt}</td>
-                  <td style={{ ...tdBase, ...thBorder }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (user.id != null) { setEditUserId(user.id); setView('edit'); }
-                        }}
-                        style={{
-                          padding: '3px 10px', border: '1px solid #d1d5db', borderRadius: 4,
-                          background: '#fff', fontSize: 11, cursor: 'pointer', color: '#374151',
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { if (user.id != null) setDeleteId(user.id); }}
-                        style={{
-                          padding: '3px 10px', border: '1px solid #fca5a5', borderRadius: 4,
-                          background: '#fff', fontSize: 11, cursor: 'pointer', color: '#ef4444',
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
                 </tr>
               ))}
               {!loading && !error && paginated.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 24 }}>
+                  <td colSpan={5} style={{ ...tdBase, textAlign: 'center', color: '#9ca3af', padding: 24 }}>
                     No users found
                   </td>
                 </tr>
@@ -318,50 +296,6 @@ export default function UserSettings() {
         </div>
       </div>
 
-      {/* Delete confirmation modal */}
-      {deleteId != null && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.4)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000,
-        }}>
-          <div style={{
-            background: '#fff', borderRadius: 8, padding: 24,
-            maxWidth: 400, width: '90%',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-          }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#111827' }}>Delete User</h3>
-            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6b7280' }}>
-              Are you sure you want to delete this user? This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setDeleteId(null)}
-                disabled={deleting}
-                style={{
-                  padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: 4,
-                  background: '#fff', fontSize: 13, cursor: 'pointer', color: '#374151',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                style={{
-                  padding: '8px 16px', border: 'none', borderRadius: 4,
-                  background: '#ef4444', color: '#fff', fontSize: 13,
-                  cursor: deleting ? 'not-allowed' : 'pointer',
-                  opacity: deleting ? 0.7 : 1,
-                }}
-              >
-                {deleting ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

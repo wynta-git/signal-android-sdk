@@ -1,5 +1,9 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+const API_BASE = process.env.NEXT_PUBLIC_WYNTA_API_URL ?? '';
+const AUTH_HEADERS: Record<string, string> = process.env.NEXT_PUBLIC_WYNTA_API_TOKEN
+  ? { Authorization: process.env.NEXT_PUBLIC_WYNTA_API_TOKEN }
+  : {};
 
 interface ApiModel {
   id: number;
@@ -47,14 +51,18 @@ export default function AIModelSettings() {
   const [rowsPerPage, setRowsPerPage]       = useState(20);
   const [page, setPage]                     = useState(1);
   const [actionOpen, setActionOpen]         = useState<string | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState('');
+  const [selectedProviderId, setSelectedProviderId] = useState('');
   const [apiKey, setApiKey]                 = useState('');
+  const [addingModel, setAddingModel]       = useState(false);
+  const [addError, setAddError]             = useState('');
+  const [actionLoading, setActionLoading]   = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   function loadData() {
     setLoading(true);
     setError(false);
-    fetch('/api/v1/workspace/settings/ai-models/', { credentials: 'include' })
-      .then(res => res.json())
+    fetch(`${API_BASE}/api/v1/workspace/settings/ai-models/`, { headers: AUTH_HEADERS })
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => {
         const list: ApiModel[] = data?.data?.models ?? [];
         const avail: Provider[] = data?.data?.available_providers ?? [];
@@ -70,21 +78,58 @@ export default function AIModelSettings() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { loadData(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    loadData();
+  }, []);
 
   function handleAdd() {
-    if (!selectedProvider) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const newId = String(Date.now());
-    setModels(prev => [...prev, {
-      id:        newId,
-      provider:  selectedProvider,
-      createdOn: today,
-      isDefault: prev.length === 0,
-    }]);
-    setSelectedProvider('');
-    setApiKey('');
-    setView('list');
+    if (!selectedProviderId || !apiKey) return;
+    setAddingModel(true);
+    setAddError('');
+    fetch(`${API_BASE}/api/v1/workspace/settings/ai-models/`, {
+      method: 'POST',
+      headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider_id: Number(selectedProviderId), api_key: apiKey }),
+    })
+      .then(res => res.json().then(d => ({ ok: res.ok, d })))
+      .then(({ ok, d }) => {
+        if (ok) {
+          setSelectedProviderId('');
+          setApiKey('');
+          setView('list');
+          loadData();
+        } else {
+          setAddError(d?.message ?? d?.detail ?? 'Failed to save AI model.');
+        }
+      })
+      .catch(() => setAddError('Network error.'))
+      .finally(() => setAddingModel(false));
+  }
+
+  function handleDelete(modelId: string) {
+    setActionLoading(modelId);
+    setActionOpen(null);
+    fetch(`${API_BASE}/api/v1/workspace/settings/ai-models/${modelId}/`, {
+      method: 'DELETE',
+      headers: AUTH_HEADERS,
+    })
+      .then(() => loadData())
+      .catch(() => loadData())
+      .finally(() => setActionLoading(null));
+  }
+
+  function handleSetDefault(modelId: string) {
+    setActionLoading(modelId);
+    setActionOpen(null);
+    fetch(`${API_BASE}/api/v1/workspace/settings/ai-models/${modelId}/set-default/`, {
+      method: 'POST',
+      headers: AUTH_HEADERS,
+    })
+      .then(() => loadData())
+      .catch(() => loadData())
+      .finally(() => setActionLoading(null));
   }
 
   const filtered = useMemo(() => {
@@ -146,7 +191,7 @@ export default function AIModelSettings() {
         {/* Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, fontSize: 14 }}>
           <span
-            onClick={() => { setSelectedProvider(''); setApiKey(''); setView('list'); }}
+            onClick={() => { setSelectedProviderId(''); setApiKey(''); setAddError(''); setView('list'); }}
             style={{ color: '#6b7280', cursor: 'pointer' }}
           >
             AI Model
@@ -185,18 +230,18 @@ export default function AIModelSettings() {
             AI Module <span style={{ color: '#ef4444' }}>*</span>
           </label>
           <select
-            value={selectedProvider}
-            onChange={e => setSelectedProvider(e.target.value)}
+            value={selectedProviderId}
+            onChange={e => setSelectedProviderId(e.target.value)}
             style={{
               ...fieldStyle,
               cursor: 'pointer',
-              color: selectedProvider ? '#374151' : '#9ca3af',
+              color: selectedProviderId ? '#374151' : '#9ca3af',
               appearance: 'auto',
             }}
           >
             <option value="" disabled>Select</option>
             {providers.map(p => (
-              <option key={p.id} value={p.name}>{p.name}</option>
+              <option key={p.id} value={String(p.id)}>{p.name}</option>
             ))}
           </select>
         </div>
@@ -222,19 +267,21 @@ export default function AIModelSettings() {
         </div>
 
         {/* Submit */}
+        {addError && <div style={{ marginBottom: 10, fontSize: 12, color: '#ef4444' }}>{addError}</div>}
         <button
           type="button"
           onClick={handleAdd}
-          disabled={!selectedProvider}
+          disabled={!selectedProviderId || !apiKey || addingModel}
           style={{
             height: 36, padding: '0 24px',
-            background: selectedProvider ? '#0091E0' : '#93c5fd',
+            background: selectedProviderId && apiKey && !addingModel ? '#0091E0' : '#93c5fd',
             color: '#fff', border: 'none', borderRadius: 4,
-            fontSize: 12, fontWeight: 700, cursor: selectedProvider ? 'pointer' : 'not-allowed',
+            fontSize: 12, fontWeight: 700,
+            cursor: selectedProviderId && apiKey && !addingModel ? 'pointer' : 'not-allowed',
             letterSpacing: 0.8, textTransform: 'uppercase',
           }}
         >
-          SUBMIT
+          {addingModel ? 'Saving…' : 'SUBMIT'}
         </button>
       </div>
     );
@@ -243,6 +290,12 @@ export default function AIModelSettings() {
   /* ── List view ── */
   return (
     <div style={{ paddingTop: 8 }}>
+      {actionOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 19 }}
+          onClick={() => setActionOpen(null)}
+        />
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 style={{ fontSize: 15, fontWeight: 600, color: '#111827', margin: 0 }}>AI Model</h2>
         <button
@@ -327,9 +380,11 @@ export default function AIModelSettings() {
                     <button
                       type="button"
                       onClick={() => setActionOpen(actionOpen === model.id ? null : model.id)}
+                      disabled={actionLoading === model.id}
                       style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
+                        background: 'none', border: 'none', cursor: actionLoading === model.id ? 'not-allowed' : 'pointer',
                         fontSize: 16, color: '#6b7280', padding: '2px 6px', letterSpacing: 2,
+                        opacity: actionLoading === model.id ? 0.4 : 1,
                       }}
                     >
                       •••
@@ -344,31 +399,36 @@ export default function AIModelSettings() {
                         {!model.isDefault && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setModels(ms => ms.map(m => ({ ...m, isDefault: m.id === model.id })));
-                              setActionOpen(null);
-                            }}
+                            onClick={() => handleSetDefault(model.id)}
                             style={{
-                              display: 'block', width: '100%', padding: '9px 14px',
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              width: '100%', padding: '9px 14px',
                               background: 'none', border: 'none',
                               textAlign: 'left', fontSize: 12, cursor: 'pointer', color: '#374151',
                             }}
                           >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="#374151" stroke="none">
+                              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                            </svg>
                             Set as Default
                           </button>
                         )}
                         <button
                           type="button"
-                          onClick={() => {
-                            setModels(ms => ms.filter(m => m.id !== model.id));
-                            setActionOpen(null);
-                          }}
+                          onClick={() => handleDelete(model.id)}
                           style={{
-                            display: 'block', width: '100%', padding: '9px 14px',
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            width: '100%', padding: '9px 14px',
                             background: 'none', border: 'none',
                             textAlign: 'left', fontSize: 12, cursor: 'pointer', color: '#ef4444',
                           }}
                         >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                            <path d="M10 11v6M14 11v6"/>
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                          </svg>
                           Delete
                         </button>
                       </div>
