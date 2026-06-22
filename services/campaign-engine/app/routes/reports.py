@@ -108,6 +108,7 @@ def _doc_to_report(doc: dict) -> CustomReport:
 
 async def _compute_metrics(
     db: AsyncIOMotorDatabase,
+    ch: Any,
     project_id: str,
     metrics: list[str],
     filters: ReportFilters,
@@ -115,15 +116,18 @@ async def _compute_metrics(
     since, now, window_days = _resolve_window(filters.date_range)
     prev_since = since - timedelta(days=window_days)
 
-    # Fetch what we need based on requested metrics
     needs_deliveries = any(m in metrics for m in (
-        "messages_sent", "delivery_rate", "bounce_rate", "opt_out_rate"
+        "messages_sent", "delivery_rate", "bounce_rate",
+        "open_rate", "ctr", "opt_out_rate", "conversion_rate",
     ))
-    needs_analytics = any(m in metrics for m in ("open_rate", "ctr"))
-    needs_users = any(m in metrics for m in (
-        "active_users", "player_health_score", "churn_rate"
+    needs_analytics   = any(m in metrics for m in ("open_rate", "ctr"))
+    needs_conversions = any(m in metrics for m in ("conversions", "conversion_rate", "revenue_influenced"))
+    needs_users       = any(m in metrics for m in (
+        "active_users", "player_health_score", "churn_rate", "win_back_rate",
     ))
     needs_segments = "segment_size" in metrics
+    needs_opt_outs = "opt_out_rate" in metrics
+    needs_deposits = "avg_deposits" in metrics
 
     tasks: dict[str, Any] = {}
 
@@ -131,17 +135,20 @@ async def _compute_metrics(
         tasks["curr_raw"] = get_dashboard_delivery_stats(db, project_id, since, now)
         tasks["prev_raw"] = get_dashboard_delivery_stats(db, project_id, prev_since, since)
 
+    if needs_analytics:
+        tasks["ch_events"] = _query_notification_events(ch, project_id, since, now)
+
+    if needs_conversions:
+        tasks["conversions_map"] = _query_conversions_by_campaign(ch, project_id, since, now)
+
     if needs_users:
-        tasks["total_users"] = db["users"].count_documents({"project_id": project_id})
-        tasks["active_users"] = db["users"].count_documents(
+        tasks["total_users"]       = db["users"].count_documents({"project_id": project_id})
+        tasks["active_users_count"] = db["users"].count_documents(
             {"project_id": project_id, "last_seen_at": {"$gte": since}}
         )
         tasks["health"] = db["users"].aggregate([
             {"$match": {"project_id": project_id}},
-            {"$group": {
-                "_id": "$health_status",
-                "count": {"$sum": 1},
-            }},
+            {"$group": {"_id": "$health_status", "count": {"$sum": 1}}},
         ]).to_list(length=None)
 
     if needs_segments:
@@ -150,15 +157,21 @@ async def _compute_metrics(
             {"$group": {"_id": None, "total": {"$sum": "$members_count"}}},
         ]).to_list(length=1)
 
+    if needs_opt_outs:
+        tasks["daily_boosts"] = get_daily_boosts_range(db, project_id, since, now)
+
+    if needs_deposits:
+        tasks["deposit_rows"] = _query_deposit_totals(ch, project_id, since, now)
+
     results = dict(zip(tasks.keys(), await asyncio.gather(*tasks.values())))
 
     data: dict[str, Any] = {}
+    curr_sent = 0
 
     # Delivery-based metrics
     if needs_deliveries:
         curr = _crunch_deliveries(results.get("curr_raw", []))
         prev = _crunch_deliveries(results.get("prev_raw", []))
-
         curr_sent   = _sum_status(curr, "sent")
         prev_sent   = _sum_status(prev, "sent")
         curr_failed = _sum_status(curr, "failed")
@@ -168,55 +181,101 @@ async def _compute_metrics(
                 "value":      curr_sent,
                 "change_pct": _change_pct(curr_sent, prev_sent),
             }
-
         if "delivery_rate" in metrics:
             data["delivery_rate"] = {"value": _safe_rate(curr_sent, curr_sent + curr_failed)}
-
         if "bounce_rate" in metrics:
             data["bounce_rate"] = {"value": _safe_rate(curr_failed, curr_sent + curr_failed)}
 
-        if "opt_out_rate" in metrics:
-            data["opt_out_rate"] = {"value": None, "tracked": False}
-
-    # Analytics-based metrics — require SDK events; not yet tracked
+    # ClickHouse: open rate and CTR
     if needs_analytics:
+        ch_events    = results.get("ch_events", {})
+        total_opens  = sum(v["opens"]  for v in ch_events.values())
+        total_clicks = sum(v["clicks"] for v in ch_events.values())
+        tracked      = bool(ch_events)
+
         if "open_rate" in metrics:
-            data["open_rate"] = {"value": None, "tracked": False}
+            data["open_rate"] = {
+                "value":   _safe_rate(total_opens, curr_sent),
+                "tracked": tracked,
+            }
         if "ctr" in metrics:
-            data["ctr"] = {"value": None, "tracked": False}
+            data["ctr"] = {
+                "value":   _safe_rate(total_clicks, curr_sent),
+                "tracked": tracked,
+            }
+
+    # ClickHouse: conversions and revenue (last-touch attribution)
+    if needs_conversions:
+        conv_map     = results.get("conversions_map", {})
+        conv_tracked = bool(conv_map)
+        total_convs  = sum(v["conversions"] for v in conv_map.values())
+        total_rev    = sum(v["revenue"]     for v in conv_map.values())
+
+        if "conversions" in metrics:
+            data["conversions"] = {
+                "value":   total_convs if conv_tracked else None,
+                "tracked": conv_tracked,
+            }
+        if "revenue_influenced" in metrics:
+            data["revenue_influenced"] = {
+                "value":   round(total_rev, 2) if conv_tracked else None,
+                "tracked": conv_tracked,
+            }
+        if "conversion_rate" in metrics:
+            data["conversion_rate"] = {
+                "value":   _safe_rate(total_convs, curr_sent) if conv_tracked else None,
+                "tracked": conv_tracked,
+            }
 
     # User-based metrics
     if needs_users:
-        total = results.get("total_users", 0) or 1
-        active = results.get("active_users", 0)
+        total       = results.get("total_users", 0) or 1
+        active      = results.get("active_users_count", 0)
         health_rows = results.get("health") or []
-        health_map = {r["_id"]: r["count"] for r in health_rows if r["_id"]}
-        churned = health_map.get("churned", 0)
+        health_map  = {r["_id"]: r["count"] for r in health_rows if r["_id"]}
+        churned     = health_map.get("churned",     0)
+        reactivated = health_map.get("reactivated", 0)
+        healthy     = health_map.get("healthy",     0)
 
         if "active_users" in metrics:
             data["active_users"] = {"value": active}
-
         if "churn_rate" in metrics:
             data["churn_rate"] = {"value": _safe_rate(churned, total)}
-
         if "player_health_score" in metrics:
-            healthy = health_map.get("healthy", 0)
             data["player_health_score"] = {"value": _safe_rate(healthy, total)}
+        if "win_back_rate" in metrics:
+            win_back_denom = churned + reactivated
+            data["win_back_rate"] = {
+                "value": _safe_rate(reactivated, win_back_denom) if win_back_denom else None,
+            }
 
     # Segment-based metrics
     if needs_segments:
         seg_agg = results.get("seg_agg") or []
-        total_members = seg_agg[0]["total"] if seg_agg else 0
-        data["segment_size"] = {"value": total_members}
+        data["segment_size"] = {"value": seg_agg[0]["total"] if seg_agg else 0}
 
-    # Untracked metrics — return null so UI shows "—"
-    untracked = {
-        "conversions", "conversion_rate", "revenue_influenced",
-        "segment_growth", "win_back_rate", "avg_deposits",
-    }
-    for m in metrics:
-        if m in untracked:
-            data[m] = {"value": None, "tracked": False}
+    # Opt-out rate: opt_outs / total_sent
+    if needs_opt_outs:
+        daily_boosts   = results.get("daily_boosts", {})
+        opt_outs_total = sum(day.get("opt_outs", 0) for day in daily_boosts.values())
+        data["opt_out_rate"] = {
+            "value":   _safe_rate(opt_outs_total, curr_sent),
+            "tracked": opt_outs_total > 0,
+        }
+
+    # Avg deposits: average deposit_success amount per depositing user
+    if needs_deposits:
+        deposit_rows = results.get("deposit_rows", [])
+        if deposit_rows:
+            data["avg_deposits"] = {
+                "value": round(sum(r["total"] for r in deposit_rows) / len(deposit_rows), 2),
+            }
+        else:
+            data["avg_deposits"] = {"value": None, "tracked": False}
+
+    # Needs segment snapshots infra — not yet possible
+    if "segment_growth" in metrics:
+        data["segment_growth"] = {"value": None, "tracked": False}
 
     return data
 
@@ -1130,6 +1189,7 @@ async def get_report(
     report_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
+    ch: ChDep,
 ) -> dict:
     _require_user_id(ctx)
     if ctx.project_id != project_id:
@@ -1143,7 +1203,7 @@ async def get_report(
         raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Report not found"})
 
     report = _doc_to_report(doc)
-    data = await _compute_metrics(db, project_id, report.metrics, report.filters)
+    data = await _compute_metrics(db, ch, project_id, report.metrics, report.filters)
 
     return {**report.model_dump(), "data": data}
 
