@@ -87,6 +87,33 @@ A successful deposit / funding transaction.
 | `currency` | string (ISO 4217) | yes | e.g. `USD`. |
 | `payment_method` | string | no | e.g. `card`, `bank_transfer`, `crypto`. |
 
+### `bet_placed`
+Emitted by gaming/casino clients when a wager is accepted. Non-gaming clients (sports, fantasy, exchange) should use `wager` instead. Casino-specific clients may send `game_id`, `game_category`, and `game_provider`; all are optional.
+
+| Property | Type | Required | Notes |
+|---|---|---|---|
+| `wager_amount` | float | yes | Stake size; 4-decimal precision. |
+| `currency` | string (ISO 4217) | yes | e.g. `INR`. |
+| `balance_type` | string | yes | `real`, `bonus`, or `freebet`. |
+| `product_id` | string | no | Generic product/market/event reference. Casino clients use `game_id`. |
+| `category` | string | no | Product vertical: `slots`, `sports`, `casino`, `crash`, etc. |
+| `provider` | string | no | Content or data provider name. |
+| `game_id` | string | no | Casino alias for `product_id`. |
+| `game_category` | string | no | Casino alias for `category`. |
+| `game_provider` | string | no | Casino alias for `provider`. |
+
+### `wager`
+General-purpose wager event for non-gaming clients (sports, fantasy, exchange, trading, etc.). Standalone — not linked to `bet_placed`. Use `bet_placed` for casino/gaming contexts and `wager` for everything else.
+
+| Property | Type | Required | Notes |
+|---|---|---|---|
+| `amount` | float | yes | Stake size; 4-decimal precision. |
+| `currency` | string (ISO 4217) | yes | e.g. `INR`. |
+| `balance_type` | string | yes | `real`, `bonus`, or `freebet`. |
+| `product_id` | string | no | Market / selection / event reference on the client platform. |
+| `category` | string | no | Product vertical: `sports`, `fantasy`, `exchange`, etc. |
+| `provider` | string | no | Data or platform provider name. |
+
 (Add new events here, then mirror in `shared/models/events.py` — use `/add-event` to keep both in sync.)
 
 ## PII handling

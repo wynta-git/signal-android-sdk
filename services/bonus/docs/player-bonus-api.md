@@ -6,146 +6,29 @@ This API allows game clients and back-office integrations to query a user's appl
 
 ---
 
-## Authentication — S2S HMAC Signature
+## Authentication — Client ID Header
 
-All requests are server-to-server (S2S) and must include three headers on every call:
+Endpoints that mutate state or return user-scoped data require an `X-Client-Id` header. The server resolves this to a `site_id` via a Redis lookup; requests with an unknown client are rejected with `401`.
 
-| Header        | Type   | Description                                                |
-| ------------- | ------ | ---------------------------------------------------------- |
-| `X-Client-Id` | string | Your registered client identifier                          |
-| `X-Timestamp` | string | Current Unix epoch **seconds** (e.g. `1716112200`)         |
-| `X-Signature` | string | HMAC-SHA256 hex digest of the canonical string (see below) |
+| Header        | Type   | Required on                                                           |
+| ------------- | ------ | --------------------------------------------------------------------- |
+| `X-Client-Id` | string | `/consume`, `/{user_id}/summary`, `/{user_id}/transactions`, `/{user_id}/transactions/{txn_id}` |
 
-Requests with a timestamp more than **300 seconds** from the server's clock are rejected to prevent replay attacks.
+The following endpoints do **not** require `X-Client-Id`:
 
----
+- `GET /applicable-codes`
+- `POST /validate-code`
+- `POST /consume/{consume_txn_id}/revert`
+- `GET /{user_id}/referral-code`
 
-### Building the Canonical String
-
-```
-canonical = "{client_id}\n{timestamp}\n{query_string}\n{raw_body}"
-```
-
-- `client_id` — your `X-Client-Id` value
-- `timestamp` — the exact string you send in `X-Timestamp`
-- `query_string` — the raw URL query string (e.g. `user_id=U1&chip_type=cash`); **empty string** when there are no query parameters
-- `raw_body` — the raw UTF-8 request body bytes; **empty string** for GET requests (no body)
-
-Then sign it:
-
-```
-signature = HMAC-SHA256(client_secret, canonical)
-X-Signature = hex(signature)
-```
-
-> **Client secrets** are provisioned per client in the database. Contact the platform team to have your `client_id` and `client_secret` registered.
-
----
-
-### Code Examples
-
-**Python — POST with body**
-
-```python
-import hashlib, hmac, time, json, requests
-
-client_id = "game_server"
-client_secret = "your_shared_secret"
-timestamp = str(int(time.time()))
-
-body = json.dumps({
-    "user_id": "USER_001",
-    "consume_txn_id": "TXN20250519001",
-    "wager_amount": "300.00",
-    "bonus_amount": "100.00",
-    "wager_tnx_id": "WAGER_REF_001"
-}, separators=(',', ':'))
-
-query_string = ""  # no query params on this endpoint
-canonical = f"{client_id}\n{timestamp}\n{query_string}\n{body}".encode()
-signature = hmac.new(client_secret.encode(), canonical, hashlib.sha256).hexdigest()
-
-resp = requests.post(
-    "http://localhost:8010/api/v1/user-bonuses/consume",
-    data=body,
-    headers={
-        "Content-Type": "application/json",
-        "X-Client-Id": client_id,
-        "X-Timestamp": timestamp,
-        "X-Signature": signature,
-    }
-)
-```
-
-**Node.js — POST with body**
-
-```javascript
-const crypto = require("crypto");
-
-const clientId = "game_server";
-const clientSecret = "your_shared_secret";
-const timestamp = String(Math.floor(Date.now() / 1000));
-
-const body = JSON.stringify({
-  user_id: "USER_001",
-  consume_txn_id: "TXN20250519001",
-  wager_amount: "300.00",
-  bonus_amount: "100.00",
-  wager_tnx_id: "WAGER_REF_001",
-});
-
-const queryString = "";  // no query params on this endpoint
-const canonical = `${clientId}\n${timestamp}\n${queryString}\n${body}`;
-const signature = crypto
-  .createHmac("sha256", clientSecret)
-  .update(canonical)
-  .digest("hex");
-
-fetch("http://localhost:8010/api/v1/user-bonuses/consume", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "X-Client-Id": clientId,
-    "X-Timestamp": timestamp,
-    "X-Signature": signature,
-  },
-  body,
-});
-```
-
-**Python — GET with query parameters**
-
-```python
-import hashlib, hmac, time, requests
-from urllib.parse import urlencode
-
-client_id = "game_server"
-client_secret = "your_shared_secret"
-timestamp = str(int(time.time()))
-
-params = {"user_id": "USER_001", "chip_type": "cash"}
-query_string = urlencode(params)  # "user_id=USER_001&chip_type=cash"
-
-canonical = f"{client_id}\n{timestamp}\n{query_string}\n".encode()  # empty body
-signature = hmac.new(client_secret.encode(), canonical, hashlib.sha256).hexdigest()
-
-requests.get(
-    "http://localhost:8010/api/v1/user-bonuses/applicable-codes",
-    params=params,
-    headers={"X-Client-Id": client_id, "X-Timestamp": timestamp, "X-Signature": signature},
-)
-```
-
----
+> **Client registration:** Contact the platform team to have your `client_id` provisioned.
 
 ### Error Responses for Auth Failures
 
-| HTTP Status | Reason                                           |
-| ----------- | ------------------------------------------------ |
-| `401`       | Missing or malformed headers                     |
-| `401`       | `X-Timestamp` outside the ±300-second window     |
-| `401`       | `X-Client-Id` not registered                     |
-| `401`       | `X-Signature` does not match the computed digest |
+| HTTP Status | Reason                        |
+| ----------- | ----------------------------- |
+| `401`       | `X-Client-Id` header missing  |
+| `401`       | `X-Client-Id` not registered  |
 
 ---
 
@@ -218,7 +101,61 @@ GET /api/v1/user-bonuses/applicable-codes
 
 ---
 
-### 2. Consume a Bonus Chunk
+### 2. Validate a Bonus Code
+
+Validates whether a promo code is applicable for a user without consuming it. Use this to give the user confirmation before they commit to a code (e.g. on a deposit screen).
+
+```
+POST /api/v1/user-bonuses/validate-code
+```
+
+**Request Body** `application/json`
+
+```json
+{
+  "user_id": "USER_001",
+  "chip_type": "cash",
+  "code": "WELCOME100"
+}
+```
+
+**Request Fields**
+
+| Field       | Type   | Required | Description                                             |
+| ----------- | ------ | -------- | ------------------------------------------------------- |
+| `user_id`   | string | Yes      | Platform user identifier (max 50 chars)                 |
+| `chip_type` | string | Yes      | Chip type — `cash` or `in_app_purchase`                 |
+| `code`      | string | Yes      | Promo code to validate (max 50 chars)                   |
+
+**Response `200 OK`**
+
+```json
+{
+  "valid": true,
+  "code": "WELCOME100",
+  "reason": null,
+  "promo_id": 12,
+  "display_title": "Welcome Bonus",
+  "wager_multiplier": "3.00",
+  "no_of_chunks": 3
+}
+```
+
+**Response Fields**
+
+| Field              | Type             | Description                                                          |
+| ------------------ | ---------------- | -------------------------------------------------------------------- |
+| `valid`            | boolean          | `true` if the code is applicable for this user and chip type         |
+| `code`             | string           | Echo of the submitted promo code                                     |
+| `reason`           | string \| null   | Human-readable reason when `valid` is `false`; `null` when valid     |
+| `promo_id`         | integer \| null  | Bonus configure promo ID; `null` when invalid                        |
+| `display_title`    | string \| null   | Marketing title for the bonus; `null` when invalid                   |
+| `wager_multiplier` | decimal \| null  | Wagering requirement multiplier; `null` when invalid                 |
+| `no_of_chunks`     | integer \| null  | Number of release chunks; `null` when invalid                        |
+
+---
+
+### 3. Consume a Bonus Chunk
 
 Records that a specific bonus chunk has been consumed against a wager event. Call this from the game server immediately after a successful wager that should draw from a user's bonus.
 
@@ -280,7 +217,7 @@ POST /api/v1/user-bonuses/consume
 
 ---
 
-### 3. Revert a Bonus Consumption
+### 4. Revert a Bonus Consumption
 
 Cancels a previously recorded consumption — for example, when a wager is voided or rolled back. Reverting decrements the user's consumed balance by the original consumption amount.
 
@@ -316,7 +253,7 @@ POST /api/v1/user-bonuses/consume/{consume_txn_id}/revert
 
 ---
 
-### 4. Get user Bonus Summary
+### 5. Get User Bonus Summary
 
 Returns bonus figures for a user broken down by chip type. Each element in the array represents one chip type the user has active or historical grants for.
 
@@ -360,7 +297,7 @@ GET /api/v1/user-bonuses/{user_id}/summary
 
 ---
 
-### 5. List user Transactions
+### 6. List User Transactions
 
 Returns a paginated list of bonus grant transactions for a user, ordered by most recent first. Each item shows a summary with a derived lifecycle status.
 
@@ -448,7 +385,7 @@ A flat ledger ordered by most recent first. Every bonus event — grant, chunk r
 
 ---
 
-### 6. Get Transaction Detail
+### 7. Get Transaction Detail
 
 Returns the full detail of a single bonus grant including all chunks, forfeit record (if any), and expiry events.
 
@@ -556,7 +493,7 @@ GET /api/v1/user-bonuses/{user_id}/transactions/{txn_id}
 
 ---
 
-### 7. Get user Referral Code
+### 8. Get User Referral Code
 
 Returns the referral code assigned to a user. This code can be shared with friends to track referral-driven bonus eligibility.
 
@@ -575,16 +512,18 @@ GET /api/v1/user-bonuses/{user_id}/referral-code
 ```json
 {
   "user_id": "USER_001",
-  "referral_code": "REF_XYZ99"
+  "referral_code": "REF_XYZ99",
+  "created_at": "2025-05-01T08:00:00"
 }
 ```
 
 **Response Fields**
 
-| Field           | Type   | Description                                |
-| --------------- | ------ | ------------------------------------------ |
-| `user_id`       | string | user identifier                            |
-| `referral_code` | string | Unique referral code assigned to this user |
+| Field           | Type     | Description                                |
+| --------------- | -------- | ------------------------------------------ |
+| `user_id`       | string   | User identifier                            |
+| `referral_code` | string   | Unique referral code assigned to this user |
+| `created_at`    | datetime | When the referral code was generated (UTC) |
 
 **Error Cases**
 
@@ -616,31 +555,31 @@ All errors follow a consistent envelope:
 ## Integration Flow
 
 ```
-1. user initiates a deposit / game round
+1. User initiates a deposit / game round
        │
        ▼
-2. Call GET /api/v1/user-bonuses/applicable-codes?user_id=&chip_type=
+2. GET /api/v1/user-bonuses/applicable-codes?user_id=&chip_type=
    → Display eligible bonus offers to the user
        │
        ▼
-3. user selects a code
-   → POST /api/v1/user-bonuses/apply-code?user_id=&promo_code=  { txn_amount, chip_type }
-   → Returns grant_id — bonus grant created in PENDING status
+3. User enters a code
+   → POST /api/v1/user-bonuses/validate-code  { user_id, chip_type, code }
+   → Check valid=true before proceeding; show reason to user if false
        │
        ▼
 4. Release triggers fire (event-driven, internal)
    → Chunks move from PENDING → RELEASE as user meets trigger conditions
        │
        ▼
-5. user wagers using released bonus
+5. User wagers using released bonus
    → POST /api/v1/user-bonuses/consume  { user_id, consume_txn_id, bonus_amount, wager_amount, wager_tnx_id, ... }
        │
        ▼
 6. If wager is voided:
-     POST /api/v1/user-bonuses/consume/{consume_txn_id}/revert
+   → POST /api/v1/user-bonuses/consume/{consume_txn_id}/revert
        │
        ▼
-6. Display wallet / history:
+7. Display wallet / history:
      GET /api/v1/user-bonuses/{user_id}/summary
      GET /api/v1/user-bonuses/{user_id}/transactions?chip_type=cash
      GET /api/v1/user-bonuses/{user_id}/transactions/{txn_id}
