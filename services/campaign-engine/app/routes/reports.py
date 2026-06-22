@@ -1174,7 +1174,7 @@ async def list_reports(
     docs = await db[_COLLECTION].find(
         {"user_id": ctx.user_id, "project_id": project_id},
         {"_id": 0},
-    ).sort("created_at", -1).to_list(length=None)
+    ).sort("created_at", 1).to_list(length=None)
 
     return {"reports": [_doc_to_report(d).model_dump() for d in docs]}
 
