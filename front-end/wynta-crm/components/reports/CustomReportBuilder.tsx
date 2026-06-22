@@ -1,6 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getToken } from 'wynta-react-common/services/tokenRegistry';
 import type { ReportFilters, DateRange } from '../../services/reportsApi';
+
+const SEG_BASE = process.env.NEXT_PUBLIC_SEGMENTATION_API_URL || 'http://3.7.48.14:8003';
+
+interface SegmentOption { segment_id: string; name: string; }
 
 export const ALL_METRICS: { key: string; label: string }[] = [
   { key: 'messages_sent',      label: 'Messages Sent'      },
@@ -25,6 +30,7 @@ interface Props {
   onSave:   (name: string, metrics: string[], filters: ReportFilters) => void;
   onCancel: () => void;
   saving?:  boolean;
+  error?:   string | null;
 }
 
 const DEFAULT_FILTERS: ReportFilters = {
@@ -39,10 +45,20 @@ const DATE_RANGE_LABELS: Record<DateRange, string> = {
   last_90_days: 'Last 90 days',
 };
 
-export default function CustomReportBuilder({ onSave, onCancel, saving }: Props) {
+export default function CustomReportBuilder({ onSave, onCancel, saving, error }: Props) {
   const [name,     setName]     = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filters,  setFilters]  = useState<ReportFilters>(DEFAULT_FILTERS);
+  const [segments, setSegments] = useState<SegmentOption[]>([]);
+
+  useEffect(() => {
+    fetch(`${SEG_BASE}/api/v1/segment/segments`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: SegmentOption[]) => setSegments(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   function toggleMetric(key: string) {
     setSelected(prev => {
@@ -116,6 +132,20 @@ export default function CustomReportBuilder({ onSave, onCancel, saving }: Props)
               <option value="in_app">In-App</option>
             </select>
           </div>
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--crm-fg3)', display: 'block', marginBottom: 6 }}>Segment Filter</label>
+            <select
+              value={filters.segment_id ?? ''}
+              onChange={e => setFilters(f => ({ ...f, segment_id: e.target.value || null }))}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--crm-border)', borderRadius: 7, fontSize: 13, color: 'var(--crm-fg1)', background: 'var(--crm-white)', cursor: 'pointer' }}
+            >
+              <option value="">All Segments</option>
+              {segments.map(s => (
+                <option key={s.segment_id} value={s.segment_id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Right — Select Metrics */}
@@ -153,23 +183,28 @@ export default function CustomReportBuilder({ onSave, onCancel, saving }: Props)
       </div>
 
       {/* Footer */}
-      <div style={{ padding: '16px 28px', borderTop: '1px solid var(--crm-border)', background: 'var(--crm-white)', display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-        <button onClick={onCancel} style={{ padding: '8px 20px', borderRadius: 7, border: '1px solid var(--crm-border-md)', background: 'var(--crm-white)', color: 'var(--crm-fg2)', fontSize: 13, cursor: 'pointer' }}>
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={!canSave || saving}
-          style={{
-            padding: '8px 20px', borderRadius: 7, border: 'none',
-            background: canSave ? 'var(--crm-blue)' : 'var(--crm-border)',
-            color: canSave ? '#fff' : 'var(--crm-fg4)',
-            fontSize: 13, fontWeight: 500,
-            cursor: canSave ? 'pointer' : 'not-allowed',
-          }}
-        >
-          {saving ? 'Creating…' : 'Create Report'}
-        </button>
+      <div style={{ padding: '16px 28px', borderTop: '1px solid var(--crm-border)', background: 'var(--crm-white)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        {error ? (
+          <span style={{ fontSize: 13, color: 'var(--crm-negative)' }}>⚠ {error}</span>
+        ) : <span />}
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button onClick={onCancel} style={{ padding: '8px 20px', borderRadius: 7, border: '1px solid var(--crm-border-md)', background: 'var(--crm-white)', color: 'var(--crm-fg2)', fontSize: 13, cursor: 'pointer' }}>
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!canSave || saving}
+            style={{
+              padding: '8px 20px', borderRadius: 7, border: 'none',
+              background: canSave ? 'var(--crm-blue)' : 'var(--crm-border)',
+              color: canSave ? '#fff' : 'var(--crm-fg4)',
+              fontSize: 13, fontWeight: 500,
+              cursor: canSave ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {saving ? 'Creating…' : 'Create Report'}
+          </button>
+        </div>
       </div>
     </div>
   );

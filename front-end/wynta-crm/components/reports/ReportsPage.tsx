@@ -16,17 +16,21 @@ export default function ReportsPage() {
   const reports   = useSelector((s: RootState) => s.reports.reports);
   const listStatus   = useSelector((s: RootState) => s.reports.status.list);
   const creating  = useSelector((s: RootState) => s.reports.status.creating === 'loading');
-  const [view, setView] = useState<View>('list');
+  const [view,        setView]       = useState<View>('list');
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     dispatch(fetchReports(PROJECT_ID));
   }, [dispatch]);
 
   async function handleSave(name: string, metrics: string[], filters: ReportFilters) {
+    setCreateError(null);
     const result = await dispatch(createReport({ payload: { name, metrics, filters }, projectId: PROJECT_ID }));
     if (createReport.fulfilled.match(result)) {
       await dispatch(fetchReports(PROJECT_ID));
       setView('list');
+    } else {
+      setCreateError('Failed to create report. Please try again.');
     }
   }
 
@@ -34,8 +38,9 @@ export default function ReportsPage() {
     return (
       <CustomReportBuilder
         onSave={handleSave}
-        onCancel={() => setView('list')}
+        onCancel={() => { setCreateError(null); setView('list'); }}
         saving={creating}
+        error={createError}
       />
     );
   }
@@ -55,7 +60,7 @@ export default function ReportsPage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: '18px 28px 14px', borderBottom: '1px solid var(--crm-border)', background: 'var(--crm-white)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--crm-fg1)' }}>Churn & Retention</div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--crm-fg1)' }}>Custom Reports</div>
           <div style={{ fontSize: 12, color: 'var(--crm-fg3)', marginTop: 3 }}>Custom reports scoped to your account</div>
         </div>
         <button
