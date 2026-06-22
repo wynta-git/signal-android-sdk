@@ -1,6 +1,6 @@
 {
-  "name": "wynta-react-native-sdk",
-  "version": "0.1.0",
+  "name": "@wynta/react-native-sdk",
+  "version": "1.0.0",
   "description": "Official React Native SDK for Wynta",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
@@ -14,7 +14,8 @@
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "prepare": "npm run build",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "release": "./publish.sh"
   },
   "keywords": [
     "wynta",
