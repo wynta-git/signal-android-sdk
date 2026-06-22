@@ -12,6 +12,7 @@ from app.routes.dashboard import router as dashboard_router
 from app.routes.reports import router as reports_router
 from app.routes.settings import router as settings_router
 from app.routes.templates import router as templates_router
+from app.jobs import health_classifier
 from app.triggers.event import run_consumer
 from shared.clients.clickhouse import make_clickhouse_client
 from shared.clients.kafka import make_kafka_producer
@@ -49,6 +50,8 @@ async def lifespan(app: FastAPI):
     producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
     app.state.producer = producer
 
+    health_classifier.start(db, ch)
+
     stop_event = asyncio.Event()
     consumer_task = asyncio.create_task(run_consumer(db, redis, producer, stop_event))
 
@@ -62,6 +65,7 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
+    health_classifier.stop()
     await producer.stop()
     await redis.aclose()
     mongo_client.close()
