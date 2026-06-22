@@ -69,6 +69,7 @@ UV="$(as_user bash -c 'command -v uv')"
 
 info "Installing campaign-engine deps into shared venv..."
 as_user "$UV" pip install --python "$VENV/bin/python" \
+    "apscheduler>=3.10.0" \
     "croniter>=2.0.0" \
     "httpx>=0.27.0" \
     --quiet
