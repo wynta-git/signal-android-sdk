@@ -10,11 +10,14 @@ import type { ReportFilters, CustomReport } from '../services/reportsApi';
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
-const SegmentsPage            = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
-const CampaignsPage           = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
-const EventsPage              = dynamic(() => import('./events/EventsPage'), { ssr: false });
-const DashboardPage           = dynamic(() => import('./dashboard/DashboardPage'), { ssr: false });
-const IntegrationsPage        = dynamic(() => import('./integrations/IntegrationsPage'), { ssr: false });
+const SegmentsPage       = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
+const CampaignsPage      = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
+const EventsPage         = dynamic(() => import('./events/EventsPage'), { ssr: false });
+const DashboardPage      = dynamic(() => import('./dashboard/DashboardPage'), { ssr: false });
+const IntegrationsPage   = dynamic(() => import('./integrations/IntegrationsPage'), { ssr: false });
+const WorkspaceSettingsPage   = dynamic(() => import('wynta-react-common/workspace-settings/WorkspaceSettingsPage'), { ssr: false });
+const BillingPricingPage      = dynamic(() => import('wynta-react-common/billing-pricing/BillingPricingPage'),       { ssr: false });
+const ReportsPage           = dynamic(() => import('./reports/ReportsPage'), { ssr: false });
 const CampaignStatsReport     = dynamic(() => import('./reports/CampaignStatsReport'), { ssr: false });
 const SegmentAnalysisReport   = dynamic(() => import('./reports/SegmentAnalysisReport'), { ssr: false });
 const ChannelDeliveryReport   = dynamic(() => import('./reports/ChannelDeliveryReport'), { ssr: false });
@@ -130,6 +133,8 @@ function CrmShell() {
            activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
            activeNav === 'events'           ? <EventsPage       /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
+           activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
+           activeNav === 'billing'            ? <BillingPricingPage />      :
            activeNav === 'reports:campaign' ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:create')} /> :
            activeNav === 'reports:segment'  ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:create')} /> :
            activeNav === 'reports:channel'  ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:create')} /> :
