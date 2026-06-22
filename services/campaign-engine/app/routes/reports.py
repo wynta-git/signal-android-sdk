@@ -874,11 +874,6 @@ async def get_player_lifecycle(
         ]).to_list(length=None),
         db["users"].count_documents({"project_id": project_id}),
         db["users"].count_documents({"project_id": project_id, "created_at": {"$lt": since}}),
-        db["users"].aggregate([
-            {"$match": {"project_id": project_id}},
-            {"$group": {"_id": "$health_status", "user_ids": {"$push": "$user_id"}}},
-        ]).to_list(length=None),
-        _query_deposit_totals(ch, project_id, thirty_ago, now),
         db["notification_deliveries"].aggregate([
             {"$match": {"project_id": project_id, "attempted_at": {"$gte": since}}},
             {"$group": {"_id": "$user_id", "delivery_count": {"$sum": 1}}},
@@ -896,7 +891,7 @@ async def get_player_lifecycle(
                     "as": "user_doc",
                 }
             },
-            {"$unwind": {"path": "$user_doc", "preserveNullAndEmpty": False}},
+            {"$unwind": {"path": "$user_doc", "preserveNullAndEmptyArrays": False}},
             {
                 "$group": {
                     "_id": "$user_doc.health_status",
@@ -905,6 +900,11 @@ async def get_player_lifecycle(
                 }
             },
         ]).to_list(length=None),
+        db["users"].aggregate([
+            {"$match": {"project_id": project_id}},
+            {"$group": {"_id": "$health_status", "user_ids": {"$push": "$user_id"}}},
+        ]).to_list(length=None),
+        _query_deposit_totals(ch, project_id, thirty_ago, now),
     )
 
     touchpoints_map: dict[str, float] = {

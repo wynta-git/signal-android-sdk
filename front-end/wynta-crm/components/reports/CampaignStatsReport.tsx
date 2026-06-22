@@ -58,7 +58,7 @@ function StatusBadge({ status }: { status: string }) {
 // ── Trend chart ───────────────────────────────────────────────────────────────
 
 const TIER_COLORS = { primary: '#0091E0', secondary: '#22c55e', tertiary: '#f59e0b' };
-const TIER_LABELS = { primary: 'Primary', secondary: 'Secondary', tertiary: 'Tertiary' };
+const TIER_LABELS = { primary: 'Email', secondary: 'Push', tertiary: 'SMS' };
 
 function GroupedBarChart({ data }: { data: TrendPoint[] }) {
   const W = 800, H = 240, PAD = { top: 16, right: 12, bottom: 44, left: 52 };
