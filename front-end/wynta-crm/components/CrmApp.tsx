@@ -92,11 +92,12 @@ function CrmShell() {
            activeNav === 'campaigns'         ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
            activeNav === 'events'            ? <EventsPage       /> :
            activeNav === 'integrations'      ? <IntegrationsPage /> :
-           activeNav === 'reports:campaign'  ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:churn')} /> :
-           activeNav === 'reports:segment'   ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:churn')} /> :
-           activeNav === 'reports:channel'   ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:churn')} /> :
-           activeNav === 'reports:lifecycle' ? <PlayerLifecycleReport  onOpenBuilder={() => handleNavChange('reports:churn')} /> :
-           activeNav === 'reports:churn'     ? <ChurnRetentionReport  onOpenBuilder={() => handleNavChange('reports:churn')} /> : (
+           activeNav === 'reports:campaign'  ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:custom')} /> :
+           activeNav === 'reports:segment'   ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:custom')} /> :
+           activeNav === 'reports:channel'   ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:custom')} /> :
+           activeNav === 'reports:lifecycle' ? <PlayerLifecycleReport  onOpenBuilder={() => handleNavChange('reports:custom')} /> :
+           activeNav === 'reports:churn'     ? <ChurnRetentionReport  onOpenBuilder={() => handleNavChange('reports:custom')} /> :
+           activeNav === 'reports:custom'    ? <ReportsPage /> : (
             <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', minHeight:'60vh', color:'var(--crm-fg4)', fontSize:14 }} />
           )}
         </div>

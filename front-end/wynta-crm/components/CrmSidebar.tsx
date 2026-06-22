@@ -39,6 +39,7 @@ const CRM_NAV_SECTIONS: NavSection[] = [
           { id: 'channel',   label: 'Channel Delivery'  },
           { id: 'lifecycle', label: 'Player Lifecycle'  },
           { id: 'churn',     label: 'Churn & Retention' },
+          { id: 'custom',    label: 'Custom Reports'    },
         ],
       },
       { id: 'integrations',  label: 'Integrations', icon: 'plug'         },
