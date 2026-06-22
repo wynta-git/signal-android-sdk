@@ -72,16 +72,22 @@ export default function GeneralSettings() {
       .finally(() => setTzLoading(false));
   }, []);
 
-  const [submitting, setSubmitting] = useState(false);
+  const [avatarFile, setAvatarFile]   = useState<File | null>(null);
+  const [logoFile, setLogoFile]       = useState<File | null>(null);
+  const [submitting, setSubmitting]   = useState(false);
   const [submitError, setSubmitError] = useState('');
 
   function handleSubmit() {
     setSubmitting(true);
     setSubmitError('');
+    const formData = new FormData();
+    formData.append('timezone', info.timezone);
+    if (avatarFile) formData.append('avatar', avatarFile);
+    if (logoFile)   formData.append('workspace_logo', logoFile);
     fetch(`${API_BASE}/api/v1/workspace/settings/general/`, {
       method: 'POST',
-      headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ timezone: info.timezone }),
+      headers: AUTH_HEADERS,
+      body: formData,
     })
       .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(() => { setSaved(true); setTimeout(() => setSaved(false), 2500); })
@@ -113,10 +119,10 @@ export default function GeneralSettings() {
                 {apiData?.initials ?? '??'}
               </div>
             )}
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginTop: 4 }}>
-              {apiData ? [apiData.first_name, apiData.last_name].filter(Boolean).join(' ') || apiData.email : ''}
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginTop: 4 }}>
+              {[apiData?.first_name, apiData?.last_name].filter(Boolean).join(' ') || apiData?.email || ''}
             </div>
-            <div style={{ fontSize: 12, color: '#6b7280' }}>{apiData?.email ?? ''}</div>
+            <div style={{ fontSize: 12, color: '#0091E0' }}>{apiData?.email ?? ''}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
             <label style={{
@@ -125,9 +131,12 @@ export default function GeneralSettings() {
               fontSize: 12, color: '#374151', cursor: 'pointer', background: '#fff',
             }}>
               Choose File
-              <input type="file" style={{ display: 'none' }} accept="image/png,image/jpeg" />
+              <input type="file" style={{ display: 'none' }} accept="image/png,image/jpeg"
+                onChange={e => setAvatarFile(e.target.files?.[0] ?? null)} />
             </label>
-            <span style={{ fontSize: 12, color: '#9ca3af' }}>no file selected</span>
+            <span style={{ fontSize: 12, color: avatarFile ? '#374151' : '#9ca3af' }}>
+              {avatarFile?.name || 'no file selected'}
+            </span>
           </div>
           <p style={{ fontSize: 11, color: '#9ca3af', margin: '6px 0 0', lineHeight: 1.5 }}>
             Recommended: square image, at least 200×200px. PNG or JPG.
@@ -164,9 +173,12 @@ export default function GeneralSettings() {
               fontSize: 12, color: '#374151', cursor: 'pointer', background: '#fff',
             }}>
               Choose File
-              <input type="file" style={{ display: 'none' }} accept="image/png,image/jpeg" />
+              <input type="file" style={{ display: 'none' }} accept="image/png,image/jpeg"
+                onChange={e => setLogoFile(e.target.files?.[0] ?? null)} />
             </label>
-            <span style={{ fontSize: 12, color: '#9ca3af' }}>no file selected</span>
+            <span style={{ fontSize: 12, color: logoFile ? '#374151' : '#9ca3af' }}>
+              {logoFile?.name || 'no file selected'}
+            </span>
           </div>
           <p style={{ fontSize: 11, color: '#9ca3af', margin: '6px 0 0', lineHeight: 1.5 }}>
             Please refrain from uploading logos that are white in colour.

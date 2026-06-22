@@ -48,6 +48,7 @@ interface ConfigureTrigger {
   payment_method?: string | null;
   product?: string | null;
   active?: boolean;
+  release_type?: string | null;
 }
 
 interface ExtendedConfigure {
