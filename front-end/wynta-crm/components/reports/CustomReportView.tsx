@@ -37,9 +37,10 @@ interface Props {
   reportId: string;
   onBack: () => void;
   onCreateNew: () => void;
+  onDeleted?: () => void;
 }
 
-export default function CustomReportView({ reportId, onBack, onCreateNew }: Props) {
+export default function CustomReportView({ reportId, onBack, onCreateNew, onDeleted }: Props) {
   const dispatch = useDispatch<AppDispatch>();
   const report   = useSelector((s: RootState) => s.reports.activeReport);
   const status   = useSelector((s: RootState) => s.reports.status.active);
@@ -49,10 +50,11 @@ export default function CustomReportView({ reportId, onBack, onCreateNew }: Prop
     return () => { dispatch(clearActiveReport()); };
   }, [dispatch, reportId]);
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!report) return;
     if (!confirm(`Delete "${report.name}"?`)) return;
-    dispatch(deleteReport({ reportId: report.report_id, projectId: PROJECT_ID }));
+    await dispatch(deleteReport({ reportId: report.report_id, projectId: PROJECT_ID }));
+    onDeleted?.();
     onBack();
   }
 

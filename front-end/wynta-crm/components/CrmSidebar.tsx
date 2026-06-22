@@ -39,7 +39,6 @@ const CRM_NAV_SECTIONS: NavSection[] = [
           { id: 'channel',   label: 'Channel Delivery'  },
           { id: 'lifecycle', label: 'Player Lifecycle'  },
           { id: 'churn',     label: 'Churn & Retention' },
-          { id: 'custom',    label: 'Custom Reports'    },
         ],
       },
       { id: 'integrations',  label: 'Integrations', icon: 'plug'         },
@@ -56,12 +55,15 @@ const CRM_NAV_SECTIONS: NavSection[] = [
   },
 ];
 
+interface CustomReportItem { report_id: string; name: string; }
+
 interface CrmSidebarProps {
   activeNav: string;
   onNavChange: (id: string) => void;
+  customReportItems?: CustomReportItem[];
 }
 
-export default function CrmSidebar({ activeNav, onNavChange }: CrmSidebarProps) {
+export default function CrmSidebar({ activeNav, onNavChange, customReportItems = [] }: CrmSidebarProps) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     reports: activeNav === 'reports' || activeNav.startsWith('reports:'),
   });
@@ -123,7 +125,12 @@ export default function CrmSidebar({ activeNav, onNavChange }: CrmSidebarProps) 
 
                   {isGroup && openGroups[item.id] && (
                     <div className="crm-nav-children">
-                      {item.children!.map(child => (
+                      {[
+                        ...item.children!,
+                        ...(item.id === 'reports'
+                          ? customReportItems.map(r => ({ id: `cr:${r.report_id}`, label: r.name }))
+                          : []),
+                      ].map(child => (
                         <div
                           key={child.id}
                           className={'crm-nav-child' + (activeNav === item.id + ':' + child.id ? ' active' : '')}
