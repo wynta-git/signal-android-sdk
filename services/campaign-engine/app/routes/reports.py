@@ -891,7 +891,7 @@ async def get_player_lifecycle(
                     "as": "user_doc",
                 }
             },
-            {"$unwind": {"path": "$user_doc", "preserveNullAndEmpty": False}},
+            {"$unwind": {"path": "$user_doc", "preserveNullAndEmptyArrays": False}},
             {
                 "$group": {
                     "_id": "$user_doc.health_status",
