@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { getSegmentAnalysis } from '../../services/reportsApi';
-import type { SegmentAnalysisData, SegmentRow, TrendPoint } from '../../services/reportsApi';
+import type { SegmentAnalysisData, SegmentRow } from '../../services/reportsApi';
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
@@ -18,21 +18,6 @@ function fmtPct(n: number | null | undefined): string {
   if (n == null) return '—';
   return `${(n * 100).toFixed(1)}%`;
 }
-function fmtAxis(n: number): string {
-  if (n >= 1_000_000) return `${Math.round(n / 1_000_000)}M`;
-  if (n >= 1_000)     return `${Math.round(n / 1_000)}K`;
-  return String(Math.round(n));
-}
-
-function yTicks(max: number): number[] {
-  if (max === 0) return [0];
-  const mag  = Math.pow(10, Math.floor(Math.log10(max)));
-  const step = Math.ceil(max / 4 / mag) * mag;
-  const ticks: number[] = [];
-  for (let v = 0; v <= max + step; v += step) { ticks.push(v); if (ticks.length > 5) break; }
-  return ticks;
-}
-
 function StatusBadge({ status }: { status: string }) {
   const live  = status === 'live';
   const color = live ? '#17A552' : '#f59e0b';
@@ -42,102 +27,6 @@ function StatusBadge({ status }: { status: string }) {
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
       {live ? 'Live' : 'Paused'}
     </span>
-  );
-}
-
-// ── Trend charts (reused pattern from CampaignStatsReport) ────────────────────
-
-const TIER_COLORS = { primary: '#0091E0', secondary: '#22c55e', tertiary: '#f59e0b' };
-const TIER_LABELS = { primary: 'Primary', secondary: 'Secondary', tertiary: 'Tertiary' };
-
-function GroupedBarChart({ data }: { data: TrendPoint[] }) {
-  const W = 800, H = 240, PAD = { top: 16, right: 12, bottom: 44, left: 52 };
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-  const max    = Math.max(...data.flatMap(d => [d.primary, d.secondary, d.tertiary]), 1);
-  const ticks  = yTicks(max);
-  const tickMax = ticks[ticks.length - 1];
-  const groupW  = innerW / data.length;
-  const barW    = Math.max(6, Math.min(32, (groupW * 0.75) / 3));
-  const gap     = Math.max(2, (groupW - barW * 3) / 4);
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-      {ticks.map(t => {
-        const y = PAD.top + innerH * (1 - t / tickMax);
-        return (
-          <g key={t}>
-            <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y}
-              stroke="#e5e7eb" strokeWidth={t === 0 ? 1 : 0.5} strokeDasharray={t === 0 ? undefined : '4,3'} />
-            <text x={PAD.left - 5} y={y + 3.5} fontSize={9} fill="#6b7280" textAnchor="end">{fmtAxis(t)}</text>
-          </g>
-        );
-      })}
-      {data.map((d, i) => {
-        const gx = PAD.left + i * groupW;
-        const series: Array<[number, string]> = [
-          [d.primary,   TIER_COLORS.primary],
-          [d.secondary, TIER_COLORS.secondary],
-          [d.tertiary,  TIER_COLORS.tertiary],
-        ];
-        return (
-          <g key={d.date}>
-            {series.map(([val, color], si) => {
-              const x = gx + gap + si * (barW + gap);
-              const h = Math.max(2, (val / tickMax) * innerH);
-              const y = PAD.top + innerH - h;
-              return <rect key={si} x={x} y={y} width={barW} height={h} rx={2} fill={color} />;
-            })}
-            <text x={gx + groupW / 2} y={PAD.top + innerH + 13} fontSize={9} fill="#6b7280" textAnchor="middle">
-              {d.date.slice(5)}
-            </text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-function LineChart({ data }: { data: TrendPoint[] }) {
-  const W = 800, H = 240, PAD = { top: 16, right: 12, bottom: 44, left: 52 };
-  const innerW = W - PAD.left - PAD.right;
-  const innerH = H - PAD.top - PAD.bottom;
-  const max     = Math.max(...data.flatMap(d => [d.primary, d.secondary, d.tertiary]), 1);
-  const ticks   = yTicks(max);
-  const tickMax = ticks[ticks.length - 1];
-  const n = data.length;
-
-  const pts = (key: keyof TrendPoint) =>
-    data.map((d, i) => {
-      const x = PAD.left + (i / Math.max(n - 1, 1)) * innerW;
-      const y = PAD.top + innerH - ((d[key] as number) / tickMax) * innerH;
-      return `${x},${y}`;
-    }).join(' ');
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-      {ticks.map(t => {
-        const y = PAD.top + innerH * (1 - t / tickMax);
-        return (
-          <g key={t}>
-            <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="#e5e7eb" strokeWidth={0.5} strokeDasharray="4,3" />
-            <text x={PAD.left - 5} y={y + 3.5} fontSize={9} fill="#6b7280" textAnchor="end">{fmtAxis(t)}</text>
-          </g>
-        );
-      })}
-      {(['primary', 'secondary', 'tertiary'] as const).map(key => (
-        <polyline key={key} points={pts(key)} fill="none"
-          stroke={TIER_COLORS[key]} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" />
-      ))}
-      {data.map((d, i) => {
-        const x = PAD.left + (i / Math.max(n - 1, 1)) * innerW;
-        return (
-          <text key={d.date} x={x} y={PAD.top + innerH + 13} fontSize={9} fill="#6b7280" textAnchor="middle">
-            {d.date.slice(5)}
-          </text>
-        );
-      })}
-    </svg>
   );
 }
 
@@ -197,7 +86,6 @@ export default function SegmentAnalysisReport({ onOpenBuilder }: Props) {
   const [segmentId,   setSegmentId]   = useState<string | null>(null);
   const [data,        setData]        = useState<SegmentAnalysisData | null>(null);
   const [loading,     setLoading]     = useState(true);
-  const [chartType,   setChartType]   = useState<'bar' | 'line'>('bar');
   const [sortKey,     setSortKey]     = useState<SortKey>('users');
   const [sortAsc,     setSortAsc]     = useState(false);
 
@@ -246,12 +134,6 @@ export default function SegmentAnalysisReport({ onOpenBuilder }: Props) {
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center',
   };
-
-  const btnToggle = (active: boolean): React.CSSProperties => ({
-    width: 30, height: 30, border: `1px solid ${active ? 'var(--crm-blue)' : 'var(--crm-border)'}`,
-    borderRadius: 5, cursor: 'pointer', background: active ? 'var(--crm-blue)' : 'var(--crm-white)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  });
 
   const TH = (key: SortKey, label: string) => (
     <th
@@ -318,53 +200,6 @@ export default function SegmentAnalysisReport({ onOpenBuilder }: Props) {
         {/* Summary cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14 }}>
           {summaryCards.map(c => <SummaryCard key={c.label} {...c} loading={loading} />)}
-        </div>
-
-        {/* Trend chart */}
-        <div style={{ background: 'var(--crm-white)', border: '1px solid var(--crm-border)', borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--crm-border)', background: 'var(--crm-bg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--crm-blue)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-              </svg>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--crm-fg1)' }}>Trend</span>
-              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ cursor: 'help' }}>
-                <circle cx="7" cy="7" r="6" stroke="#d1d5db" strokeWidth="1.2" />
-                <text x="7" y="11" fontSize="8" fill="#9ca3af" textAnchor="middle">i</text>
-              </svg>
-            </div>
-            <div style={{ display: 'flex', gap: 5 }}>
-              <button style={btnToggle(chartType === 'bar')} onClick={() => setChartType('bar')} title="Bar chart">
-                <svg width="13" height="13" viewBox="0 0 15 15" fill="none">
-                  <rect x="1" y="9" width="3" height="5" rx="0.5" fill={chartType === 'bar' ? '#fff' : '#6b7280'} />
-                  <rect x="6" y="5" width="3" height="9" rx="0.5" fill={chartType === 'bar' ? '#fff' : '#6b7280'} />
-                  <rect x="11" y="2" width="3" height="12" rx="0.5" fill={chartType === 'bar' ? '#fff' : '#6b7280'} />
-                </svg>
-              </button>
-              <button style={btnToggle(chartType === 'line')} onClick={() => setChartType('line')} title="Line chart">
-                <svg width="13" height="13" viewBox="0 0 15 15" fill="none">
-                  <polyline points="1,13 5,8 9,10 14,3" stroke={chartType === 'line' ? '#fff' : '#6b7280'} strokeWidth="1.8" fill="none" strokeLinejoin="round" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-          </div>
-          <div style={{ padding: '12px 18px 0', height: 240 }}>
-            {loading && <div style={{ height: '100%', background: 'var(--g100)', borderRadius: 6 }} />}
-            {!loading && data && data.trend.length > 0 && (
-              chartType === 'bar'
-                ? <GroupedBarChart data={data.trend} />
-                : <LineChart       data={data.trend} />
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 20, justifyContent: 'center', padding: '10px 0 14px' }}>
-            {(Object.entries(TIER_LABELS) as [keyof typeof TIER_COLORS, string][]).map(([key, label]) => (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <div style={{ width: 10, height: 10, borderRadius: 2, background: TIER_COLORS[key] }} />
-                <span style={{ fontSize: 11, color: 'var(--crm-fg3)' }}>{label}</span>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Data table */}
