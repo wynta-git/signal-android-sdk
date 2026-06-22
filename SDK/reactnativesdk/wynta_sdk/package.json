@@ -1,0 +1,48 @@
+{
+  "name": "wynta-react-native-sdk",
+  "version": "0.1.0",
+  "description": "Official React Native SDK for Wynta",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "build:watch": "tsc --project tsconfig.json --watch",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "prepare": "npm run build",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "wynta",
+    "react-native",
+    "sdk",
+    "affiliate"
+  ],
+  "author": "Wynta",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=17.0.0",
+    "react-native": ">=0.68.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": false
+    },
+    "react-native": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.12.0"
+  }
+}
