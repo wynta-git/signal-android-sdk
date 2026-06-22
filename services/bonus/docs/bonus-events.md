@@ -66,7 +66,8 @@ New player account created.
   "timestamp": "2026-05-14T08:01:00.000Z",
   "properties": {
     "registration_method": "phone",
-    "referral_code": "PROMO50"
+    "referral_code": "PROMO50",
+    "promo_code": "FIRST001"
   }
 }
 ```
@@ -98,7 +99,7 @@ Player opens or resumes the app.
 
 ## Deposit Events
 
-### `DEPOSIT`
+### `DEPOSIT_SUCCESS`
 
 Player completes a deposit. Set `is_ftd: true` when this is the player's first ever deposit — the trigger system uses this flag to evaluate first-deposit bonus rules.
 
@@ -114,7 +115,7 @@ Player completes a deposit. Set `is_ftd: true` when this is the player's first e
 ```json
 {
   "event_id": "76b689f2-e56a-480d-8c4a-21614a896b57",
-  "event_name": "DEPOSIT",
+  "event_name": "DEPOSIT_SUCCESS",
   "user_id": "user_001",
   "session_id": "sess_6b31a39f",
   "timestamp": "2026-05-14T11:58:41.459Z",
@@ -136,15 +137,19 @@ Player completes a deposit. Set `is_ftd: true` when this is the player's first e
 
 ### `BET_PLACED`
 
-Emitted when a wager is accepted by the RGS. This event resets the player's session timeout.
+Emitted when any wager is accepted. Works for any product type — casino, sports, crash, fantasy, etc. Casino clients may still send the legacy `game_id` / `game_category` / `game_provider` fields; non-gaming clients use the generic `product_id` / `category` / `provider` equivalents.
 
-| Property        | Type    | Required | Notes                                                  |
-| --------------- | ------- | -------- | ------------------------------------------------------ |
-| `wager_amount`  | decimal | yes      | Stake size; 4-decimal precision.                       |
-| `game_id`       | string  | yes      | Target game ID (e.g. `book_of_frosty`).                |
-| `game_category` | string  | no       | Vertical: `slots`, `roulette`, `blackjack`, `crash`.   |
-| `game_provider` | string  | no       | Studio name (e.g. `evolution`, `netent`, `pragmatic`). |
-| `balance_type`  | string  | yes      | Wallet source: `real`, `bonus`, or `freebet`.          |
+| Property        | Type              | Required | Notes                                                                          |
+| --------------- | ----------------- | -------- | ------------------------------------------------------------------------------ |
+| `wager_amount`  | decimal           | yes      | Stake size; 4-decimal precision.                                               |
+| `currency`      | string (ISO 4217) | yes      | e.g. `INR`.                                                                    |
+| `balance_type`  | string            | yes      | Wallet source: `real`, `bonus`, or `freebet`.                                  |
+| `product_id`    | string            | no       | Generic product / market / event reference. Casino clients use `game_id` here. |
+| `category`      | string            | no       | Product vertical: `slots`, `sports`, `casino`, `crash`, etc.                   |
+| `provider`      | string            | no       | Content or data provider name.                                                 |
+| `game_id`       | string            | no       | Casino alias for `product_id` (accepted for backward compatibility).           |
+| `game_category` | string            | no       | Casino alias for `category` (accepted for backward compatibility).             |
+| `game_provider` | string            | no       | Casino alias for `provider` (accepted for backward compatibility).             |
 
 ```json
 {
@@ -154,11 +159,43 @@ Emitted when a wager is accepted by the RGS. This event resets the player's sess
   "session_id": "sess_abc123",
   "timestamp": "2026-05-14T19:00:00.000Z",
   "properties": {
-    "wager_amount": "250.0000",
-    "game_id": "book_of_frosty",
-    "game_category": "slots",
-    "game_provider": "pragmatic",
-    "balance_type": "bonus"
+    "wager_amount": "250.00",
+    "currency": "INR",
+    "balance_type": "bonus",
+    "product_id": "match_12345",
+    "category": "sports"
+  }
+}
+```
+
+---
+
+### `WAGER`
+
+General-purpose wager event for non-gaming clients (sports, fantasy, exchange, trading, etc.). This is a standalone event — it is **not** linked to `BET_PLACED` and does not carry outcome or settlement data. Use `BET_PLACED` for casino/gaming contexts; use `WAGER` for everything else.
+
+| Property       | Type              | Required | Notes                                                        |
+| -------------- | ----------------- | -------- | ------------------------------------------------------------ |
+| `amount`       | decimal           | yes      | Stake size; 4-decimal precision.                             |
+| `currency`     | string (ISO 4217) | yes      | e.g. `INR`.                                                  |
+| `balance_type` | string            | yes      | Wallet source: `real`, `bonus`, or `freebet`.                |
+| `product_id`   | string            | no       | Market / selection / event reference on the client platform. |
+| `category`     | string            | no       | Product vertical: `sports`, `fantasy`, `exchange`, etc.      |
+| `provider`     | string            | no       | Data or platform provider name.                              |
+
+```json
+{
+  "event_id": "a1b2c3d4-0000-0000-0000-000000000051",
+  "event_name": "WAGER",
+  "user_id": "user_001",
+  "session_id": "sess_abc123",
+  "timestamp": "2026-05-14T19:01:30.000Z",
+  "properties": {
+    "amount": "250.0000",
+    "currency": "INR",
+    "balance_type": "real",
+    "product_id": "match_12345_over_2_5",
+    "category": "sports"
   }
 }
 ```
@@ -260,6 +297,7 @@ A friend referred by this player completes registration.
 | `APP_VISIT`       | `APP_VISIT`                          |
 | `DEPOSIT`         | `DEPOSIT`                            |
 | `BET_PLACED`      | `BET_PLACED`                         |
+| `WAGER`           | `WAGER`                              |
 | `LEADERBOARD_WON` | `LEADERBOARD_WON`                    |
 | `TOURNAMENT_WON`  | `TOURNAMENT_WON`                     |
 | `FRIEND_SIGNUP`   | `FRIEND_SIGNUP`                      |
