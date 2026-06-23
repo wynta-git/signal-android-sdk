@@ -89,12 +89,6 @@ export default function CustomReportView({ reportId, onBack, onCreateNew, onDele
           >
             Delete Report
           </button>
-          <button
-            onClick={onCreateNew}
-            style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: 'var(--crm-blue)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-          >
-            + Custom Report
-          </button>
         </div>
       </div>
 
