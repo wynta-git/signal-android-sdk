@@ -1,6 +1,6 @@
 {
   "name": "@wynta/react-native-sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Official React Native SDK for Wynta",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",

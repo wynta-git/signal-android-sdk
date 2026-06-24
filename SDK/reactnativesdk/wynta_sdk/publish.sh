@@ -180,11 +180,17 @@ echo -e "${GREEN}✓ Package published successfully!${NC}"
 # 7. Verification of Published Version
 # -------------------------------------------------------------
 echo -e "\n${BLUE}Verifying published version on npm...${NC}"
-echo -e "Waiting 3 seconds for registry cache update..."
-sleep 3
+echo -e "Waiting 10 seconds for registry cache update..."
+sleep 10
 
-FINAL_PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version $REGISTRY 2>/dev/null || echo "Unknown")
-echo -e "${GREEN}✓ Verification complete. Latest version on npm is: ${FINAL_PUBLISHED_VERSION}${NC}"
+FINAL_PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version $REGISTRY --prefer-online 2>/dev/null || echo "Unknown")
+
+if [ "$FINAL_PUBLISHED_VERSION" = "$NEW_VERSION" ] || [ "$BUMP_TYPE" = "none" ]; then
+    echo -e "${GREEN}✓ Verification complete. Latest version on npm is: ${FINAL_PUBLISHED_VERSION}${NC}"
+else
+    echo -e "${YELLOW}⚠ Registry still shows: ${FINAL_PUBLISHED_VERSION} (may need a moment to propagate)${NC}"
+    echo -e "${GREEN}✓ Published version: ${NEW_VERSION}${NC}"
+fi
 
 echo -e "\n${GREEN}==================================================${NC}"
 echo -e "${GREEN}       SDK Re-publish Successfully Completed!     ${NC}"
