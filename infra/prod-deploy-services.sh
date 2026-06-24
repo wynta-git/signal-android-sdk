@@ -38,7 +38,7 @@
 set -euo pipefail
 
 # ── config — override via env vars ───────────────────────────────────────────
-INSTANCE1_IP="${INSTANCE1_IP:-172.31.6.243}"          # data layer IP
+INSTANCE1_IP="${INSTANCE1_IP:-172.31.40.172}"         # data layer IP
 INSTANCE2_IP="${INSTANCE2_IP:-$(hostname -I | awk '{print $1}')}"  # this host
 CH_HOST="${CH_HOST:-localhost}"                        # ClickHouse host (usually local)
 REPO="${REPO:-/home/ubuntu/pam}"
@@ -50,6 +50,13 @@ PRIVKEY_FILE="${PRIVKEY_FILE:-/home/ubuntu/pam-jwt-private.pem}"
 PUBKEY_FILE="${PUBKEY_FILE:-/home/ubuntu/pam-jwt-public.pem}"
 PROJECT_ID="${PROJECT_ID:-proj_demo}"
 PROJECT_NAME="${PROJECT_NAME:-Demo App}"
+
+# ── data layer ports (must match what was used in prod-setup-infra.sh) ────────
+MONGO_PORT="${MONGO_PORT:-27017}"
+REDIS_PORT="${REDIS_PORT:-6379}"
+KAFKA_PORT="${KAFKA_PORT:-9092}"
+CH_HTTP_PORT="${CH_HTTP_PORT:-8123}"
+CH_NATIVE_PORT="${CH_NATIVE_PORT:-9000}"
 
 VENV="$REPO/.venv"
 
@@ -177,13 +184,13 @@ section "5. Writing .env files"
 
 # api-service — port 8001
 cat > "$REPO/services/api-service/.env" <<EOF
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DB=pam
 MONGO_MIN_POOL_SIZE=5
 MONGO_MAX_POOL_SIZE=50
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:6379
+REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
 REDIS_MAX_CONNECTIONS=20
-KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:9092
+KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
 CORS_ORIGINS=["*"]
 DEBUG=false
@@ -195,7 +202,7 @@ ok "api-service/.env"
 
 # auth-service — port 8002 (mode 600: contains private key)
 cat > "$REPO/services/auth-service/.env" <<EOF
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DB=pam
 JWT_PRIVATE_KEY="$PRIVKEY_ESCAPED"
 JWT_TOKEN_TTL=3600
@@ -209,16 +216,16 @@ ok "auth-service/.env  (mode 600)"
 
 # event-processor — Kafka → ClickHouse (no HTTP port)
 cat > "$REPO/services/event-processor/.env" <<EOF
-KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:9092
+KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
 KAFKA_DLQ_TOPIC=pam.events.invalid.v1
 KAFKA_CONSUMER_GROUP=event-processor
 CLICKHOUSE_HOST=$CH_HOST
-CLICKHOUSE_PORT=8123
+CLICKHOUSE_PORT=$CH_HTTP_PORT
 CLICKHOUSE_DATABASE=pam
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=$CH_PASS
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:6379
+REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
 BATCH_SIZE=500
 BATCH_TIMEOUT_SECONDS=5.0
 DEBUG=false
@@ -230,17 +237,17 @@ ok "event-processor/.env"
 
 # segmentation-engine — port 8003
 cat > "$REPO/services/segmentation-engine/.env" <<EOF
-KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:9092
+KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
 KAFKA_CONSUMER_GROUP=segmentation-trigger
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DATABASE=pam
 CLICKHOUSE_HOST=$CH_HOST
-CLICKHOUSE_PORT=8123
+CLICKHOUSE_PORT=$CH_HTTP_PORT
 CLICKHOUSE_DATABASE=pam
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=$CH_PASS
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:6379
+REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
 SEGMENT_CACHE_TTL_SECONDS=300
 SYSTEM_JWT_PUBLIC_KEY="$PUBKEY_ESCAPED"
 DEBUG=false
@@ -252,13 +259,13 @@ ok "segmentation-engine/.env"
 
 # campaign-engine — port 8004
 cat > "$REPO/services/campaign-engine/.env" <<EOF
-KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:9092
+KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
 KAFKA_SEND_TOPIC=pam.campaigns.send.v1
 KAFKA_CONSUMER_GROUP=campaign-trigger
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DATABASE=pam
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:6379
+REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
 SEGMENT_CACHE_TTL_SECONDS=300
 SYSTEM_JWT_PUBLIC_KEY="$PUBKEY_ESCAPED"
 DEBUG=false
@@ -270,10 +277,10 @@ ok "campaign-engine/.env"
 
 # notifications-engine — port 8005 (Kafka consumer)
 cat > "$REPO/services/notifications-engine/.env" <<EOF
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DATABASE=pam
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:6379
-KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:9092
+REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
+KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_SEND_TOPIC=pam.campaigns.send.v1
 KAFKA_DELIVERY_TOPIC=pam.notifications.delivery.v1
 KAFKA_CONSUMER_GROUP=notif-sender
@@ -289,9 +296,9 @@ ok "notifications-engine/.env"
 
 # scheduler-service — port 8006 (Kafka consumer)
 cat > "$REPO/services/scheduler-service/.env" <<EOF
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DATABASE=pam
-KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:9092
+KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_SCHEDULER_TOPIC=pam.campaigns.schedule.v1
 KAFKA_DLQ_TOPIC=pam.campaigns.schedule.dlq.v1
 KAFKA_SEND_TOPIC=pam.campaigns.send.v1
@@ -308,16 +315,16 @@ chmod 644 "$REPO/services/scheduler-service/.env"
 chown "$APP_USER:$APP_USER" "$REPO/services/scheduler-service/.env"
 ok "scheduler-service/.env"
 
-# ── 6. ClickHouse migration ───────────────────────────────────────────────────
-section "6. ClickHouse migration"
+# ── 6. ClickHouse — create database ──────────────────────────────────────────
+section "6. ClickHouse — create pam database"
 
-info "Running event-processor migrations (creates pam DB + events table)..."
-as_user bash -c "
-    cd '$REPO/services/event-processor'
-    PYTHONPATH='$REPO/services/event-processor:$REPO' \
-        '$VENV/bin/python' -m migrations.run
-"
-ok "ClickHouse migrations complete"
+info "Creating pam database (events tables created per-brand later)..."
+clickhouse-client \
+    --host "$CH_HOST" \
+    --port "$CH_NATIVE_PORT" \
+    --password "$CH_PASS" \
+    --query "CREATE DATABASE IF NOT EXISTS pam"
+ok "ClickHouse database 'pam' ready"
 
 # ── 7. seed MongoDB ───────────────────────────────────────────────────────────
 section "7. MongoDB seed"
@@ -326,7 +333,7 @@ info "Running seed.py (upserts project + API token — safe to re-run)..."
 SEED_OUTPUT=$(as_user bash -c "
     cd '$REPO'
     '$VENV/bin/python' infra/seed.py \
-        --mongo 'mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/?authSource=admin' \
+        --mongo 'mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin' \
         --db pam \
         --project-id '$PROJECT_ID' \
         --project-name '$PROJECT_NAME'
@@ -341,7 +348,7 @@ if [ -n "$API_TOKEN" ]; then
 else
     warn "Could not parse token from seed output — it may already exist."
     warn "Retrieve it from MongoDB:"
-    warn "  mongosh 'mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/pam?authSource=admin' \\"
+    warn "  mongosh 'mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/pam?authSource=admin' \\"
     warn "    --eval 'db.tokens.find({project_id:\"$PROJECT_ID\"}).pretty()'"
 fi
 
@@ -352,7 +359,7 @@ SEED_ACCOUNTS="$REPO/scripts/seed_service_accounts.py"
 if [ -f "$SEED_ACCOUNTS" ]; then
     info "Seeding auth-service accounts (campaign-engine, segmentation-engine, etc.)..."
     as_user env \
-        MONGO_URL="mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:27017/?authSource=admin" \
+        MONGO_URL="mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin" \
         MONGO_DB="pam" \
         "$VENV/bin/python" "$SEED_ACCOUNTS"
     ok "Service accounts seeded"
