@@ -110,6 +110,10 @@ class PlayerBonusTransactionSummary(BaseModel):
     amount: Decimal
     type: str
     created_at: datetime
+    release_amount: Decimal | None = None
+    consumed_amount: Decimal | None = None
+    expiry_amount: Decimal | None = None
+    forfeit_amount: Decimal | None = None
 
 
 # ── API 8: transaction detail ─────────────────────────────────────────────────
