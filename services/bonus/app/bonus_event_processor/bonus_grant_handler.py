@@ -37,6 +37,7 @@ async def handle_bonus_grant(
     pam_user_id: int,
     props: dict[str, Any],
     trigger: TriggerWithConfigResponse,
+    event_id: str,
 ) -> None:
     """Evaluate all guards then create a bonus grant for the matched trigger."""
     site_id: int = trigger.site_id
@@ -193,6 +194,7 @@ async def handle_bonus_grant(
             site_id,
             grant_amount,
             player_bonus_id,
+            event_id,
             bonus_code=promo_code,
         )
         log.info(
@@ -212,7 +214,7 @@ async def handle_bonus_grant(
             cashback_amount = min(cashback_amount, code_max_amount)
 
         cashback_grant_id = await write_cashback_grant(
-            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, player_bonus_id, bonus_code=promo_code
+            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, player_bonus_id, event_id, bonus_code=promo_code
         )
         log.info(
             "cashback_grant_written",

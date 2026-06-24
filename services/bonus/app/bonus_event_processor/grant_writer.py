@@ -23,11 +23,11 @@ _APPLICABILITY_COUNT_SQL = """
 _INSERT_GRANT_SQL = """
     INSERT INTO bonus_grant
         (player_bonus_id, configure_id, subhead_id, head_id, site_id, pam_user_id,
-         product, wager_multiplier, no_of_chunks,
+         event_id, product, wager_multiplier, no_of_chunks,
          chunk_expiry_days, bonus_expiry_days,
          wager_chip_type, credit_chip_type, grant_amount,
          bonus_code, release_amount, bonus_grant_type)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 # product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
 
@@ -136,6 +136,7 @@ async def write_grant(
     site_id: int,
     grant_amount: Decimal,
     player_bonus_id: int,
+    event_id: str,
     bonus_code: str | None = None,
 ) -> int:
     wager_multiplier = configure["wager_multiplier"]
@@ -157,6 +158,7 @@ async def write_grant(
                 configure["head_id"],
                 site_id,
                 pam_user_id,
+                event_id,
                 trigger["product"],
                 wager_multiplier,
                 no_of_chunks,
@@ -215,61 +217,75 @@ async def write_cashback_grant(
     site_id: int,
     cashback_amount: Decimal,
     player_bonus_id: int,
+    event_id: str,
     bonus_code: str | None = None,
 ) -> int:
     """Create a single-chunk cashback grant (wager_multiplier=0) and immediately release it."""
-    async with conn.cursor() as cur:
-        await cur.execute(
-            _INSERT_GRANT_SQL,
-            (
-                player_bonus_id,
-                configure["id"],
-                configure["subhead_id"],
-                configure["head_id"],
-                site_id,
-                pam_user_id,
-                trigger["product"],
-                0,
-                1,
-                configure["chunk_expiry_days"],
-                configure["bonus_expiry_days"],
-                configure["wager_chip_type"],
-                configure["credit_chip_type"],
-                cashback_amount,
-                bonus_code,
-                Decimal("0.00"),
-                "CASHBACK",
-            ),
+    try:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                _INSERT_GRANT_SQL,
+                (
+                    player_bonus_id,
+                    configure["id"],
+                    configure["subhead_id"],
+                    configure["head_id"],
+                    site_id,
+                    pam_user_id,
+                    event_id,
+                    trigger["product"],
+                    0,
+                    1,
+                    configure["chunk_expiry_days"],
+                    configure["bonus_expiry_days"],
+                    configure["wager_chip_type"],
+                    configure["credit_chip_type"],
+                    cashback_amount,
+                    bonus_code,
+                    Decimal("0.00"),
+                    "CASHBACK",
+                ),
+            )
+            grant_id: int = cur.lastrowid  # type: ignore[assignment]
+
+            await cur.execute(
+                _INSERT_CHUNK_SQL,
+                ("CH001", grant_id, cashback_amount, 0, Decimal("0.00"), "PENDING"),
+            )
+
+            entities = [
+                ("CONFIGURE", configure["id"]),
+                ("SUBHEAD", configure["subhead_id"]),
+                ("HEAD", configure["head_id"]),
+            ]
+            for entity_type, entity_id in entities:
+                for period in ["DAILY", "WEEKLY", "MONTHLY"]:
+                    await cur.execute(
+                        _UPSERT_BUDGET_SQL,
+                        (entity_type, entity_id, site_id, period, cashback_amount),
+                    )
+
+            await conn.commit()
+
+        await release_all_chunks(conn, grant_id)
+
+        log.info(
+            "cashback_grant_written",
+            grant_id=grant_id,
+            configure_id=configure["id"],
+            pam_user_id=pam_user_id,
+            site_id=site_id,
+            cashback_amount=str(cashback_amount),
         )
-        grant_id: int = cur.lastrowid  # type: ignore[assignment]
+        return grant_id
 
-        await cur.execute(
-            _INSERT_CHUNK_SQL,
-            ("CH001", grant_id, cashback_amount, 0, Decimal("0.00"), "PENDING"),
+    except Exception as exc:
+        log.error(
+            "cashback_grant_failed",
+            configure_id=configure["id"],
+            pam_user_id=pam_user_id,
+            site_id=site_id,
+            cashback_amount=str(cashback_amount),
+            error=str(exc),
         )
-
-        entities = [
-            ("CONFIGURE", configure["id"]),
-            ("SUBHEAD", configure["subhead_id"]),
-            ("HEAD", configure["head_id"]),
-        ]
-        for entity_type, entity_id in entities:
-            for period in ["DAILY", "WEEKLY", "MONTHLY"]:
-                await cur.execute(
-                    _UPSERT_BUDGET_SQL,
-                    (entity_type, entity_id, site_id, period, cashback_amount),
-                )
-
-        await conn.commit()
-
-    await release_all_chunks(conn, grant_id)
-
-    log.info(
-        "cashback_grant_written",
-        grant_id=grant_id,
-        configure_id=configure["id"],
-        pam_user_id=pam_user_id,
-        site_id=site_id,
-        cashback_amount=str(cashback_amount),
-    )
-    return grant_id
+        raise
