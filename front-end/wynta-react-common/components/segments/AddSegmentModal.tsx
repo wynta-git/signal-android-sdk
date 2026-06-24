@@ -143,6 +143,7 @@ export interface AddSegmentModalProps {
   onClose:    () => void;
   /** id is the newly-created segment ID — available only in create mode */
   onSaved?:   (data: { name: string; id?: string }) => void;
+  brandId?:   number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,6 +154,7 @@ export default function AddSegmentModal({
   segmentId,
   onClose,
   onSaved,
+  brandId,
 }: AddSegmentModalProps) {
   const dispatch = useDispatch<any>();
 
@@ -226,6 +228,7 @@ export default function AddSegmentModal({
           ...data,
           segmentType: data.segmentType,
           csvFile:     data.csvFile,
+          brandId,
         })).unwrap();
         const newId  = result?.id ? String(result.id) : undefined;
         if (newId) dispatch(evaluateSegment(newId));

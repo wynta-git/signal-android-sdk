@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     trigger_cache_ttl: int = 300  # seconds
 
+    scheduler_interval_minutes: int = 60
+    scheduler_batch_size: int = 500
+
     # Logging — set BONUS_LOG_DIR to enable file output, e.g. /var/log/bonus-service
     # Leave empty to log to stdout only.
     log_dir: str = ""

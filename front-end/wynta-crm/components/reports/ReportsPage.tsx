@@ -63,12 +63,6 @@ export default function ReportsPage() {
           <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--crm-fg1)' }}>Custom Reports</div>
           <div style={{ fontSize: 12, color: 'var(--crm-fg3)', marginTop: 3 }}>Custom reports scoped to your account</div>
         </div>
-        <button
-          onClick={() => setView('create')}
-          style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--crm-blue)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-        >
-          + Custom Report
-        </button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
@@ -79,13 +73,7 @@ export default function ReportsPage() {
         {listStatus === 'succeeded' && reports.length === 0 && (
           <div style={{ textAlign: 'center', padding: 60 }}>
             <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--crm-fg2)', marginBottom: 8 }}>No custom reports yet</div>
-            <div style={{ fontSize: 13, color: 'var(--crm-fg4)', marginBottom: 20 }}>Create a report to track the metrics that matter to you</div>
-            <button
-              onClick={() => setView('create')}
-              style={{ padding: '9px 20px', borderRadius: 7, border: 'none', background: 'var(--crm-blue)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-            >
-              + Create Custom Report
-            </button>
+            <div style={{ fontSize: 13, color: 'var(--crm-fg4)' }}>Create a report to track the metrics that matter to you</div>
           </div>
         )}
 

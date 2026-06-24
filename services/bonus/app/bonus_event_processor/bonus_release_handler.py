@@ -10,6 +10,7 @@ When a trigger with release_type=BONUS_RELEASE fires:
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 import aiomysql
@@ -95,6 +96,32 @@ async def handle_bonus_release(
 
     cfg = trigger.configure
 
+    # ── Promo code filter ─────────────────────────────────────────────────────
+    promo_code: str | None = props.get("promo_code") or None
+    code_max_amount: Decimal | None = None
+
+    if promo_code:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT max_amount FROM bonus_configure_code "
+                "WHERE configure_id = %s AND code = %s AND active = 1 LIMIT 1",
+                (cfg.id, promo_code),
+            )
+            code_row = await cur.fetchone()
+
+        if code_row is None:
+            log.info(
+                "bonus_release_skipped_promo_code",
+                trigger_id=trigger.id,
+                configure_id=cfg.id,
+                promo_code=promo_code,
+                pam_user_id=pam_user_id,
+            )
+            return
+
+        if code_row[0] is not None:
+            code_max_amount = Decimal(str(code_row[0]))
+
     # ── Occurrence + applicability ────────────────────────────────────────────
     async with conn.cursor() as cur:
         if not await check_occurrence(cur, pam_user_id, cfg.id, trigger.occurrence):
@@ -129,6 +156,10 @@ async def handle_bonus_release(
 
     # ── Compute amount ────────────────────────────────────────────────────────
     grant_amount = compute_grant_amount(cfg.model_dump(), trigger_amount)
+
+    if code_max_amount is not None:
+        grant_amount = min(grant_amount, code_max_amount)
+
     if grant_amount <= 0:
         log.info(
             "bonus_release_skipped_zero_amount",
@@ -146,6 +177,7 @@ async def handle_bonus_release(
         pam_user_id,
         site_id,
         grant_amount,
+        bonus_code=promo_code,
     )
 
     log.info(

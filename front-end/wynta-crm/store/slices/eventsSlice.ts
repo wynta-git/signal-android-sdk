@@ -38,12 +38,13 @@ const initialState: EventsState = {
 
 export const fetchEvents = createAsyncThunk(
   'events/fetchAll',
-  (projectId?: string) => eventsApi.getEvents(projectId ?? PROJECT_ID),
+  (arg?: { projectId?: string; brandId?: number }) =>
+    eventsApi.getEvents(arg?.projectId ?? PROJECT_ID, arg?.brandId),
 );
 
 export const fetchTraits = createAsyncThunk(
   'events/fetchTraits',
-  () => eventsApi.getTraits(),
+  (brandId?: number) => eventsApi.getTraits(brandId),
 );
 
 export const fetchEventProperties = createAsyncThunk(

@@ -137,19 +137,25 @@ Player completes a deposit. Set `is_ftd: true` when this is the player's first e
 
 ### `BET_PLACED`
 
-Emitted when any wager is accepted. Works for any product type — casino, sports, crash, fantasy, etc. Casino clients may still send the legacy `game_id` / `game_category` / `game_provider` fields; non-gaming clients use the generic `product_id` / `category` / `provider` equivalents.
+Emitted when any wager is accepted. Works across all product types — rummy, fantasy, poker, sports, crash, etc.
 
-| Property        | Type              | Required | Notes                                                                          |
-| --------------- | ----------------- | -------- | ------------------------------------------------------------------------------ |
-| `wager_amount`  | decimal           | yes      | Stake size; 4-decimal precision.                                               |
-| `currency`      | string (ISO 4217) | yes      | e.g. `INR`.                                                                    |
-| `balance_type`  | string            | yes      | Wallet source: `real`, `bonus`, or `freebet`.                                  |
-| `product_id`    | string            | no       | Generic product / market / event reference. Casino clients use `game_id` here. |
-| `category`      | string            | no       | Product vertical: `slots`, `sports`, `casino`, `crash`, etc.                   |
-| `provider`      | string            | no       | Content or data provider name.                                                 |
-| `game_id`       | string            | no       | Casino alias for `product_id` (accepted for backward compatibility).           |
-| `game_category` | string            | no       | Casino alias for `category` (accepted for backward compatibility).             |
-| `game_provider` | string            | no       | Casino alias for `provider` (accepted for backward compatibility).             |
+| Property                   | Type    | Required | Notes                                                      |
+| -------------------------- | ------- | -------- | ---------------------------------------------------------- |
+| `transaction_amount`       | decimal | yes      | Stake size; 4-decimal precision.                           |
+| `bonus_amount`             | decimal | yes      | Bonus amount applied to this bet; 4-decimal precision.     |
+| `chip_type`                | string  | yes      | Wallet type: `CASH`, `LOYALTY_PINTS`, or `FUN_CHIPS`.     |
+| `wager_tnx_id`             | string  | no       | Wager transaction reference string from the platform.      |
+| `session_key`              | string  | no       | Client session key at time of bet.                         |
+| `platform_client_id`       | string  | no       | Client identifier given by the platform.                   |
+| `product`                  | string  | no       | Product vertical: `RUMMY`, `FANTASY`, `POKER`, etc.        |
+| `game_type`                | string  | no       | Game format: `GAME`, `TOURNEY`, or `CONTEST`.              |
+| `game_variant`             | string  | no       | Game variant: `CRICKET`, `FOOTBALL`, `holdem`, etc.        |
+| `game_name`                | string  | no       | Friendly table / tournament name e.g. `Friday Holdem`.     |
+| `game_action`              | string  | no       | Action taken: `JOIN_TABLE`, `REGISTER_TOURNY`, etc.        |
+| `primary_transaction_id`   | int     | no       | Primary platform transaction ID.                           |
+| `secondary_transaction_id` | int     | no       | Secondary platform transaction ID.                         |
+| `tertiary_transaction_id`  | int     | no       | Tertiary platform transaction ID.                          |
+| `base_request_id`          | int     | no       | Base request identifier from the platform.                 |
 
 ```json
 {
@@ -159,11 +165,21 @@ Emitted when any wager is accepted. Works for any product type — casino, sport
   "session_id": "sess_abc123",
   "timestamp": "2026-05-14T19:00:00.000Z",
   "properties": {
-    "wager_amount": "250.00",
-    "currency": "INR",
-    "balance_type": "bonus",
-    "product_id": "match_12345",
-    "category": "sports"
+    "transaction_amount": "1000.0000",
+    "bonus_amount": "100.0000",
+    "chip_type": "CASH",
+    "wager_tnx_id": "WAGER_REF_001",
+    "session_key": "sess_rummy_abc123",
+    "platform_client_id": "site1-backend-v0",
+    "product": "RUMMY",
+    "game_type": "TOURNEY",
+    "game_variant": "holdem",
+    "game_name": "Friday Holdem",
+    "game_action": "REGISTER_TOURNY",
+    "primary_transaction_id": 1001,
+    "secondary_transaction_id": 1002,
+    "tertiary_transaction_id": 1003,
+    "base_request_id": 1000
   }
 }
 ```

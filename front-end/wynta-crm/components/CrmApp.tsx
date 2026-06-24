@@ -81,8 +81,23 @@ function CrmShell() {
   const [customReports,   setCustomReports]   = useState<CustomReport[]>([]);
   const [creating,        setCreating]        = useState(false);
   const [createError,     setCreateError]     = useState<string | null>(null);
+  const [brandId,         setBrandId]         = useState<number | undefined>(() => {
+    if (typeof document === 'undefined') return undefined;
+    const el = document.querySelector<HTMLElement>('.brand-switch-item.active');
+    return el?.dataset.siteId ? Number(el.dataset.siteId) : undefined;
+  });
 
   useEffect(() => { refreshCustomReports(); }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<{ brandId: number }>).detail?.brandId;
+      refreshCustomReports();
+      if (id) setBrandId(id);
+    };
+    window.addEventListener('wynta:brand-changed', handler);
+    return () => window.removeEventListener('wynta:brand-changed', handler);
+  }, []);
 
   async function refreshCustomReports() {
     try {
@@ -129,9 +144,9 @@ function CrmShell() {
       <main className="crm-main">
         <div className="crm-content">
           {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} /> :
-           activeNav === 'segments'         ? <SegmentsPage     /> :
-           activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
-           activeNav === 'events'           ? <EventsPage       /> :
+           activeNav === 'segments'         ? <SegmentsPage brandId={brandId} /> :
+           activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} brandId={brandId} /> :
+           activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :
@@ -146,6 +161,7 @@ function CrmShell() {
                onCancel={() => handleNavChange('reports:churn')}
                saving={creating}
                error={createError}
+               brandId={brandId}
              />
            ) :
            reportId ? (

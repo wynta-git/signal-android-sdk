@@ -57,7 +57,7 @@ function toLabel(s: string): string {
 
 export const fetchSegments = createAsyncThunk(
   'segments/fetchAll',
-  () => segmentApi.fetchSegments()
+  (brandId?: number) => segmentApi.fetchSegments(brandId)
 );
 
 export const createSegment = createAsyncThunk(
@@ -72,6 +72,7 @@ export const createSegment = createAsyncThunk(
     created_by?: string | null;
     segmentType?: 'filter' | 'custom';
     csvFile?: File;
+    brandId?: number;
   }) => segmentApi.createSegment(payload)
 );
 

@@ -17,11 +17,10 @@ export interface EventsResponse {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
-export async function getEvents(projectId: string): Promise<EventsResponse> {
-  const res = await fetch(
-    `${SEG_API}/meta/events?project_id=${encodeURIComponent(projectId)}`,
-    { headers: authHeader() },
-  );
+export async function getEvents(projectId: string, brandId?: number): Promise<EventsResponse> {
+  let url = `${SEG_API}/meta/events?project_id=${encodeURIComponent(projectId)}`;
+  if (brandId) url += `&brand_id=${brandId}`;
+  const res = await fetch(url, { headers: authHeader() });
   if (!res.ok) throw new Error(`getEvents failed: ${res.status}`);
   const data = await res.json();
   // Normalise: handle both array (legacy) and { raw_events, derived_rules } shapes
@@ -47,8 +46,9 @@ export async function getEventProperties(
   return Array.isArray(data) ? data : [];
 }
 
-export async function getTraits(): Promise<string[]> {
-  const res = await fetch(`${SEG_API}/meta/traits`, { headers: authHeader() });
+export async function getTraits(brandId?: number): Promise<string[]> {
+  const url = brandId ? `${SEG_API}/meta/traits?brand_id=${brandId}` : `${SEG_API}/meta/traits`;
+  const res = await fetch(url, { headers: authHeader() });
   if (!res.ok) throw new Error(`getTraits failed: ${res.status}`);
   const data = await res.json();
   return Array.isArray(data) ? data : [];

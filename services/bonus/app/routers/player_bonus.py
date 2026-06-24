@@ -33,7 +33,7 @@ from app.services.player_bonus_service import (
 )
 
 from shared.services.client import get_client_site_id
-from shared.services.user import get_pam_user_id
+from shared.services.user import get_or_create_pam_user, get_pam_user_id
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -43,15 +43,30 @@ router = APIRouter(prefix="/user-bonuses", tags=["user-bonuses"])
 
 @router.get("/applicable-codes", response_model=list[ApplicableCodeResponse])
 async def get_applicable_codes(
+    request: Request,
     user_id: str = Query(..., min_length=1, max_length=50),
     chip_type: str = Query(..., pattern=r'^(cash|in_app_purchase)$'),
+    x_client_id: str = Header(..., alias="x-client-id"),
 ) -> list[ApplicableCodeResponse]:
-    return await list_applicable_codes(user_id, chip_type)
+    site_id = await get_client_site_id(x_client_id, request.app.state.redis)
+    if site_id is None:
+        raise HTTPException(status_code=401, detail="Unknown client")
+    return await list_applicable_codes(user_id, chip_type, request.app.state.redis, site_id)
 
 
 @router.post("/validate-code", response_model=ValidateCodeResponse)
-async def validate_promo_code(payload: ValidateCodeRequest) -> ValidateCodeResponse:
-    return await validate_code(payload.user_id, payload.chip_type, payload.code)
+async def validate_promo_code(
+    payload: ValidateCodeRequest,
+    request: Request,
+    x_client_id: str = Header(..., alias="x-client-id"),
+) -> ValidateCodeResponse:
+    site_id = await get_client_site_id(x_client_id, request.app.state.redis)
+    if site_id is None:
+        raise HTTPException(status_code=401, detail="Unknown client")
+    return await validate_code(
+        payload.user_id, payload.chip_type, payload.code,
+        payload.amount, request.app.state.redis, site_id,
+    )
 
 
 @router.post("/consume", response_model=PlayerBonusConsumedResponse, status_code=201)
@@ -87,7 +102,10 @@ async def get_summary(
     request: Request,
     x_client_id: str = Header(..., alias="x-client-id"),
 ) -> list[PlayerBonusSummaryResponse]:
-    pam_id = await _resolve_pam_user(request, x_client_id, user_id)
+    site_id = await get_client_site_id(x_client_id, request.app.state.redis)
+    if site_id is None:
+        raise HTTPException(status_code=401, detail="Unknown client")
+    pam_id = await get_or_create_pam_user(request.app.state.redis, site_id, user_id)
     return await get_player_bonus_summary(pam_id)
 
 

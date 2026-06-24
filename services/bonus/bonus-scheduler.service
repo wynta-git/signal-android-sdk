@@ -1,0 +1,24 @@
+[Unit]
+Description=PAM Bonus Scheduler (chunk expiry + bonus forfeit)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/pam/services/bonus
+ExecStart=/opt/pam/services/bonus/app/.venv/bin/python -m app.bonus_scheduler.main
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+Environment=BONUS_SCHEDULER_INTERVAL_MINUTES=60
+Environment=BONUS_SCHEDULER_BATCH_SIZE=500
+EnvironmentFile=/etc/pam/bonus-scheduler.env
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bonus-scheduler
+
+[Install]
+WantedBy=multi-user.target

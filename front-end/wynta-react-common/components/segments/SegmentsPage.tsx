@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import Icon from '../Icon';
 import { useCommonSelector } from '../../store/hooks';
@@ -58,6 +58,7 @@ function toRow(s: Segment): SegmentRow {
 interface SegmentsPageProps {
   /** Called when user clicks Add Segment; if omitted the built-in modal is shown */
   onAddSegment?: () => void;
+  brandId?: number;
 }
 
 type SegSortCol = 'name' | 'conditions' | 'reach' | 'created' | 'createdBy' | 'usedIn';
@@ -71,25 +72,25 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
   );
 }
 
-export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
+export default function SegmentsPage({ onAddSegment, brandId }: SegmentsPageProps) {
   const dispatch = useDispatch<any>();
 
   const apiSegments = useCommonSelector(selectAllSegments);
   const status      = useCommonSelector(selectSegmentsStatus);
-  const didFetch    = useRef(false);
   const [stats, setStats] = useState<SegmentStats | null>(null);
 
   useEffect(() => {
-    if (didFetch.current) return;
-    didFetch.current = true;
-    dispatch(fetchSegments());
-    fetch(`${SEG_BASE}/api/v1/segment/segments/stats`, {
+    dispatch(fetchSegments(brandId));
+    const statsUrl = brandId
+      ? `${SEG_BASE}/api/v1/segment/segments/stats?brand_id=${brandId}`
+      : `${SEG_BASE}/api/v1/segment/segments/stats`;
+    fetch(statsUrl, {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
     })
       .then(r => r.ok ? r.json() : null)
       .then((data: SegmentStats | null) => { if (data) setStats(data); })
       .catch(() => {});
-  }, [dispatch]);
+  }, [dispatch, brandId]);
 
   /* Use only real API data — no sample / fallback rows */
   /* Sort by last_refresh_time desc (maps to last_used_at in Segment type) */
@@ -418,7 +419,8 @@ export default function SegmentsPage({ onAddSegment }: SegmentsPageProps) {
           mode={modalConfig.mode}
           segmentId={modalConfig.segmentId}
           onClose={() => setModalConfig(null)}
-          onSaved={() => { setModalConfig(null); dispatch(fetchSegments()); }}
+          onSaved={() => { setModalConfig(null); dispatch(fetchSegments(brandId)); }}
+          brandId={brandId}
         />
       )}
 

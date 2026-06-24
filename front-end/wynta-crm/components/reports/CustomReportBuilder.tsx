@@ -31,6 +31,7 @@ interface Props {
   onCancel: () => void;
   saving?:  boolean;
   error?:   string | null;
+  brandId?: number;
 }
 
 const DEFAULT_FILTERS: ReportFilters = {
@@ -39,26 +40,29 @@ const DEFAULT_FILTERS: ReportFilters = {
   segment_id: null,
 };
 
-const DATE_RANGE_LABELS: Record<DateRange, string> = {
+export const DATE_RANGE_LABELS: Record<DateRange, string> = {
   last_7_days:  'Last 7 days',
   last_30_days: 'Last 30 days',
   last_90_days: 'Last 90 days',
 };
 
-export default function CustomReportBuilder({ onSave, onCancel, saving, error }: Props) {
+export default function CustomReportBuilder({ onSave, onCancel, saving, error, brandId }: Props) {
   const [name,     setName]     = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filters,  setFilters]  = useState<ReportFilters>(DEFAULT_FILTERS);
   const [segments, setSegments] = useState<SegmentOption[]>([]);
 
   useEffect(() => {
-    fetch(`${SEG_BASE}/api/v1/segment/segments`, {
+    const url = brandId
+      ? `${SEG_BASE}/api/v1/segment/segments?brand_id=${brandId}`
+      : `${SEG_BASE}/api/v1/segment/segments`;
+    fetch(url, {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then(r => r.ok ? r.json() : [])
       .then((data: SegmentOption[]) => setSegments(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, []);
+  }, [brandId]);
 
   function toggleMetric(key: string) {
     setSelected(prev => {
