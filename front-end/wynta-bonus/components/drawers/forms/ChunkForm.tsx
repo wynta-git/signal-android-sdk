@@ -58,6 +58,7 @@ export default function ChunkForm({ state, submitting, onCancel, onSubmit }: Chu
   return (
     <form onSubmit={handle} style={{ display: "contents" }}>
       <div className="drawer-body">
+        <div className="section-divider" />
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: chunksOn ? 12 : 0 }}>
           <div className="section-divider-label" style={{ margin: 0 }}>Release in Chunks</div>
           <Toggle on={chunksOn} onChange={(v) => { setChunksOn(v); if (!v) setFullRelease(false); }} label={chunksOn ? "Enabled" : "Disabled"} />

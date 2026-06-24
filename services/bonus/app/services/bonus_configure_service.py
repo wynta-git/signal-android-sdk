@@ -473,7 +473,6 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, 
     """
     _not_null_defaults: dict[str, object] = {
         "wager_multiplier": Decimal("0.00"),
-        "no_of_chunks": 1,
         "wager_chip_type": "CASH",
     }
 

@@ -99,7 +99,7 @@ class BonusConfigureResponse(BaseModel):
     end_date:                   datetime
     applicability_frequency:    str
     wager_multiplier:           Decimal
-    no_of_chunks:               int
+    no_of_chunks:               int | None
     release_bucket:             str | None
     chunk_expiry_days:          int | None
     bonus_expiry_days:          int | None
