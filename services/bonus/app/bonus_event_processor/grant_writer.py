@@ -23,14 +23,15 @@ _INSERT_GRANT_SQL = """
         (player_bonus_id, configure_id, subhead_id, head_id, site_id, pam_user_id,
          product, wager_multiplier, no_of_chunks,
          chunk_expiry_days, bonus_expiry_days,
-         wager_chip_type, credit_chip_type, grant_amount)
-    VALUES (UUID_SHORT(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         wager_chip_type, credit_chip_type, grant_amount,
+         bonus_code, release_amount)
+    VALUES (UUID_SHORT(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 # product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
 
 _INSERT_CHUNK_SQL = """
-    INSERT INTO bonus_chunk (chunk_ref, bonus_grant_id, chunk_amount, wager_multiplier, required_wager_amount)
-    VALUES (%s, %s, %s, %s, %s)
+    INSERT INTO bonus_chunk (chunk_ref, bonus_grant_id, chunk_amount, wager_multiplier, required_wager_amount, status)
+    VALUES (%s, %s, %s, %s, %s, %s)
 """
 
 _UPSERT_BUDGET_SQL = """
@@ -109,7 +110,11 @@ async def write_grant(
     pam_user_id: int,
     site_id: int,
     grant_amount: Decimal,
+    bonus_code: str | None = None,
 ) -> int:
+    is_immediate = Decimal(str(configure["wager_multiplier"])) == Decimal("0")
+    release_amount = grant_amount if is_immediate else Decimal("0.00")
+
     async with conn.cursor() as cur:
         # 1. Insert bonus_grant
         await cur.execute(
@@ -120,7 +125,7 @@ async def write_grant(
                 configure["head_id"],
                 site_id,
                 pam_user_id,
-                trigger["product"],  # sourced from bonus_release_trigger; may be None
+                trigger["product"],
                 configure["wager_multiplier"],
                 configure["no_of_chunks"],
                 configure["chunk_expiry_days"],
@@ -128,6 +133,8 @@ async def write_grant(
                 configure["wager_chip_type"],
                 configure["credit_chip_type"],
                 grant_amount,
+                bonus_code,
+                release_amount,
             ),
         )
         grant_id: int = cur.lastrowid  # type: ignore[assignment]
@@ -138,6 +145,7 @@ async def write_grant(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
         wager_multiplier = configure["wager_multiplier"]
+        chunk_status = "RELEASE" if is_immediate else "PENDING"
         for i in range(1, no_of_chunks + 1):
             chunk_ref = f"CH{i:03d}"
             required_wager_amount = (chunk_amount * Decimal(str(wager_multiplier))).quantize(
@@ -145,7 +153,7 @@ async def write_grant(
             )
             await cur.execute(
                 _INSERT_CHUNK_SQL,
-                (chunk_ref, grant_id, chunk_amount, wager_multiplier, required_wager_amount),
+                (chunk_ref, grant_id, chunk_amount, wager_multiplier, required_wager_amount, chunk_status),
             )
 
         # 3. Upsert bonus_budget_usage for all 9 combinations
