@@ -349,31 +349,49 @@ if [ -n "$KAFKA_SASL_USER" ] && [ -n "$KAFKA_SASL_PASS" ]; then
 
     KAFKA_CFG="$KAFKA_INSTALL_DIR/config/kraft/server.properties"
 
-    info "Updating listeners — SASL_PLAINTEXT on $KAFKA_PORT, PLAINTEXT on 127.0.0.1:$KAFKA_INTERNAL_PORT..."
-    sed -i "s|^listeners=.*|listeners=SASL_PLAINTEXT://0.0.0.0:$KAFKA_PORT,PLAINTEXT://127.0.0.1:$KAFKA_INTERNAL_PORT,CONTROLLER://localhost:$KAFKA_CONTROLLER_PORT|" "$KAFKA_CFG"
-    sed -i "s|^advertised.listeners=.*|advertised.listeners=SASL_PLAINTEXT://$INSTANCE_IP:$KAFKA_PORT,PLAINTEXT://127.0.0.1:$KAFKA_INTERNAL_PORT|" "$KAFKA_CFG"
-
-    grep -qxF 'inter.broker.listener.name=PLAINTEXT' "$KAFKA_CFG" || \
-        echo 'inter.broker.listener.name=PLAINTEXT' >> "$KAFKA_CFG"
-    grep -qxF 'sasl.enabled.mechanisms=SCRAM-SHA-256' "$KAFKA_CFG" || \
-        echo 'sasl.enabled.mechanisms=SCRAM-SHA-256' >> "$KAFKA_CFG"
-    grep -q '^listener.security.protocol.map=' "$KAFKA_CFG" && \
-        sed -i "s|^listener.security.protocol.map=.*|listener.security.protocol.map=PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT|" "$KAFKA_CFG" || \
-        echo 'listener.security.protocol.map=PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT' >> "$KAFKA_CFG"
-    ok "server.properties updated for SASL"
-
-    systemctl restart kafka
-    info "Waiting 10s for Kafka to restart..."
-    sleep 10
-
-    info "Creating SCRAM user '$KAFKA_SASL_USER'..."
+    # Step 1 — create SCRAM user NOW while Kafka is still accepting plain connections.
+    # Use internal port if SASL already enabled (re-run), else use main port.
+    if grep -q 'sasl.enabled.mechanisms' "$KAFKA_CFG" 2>/dev/null; then
+        SCRAM_BS="localhost:$KAFKA_INTERNAL_PORT"
+    else
+        SCRAM_BS="localhost:$KAFKA_PORT"
+    fi
+    info "Creating SCRAM user '$KAFKA_SASL_USER' via $SCRAM_BS..."
     "$KAFKA_INSTALL_DIR/bin/kafka-configs.sh" \
-        --bootstrap-server "localhost:$KAFKA_INTERNAL_PORT" \
+        --bootstrap-server "$SCRAM_BS" \
         --alter \
         --add-config "SCRAM-SHA-256=[iterations=8192,password=$KAFKA_SASL_PASS]" \
         --entity-type users \
         --entity-name "$KAFKA_SASL_USER"
-    ok "SASL user '$KAFKA_SASL_USER' created (SCRAM-SHA-256)"
+    ok "SCRAM user '$KAFKA_SASL_USER' created"
+
+    # Step 2 — update server.properties to enable SASL_PLAINTEXT on main port
+    #           and keep a localhost-only PLAINTEXT port for admin tools.
+    info "Updating listeners — SASL_PLAINTEXT on $KAFKA_PORT, PLAINTEXT on 127.0.0.1:$KAFKA_INTERNAL_PORT..."
+    sed -i "s|^listeners=.*|listeners=SASL_PLAINTEXT://0.0.0.0:$KAFKA_PORT,PLAINTEXT://127.0.0.1:$KAFKA_INTERNAL_PORT,CONTROLLER://localhost:$KAFKA_CONTROLLER_PORT|" "$KAFKA_CFG"
+    sed -i "s|^advertised.listeners=.*|advertised.listeners=SASL_PLAINTEXT://$INSTANCE_IP:$KAFKA_PORT,PLAINTEXT://127.0.0.1:$KAFKA_INTERNAL_PORT|" "$KAFKA_CFG"
+    grep -qxF 'inter.broker.listener.name=PLAINTEXT' "$KAFKA_CFG" || \
+        echo 'inter.broker.listener.name=PLAINTEXT' >> "$KAFKA_CFG"
+    grep -qxF 'sasl.enabled.mechanisms=SCRAM-SHA-256' "$KAFKA_CFG" || \
+        echo 'sasl.enabled.mechanisms=SCRAM-SHA-256' >> "$KAFKA_CFG"
+    if grep -q '^listener.security.protocol.map=' "$KAFKA_CFG"; then
+        sed -i "s|^listener.security.protocol.map=.*|listener.security.protocol.map=PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT|" "$KAFKA_CFG"
+    else
+        echo 'listener.security.protocol.map=PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT' >> "$KAFKA_CFG"
+    fi
+    ok "server.properties updated for SASL"
+
+    # Step 3 — restart so new listeners take effect
+    systemctl restart kafka
+    info "Waiting 15s for Kafka to restart..."
+    sleep 15
+    if "$KAFKA_INSTALL_DIR/bin/kafka-broker-api-versions.sh" \
+            --bootstrap-server "localhost:$KAFKA_INTERNAL_PORT" &>/dev/null 2>&1; then
+        ok "Kafka accepting connections on internal PLAINTEXT port $KAFKA_INTERNAL_PORT"
+    else
+        warn "Kafka not responding on $KAFKA_INTERNAL_PORT — check: journalctl -u kafka -n 50"
+    fi
+    ok "SASL setup complete — external port $KAFKA_PORT requires SCRAM-SHA-256 auth"
 else
     info "KAFKA_SASL_USER not set — skipping SASL setup (Kafka running in PLAINTEXT mode)"
 fi
