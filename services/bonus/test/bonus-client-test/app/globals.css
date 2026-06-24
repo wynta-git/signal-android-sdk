@@ -502,7 +502,8 @@ body {
   min-height: 72px;
 }
 .txn-row:active { background: #1e1e2c; }
-.txn-row-leaf { cursor: default; opacity: 0.7; }
+.txn-row-grant { display: block; min-height: unset; }
+.txn-row-leaf { display: flex; cursor: default; opacity: 0.7; }
 .txn-row-leaf:active { background: #181824; }
 .txn-left { flex: 1; min-width: 0; }
 .txn-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -525,7 +526,7 @@ body {
 
 .amounts-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   background: #181824;
   border: 1px solid #252535;
   border-radius: 16px;
@@ -533,13 +534,13 @@ body {
   margin-bottom: 20px;
 }
 .amount-cell {
-  padding: 16px 12px;
+  padding: 12px 6px;
   text-align: center;
   border-right: 1px solid #252535;
 }
 .amount-cell:last-child { border-right: none; }
-.amount-val { font-size: 0.92rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
-.amount-label { font-size: 0.62rem; color: #334155; text-transform: uppercase; letter-spacing: 0.07em; }
+.amount-val { font-size: 0.78rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px; }
+.amount-label { font-size: 0.55rem; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; }
 
 /* ── Chunks ───────────────────────────────────────────────────────────────── */
 

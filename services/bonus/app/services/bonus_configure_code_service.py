@@ -3,8 +3,10 @@ from datetime import datetime, timezone
 
 import aiomysql
 import structlog
+from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
+from app.services.bonus_cache import bust_code_cache
 
 from app.exceptions import DatabaseError
 from app.models.bonus_configure_code import (
@@ -171,7 +173,7 @@ _UPDATABLE = {
 
 
 async def update_bonus_configure_code(
-    code_id: int, data: BonusConfigureCodeUpdate
+    code_id: int, data: BonusConfigureCodeUpdate, redis: Redis | None = None
 ) -> BonusConfigureCodeResponse:
     """Patch a bonus_configure_code row."""
     log.info("update_bonus_configure_code.start", code_id=code_id)
@@ -244,6 +246,13 @@ async def update_bonus_configure_code(
                 await cur.execute(_SELECT_SQL, (code_id,))
                 row = await cur.fetchone()
 
+                await cur.execute(
+                    "SELECT wager_chip_type FROM bonus_configure WHERE id = %s",
+                    (configure_id,),
+                )
+                chip_row = await cur.fetchone()
+                chip_type_str: str | None = chip_row[0] if chip_row else None
+
     except DatabaseError:
         raise
     except Exception as exc:
@@ -252,6 +261,12 @@ async def update_bonus_configure_code(
 
     if not row:
         raise DatabaseError(f"bonus_configure_code {code_id} not found")
+
+    if redis and chip_type_str:
+        bust_codes = list({old_code})  # type: ignore[possibly-undefined]
+        if "code" in fields and data.code is not None:  # type: ignore[possibly-undefined]
+            bust_codes.append(data.code)
+        await bust_code_cache(redis, bust_codes, [chip_type_str])
 
     response = _row_to_response(row)
     log.info("update_bonus_configure_code.updated", code_id=response.id)

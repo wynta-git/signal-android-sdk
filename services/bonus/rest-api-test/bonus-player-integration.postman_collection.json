@@ -1,0 +1,558 @@
+{
+  "info": {
+    "_postman_id": "bonus-player-integration-v1",
+    "name": "Bonus — Player Integration (Click)",
+    "description": "All bonus endpoints that the Click (game client) communicates with.\n\nBase URL: https://qa-app.fozilpartners.com\nClient: site1-backend-v0\n\nAuth: every request requires X-Client-Id, X-Timestamp (Unix epoch), and X-Signature (HMAC-SHA256).\nThe pre-request script on this collection computes X-Timestamp and X-Signature automatically — just keep clientId and clientSecret variables up to date.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://qa-app.fozilpartners.com",
+      "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "site1-backend-v0",
+      "type": "string"
+    },
+    {
+      "key": "clientSecret",
+      "value": "abc@123456",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "USER_001",
+      "type": "string"
+    },
+    {
+      "key": "consumeTxnId",
+      "value": "TXN20250519001",
+      "type": "string"
+    },
+    {
+      "key": "txnId",
+      "value": "15",
+      "type": "string"
+    },
+    {
+      "key": "x_timestamp",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "x_signature",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Canonical string: clientId\\ntimestamp\\nqueryString\\n + body",
+          "// Signature: HMAC-SHA256(clientSecret, canonical).hexdigest()",
+          "",
+          "var clientId     = pm.collectionVariables.get('clientId');",
+          "var clientSecret = pm.collectionVariables.get('clientSecret');",
+          "var timestamp    = Math.floor(Date.now() / 1000).toString();",
+          "",
+          "// Build query string — substitute {{vars}} so it matches what the server receives",
+          "var enabledParams = pm.request.url.query.filter(function(p) { return !p.disabled; });",
+          "var queryString = enabledParams.map(function(p) {",
+          "    return pm.variables.replaceIn(p.key) + '=' + pm.variables.replaceIn(p.value);",
+          "}).join('&');",
+          "",
+          "// Body — substitute {{vars}} to match the actual bytes the server sees",
+          "var rawBody = (pm.request.body && pm.request.body.raw) ? pm.request.body.raw : '';",
+          "var bodyStr = pm.variables.replaceIn(rawBody);",
+          "",
+          "// Canonical string matches Python: f\"{client_id}\\n{timestamp}\\n{query_string}\\n\".encode() + body",
+          "var canonical = clientId + '\\n' + timestamp + '\\n' + queryString + '\\n' + bodyStr;",
+          "",
+          "// HMAC-SHA256",
+          "var signature = CryptoJS.HmacSHA256(canonical, clientSecret).toString(CryptoJS.enc.Hex);",
+          "",
+          "pm.collectionVariables.set('x_timestamp', timestamp);",
+          "pm.collectionVariables.set('x_signature', signature);"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Event Tracking",
+      "description": "Events sent by Click to /api/v1/events/track.\n\nAuth: X-Client-Id + X-Client-Secret headers (no HMAC — different from bonus S2S auth).\nevent_id and timestamp are generated dynamically via Postman built-ins.",
+      "item": [
+        {
+          "name": "BET_PLACED",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",    "value": "application/json" },
+              { "key": "X-Client-Id",     "value": "{{clientId}}" },
+              { "key": "X-Client-Secret", "value": "{{clientSecret}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"events\": [\n    {\n      \"event_id\": \"{{$guid}}\",\n      \"event_name\": \"BET_PLACED\",\n      \"schema_version\": 1,\n      \"user_id\": \"{{userId}}\",\n      \"session_id\": \"sess_abc123\",\n      \"timestamp\": \"{{$isoTimestamp}}\",\n      \"sdk\": { \"name\": \"site1-backend-v0\", \"version\": \"1.0.0\" },\n      \"device\": { \"platform\": \"web\" },\n      \"properties\": {\n        \"transaction_amount\": \"1000.0000\",\n        \"bonus_amount\": \"100.0000\",\n        \"chip_type\": \"CASH\",\n        \"wager_tnx_id\": \"WAGER_REF_001\",\n        \"session_key\": \"sess_rummy_abc123\",\n        \"platform_client_id\": \"platform_client_001\",\n        \"product\": \"RUMMY\",\n        \"game_type\": \"TOURNEY\",\n        \"game_variant\": \"holdem\",\n        \"game_name\": \"Friday Holdem\",\n        \"game_action\": \"REGISTER_TOURNY\",\n        \"primary_transaction_id\": 1,\n        \"secondary_transaction_id\": 2,\n        \"tertiary_transaction_id\": 3,\n        \"base_request_id\": 3\n      }\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/track",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "events", "track"]
+            },
+            "description": "Wager event from Click. Sent when a bet is accepted.\n\nbalance_type: real | bonus | freebet\nproduct_id: generic product/market reference (casino clients may use game_id instead)\ncategory: slots | sports | casino | crash | fantasy | etc.\n\nCasino legacy fields (game_id, game_category, game_provider) are also accepted for backward compatibility."
+          },
+          "response": [
+            {
+              "name": "202 Accepted",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/events/track" }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"accepted\": 1,\n  \"rejected\": 0,\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Bad Request — missing required field",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/events/track" }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"accepted\": 0,\n  \"rejected\": 1,\n  \"errors\": [\n    {\n      \"index\": 0,\n      \"event_id\": null,\n      \"code\": \"missing_required\",\n      \"message\": \"Missing required field: user_id\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "REGISTRATION",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",    "value": "application/json" },
+              { "key": "X-Client-Id",     "value": "{{clientId}}" },
+              { "key": "X-Client-Secret", "value": "{{clientSecret}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"events\": [\n    {\n      \"event_id\": \"{{$guid}}\",\n      \"event_name\": \"REGISTRATION\",\n      \"schema_version\": 1,\n      \"user_id\": \"{{userId}}\",\n      \"session_id\": \"sess_abc123\",\n      \"timestamp\": \"{{$isoTimestamp}}\",\n      \"sdk\": { \"name\": \"site1-backend-v0\", \"version\": \"1.0.0\" },\n      \"device\": { \"platform\": \"web\" },\n      \"properties\": {\n        \"registration_method\": \"phone\",\n        \"referral_code\": \"REF_XYZ99\",\n        \"promo_code\": \"WELCOME001\"\n      }\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/track",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "events", "track"]
+            },
+            "description": "New player account created. Triggers REGISTRATION bonus rules on the bonus service.\n\nRequired: registration_method (email | phone | google | apple).\nOptional: referral_code (code the player used at sign-up), promo_code."
+          },
+          "response": [
+            {
+              "name": "202 Accepted",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/events/track" }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"accepted\": 1,\n  \"rejected\": 0,\n  \"errors\": []\n}"
+            }
+          ]
+        },
+        {
+          "name": "DEPOSIT_SUCCESS",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type",    "value": "application/json" },
+              { "key": "X-Client-Id",     "value": "{{clientId}}" },
+              { "key": "X-Client-Secret", "value": "{{clientSecret}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"events\": [\n    {\n      \"event_id\": \"{{$guid}}\",\n      \"event_name\": \"DEPOSIT_SUCCESS\",\n      \"schema_version\": 1,\n      \"user_id\": \"{{userId}}\",\n      \"session_id\": \"sess_6b31a39f\",\n      \"timestamp\": \"{{$isoTimestamp}}\",\n      \"sdk\": { \"name\": \"site1-backend-v0\", \"version\": \"1.0.0\" },\n      \"device\": { \"platform\": \"web\" },\n      \"properties\": {\n        \"order_id\": \"dep_48758cbbceaf\",\n        \"amount\": \"3570.0500\",\n        \"currency\": \"INR\",\n        \"payment_method\": \"upi\",\n        \"is_ftd\": false,\n        \"deposit_count\": 3,\n        \"promo_code\": \"FIRST001\"\n      }\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/events/track",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "events", "track"]
+            },
+            "description": "Successful deposit event. Triggers deposit-gated bonus release on the bonus service.\n\nRequired properties: order_id (idempotency key), amount (decimal string, 4-decimal precision), currency (ISO 4217), payment_method (upi | netbanking | card | wallet), is_ftd (true on player's first ever deposit — used to evaluate first-deposit bonus rules).\nOptional: deposit_count, promo_code."
+          },
+          "response": [
+            {
+              "name": "202 Accepted",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/events/track" }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"accepted\": 1,\n  \"rejected\": 0,\n  \"errors\": []\n}"
+            },
+            {
+              "name": "401 Unauthorized — bad credentials",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/events/track" }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": {\n    \"code\": \"invalid_token\",\n    \"message\": \"Missing or malformed Authorization header\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Applicable Codes",
+      "item": [
+        {
+          "name": "Get Applicable Bonus Codes",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Client-Id",  "value": "{{clientId}}" },
+              { "key": "X-Timestamp",  "value": "{{x_timestamp}}" },
+              { "key": "X-Signature",  "value": "{{x_signature}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/applicable-codes?user_id={{userId}}&chip_type=cash",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bonus", "user-bonuses", "applicable-codes"],
+              "query": [
+                { "key": "user_id",   "value": "{{userId}}", "description": "Platform user identifier (max 50 chars)" },
+                { "key": "chip_type", "value": "cash",       "description": "cash | in_app_purchase" }
+              ]
+            },
+            "description": "List all active bonus codes available to a user.\n\nReturns display metadata (title, description, banner, CTA) alongside wagering rules."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/applicable-codes?user_id=USER_001&chip_type=cash" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "[\n  {\n    \"promo_id\": 12,\n    \"code\": \"WELCOME100\",\n    \"max_amount\": \"500.00\",\n    \"valid_from\": \"2025-01-01T00:00:00\",\n    \"valid_to\": \"2025-12-31T23:59:59\",\n    \"display_title\": \"Welcome Bonus\",\n    \"display_description\": \"Get 100% on your first deposit up to ₹500\",\n    \"terms_url\": \"https://example.com/terms/welcome\",\n    \"banner_image_url\": \"https://cdn.example.com/banners/welcome.jpg\",\n    \"badge_text\": \"Hot\",\n    \"cta_text\": \"Claim Now\",\n    \"auto_apply\": false,\n    \"display_order\": 1,\n    \"display_on\": \"DEPOSIT\",\n    \"min_display_amount\": \"100.00\",\n    \"wager_multiplier\": \"3.00\",\n    \"no_of_chunks\": 3,\n    \"applicability_frequency\": \"ONCE\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Validate Bonus Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Client-Id",  "value": "{{clientId}}" },
+              { "key": "X-Timestamp",  "value": "{{x_timestamp}}" },
+              { "key": "X-Signature",  "value": "{{x_signature}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{userId}}\",\n  \"chip_type\": \"cash\",\n  \"code\": \"WELCOME100\",\n  \"amount\": \"1000.0000\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/validate-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bonus", "user-bonuses", "validate-code"]
+            },
+            "description": "Dry-run check — validates whether a promo code can be applied for a user without consuming it.\n\nUse before showing the 'Apply' CTA to confirm eligibility."
+          },
+          "response": [
+            {
+              "name": "200 OK — valid",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/validate-code" },
+                "body": { "mode": "raw", "raw": "{ \"user_id\": \"USER_001\", \"chip_type\": \"cash\", \"code\": \"WELCOME100\" }" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"valid\": true,\n  \"code\": \"WELCOME100\",\n  \"reason\": null,\n  \"promo_id\": 12,\n  \"display_title\": \"Welcome Bonus\",\n  \"wager_multiplier\": \"3.00\",\n  \"no_of_chunks\": 3\n}"
+            },
+            {
+              "name": "200 OK — invalid",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/validate-code" },
+                "body": { "mode": "raw", "raw": "{ \"user_id\": \"USER_001\", \"chip_type\": \"cash\", \"code\": \"EXPIRED99\" }" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"valid\": false,\n  \"code\": \"EXPIRED99\",\n  \"reason\": \"Code has expired or is not applicable for this user\",\n  \"promo_id\": null,\n  \"display_title\": null,\n  \"wager_multiplier\": null,\n  \"no_of_chunks\": null\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Consume & Revert",
+      "item": [
+        {
+          "name": "Consume Bonus (Wager Event)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Client-Id",  "value": "{{clientId}}" },
+              { "key": "X-Timestamp",  "value": "{{x_timestamp}}" },
+              { "key": "X-Signature",  "value": "{{x_signature}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{userId}}\",\n  \"consume_txn_id\": \"{{consumeTxnId}}\",\n  \"transaction_amount\": \"1000.0000\",\n  \"bonus_amount\": \"100.0000\",\n  \"chip_type\": \"CASH\",\n  \"wager_tnx_id\": \"WAGER_REF_001\",\n  \"session_key\": \"sess_rummy_abc123\",\n  \"platform_client_id\": \"platform_client_001\",\n  \"product\": \"RUMMY\",\n  \"game_type\": \"TOURNEY\",\n  \"game_variant\": \"holdem\",\n  \"game_name\": \"Friday Holdem\",\n  \"game_action\": \"REGISTER_TOURNY\",\n  \"primary_transaction_id\": 1,\n  \"secondary_transaction_id\": 2,\n  \"tertiary_transaction_id\": 3,\n  \"base_request_id\": 3\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/consume",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bonus", "user-bonuses", "consume"]
+            },
+            "description": "Record that a released bonus chunk has been consumed against a wager.\n\nconsumo_txn_id is an idempotency key — reuse it on retries. Returns 409 on duplicate or if no released chunk exists."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/consume" }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"txn_id\": 88,\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"bonus_amount\": \"100.00\",\n  \"consumed_amount\": \"100.00\",\n  \"chip_type\": \"cash\"\n}"
+            },
+            {
+              "name": "409 Conflict",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/consume" }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": \"consume_txn_id already exists or no released chunk available\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Revert Consumption",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-Client-Id",  "value": "{{clientId}}" },
+              { "key": "X-Timestamp",  "value": "{{x_timestamp}}" },
+              { "key": "X-Signature",  "value": "{{x_signature}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/consume/{{consumeTxnId}}/revert",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bonus", "user-bonuses", "consume", "{{consumeTxnId}}", "revert"]
+            },
+            "description": "Cancel a previously recorded consumption (e.g. voided wager). Use the same consume_txn_id from the Consume call. Returns 409 if already reverted."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/consume/TXN20250519001/revert" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"txn_id\": 88,\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"amount\": \"100.00\",\n  \"chip_type\": \"cash\"\n}"
+            },
+            {
+              "name": "409 Conflict — already reverted",
+              "originalRequest": {
+                "method": "POST",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/consume/TXN20250519001/revert" }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": \"Consumption already reverted\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Player Wallet & History",
+      "item": [
+        {
+          "name": "Get Player Bonus Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Client-Id",  "value": "{{clientId}}" },
+              { "key": "X-Timestamp",  "value": "{{x_timestamp}}" },
+              { "key": "X-Signature",  "value": "{{x_signature}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/{{userId}}/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bonus", "user-bonuses", "{{userId}}", "summary"]
+            },
+            "description": "Bonus wallet figures for a user, broken down by chip type.\n\nReturns bonus_balance (released/spendable), pending_bonus (not yet released), and wagering_required (remaining wager to release next chunk)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/USER_001/summary" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "[\n  {\n    \"chip_type\": \"cash\",\n    \"bonus_balance\": \"600.00\",\n    \"pending_bonus\": \"400.00\",\n    \"wagering_required\": \"1200.00\"\n  },\n  {\n    \"chip_type\": \"in_app_purchase\",\n    \"bonus_balance\": \"200.00\",\n    \"pending_bonus\": \"100.00\",\n    \"wagering_required\": \"300.00\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "List Player Bonus Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Client-Id",  "value": "{{clientId}}" },
+              { "key": "X-Timestamp",  "value": "{{x_timestamp}}" },
+              { "key": "X-Signature",  "value": "{{x_signature}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/{{userId}}/transactions?chip_type=cash&limit=50&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bonus", "user-bonuses", "{{userId}}", "transactions"],
+              "query": [
+                { "key": "chip_type", "value": "cash", "description": "cash | in_app_purchase" },
+                { "key": "limit",     "value": "50",   "description": "Results per page (1–200, default 50)" },
+                { "key": "offset",    "value": "0",    "description": "Pagination offset (default 0)" }
+              ]
+            },
+            "description": "Paginated list of bonus transactions for a user.\n\nTransaction types: grant, released, consumed, expiry, forfeited.\n\nUse txn_id from a grant row to fetch full chunk detail via the next endpoint."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/USER_001/transactions?chip_type=cash" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "[\n  {\n    \"txn_id\": 15,\n    \"bonus_code\": \"WELCOME100\",\n    \"amount\": \"500.00\",\n    \"type\": \"grant\",\n    \"created_at\": \"2025-05-19T08:00:00\"\n  },\n  {\n    \"txn_id\": 20,\n    \"bonus_code\": null,\n    \"amount\": \"166.67\",\n    \"type\": \"released\",\n    \"created_at\": \"2025-05-19T09:00:00\"\n  },\n  {\n    \"txn_id\": 21,\n    \"bonus_code\": null,\n    \"amount\": \"166.67\",\n    \"type\": \"consumed\",\n    \"created_at\": \"2025-05-19T10:15:00\"\n  }\n]"
+            }
+          ]
+        },
+        {
+          "name": "Get Bonus Transaction Detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Client-Id",  "value": "{{clientId}}" },
+              { "key": "X-Timestamp",  "value": "{{x_timestamp}}" },
+              { "key": "X-Signature",  "value": "{{x_signature}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/{{userId}}/transactions/{{txnId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bonus", "user-bonuses", "{{userId}}", "transactions", "{{txnId}}"]
+            },
+            "description": "Full detail of a single bonus grant — all chunks with release/consume history, forfeit record, and expiry events.\n\ntxn_id comes from the grant row in the transactions list."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/USER_001/transactions/15" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"txn_id\": 15,\n  \"user_id\": \"USER_001\",\n  \"bonus_code\": \"WELCOME100\",\n  \"wager_multiplier\": \"3.00\",\n  \"no_of_chunks\": 3,\n  \"chunk_expiry_days\": 7,\n  \"bonus_expiry_days\": 30,\n  \"wager_chip_type\": \"BONUS\",\n  \"credit_chip_type\": \"CASH\",\n  \"grant_amount\": \"500.00\",\n  \"release_amount\": \"300.00\",\n  \"bonus_consumed\": \"200.00\",\n  \"status\": \"PARTIALLY_RELEASED\",\n  \"created_at\": \"2025-05-01T08:00:00\",\n  \"chunks\": [\n    {\n      \"id\": 101,\n      \"chunk_ref\": \"CHUNK_001\",\n      \"chunk_amount\": \"166.67\",\n      \"wager_multiplier\": \"3.00\",\n      \"status\": \"CONSUMED\",\n      \"required_wager_amount\": \"500.00\",\n      \"wager_amount\": \"500.00\",\n      \"created_at\": \"2025-05-01T08:00:00\",\n      \"updated_at\": \"2025-05-03T14:22:00\",\n      \"releases\": [],\n      \"consumes\": []\n    }\n  ],\n  \"forfeit\": null,\n  \"expiry_events\": []\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/USER_001/transactions/9999" }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": \"Transaction not found\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Referral",
+      "item": [
+        {
+          "name": "Get Player Referral Code",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "X-Client-Id",  "value": "{{clientId}}" },
+              { "key": "X-Timestamp",  "value": "{{x_timestamp}}" },
+              { "key": "X-Signature",  "value": "{{x_signature}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/{{userId}}/referral-code",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bonus", "user-bonuses", "{{userId}}", "referral-code"]
+            },
+            "description": "Return the referral code assigned to a user. Returns 404 if the user has no referral code."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/USER_001/referral-code" }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"user_id\": \"USER_001\",\n  \"referral_code\": \"REF_XYZ99\",\n  \"created_at\": \"2025-05-01T08:00:00\"\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "url": { "raw": "{{baseUrl}}/api/v1/bonus/user-bonuses/USER_001/referral-code" }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"detail\": \"No referral code found for this user\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

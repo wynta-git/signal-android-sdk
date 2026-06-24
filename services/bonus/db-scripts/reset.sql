@@ -521,36 +521,46 @@ CREATE TABLE `bonus_chunk_expiry` (
 
 -- bonus_consumed
 CREATE TABLE `bonus_consumed` (
-    `id`              BIGINT        NOT NULL AUTO_INCREMENT,
-    `consumed_ref`    VARCHAR(50)   NOT NULL,
-    -- upstream consumption identifier (e.g. C001); unique per chunk
-    `chunk_id`        BIGINT        NOT NULL,
+    `id`                        BIGINT        NOT NULL AUTO_INCREMENT,
+    `consumed_ref`              VARCHAR(100)  NOT NULL,
+    -- upstream consumption identifier (consume_txn_id); unique per chunk
+    `chunk_id`                  BIGINT        NOT NULL,
     -- references bonus_chunk.id
-    `bonus_grant_id`  BIGINT        NOT NULL,
+    `bonus_grant_id`            BIGINT        NOT NULL,
     -- references bonus_grant.id
-    `wager_ref`       VARCHAR(50)   NOT NULL,
-    -- originating wager transaction identifier; links to bonus_chunk_consume.wager_ref
-    `wager_id`        VARCHAR(50)   NOT NULL,
-    -- external wager / bet transaction reference from game platform
-    `game_id`         VARCHAR(50)   DEFAULT NULL,
-    -- game / table where the consumption occurred
-    `round_id`        VARCHAR(50)   DEFAULT NULL,
-    -- hand / round reference
+    `wager_ref`                 VARCHAR(100)  DEFAULT NULL,
+    -- originating wager transaction reference (wager_tnx_id); optional
+
+    -- ── Game context ──────────────────────────────────────────────────────────
+    `chip_type`                 VARCHAR(20)   DEFAULT NULL,
+    `session_key`               VARCHAR(200)  DEFAULT NULL,
+    `client_id`                 VARCHAR(100)  DEFAULT NULL,
+    `product`                   VARCHAR(100)  DEFAULT NULL,
+    `game_type`                 VARCHAR(20)   DEFAULT NULL,
+    `game_variant`              VARCHAR(100)  DEFAULT NULL,
+    `game_name`                 VARCHAR(200)  DEFAULT NULL,
+    `game_action`               VARCHAR(100)  DEFAULT NULL,
+
+    -- ── Platform transaction IDs ──────────────────────────────────────────────
+    `primary_transaction_id`    BIGINT        DEFAULT NULL,
+    `secondary_transaction_id`  BIGINT        DEFAULT NULL,
+    `tertiary_transaction_id`   BIGINT        DEFAULT NULL,
+    `base_request_id`           BIGINT        DEFAULT NULL,
 
     -- ── Amount ────────────────────────────────────────────────────────────────
-    `amount`          DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `amount`                    DECIMAL(18,4) NOT NULL DEFAULT 0.0000,
     -- bonus balance drawn down by this consumption event
-    `wager_amount`    DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    -- full bet stake placed by the player
-    `consumed_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `wager_amount`              DECIMAL(18,4) NOT NULL DEFAULT 0.0000,
+    -- full stake (transaction_amount) placed by the player
+    `consumed_amount`           DECIMAL(18,4) NOT NULL DEFAULT 0.0000,
 
-    `created_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `created_at`                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_consumed_ref`          (`chunk_id`, `consumed_ref`),
-    KEY `idx_bonus_consumed_chunk_id`           (`chunk_id`),
-    KEY `idx_bonus_consumed_bonus_grant_id`     (`bonus_grant_id`),
-    KEY `idx_bonus_consumed_wager_ref`          (`wager_ref`)
+    UNIQUE KEY `uk_bonus_consumed_ref`              (`chunk_id`, `consumed_ref`),
+    KEY `idx_bonus_consumed_chunk_id`               (`chunk_id`),
+    KEY `idx_bonus_consumed_bonus_grant_id`         (`bonus_grant_id`),
+    KEY `idx_bonus_consumed_wager_ref`              (`wager_ref`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- bonus_forfeit

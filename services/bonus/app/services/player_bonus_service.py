@@ -1,11 +1,15 @@
+import json
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import aiomysql
 import structlog
 from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
-from shared.services.user import get_or_create_pam_user
+from shared.services.user import get_or_create_pam_user, get_pam_user_id
+from app.bonus_event_processor.grant_writer import check_applicability
+from app.bonus_event_processor.eligibility_checker import check_eligibility
 from app.exceptions import (
     DatabaseError,
     PlayerBonusAlreadyRevertedError,
@@ -41,19 +45,32 @@ _APPLICABLE_CODES_SQL = """
         bcc.valid_from, bcc.valid_to, bcc.display_title, bcc.display_description,
         bcc.terms_url, bcc.banner_image_url, bcc.badge_text, bcc.cta_text,
         bcc.auto_apply, bcc.display_order, bcc.display_on, bcc.min_display_amount,
-        bc.wager_multiplier, bc.no_of_chunks, bc.applicability_frequency
+        bc.wager_multiplier, bc.no_of_chunks, bc.applicability_frequency,
+        bc.id AS configure_id
     FROM bonus_configure_code bcc
     JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
     WHERE bcc.active = 1
       AND bc.wager_chip_type = %s
       AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
       AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
+      AND bc.start_date <= NOW()
+      AND bc.end_date   >= NOW()
     ORDER BY bcc.display_order ASC
 """
 
 
-async def list_applicable_codes(user_id: str, chip_type: str) -> list[ApplicableCodeResponse]:
+async def list_applicable_codes(
+    user_id: str,
+    chip_type: str,
+    redis: Redis | None = None,
+    site_id: int | None = None,
+) -> list[ApplicableCodeResponse]:
     log.info("player_bonus.list_applicable_codes", user_id=user_id, chip_type=chip_type)
+
+    pam_user_id: int | None = None
+    if redis and site_id:
+        pam_user_id = await get_pam_user_id(redis, site_id, user_id)
+
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
@@ -62,6 +79,14 @@ async def list_applicable_codes(user_id: str, chip_type: str) -> list[Applicable
 
                 results: list[ApplicableCodeResponse] = []
                 for row in rows:
+                    configure_id: int = row[18]
+
+                    if pam_user_id is not None:
+                        if not await check_applicability(cur, pam_user_id, configure_id, row[17]):
+                            continue
+                        if redis and not await check_eligibility(redis, configure_id, {}):
+                            continue
+
                     results.append(ApplicableCodeResponse(
                         promo_id=row[0], code=row[1], max_amount=row[2],
                         valid_from=row[3], valid_to=row[4],
@@ -80,7 +105,9 @@ async def list_applicable_codes(user_id: str, chip_type: str) -> list[Applicable
 _VALIDATE_CODE_SQL = """
     SELECT
         bcc.id, bcc.code, bcc.display_title,
-        bc.wager_multiplier, bc.no_of_chunks
+        bc.wager_multiplier, bc.no_of_chunks,
+        bc.applicability_frequency,
+        bc.id AS configure_id
     FROM bonus_configure_code bcc
     JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
     WHERE bcc.active = 1
@@ -88,28 +115,77 @@ _VALIDATE_CODE_SQL = """
       AND bc.wager_chip_type = %s
       AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
       AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
+      AND (bc.start_date  IS NULL OR bc.start_date  <= NOW())
+      AND (bc.end_date    IS NULL OR bc.end_date    >= NOW())
     LIMIT 1
 """
 
+_CODE_CACHE_TTL = 600   # code config changes rarely
+_CODE_MISS_TTL  = 60    # negative-result sentinel TTL
 
-async def validate_code(user_id: str, chip_type: str, code: str) -> ValidateCodeResponse:
-    log.info("player_bonus.validate_code", user_id=user_id, chip_type=chip_type, code=code)
+
+async def validate_code(
+    user_id: str,
+    chip_type: str,
+    code: str,
+    amount: Decimal | None = None,
+    redis: Redis | None = None,
+    site_id: int | None = None,
+) -> ValidateCodeResponse:
+    log.info("player_bonus.validate_code", user_id=user_id, chip_type=chip_type, code=code, amount=str(amount) if amount is not None else None)
     try:
-        async with get_connection(POOL_BONUS) as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(_VALIDATE_CODE_SQL, (code, chip_type))
-                row = await cur.fetchone()
-        if not row:
-            return ValidateCodeResponse(
-                valid=False, code=code,
-                reason="Code not found or not applicable for this chip type",
-            )
+        # ── 1. Code config — Redis cache-aside ────────────────────────────────
+        cache_key = f"pam:bonus:code:{code}:{chip_type}"
+        code_config: dict | None = None
+
+        if redis:
+            cached = await redis.get(cache_key)
+            if cached is not None:
+                parsed = json.loads(cached)
+                if parsed is not None:
+                    code_config = parsed
+
+        if code_config is None:
+            async with get_connection(POOL_BONUS) as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(_VALIDATE_CODE_SQL, (code, chip_type))
+                    row = await cur.fetchone()
+
+            if not row:
+                if redis:
+                    await redis.set(cache_key, "null", ex=_CODE_MISS_TTL)
+                return ValidateCodeResponse(valid=False, code=code, reason="Code not found or not applicable for this chip type")
+
+            code_config = {
+                "id": row[0], "code": row[1], "display_title": row[2],
+                "wager_multiplier": str(row[3]), "no_of_chunks": row[4],
+                "applicability_frequency": row[5], "configure_id": row[6],
+            }
+            if redis:
+                await redis.set(cache_key, json.dumps(code_config), ex=_CODE_CACHE_TTL)
+
+        # ── 2. User-specific checks (require redis + site_id) ─────────────────
+        if redis and site_id:
+            pam_user_id = await get_pam_user_id(redis, site_id, user_id)
+            if pam_user_id is None:
+                return ValidateCodeResponse(valid=False, code=code, reason="User not found")
+
+            configure_id: int = code_config["configure_id"]
+
+            async with get_connection(POOL_BONUS) as conn:
+                async with conn.cursor() as cur:
+                    if not await check_applicability(cur, pam_user_id, configure_id, code_config["applicability_frequency"]):
+                        return ValidateCodeResponse(valid=False, code=code, reason="Code already redeemed for this period")
+
+            if not await check_eligibility(redis, configure_id, {}):
+                return ValidateCodeResponse(valid=False, code=code, reason="You are not eligible for this offer")
+
         return ValidateCodeResponse(
-            valid=True, code=code,
-            promo_id=row[0],
-            display_title=row[2],
-            wager_multiplier=row[3],
-            no_of_chunks=row[4],
+            valid=True, code=code_config["code"],
+            promo_id=code_config["id"],
+            display_title=code_config["display_title"],
+            wager_multiplier=Decimal(code_config["wager_multiplier"]),
+            no_of_chunks=code_config["no_of_chunks"],
         )
     except Exception as exc:
         log.error("player_bonus.validate_code.error", error=str(exc))
@@ -134,9 +210,11 @@ _CONSUME_EXISTS_SQL = """
 
 _INSERT_CONSUME_SQL = """
     INSERT INTO bonus_consumed
-        (consumed_ref, chunk_id, bonus_grant_id, wager_ref, wager_id,
-         game_id, round_id, amount, wager_amount, consumed_amount)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (consumed_ref, chunk_id, bonus_grant_id, wager_ref, amount, wager_amount, consumed_amount,
+         chip_type, session_key, client_id, product, game_type, game_variant,
+         game_name, game_action, primary_transaction_id, secondary_transaction_id,
+         tertiary_transaction_id, base_request_id)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _UPDATE_GRANT_CONSUMED_SQL = """
@@ -178,17 +256,33 @@ async def consume_bonus(
                     raise PlayerBonusNotFoundError(data.user_id)
                 chunk_id, bonus_grant_id = chunk_row
 
+                # Cap consumed_amount at the remaining chunk balance
+                await cur.execute(
+                    "SELECT chunk_amount, COALESCE(SUM(c.consumed_amount), 0) "
+                    "FROM bonus_chunk bc "
+                    "LEFT JOIN bonus_consumed c ON c.chunk_id = bc.id "
+                    "WHERE bc.id = %s GROUP BY bc.chunk_amount",
+                    (chunk_id,),
+                )
+                bal_row = await cur.fetchone()
+                remaining = (float(bal_row[0]) - float(bal_row[1])) if bal_row else 0.0
+                consumed_amount = min(float(data.bonus_amount), max(0.0, remaining))
+
                 await cur.execute(
                     _INSERT_CONSUME_SQL,
                     (
                         data.consume_txn_id, chunk_id, bonus_grant_id,
-                        data.wager_tnx_id, data.wager_tnx_id,
-                        data.game_id, data.round_id,
-                        data.bonus_amount, data.wager_amount, data.bonus_amount,
+                        data.wager_tnx_id,
+                        data.bonus_amount, data.transaction_amount, consumed_amount,
+                        data.chip_type, data.session_key, data.platform_client_id,
+                        data.product, data.game_type, data.game_variant,
+                        data.game_name, data.game_action,
+                        data.primary_transaction_id, data.secondary_transaction_id,
+                        data.tertiary_transaction_id, data.base_request_id,
                     ),
                 )
                 new_id: int = cur.lastrowid
-                await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (data.bonus_amount, bonus_grant_id))
+                await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (consumed_amount, bonus_grant_id))
                 await conn.commit()
 
                 await cur.execute(_SELECT_CONSUMED_SQL, (new_id,))
@@ -315,13 +409,20 @@ async def get_player_bonus_summary(pam_user_id: int) -> list[PlayerBonusSummaryR
 # ── 5. Transaction list ───────────────────────────────────────────────────────
 
 _TRANSACTIONS_SQL = """
-    SELECT txn_id, bonus_code, amount, type, created_at
+    SELECT txn_id, bonus_code, amount, type, created_at,
+           release_amount, consumed_amount, expiry_amount, forfeit_amount,
+           grant_txn_id
     FROM (
-        SELECT pbg.id           AS txn_id,
-               pbg.bonus_code   AS bonus_code,
-               pbg.grant_amount AS amount,
-               'grant'          AS type,
-               pbg.created_at
+        SELECT pbg.id                AS txn_id,
+               pbg.bonus_code        AS bonus_code,
+               pbg.grant_amount      AS amount,
+               'grant'               AS type,
+               pbg.created_at,
+               pbg.release_amount    AS release_amount,
+               pbg.consume_amount    AS consumed_amount,
+               COALESCE((SELECT SUM(bce2.amount) FROM bonus_chunk_expiry bce2 WHERE bce2.bonus_grant_id = pbg.id), 0) AS expiry_amount,
+               COALESCE((SELECT SUM(bf2.amount)  FROM bonus_forfeit bf2        WHERE bf2.bonus_grant_id  = pbg.id), 0) AS forfeit_amount,
+               NULL                  AS grant_txn_id
         FROM bonus_grant pbg
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
 
@@ -331,7 +432,9 @@ _TRANSACTIONS_SQL = """
                NULL             AS bonus_code,
                bc.chunk_amount  AS amount,
                'released'       AS type,
-               bc.updated_at    AS created_at
+               bc.updated_at    AS created_at,
+               NULL, NULL, NULL, NULL,
+               pbg.id           AS grant_txn_id
         FROM bonus_chunk bc
         JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
@@ -343,7 +446,9 @@ _TRANSACTIONS_SQL = """
                NULL                 AS bonus_code,
                bcon.consumed_amount AS amount,
                'consumed'           AS type,
-               bcon.created_at
+               bcon.created_at,
+               NULL, NULL, NULL, NULL,
+               pbg.id               AS grant_txn_id
         FROM bonus_consumed bcon
         JOIN bonus_grant pbg ON pbg.id = bcon.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
@@ -354,7 +459,9 @@ _TRANSACTIONS_SQL = """
                NULL            AS bonus_code,
                bce.amount,
                'expiry'        AS type,
-               bce.expired_at  AS created_at
+               bce.expired_at  AS created_at,
+               NULL, NULL, NULL, NULL,
+               pbg.id          AS grant_txn_id
         FROM bonus_chunk_expiry bce
         JOIN bonus_grant pbg ON pbg.id = bce.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
@@ -365,7 +472,9 @@ _TRANSACTIONS_SQL = """
                NULL            AS bonus_code,
                bf.amount,
                'forfeited'     AS type,
-               bf.forfeited_at AS created_at
+               bf.forfeited_at AS created_at,
+               NULL, NULL, NULL, NULL,
+               pbg.id          AS grant_txn_id
         FROM bonus_forfeit bf
         JOIN bonus_grant pbg ON pbg.id = bf.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
@@ -411,6 +520,9 @@ async def list_player_transactions(
             PlayerBonusTransactionSummary(
                 txn_id=row[0], bonus_code=row[1], amount=row[2],
                 type=row[3], created_at=row[4],
+                release_amount=row[5], consumed_amount=row[6],
+                expiry_amount=row[7], forfeit_amount=row[8],
+                grant_txn_id=row[9],
             )
             for row in rows
         ]

@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.dependencies import PortalAuthDep
 from app.models.bonus_configure_code import (
@@ -37,6 +37,7 @@ async def patch_bonus_configure_code(
     code_id: int,
     payload: BonusConfigureCodeUpdate,
     ctx: PortalAuthDep,
+    request: Request,
 ) -> BonusConfigureCodeResponse:
     payload.updated_by = ctx.user_id
-    return await update_bonus_configure_code(code_id, payload)
+    return await update_bonus_configure_code(code_id, payload, request.app.state.redis)

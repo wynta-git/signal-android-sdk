@@ -2,8 +2,10 @@ import json
 
 import aiomysql
 import structlog
+from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
+from app.services.bonus_cache import bust_code_cache, bust_eligibility_cache, bust_trigger_cache
 
 from app.exceptions import (
     BonusConfigureDuplicateError,
@@ -454,7 +456,7 @@ async def list_bonus_configures_by_subhead(subhead_id: int) -> list[BonusConfigu
     return result
 
 
-async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) -> BonusConfigureResponse:
+async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, redis: Redis | None = None) -> BonusConfigureResponse:
     """
     Partial update of a bonus_configure row.
 
@@ -545,6 +547,12 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
                 await cur.execute(_SELECT_SQL, (configure_id,))
                 updated_row = await cur.fetchone()
 
+                await cur.execute(
+                    "SELECT code FROM bonus_configure_code WHERE configure_id = %s",
+                    (configure_id,),
+                )
+                code_rows = await cur.fetchall()
+
     except BonusConfigureNotFoundError:
         raise
     except aiomysql.IntegrityError as exc:
@@ -556,6 +564,13 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
         raise DatabaseError(str(exc)) from exc
 
     assert updated_row is not None
+    if redis:
+        old_chip = str(row[13])  # type: ignore[possibly-undefined]
+        new_chip = str(new_values_cl["wager_chip_type"])  # type: ignore[possibly-undefined]
+        codes = [r[0] for r in code_rows]  # type: ignore[possibly-undefined]
+        await bust_code_cache(redis, codes, list({old_chip, new_chip}))
+        await bust_eligibility_cache(redis, configure_id)
+        await bust_trigger_cache(redis, site_id)  # type: ignore[possibly-undefined]
     log.info("update_bonus_configure.done", bonus_configure_id=configure_id)
     return _row_to_response(updated_row)
 
