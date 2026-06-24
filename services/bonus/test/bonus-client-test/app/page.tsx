@@ -53,6 +53,7 @@ interface Transaction {
   consumed_amount?: string;
   expiry_amount?: string;
   forfeit_amount?: string;
+  grant_txn_id?: number;
 }
 
 interface ChunkReleaseEvent {
@@ -789,11 +790,15 @@ function TransactionsScreen({
               </div>
             );
           }
+          const parentGrant = t.grant_txn_id
+            ? { ...t, txn_id: t.grant_txn_id, type: "grant", bonus_code: null }
+            : null;
           return (
             <div
               key={`${t.type}-${t.txn_id}`}
-              className="txn-row txn-row-leaf"
-              style={{ cursor: "default" }}
+              className={`txn-row ${parentGrant ? "" : "txn-row-leaf"}`}
+              onClick={parentGrant ? () => onDetail(parentGrant) : undefined}
+              style={parentGrant ? undefined : { cursor: "default" }}
             >
               <div className="txn-left">
                 <div className="txn-type">
@@ -803,6 +808,7 @@ function TransactionsScreen({
               </div>
               <div className="txn-right">
                 <div className="txn-amount">₹{fmt(t.amount)}</div>
+                {parentGrant && <div className="txn-arrow">›</div>}
               </div>
             </div>
           );

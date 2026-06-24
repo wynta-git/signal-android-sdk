@@ -256,12 +256,24 @@ async def consume_bonus(
                     raise PlayerBonusNotFoundError(data.user_id)
                 chunk_id, bonus_grant_id = chunk_row
 
+                # Cap consumed_amount at the remaining chunk balance
+                await cur.execute(
+                    "SELECT chunk_amount, COALESCE(SUM(c.consumed_amount), 0) "
+                    "FROM bonus_chunk bc "
+                    "LEFT JOIN bonus_consumed c ON c.chunk_id = bc.id "
+                    "WHERE bc.id = %s GROUP BY bc.chunk_amount",
+                    (chunk_id,),
+                )
+                bal_row = await cur.fetchone()
+                remaining = (float(bal_row[0]) - float(bal_row[1])) if bal_row else 0.0
+                consumed_amount = min(float(data.bonus_amount), max(0.0, remaining))
+
                 await cur.execute(
                     _INSERT_CONSUME_SQL,
                     (
                         data.consume_txn_id, chunk_id, bonus_grant_id,
                         data.wager_tnx_id,
-                        data.bonus_amount, data.transaction_amount, data.bonus_amount,
+                        data.bonus_amount, data.transaction_amount, consumed_amount,
                         data.chip_type, data.session_key, data.platform_client_id,
                         data.product, data.game_type, data.game_variant,
                         data.game_name, data.game_action,
@@ -270,7 +282,7 @@ async def consume_bonus(
                     ),
                 )
                 new_id: int = cur.lastrowid
-                await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (data.bonus_amount, bonus_grant_id))
+                await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (consumed_amount, bonus_grant_id))
                 await conn.commit()
 
                 await cur.execute(_SELECT_CONSUMED_SQL, (new_id,))
@@ -398,7 +410,8 @@ async def get_player_bonus_summary(pam_user_id: int) -> list[PlayerBonusSummaryR
 
 _TRANSACTIONS_SQL = """
     SELECT txn_id, bonus_code, amount, type, created_at,
-           release_amount, consumed_amount, expiry_amount, forfeit_amount
+           release_amount, consumed_amount, expiry_amount, forfeit_amount,
+           grant_txn_id
     FROM (
         SELECT pbg.id                AS txn_id,
                pbg.bonus_code        AS bonus_code,
@@ -408,7 +421,8 @@ _TRANSACTIONS_SQL = """
                pbg.release_amount    AS release_amount,
                pbg.consume_amount    AS consumed_amount,
                COALESCE((SELECT SUM(bce2.amount) FROM bonus_chunk_expiry bce2 WHERE bce2.bonus_grant_id = pbg.id), 0) AS expiry_amount,
-               COALESCE((SELECT SUM(bf2.amount)  FROM bonus_forfeit bf2        WHERE bf2.bonus_grant_id  = pbg.id), 0) AS forfeit_amount
+               COALESCE((SELECT SUM(bf2.amount)  FROM bonus_forfeit bf2        WHERE bf2.bonus_grant_id  = pbg.id), 0) AS forfeit_amount,
+               NULL                  AS grant_txn_id
         FROM bonus_grant pbg
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
 
@@ -419,7 +433,8 @@ _TRANSACTIONS_SQL = """
                bc.chunk_amount  AS amount,
                'released'       AS type,
                bc.updated_at    AS created_at,
-               NULL, NULL, NULL, NULL
+               NULL, NULL, NULL, NULL,
+               pbg.id           AS grant_txn_id
         FROM bonus_chunk bc
         JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
@@ -432,7 +447,8 @@ _TRANSACTIONS_SQL = """
                bcon.consumed_amount AS amount,
                'consumed'           AS type,
                bcon.created_at,
-               NULL, NULL, NULL, NULL
+               NULL, NULL, NULL, NULL,
+               pbg.id               AS grant_txn_id
         FROM bonus_consumed bcon
         JOIN bonus_grant pbg ON pbg.id = bcon.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
@@ -444,7 +460,8 @@ _TRANSACTIONS_SQL = """
                bce.amount,
                'expiry'        AS type,
                bce.expired_at  AS created_at,
-               NULL, NULL, NULL, NULL
+               NULL, NULL, NULL, NULL,
+               pbg.id          AS grant_txn_id
         FROM bonus_chunk_expiry bce
         JOIN bonus_grant pbg ON pbg.id = bce.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
@@ -456,7 +473,8 @@ _TRANSACTIONS_SQL = """
                bf.amount,
                'forfeited'     AS type,
                bf.forfeited_at AS created_at,
-               NULL, NULL, NULL, NULL
+               NULL, NULL, NULL, NULL,
+               pbg.id          AS grant_txn_id
         FROM bonus_forfeit bf
         JOIN bonus_grant pbg ON pbg.id = bf.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
@@ -504,6 +522,7 @@ async def list_player_transactions(
                 type=row[3], created_at=row[4],
                 release_amount=row[5], consumed_amount=row[6],
                 expiry_amount=row[7], forfeit_amount=row[8],
+                grant_txn_id=row[9],
             )
             for row in rows
         ]
