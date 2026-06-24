@@ -5,7 +5,7 @@ from typing import Any
 import structlog
 from redis.asyncio import Redis
 
-from app.bonus_event_processor.bonus_release_handler import handle_bonus_release
+from app.bonus_event_processor.bonus_grant_handler import handle_bonus_grant
 from app.bonus_event_processor.chunk_release_handler import handle_chunk_release
 from app.models.bonus_release_trigger import TriggerWithConfigResponse
 from app.services.bonus_release_trigger_service import get_triggers_with_config_by_site
@@ -24,7 +24,7 @@ async def _dispatch(
 ) -> None:
     """Route trigger to the correct handler based on release_type."""
     if trigger.release_type == "BONUS_RELEASE":
-        await handle_bonus_release(redis, conn, pam_user_id, props, trigger)
+        await handle_bonus_grant(redis, conn, pam_user_id, props, trigger)
     elif trigger.release_type == "CHUNK_RELEASE":
         await handle_chunk_release(conn, pam_user_id, props, trigger)
     else:

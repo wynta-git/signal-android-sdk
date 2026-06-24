@@ -33,7 +33,7 @@ from app.services.player_bonus_service import (
 )
 
 from shared.services.client import get_client_site_id
-from shared.services.user import get_pam_user_id
+from shared.services.user import get_or_create_pam_user, get_pam_user_id
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -102,7 +102,10 @@ async def get_summary(
     request: Request,
     x_client_id: str = Header(..., alias="x-client-id"),
 ) -> list[PlayerBonusSummaryResponse]:
-    pam_id = await _resolve_pam_user(request, x_client_id, user_id)
+    site_id = await get_client_site_id(x_client_id, request.app.state.redis)
+    if site_id is None:
+        raise HTTPException(status_code=401, detail="Unknown client")
+    pam_id = await get_or_create_pam_user(request.app.state.redis, site_id, user_id)
     return await get_player_bonus_summary(pam_id)
 
 

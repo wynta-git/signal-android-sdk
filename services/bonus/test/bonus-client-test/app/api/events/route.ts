@@ -11,6 +11,7 @@ interface EventBody {
   payment_method: string;
   transaction_id: string;
   event_name?: string;
+  promo_code?: string;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       amount: body.amount,
       currency: body.currency,
       payment_method: body.payment_method || null,
+      ...(body.promo_code ? { promo_code: body.promo_code } : {}),
     },
   };
 

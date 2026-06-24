@@ -89,11 +89,14 @@ class BonusConfigureSummary(BaseModel):
     bonus_expiry_days:          int | None
     wager_chip_type:            str
     credit_chip_type:           str
-    bonus_amount_fixed:         Decimal | None
-    bonus_amount_percent:       Decimal | None
-    bonus_amount_max:           Decimal | None
-    priority:                   int
-    active:                     bool
+    bonus_amount_fixed:              Decimal | None
+    bonus_amount_percent:            Decimal | None
+    bonus_amount_max:                Decimal | None
+    cashback_bonus_amount_fixed:     Decimal | None
+    cashback_bonus_amount_percent:   Decimal | None
+    cashback_bonus_amount_max:       Decimal | None
+    priority:                        int
+    active:                          bool
 
 
 class TriggerWithConfigResponse(BaseModel):

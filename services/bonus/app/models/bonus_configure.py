@@ -33,12 +33,12 @@ class BonusConfigureCreate(BaseModel):
     start_date:                 datetime
     end_date:                   datetime
     applicability_frequency:    ApplicabilityFrequency = "EVERYTIME"
-    wager_multiplier:           Decimal                = Field(Decimal("0.00"), ge=0)
-    no_of_chunks:               int                    = Field(1, ge=1)
+    wager_multiplier:           Decimal | None         = Field(None, ge=0)
+    no_of_chunks:               int | None             = Field(None, ge=1)
     release_bucket:             str | None             = Field(None, max_length=50)
     chunk_expiry_days:          int | None             = Field(None, ge=1)
     bonus_expiry_days:          int | None             = Field(None, ge=1)
-    wager_chip_type:            str                    = Field("CASH", max_length=50)
+    wager_chip_type:            str | None             = Field(None, max_length=50)
     credit_chip_type:           str                    = Field("CASH", max_length=50)
     bonus_amount_fixed:              Decimal | None         = Field(None, ge=0)
     bonus_amount_percent:            Decimal | None         = Field(None, ge=0)

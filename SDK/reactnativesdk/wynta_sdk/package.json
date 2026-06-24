@@ -6,7 +6,10 @@
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "android",
+    "ios",
+    "WyntaSDK.podspec"
   ],
   "scripts": {
     "build": "tsc --project tsconfig.json",
