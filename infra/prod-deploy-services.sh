@@ -40,7 +40,7 @@ set -euo pipefail
 # ── config — override via env vars ───────────────────────────────────────────
 INSTANCE1_IP="${INSTANCE1_IP:-172.31.40.172}"         # data layer IP
 INSTANCE2_IP="${INSTANCE2_IP:-$(hostname -I | awk '{print $1}')}"  # this host
-CH_HOST="${CH_HOST:-localhost}"                        # ClickHouse host (usually local)
+CH_HOST="${CH_HOST:-$INSTANCE1_IP}"                    # ClickHouse host
 REPO="${REPO:-/home/ubuntu/pam}"
 APP_USER="${APP_USER:-ubuntu}"
 MONGO_PASS="${MONGO_PASS:-glgpam2026}"
@@ -319,11 +319,9 @@ ok "scheduler-service/.env"
 section "6. ClickHouse — create pam database"
 
 info "Creating pam database (events tables created per-brand later)..."
-clickhouse-client \
-    --host "$CH_HOST" \
-    --port "$CH_NATIVE_PORT" \
-    --password "$CH_PASS" \
-    --query "CREATE DATABASE IF NOT EXISTS pam"
+curl -s -f -X POST "http://$INSTANCE1_IP:$CH_HTTP_PORT/" \
+    -u "default:$CH_PASS" \
+    --data "CREATE DATABASE IF NOT EXISTS pam"
 ok "ClickHouse database 'pam' ready"
 
 # ── 7. seed MongoDB ───────────────────────────────────────────────────────────
