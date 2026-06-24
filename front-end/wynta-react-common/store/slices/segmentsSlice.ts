@@ -72,6 +72,7 @@ export const createSegment = createAsyncThunk(
     created_by?: string | null;
     segmentType?: 'filter' | 'custom';
     csvFile?: File;
+    brandId?: number;
   }) => segmentApi.createSegment(payload)
 );
 

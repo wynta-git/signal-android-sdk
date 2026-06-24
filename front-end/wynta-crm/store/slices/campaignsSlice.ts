@@ -28,9 +28,9 @@ let _fetchInFlight = false;
 
 export const fetchCampaigns = createAsyncThunk(
   'campaigns/fetchAll',
-  async (projectId?: string) => {
+  async (arg?: { projectId?: string; brandId?: number }) => {
     try {
-      return await campaignApi.fetchCampaigns(projectId ?? PROJECT_ID);
+      return await campaignApi.fetchCampaigns(arg?.projectId ?? PROJECT_ID, arg?.brandId);
     } finally {
       _fetchInFlight = false;
     }
@@ -58,8 +58,8 @@ export const getCampaign = createAsyncThunk(
 
 export const createCampaign = createAsyncThunk(
   'campaigns/create',
-  ({ projectId, payload }: { projectId?: string; payload: CampaignPayload }) =>
-    campaignApi.createCampaign(projectId ?? PROJECT_ID, payload)
+  ({ projectId, payload, brandId }: { projectId?: string; payload: CampaignPayload; brandId?: number }) =>
+    campaignApi.createCampaign(projectId ?? PROJECT_ID, payload, brandId)
 );
 
 export const updateCampaign = createAsyncThunk(

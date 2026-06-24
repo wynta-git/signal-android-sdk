@@ -188,12 +188,13 @@ interface Props {
   viewMode?:  boolean;        // true → read-only; only Cancel + Next/Back visible
   onClose:    () => void;
   onSaved:    () => void;
+  brandId?:   number;
 }
 
 /* ------------------------------------------------------------------ */
 /* Main Wizard Component                                                */
 /* ------------------------------------------------------------------ */
-export default function CampaignWizard({ channel, campaign, viewMode = false, onClose, onSaved }: Props) {
+export default function CampaignWizard({ channel, campaign, viewMode = false, onClose, onSaved, brandId }: Props) {
   const dispatch   = useDispatch<any>();
   const isEdit     = !!campaign?.id;
   const [step, setStep]         = useState(1);
@@ -404,7 +405,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
         await dispatch(updateCampaign({ campaignId: savedId, payload })).unwrap();
       } else {
         /* POST /campaigns */
-        const result = await dispatch(createCampaign({ payload })).unwrap();
+        const result = await dispatch(createCampaign({ payload, brandId })).unwrap();
         savedId = result.id;
         setActiveCampaignId(savedId);
       }
@@ -436,7 +437,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
         await dispatch(updateCampaign({ campaignId: savedId, payload })).unwrap();
       } else {
         /* POST /campaigns */
-        const result = await dispatch(createCampaign({ payload })).unwrap();
+        const result = await dispatch(createCampaign({ payload, brandId })).unwrap();
         savedId = result.id;
         setActiveCampaignId(savedId);
       }

@@ -309,8 +309,11 @@ function mergePayload(from: Campaign, payload: Partial<CampaignPayload>): Campai
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
-export async function fetchCampaigns(projectId: string): Promise<Campaign[]> {
-  const res = await fetch(`${CAMPAIGN_ROOT}/${projectId}`, { headers: authHeader() });
+export async function fetchCampaigns(projectId: string, brandId?: number): Promise<Campaign[]> {
+  const url = brandId
+    ? `${CAMPAIGN_ROOT}/${projectId}?brand_id=${brandId}`
+    : `${CAMPAIGN_ROOT}/${projectId}`;
+  const res = await fetch(url, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchCampaigns failed: ${res.status}`);
   const data = await res.json();
   const raw: RawCampaign[] = Array.isArray(data) ? data : (data.campaigns ?? data.results ?? []);
@@ -323,8 +326,9 @@ export async function getCampaign(projectId: string, campaignId: string): Promis
   return toCampaign(await res.json());
 }
 
-export async function createCampaign(projectId: string, payload: CampaignPayload): Promise<Campaign> {
+export async function createCampaign(projectId: string, payload: CampaignPayload, brandId?: number): Promise<Campaign> {
   const body = toApiPayload(payload);
+  if (brandId) body.brand_id = String(brandId);
   const res = await fetch(`${CAMPAIGN_ROOT}/${projectId}`, {
     method: "POST",
     headers: authHeader(),

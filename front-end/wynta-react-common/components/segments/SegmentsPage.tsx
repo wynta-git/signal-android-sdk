@@ -419,7 +419,8 @@ export default function SegmentsPage({ onAddSegment, brandId }: SegmentsPageProp
           mode={modalConfig.mode}
           segmentId={modalConfig.segmentId}
           onClose={() => setModalConfig(null)}
-          onSaved={() => { setModalConfig(null); dispatch(fetchSegments()); }}
+          onSaved={() => { setModalConfig(null); dispatch(fetchSegments(brandId)); }}
+          brandId={brandId}
         />
       )}
 

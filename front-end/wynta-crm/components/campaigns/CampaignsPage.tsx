@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import Icon from 'wynta-react-common/components/Icon';
 import { useAppSelector } from '../../store/hooks';
@@ -104,18 +104,14 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
   );
 }
 
-export default function CampaignsPage({ autoOpenAdd }: { autoOpenAdd?: boolean }) {
+export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: boolean; brandId?: number }) {
   const dispatch     = useDispatch<any>();
   const apiCampaigns = useAppSelector(selectAllCampaigns);
   const status       = useAppSelector(selectCampaignsStatus);
 
-  /* Fire exactly once per mount — ref persists through React 18 Strict Mode remount */
-  const didFetch = useRef(false);
   useEffect(() => {
-    if (didFetch.current) return;
-    didFetch.current = true;
-    dispatch(fetchCampaigns());
-  }, [dispatch]);
+    dispatch(fetchCampaigns({ brandId }));
+  }, [dispatch, brandId]);
 
   const rows = apiCampaigns;
 
@@ -275,7 +271,8 @@ export default function CampaignsPage({ autoOpenAdd }: { autoOpenAdd?: boolean }
         campaign={editCampaign ?? undefined}
         viewMode={wizardViewMode}
         onClose={closeWizard}
-        onSaved={() => { closeWizard(); dispatch(fetchCampaigns()); }}
+        onSaved={() => { closeWizard(); dispatch(fetchCampaigns({ brandId })); }}
+        brandId={brandId}
       />
     );
   }

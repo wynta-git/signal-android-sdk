@@ -145,8 +145,8 @@ function CrmShell() {
         <div className="crm-content">
           {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} /> :
            activeNav === 'segments'         ? <SegmentsPage brandId={brandId} /> :
-           activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
-           activeNav === 'events'           ? <EventsPage       /> :
+           activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} brandId={brandId} /> :
+           activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :

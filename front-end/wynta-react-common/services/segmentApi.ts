@@ -243,6 +243,7 @@ export async function createSegment(payload: {
   /** "filter" = JSON conditions payload (default); "custom" = CSV multipart upload */
   segmentType?: "filter" | "custom";
   csvFile?: File;
+  brandId?: number;
 }): Promise<Segment> {
   /* ── CSV / custom type — multipart/form-data ── */
   if (payload.segmentType === "custom" && payload.csvFile) {
@@ -252,6 +253,7 @@ export async function createSegment(payload: {
     form.append("refresh_strategy", payload.refresh_strategy ?? "scheduled");
     if (payload.created_by)        form.append("created_by", payload.created_by);
     if (payload.scheduled_cron)    form.append("scheduled_cron", payload.scheduled_cron);
+    if (payload.brandId)           form.append("brand_id", String(payload.brandId));
     form.append("file", payload.csvFile);
 
     const res = await fetch(`${SEG_API}/segments`, {
@@ -273,6 +275,7 @@ export async function createSegment(payload: {
     created_by:       payload.created_by ?? null,
   };
   if (payload.scheduled_cron) body.scheduled_cron = payload.scheduled_cron;
+  if (payload.brandId)        body.brand_id = String(payload.brandId);
 
   const res = await fetch(`${SEG_API}/segments`, {
     method: "POST",
