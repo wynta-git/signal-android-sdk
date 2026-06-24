@@ -24,7 +24,7 @@ _INSERT_GRANT_SQL = """
          product, wager_multiplier, no_of_chunks,
          chunk_expiry_days, bonus_expiry_days,
          wager_chip_type, credit_chip_type, grant_amount,
-         bonus_code, release_amount, grant_type)
+         bonus_code, release_amount, bonus_grant_type)
     VALUES (UUID_SHORT(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 # product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
