@@ -514,7 +514,7 @@ check_http() {
     [ "$READY" = "false" ] && warn "$unit did not respond — check: journalctl -u $unit -n 40 --no-pager"
 }
 
-check_http "pam-api"          8001 "/v1/ready"
+check_http "pam-api"          8001 "/api/v1/events/health"
 check_http "pam-auth"         8002 "/v1/health"
 check_http "pam-segmentation" 8003 "/health"
 check_http "pam-campaign"     8004 "/health"
