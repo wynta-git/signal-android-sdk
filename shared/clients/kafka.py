@@ -6,6 +6,26 @@ from typing import Any
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, ConsumerRecord
 
 
+async def make_kafka_consumer(
+    topics: list[str],
+    bootstrap_servers: str,
+    group_id: str,
+    *,
+    auto_offset_reset: str = "earliest",
+    **kwargs: Any,
+) -> AIOKafkaConsumer:
+    consumer = AIOKafkaConsumer(
+        *topics,
+        bootstrap_servers=bootstrap_servers,
+        group_id=group_id,
+        enable_auto_commit=False,
+        auto_offset_reset=auto_offset_reset,
+        **kwargs,
+    )
+    await consumer.start()
+    return consumer
+
+
 async def make_kafka_producer(
     bootstrap_servers: str,
     *,
