@@ -3670,7 +3670,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"wager_amount\": \"200.00\",\n  \"bonus_amount\": \"100.00\",\n  \"chip_type\": \"cash\",\n  \"wager_tnx_id\": \"W001\",\n  \"game_id\": \"CRICKET_EXPRESS\",\n  \"round_id\": \"R001\"\n}"
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"transaction_amount\": \"1000.0000\",\n  \"bonus_amount\": \"100.0000\",\n  \"chip_type\": \"CASH\",\n  \"wager_tnx_id\": \"WAGER_REF_001\",\n  \"session_key\": \"sess_rummy_abc123\",\n  \"platform_client_id\": \"site1-backend-v0\",\n  \"product\": \"RUMMY\",\n  \"game_type\": \"TOURNEY\",\n  \"game_variant\": \"holdem\",\n  \"game_name\": \"Friday Holdem\",\n  \"game_action\": \"REGISTER_TOURNY\",\n  \"primary_transaction_id\": 1,\n  \"secondary_transaction_id\": 2,\n  \"tertiary_transaction_id\": 3,\n  \"base_request_id\": 3\n}"
             }
           },
           "event": [
@@ -3710,7 +3710,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"wager_amount\": \"200.00\",\n  \"bonus_amount\": \"100.00\",\n  \"chip_type\": \"cash\",\n  \"wager_tnx_id\": \"W001\"\n}"
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"consume_txn_id\": \"TXN20250519001\",\n  \"transaction_amount\": \"1000.0000\",\n  \"bonus_amount\": \"100.0000\",\n  \"chip_type\": \"CASH\",\n  \"wager_tnx_id\": \"WAGER_REF_001\",\n  \"session_key\": \"sess_rummy_abc123\",\n  \"platform_client_id\": \"site1-backend-v0\",\n  \"product\": \"RUMMY\",\n  \"game_type\": \"TOURNEY\",\n  \"game_variant\": \"holdem\",\n  \"game_name\": \"Friday Holdem\",\n  \"game_action\": \"REGISTER_TOURNY\",\n  \"primary_transaction_id\": 1,\n  \"secondary_transaction_id\": 2,\n  \"tertiary_transaction_id\": 3,\n  \"base_request_id\": 3\n}"
             }
           },
           "event": [

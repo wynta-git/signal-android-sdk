@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 
 import aiomysql
 import structlog
@@ -92,8 +93,8 @@ _VALIDATE_CODE_SQL = """
 """
 
 
-async def validate_code(user_id: str, chip_type: str, code: str) -> ValidateCodeResponse:
-    log.info("player_bonus.validate_code", user_id=user_id, chip_type=chip_type, code=code)
+async def validate_code(user_id: str, chip_type: str, code: str, amount: Decimal | None = None) -> ValidateCodeResponse:
+    log.info("player_bonus.validate_code", user_id=user_id, chip_type=chip_type, code=code, amount=str(amount) if amount is not None else None)
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
@@ -134,9 +135,11 @@ _CONSUME_EXISTS_SQL = """
 
 _INSERT_CONSUME_SQL = """
     INSERT INTO bonus_consumed
-        (consumed_ref, chunk_id, bonus_grant_id, wager_ref, wager_id,
-         game_id, round_id, amount, wager_amount, consumed_amount)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        (consumed_ref, chunk_id, bonus_grant_id, wager_ref, amount, wager_amount, consumed_amount,
+         chip_type, session_key, client_id, product, game_type, game_variant,
+         game_name, game_action, primary_transaction_id, secondary_transaction_id,
+         tertiary_transaction_id, base_request_id)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _UPDATE_GRANT_CONSUMED_SQL = """
@@ -182,9 +185,13 @@ async def consume_bonus(
                     _INSERT_CONSUME_SQL,
                     (
                         data.consume_txn_id, chunk_id, bonus_grant_id,
-                        data.wager_tnx_id, data.wager_tnx_id,
-                        data.game_id, data.round_id,
-                        data.bonus_amount, data.wager_amount, data.bonus_amount,
+                        data.wager_tnx_id,
+                        data.bonus_amount, data.transaction_amount, data.bonus_amount,
+                        data.chip_type, data.session_key, data.platform_client_id,
+                        data.product, data.game_type, data.game_variant,
+                        data.game_name, data.game_action,
+                        data.primary_transaction_id, data.secondary_transaction_id,
+                        data.tertiary_transaction_id, data.base_request_id,
                     ),
                 )
                 new_id: int = cur.lastrowid

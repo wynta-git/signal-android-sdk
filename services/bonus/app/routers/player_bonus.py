@@ -51,7 +51,7 @@ async def get_applicable_codes(
 
 @router.post("/validate-code", response_model=ValidateCodeResponse)
 async def validate_promo_code(payload: ValidateCodeRequest) -> ValidateCodeResponse:
-    return await validate_code(payload.user_id, payload.chip_type, payload.code)
+    return await validate_code(payload.user_id, payload.chip_type, payload.code, payload.amount)
 
 
 @router.post("/consume", response_model=PlayerBonusConsumedResponse, status_code=201)
