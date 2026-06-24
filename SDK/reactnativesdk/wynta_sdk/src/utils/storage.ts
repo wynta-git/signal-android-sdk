@@ -1,33 +1,46 @@
+import { NativeModules } from 'react-native';
+
 export const STORAGE_KEYS = {
   FCM_TOKEN: '@wynta/fcm_token',
 };
 
-// Optional peer dep — gracefully falls back to in-memory if not installed
-let asyncStorage: {
-  getItem(key: string): Promise<string | null>;
-  setItem(key: string, value: string): Promise<void>;
-  removeItem(key: string): Promise<void>;
-} | null = null;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  asyncStorage = require('@react-native-async-storage/async-storage').default;
-} catch {
-  // @react-native-async-storage/async-storage not installed — values survive the session only
-}
-
+const { WyntaSDKModule } = NativeModules;
 const mem = new Map<string, string>();
 
 export const storage = {
   async get(key: string): Promise<string | null> {
-    return asyncStorage ? asyncStorage.getItem(key) : (mem.get(key) ?? null);
+    if (WyntaSDKModule) {
+      try {
+        const val = await WyntaSDKModule.getStoredString(key);
+        return val || null;
+      } catch {
+        return mem.get(key) ?? null;
+      }
+    }
+    return mem.get(key) ?? null;
   },
+
   async set(key: string, value: string): Promise<void> {
-    if (asyncStorage) return asyncStorage.setItem(key, value);
+    if (WyntaSDKModule) {
+      try {
+        await WyntaSDKModule.setStoredString(key, value);
+        return;
+      } catch {
+        // Fallback to memory in case of error
+      }
+    }
     mem.set(key, value);
   },
+
   async remove(key: string): Promise<void> {
-    if (asyncStorage) return asyncStorage.removeItem(key);
+    if (WyntaSDKModule) {
+      try {
+        await WyntaSDKModule.removeStoredString(key);
+        return;
+      } catch {
+        // Fallback to memory in case of error
+      }
+    }
     mem.delete(key);
   },
 };

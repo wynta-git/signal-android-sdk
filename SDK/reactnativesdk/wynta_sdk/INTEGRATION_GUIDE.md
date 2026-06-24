@@ -24,16 +24,17 @@ This guide covers everything a client application needs to integrate the Wynta S
 ## 1. Installation
 
 ```bash
-npm install wynta-react-native-sdk
+npm install @wynta/react-native-sdk
 ```
 
-**Optional — for FCM token persistence across app restarts:**
+**For iOS (Native Bridge Linking):**
+
+Because the Wynta SDK contains native wrappers for automatic push notification tracking, you must link the iOS pod dependencies:
 
 ```bash
-npm install @react-native-async-storage/async-storage
+cd ios && pod install && cd ..
 ```
 
-> Without this, the FCM token is held in memory only and will not survive app restarts. All other SDK features work without it.
 
 ---
 
@@ -62,7 +63,7 @@ await WyntaSDK.initSDK({
 **What `initSDK` does:**
 - Stores credentials in the internal Redux store
 - Creates a stable session ID for this app session
-- Restores any previously saved FCM token from device storage (if `@react-native-async-storage/async-storage` is installed)
+- Restores any previously saved FCM token from native device storage (SharedPreferences / NSUserDefaults)
 
 **Recommended location — `App.tsx`:**
 
@@ -178,38 +179,115 @@ await WyntaSDK.setIdentity({
 
 ---
 
-## 4. FCM Token — Push Notifications
+## 4. FCM Token & Push Notifications
 
-The SDK manages the FCM token lifecycle. You only need to call `setIdentity` with the token — the SDK handles storage, persistence, and forwarding it to the backend.
+The SDK manages the FCM token lifecycle and **automatically tracks push notification interaction events (opens and clicks) under the hood** using native wrappers for iOS and Android. You do not need to write manual event tracking code for these.
 
-### Registering the token for the first time
+### 4.1 Automatic Push Tracking
+
+When a user interacts with a notification sent by your push server, the SDK intercepts the interaction at the native level and fires the appropriate event:
+
+*   **`notification_opened`**: Sent when the user taps on the general notification banner to open the app.
+*   **`notification_clicked`**: Sent when the user taps on a specific action button (CTA) inside the notification.
+
+> [!TIP]
+> **Foreground Notification Banners:** By default, mobile operating systems do not show notification banners when the app is in the foreground. The Wynta SDK automatically forces heads-up banners to display natively at the top of the screen when a push notification is received while the app is active, for both iOS and Android. If clicked, they are tracked automatically.
+
+#### Required Push Payload Structure
+To enable automatic tracking, the custom data payload of your push notifications must contain the following keys:
+
+##### For standard notification opens (`notification_opened`):
+Include the following in the data payload:
+```json
+{
+  "campaign_id": "camp_100",
+  "campaign_name": "Weekend Deposit Boost",
+  "notification_type": "promotional",
+  "template_id": "tmpl_push_01"
+}
+```
+
+##### For specific button/action clicks (`notification_clicked`):
+In addition to the campaign fields, include the `action_id` and optional `deep_link`:
+```json
+{
+  "campaign_id": "camp_100",
+  "campaign_name": "Weekend Deposit Boost",
+  "notification_type": "promotional",
+  "template_id": "tmpl_push_01",
+  "action_id": "cta_deposit_now",
+  "deep_link": "/casino/deposit"
+}
+```
+
+#### Generated Event Formats
+The SDK parses this payload and tracks it dynamically with session and device metadata:
+
+##### Example: `notification_opened` Payload recorded by SDK
+```json
+{
+  "user_id": "ply_776192",
+  "session_id": "sess_abc12398",
+  "event_id": "a1b2c3d4-0000-0000-0000-0040",
+  "event_name": "notification_opened",
+  "timestamp": "2026-05-18T15:22:00.000Z",
+  "device_type": "mobile",
+  "platform": "android",
+  "brand_id": "brand_01",
+  "properties": {
+    "campaign_id": "camp_100",
+    "campaign_name": "Weekend Deposit Boost",
+    "notification_type": "promotional",
+    "channel": "push",
+    "template_id": "tmpl_push_01"
+  }
+}
+```
+
+##### Example: `notification_clicked` Payload recorded by SDK
+```json
+{
+  "user_id": "ply_776192",
+  "session_id": "sess_abc12398",
+  "event_id": "a1b2c3d4-0000-0000-0000-0041",
+  "event_name": "notification_clicked",
+  "timestamp": "2026-05-18T15:22:05.000Z",
+  "device_type": "mobile",
+  "platform": "android",
+  "brand_id": "brand_01",
+  "properties": {
+    "campaign_id": "camp_100",
+    "campaign_name": "Weekend Deposit Boost",
+    "notification_type": "promotional",
+    "channel": "push",
+    "template_id": "tmpl_push_01",
+    "action_id": "cta_deposit_now",
+    "deep_link": "/casino/deposit"
+  }
+}
+```
+
+### 4.2 Registering the FCM Token
+
+You only need to pass the FCM token using `setIdentity` once — the SDK handles storing, persisting, and automatically attaching it to the active user's identity.
 
 ```typescript
 import messaging from '@react-native-firebase/messaging';
 
+// Register the token (normally after permissions are granted)
 const fcmToken = await messaging().getToken();
-
 await WyntaSDK.setIdentity({ fcm_token: fcmToken });
 ```
 
-### Listening for token refresh
-
-FCM tokens can rotate. Set up a listener and call `setIdentity` when the token changes — the SDK will persist the new token and update the backend.
-
-```typescript
-useEffect(() => {
-  const unsubscribe = messaging().onTokenRefresh(async (newToken) => {
-    await WyntaSDK.setIdentity({ fcm_token: newToken });
-  });
-  return unsubscribe;
-}, []);
+> [!NOTE]
+> **Automated Token Refresh:** You do **not** need to set up an `onTokenRefresh` listener in your app code. The Wynta SDK automatically monitors FCM token rotation events under the hood and registers the updated token with the Wynta backend.
 ```
 
-### How the SDK handles the FCM token
+### 4.4 How the SDK handles the FCM token
 
 | Behaviour | Detail |
 |---|---|
-| **Storage** | Saved to `@react-native-async-storage/async-storage` (key: `@wynta/fcm_token`). Survives app restarts. |
+| **Storage** | Saved automatically to native device storage (SharedPreferences / NSUserDefaults). Survives app restarts. |
 | **Restoration** | On `initSDK`, the last saved token is loaded automatically. No extra call needed. |
 | **Deduplication** | The token is only persisted and sent again if it has changed. |
 | **Sent as trait** | Forwarded to the backend as `traits.fcm_token` in the identify call. |

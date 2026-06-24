@@ -11,6 +11,9 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Force the official NPM registry to prevent local mirrors (like cnpm) from interfering
+REGISTRY="--registry=https://registry.npmjs.org/"
+
 # Print header
 echo -e "${CYAN}==================================================${NC}"
 echo -e "${CYAN}        Wynta SDK Release & Publish Script        ${NC}"
@@ -23,7 +26,7 @@ cd "$(dirname "$0")"
 # 1. NPM Credentials Check
 # -------------------------------------------------------------
 echo -e "\n${BLUE}[1/5] Checking NPM Authentication...${NC}"
-if ! npm whoami > /dev/null 2>&1; then
+if ! npm whoami $REGISTRY > /dev/null 2>&1; then
     echo -e "${YELLOW}Warning: You do not appear to be logged in to npm.${NC}"
     echo -e "${YELLOW}Please run 'npm login' first if you expect npm publish to succeed.${NC}"
     read -p "Do you want to proceed with the publish process anyway? (y/N): " -r CONTINUE_LATER
@@ -32,7 +35,7 @@ if ! npm whoami > /dev/null 2>&1; then
         exit 1
     fi
 else
-    NPM_USER=$(npm whoami)
+    NPM_USER=$(npm whoami $REGISTRY)
     echo -e "${GREEN}✓ Logged in to NPM as user: ${NPM_USER}${NC}"
 fi
 
@@ -48,7 +51,7 @@ echo -e "${CYAN}Current Local:${NC}     $LOCAL_VERSION"
 
 echo -e "Fetching current published version from npm registry..."
 # Fetch the version from registry (silently ignore if not published yet)
-PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version 2>/dev/null || echo "Not published")
+PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version $REGISTRY 2>/dev/null || echo "Not published")
 echo -e "${CYAN}Current Published:${NC} $PUBLISHED_VERSION"
 
 # -------------------------------------------------------------
@@ -163,7 +166,7 @@ echo -e "\n${BLUE}[5/5] Publishing to NPM Registry...${NC}"
 echo -e "${YELLOW}If NPM asks for a 2FA OTP code, please enter it when prompted.${NC}"
 
 set +e
-npm publish
+npm publish $REGISTRY
 PUBLISH_STATUS=$?
 set -e
 
@@ -180,7 +183,7 @@ echo -e "\n${BLUE}Verifying published version on npm...${NC}"
 echo -e "Waiting 3 seconds for registry cache update..."
 sleep 3
 
-FINAL_PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version 2>/dev/null || echo "Unknown")
+FINAL_PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version $REGISTRY 2>/dev/null || echo "Unknown")
 echo -e "${GREEN}✓ Verification complete. Latest version on npm is: ${FINAL_PUBLISHED_VERSION}${NC}"
 
 echo -e "\n${GREEN}==================================================${NC}"

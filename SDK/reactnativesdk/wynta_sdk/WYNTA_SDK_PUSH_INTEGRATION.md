@@ -26,14 +26,16 @@ The SDK handles storing the token and registering it with the Wynta backend.
 
 ## Step 1 — Install Required Packages
 
+First install the Wynta SDK along with the standard React Native Firebase packages:
+
 ```bash
-npm install @react-native-firebase/app @react-native-firebase/messaging
+npm install @wynta/react-native-sdk @react-native-firebase/app @react-native-firebase/messaging
 ```
 
-For iOS, run pod install after:
+For iOS, run `pod install` after installation to link the Firebase pods and the Wynta SDK Native Module:
 
 ```bash
-cd ios && pod install
+cd ios && pod install && cd ..
 ```
 
 ---
@@ -224,46 +226,24 @@ useEffect(() => {
 }, []);
 ```
 
-### 5c. Handle foreground notifications (optional)
+### 5c. Foreground Notifications (Automated)
 
-Android does not auto-display notifications when the app is open. Add a foreground listener and display it however suits your app's UI:
+> **No developer action is required.**
+> 
+> By default, iOS and Android do not show system notification banners when the app is active in the foreground. The Wynta SDK automatically hooks into incoming notification events and forces native heads-up banners to slide down from the top of the screen:
+> 
+> *   **Android**: The Wynta JS layer intercepts the foreground message and instructs the native Android module to display a native high-priority heads-up banner.
+> *   **iOS**: The iOS native delegate automatically allows the OS to display incoming remote notifications as a banner in the foreground.
+> 
+> Clicking the foreground banner will launch the app click-tracking handlers automatically.
 
-```ts
-useEffect(() => {
-  const unsubscribe = messaging().onMessage(async remoteMessage => {
-    const { title, body } = remoteMessage.notification ?? {};
-    // Show an in-app alert, toast, or custom notification UI
-    Alert.alert(title ?? 'New Notification', body ?? '');
-  });
-  return unsubscribe;
-}, []);
-```
 
-### 5d. Handle FCM Token Refresh — Important
+### 5d. Handle FCM Token Refresh (Automated)
 
-> **This step is required.** FCM tokens can change at any time — when the app is reinstalled, when the user clears app data, or when Google Play Services rotates the token. If the SDK holds a stale token, push notifications will stop being delivered.
-
-Register a token refresh listener to automatically send the updated token to the SDK whenever it changes:
-
-```ts
-useEffect(() => {
-  const unsubscribe = messaging().onTokenRefresh(async newToken => {
-    console.log('[FCM] Token refreshed:', newToken);
-    // Send the new token to Wynta SDK immediately — no need to pass user_id or traits again
-    await WyntaSDK.setIdentity({ fcm_token: newToken });
-  });
-  return unsubscribe;
-}, []);
-```
-
-**When does the token change?**
-- App is uninstalled and reinstalled
-- User clears app data from device settings
-- Google Play Services rotates the token (can happen periodically)
-- App is restored to a new device from backup
-
-**What happens if you don't handle this?**  
-The Wynta backend will keep sending pushes to the old (invalid) token and the user will stop receiving notifications — with no visible error.
+> **No developer action is required for this step.**
+> FCM tokens can rotate periodically (e.g., when the app is reinstalled or when Google Play Services rotates credentials).
+>
+> The Wynta SDK automatically registers a token refresh listener internally. Whenever FCM generates a new token, the SDK intercepts it and registers it with the Wynta backend. You do not need to implement any refresh listeners in your code.
 
 ---
 
@@ -294,6 +274,41 @@ await WyntaSDK.setIdentity({
 // 3. On logout
 WyntaSDK.clearIdentity();
 ```
+
+---
+
+## Automatic Push Notification Event Tracking
+
+The SDK contains native iOS and Android modules that hook into the application's push callbacks. Tap and click interactions are tracked **automatically** under the hood without requiring custom listeners in your JavaScript/TypeScript code.
+
+### Expected Push Data Payloads
+To enable automatic tracking, the custom data payload of your push notifications sent from FCM/APNs must include specific parameters.
+
+#### 1. General Tap Interaction (`notification_opened`)
+When a user clicks on the notification body/banner to launch the app:
+```json
+{
+  "campaign_id": "camp_100",
+  "campaign_name": "Weekend Deposit Boost",
+  "notification_type": "promotional",
+  "template_id": "tmpl_push_01"
+}
+```
+
+#### 2. Specific CTA Button Click (`notification_clicked`)
+When a user clicks on a custom action button within the notification tray:
+```json
+{
+  "campaign_id": "camp_100",
+  "campaign_name": "Weekend Deposit Boost",
+  "notification_type": "promotional",
+  "template_id": "tmpl_push_01",
+  "action_id": "cta_deposit_now",
+  "deep_link": "/casino/deposit"
+}
+```
+
+Both scenarios are resolved, mapped, and tracked automatically.
 
 ---
 
@@ -343,7 +358,6 @@ const config = {
         moduleName === 'react' || moduleName === 'react-native' ||
         moduleName.startsWith('react/') || moduleName.startsWith('react-native/') ||
         moduleName === '@reduxjs/toolkit' ||
-        moduleName === '@react-native-async-storage/async-storage' ||
         moduleName === '@react-native-firebase/app' ||
         moduleName === '@react-native-firebase/messaging'
       ) {
@@ -368,4 +382,3 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), config);
 |---------|---------|--------------|
 | `@react-native-firebase/app` | `^22.x` | Firebase core |
 | `@react-native-firebase/messaging` | `^22.x` | FCM token + message handling |
-| `@react-native-async-storage/async-storage` | `^2.x` | FCM token persistence in SDK |
