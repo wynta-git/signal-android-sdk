@@ -50,8 +50,8 @@ _ALL_PENDING_CHUNKS_SQL = """
 """
 
 _INSERT_CHUNK_RELEASE_SQL = """
-    INSERT INTO bonus_chunk_release (chunk_id, wager_ref, wager_amount, release_amount)
-    VALUES (%s, 'SYSTEM', 0.00, %s)
+    INSERT INTO bonus_chunk_release (chunk_id, site_id, event_id, wager_ref, wager_amount, release_amount)
+    VALUES (%s, %s, %s, %s, %s, %s)
 """
 
 _RELEASE_ALL_PENDING_CHUNKS_SQL = """
@@ -67,12 +67,13 @@ async def handle_chunk_release(
     pam_user_id: int,
     props: dict[str, Any],
     trigger: TriggerWithConfigResponse,
+    event_id: str,
 ) -> None:
     """Release the next pending bonus chunk for the matched trigger."""
 
     # ── Amount range ──────────────────────────────────────────────────────────
     trigger_amount: float | None = None
-    raw_amount = props.get("amount")
+    raw_amount = props.get("transaction_amount")
     if raw_amount is not None:
         try:
             trigger_amount = float(raw_amount)
@@ -140,9 +141,13 @@ async def handle_chunk_release(
         return
 
     chunk_id, chunk_amount, bonus_grant_id = row[0], row[1], row[2]
+    wager_ref: str = str(props.get("wager_tnx_id") or "")
+    wager_amount: float = trigger_amount or 0.00
+    site_id: int = trigger.site_id
 
-    # ── Release: PENDING → RELEASE ────────────────────────────────────────────
+    # ── Release: PENDING → RELEASED + audit row ───────────────────────────────
     async with conn.cursor() as cur:
+        await cur.execute(_INSERT_CHUNK_RELEASE_SQL, (chunk_id, site_id, event_id, wager_ref, wager_amount, chunk_amount))
         await cur.execute(_RELEASE_CHUNK_SQL, (chunk_id,))
         await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (chunk_amount, bonus_grant_id))
     await conn.commit()
@@ -161,6 +166,8 @@ async def handle_chunk_release(
 async def release_all_chunks(
     conn: aiomysql.Connection,
     bonus_grant_id: int,
+    site_id: int,
+    event_id: str,
 ) -> None:
     """Release all PENDING chunks for a grant in one pass.
 
@@ -180,7 +187,7 @@ async def release_all_chunks(
     async with conn.cursor() as cur:
         await cur.executemany(
             _INSERT_CHUNK_RELEASE_SQL,
-            [(row[0], row[1]) for row in chunks],
+            [(row[0], site_id, event_id, "SYSTEM", 0.00, row[1]) for row in chunks],
         )
         await cur.execute(_RELEASE_ALL_PENDING_CHUNKS_SQL, (bonus_grant_id,))
         await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (total, bonus_grant_id))
