@@ -39,7 +39,7 @@ const DEFAULT_FILTERS: ReportFilters = {
   segment_id: null,
 };
 
-const DATE_RANGE_LABELS: Record<DateRange, string> = {
+export const DATE_RANGE_LABELS: Record<DateRange, string> = {
   last_7_days:  'Last 7 days',
   last_30_days: 'Last 30 days',
   last_90_days: 'Last 90 days',

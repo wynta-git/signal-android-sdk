@@ -3,8 +3,8 @@ import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from '../../store';
 import { fetchReport, deleteReport, clearActiveReport } from '../../store/slices/reportsSlice';
-import { ALL_METRICS } from './CustomReportBuilder';
-import type { MetricValue } from '../../services/reportsApi';
+import { ALL_METRICS, DATE_RANGE_LABELS } from './CustomReportBuilder';
+import type { MetricValue, DateRange } from '../../services/reportsApi';
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
@@ -81,6 +81,9 @@ export default function CustomReportView({ reportId, onBack, onCreateNew, onDele
             {report.metrics.map(k => METRIC_LABEL[k] ?? k).join(', ').substring(0, 60)}
             {report.metrics.length > 3 ? '…' : ''}
           </div>
+          <div style={{ fontSize: 12, color: 'var(--crm-fg3)', marginTop: 4 }}>
+            {DATE_RANGE_LABELS[report.filters.date_range as DateRange] ?? report.filters.date_range.replace(/_/g, ' ')}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button
@@ -88,12 +91,6 @@ export default function CustomReportView({ reportId, onBack, onCreateNew, onDele
             style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid var(--crm-negative)', background: 'transparent', color: 'var(--crm-negative)', fontSize: 13, cursor: 'pointer' }}
           >
             Delete Report
-          </button>
-          <button
-            onClick={onCreateNew}
-            style={{ padding: '7px 16px', borderRadius: 7, border: 'none', background: 'var(--crm-blue)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-          >
-            + Custom Report
           </button>
         </div>
       </div>
