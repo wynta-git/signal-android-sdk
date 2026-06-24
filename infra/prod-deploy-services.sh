@@ -60,6 +60,11 @@ CH_NATIVE_PORT="${CH_NATIVE_PORT:-9000}"
 
 VENV="$REPO/.venv"
 
+# URL-encode passwords for use in MongoDB/Redis connection strings
+url_encode() { python3 -c "import urllib.parse, sys; print(urllib.parse.quote_plus(sys.argv[1]))" "$1"; }
+MONGO_PASS_ENC=$(url_encode "$MONGO_PASS")
+REDIS_PASS_ENC=$(url_encode "$REDIS_PASS")
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 ok()      { echo "  [OK]  $*"; }
 info()    { echo "  [--]  $*"; }
@@ -184,11 +189,11 @@ section "5. Writing .env files"
 
 # api-service — port 8001
 cat > "$REPO/services/api-service/.env" <<EOF
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DB=pam
 MONGO_MIN_POOL_SIZE=5
 MONGO_MAX_POOL_SIZE=50
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
+REDIS_URL=redis://:$REDIS_PASS_ENC@$INSTANCE1_IP:$REDIS_PORT
 REDIS_MAX_CONNECTIONS=20
 KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
@@ -202,7 +207,7 @@ ok "api-service/.env"
 
 # auth-service — port 8002 (mode 600: contains private key)
 cat > "$REPO/services/auth-service/.env" <<EOF
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DB=pam
 JWT_PRIVATE_KEY="$PRIVKEY_ESCAPED"
 JWT_TOKEN_TTL=3600
@@ -225,7 +230,7 @@ CLICKHOUSE_PORT=$CH_HTTP_PORT
 CLICKHOUSE_DATABASE=pam
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=$CH_PASS
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
+REDIS_URL=redis://:$REDIS_PASS_ENC@$INSTANCE1_IP:$REDIS_PORT
 BATCH_SIZE=500
 BATCH_TIMEOUT_SECONDS=5.0
 DEBUG=false
@@ -240,14 +245,14 @@ cat > "$REPO/services/segmentation-engine/.env" <<EOF
 KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
 KAFKA_CONSUMER_GROUP=segmentation-trigger
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DATABASE=pam
 CLICKHOUSE_HOST=$CH_HOST
 CLICKHOUSE_PORT=$CH_HTTP_PORT
 CLICKHOUSE_DATABASE=pam
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=$CH_PASS
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
+REDIS_URL=redis://:$REDIS_PASS_ENC@$INSTANCE1_IP:$REDIS_PORT
 SEGMENT_CACHE_TTL_SECONDS=300
 SYSTEM_JWT_PUBLIC_KEY="$PUBKEY_ESCAPED"
 DEBUG=false
@@ -263,9 +268,9 @@ KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
 KAFKA_SEND_TOPIC=pam.campaigns.send.v1
 KAFKA_CONSUMER_GROUP=campaign-trigger
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DATABASE=pam
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
+REDIS_URL=redis://:$REDIS_PASS_ENC@$INSTANCE1_IP:$REDIS_PORT
 SEGMENT_CACHE_TTL_SECONDS=300
 SYSTEM_JWT_PUBLIC_KEY="$PUBKEY_ESCAPED"
 DEBUG=false
@@ -277,9 +282,9 @@ ok "campaign-engine/.env"
 
 # notifications-engine — port 8005 (Kafka consumer)
 cat > "$REPO/services/notifications-engine/.env" <<EOF
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DATABASE=pam
-REDIS_URL=redis://:$REDIS_PASS@$INSTANCE1_IP:$REDIS_PORT
+REDIS_URL=redis://:$REDIS_PASS_ENC@$INSTANCE1_IP:$REDIS_PORT
 KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_SEND_TOPIC=pam.campaigns.send.v1
 KAFKA_DELIVERY_TOPIC=pam.notifications.delivery.v1
@@ -296,7 +301,7 @@ ok "notifications-engine/.env"
 
 # scheduler-service — port 8006 (Kafka consumer)
 cat > "$REPO/services/scheduler-service/.env" <<EOF
-MONGO_URL=mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
+MONGO_URL=mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin
 MONGO_DATABASE=pam
 KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_SCHEDULER_TOPIC=pam.campaigns.schedule.v1
@@ -331,7 +336,7 @@ info "Running seed.py (upserts project + API token — safe to re-run)..."
 SEED_OUTPUT=$(as_user bash -c "
     cd '$REPO'
     '$VENV/bin/python' infra/seed.py \
-        --mongo 'mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin' \
+        --mongo "mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin" \
         --db pam \
         --project-id '$PROJECT_ID' \
         --project-name '$PROJECT_NAME'
@@ -346,7 +351,7 @@ if [ -n "$API_TOKEN" ]; then
 else
     warn "Could not parse token from seed output — it may already exist."
     warn "Retrieve it from MongoDB:"
-    warn "  mongosh 'mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/pam?authSource=admin' \\"
+    warn "  mongosh 'mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/pam?authSource=admin' \\"
     warn "    --eval 'db.tokens.find({project_id:\"$PROJECT_ID\"}).pretty()'"
 fi
 
@@ -357,7 +362,7 @@ SEED_ACCOUNTS="$REPO/scripts/seed_service_accounts.py"
 if [ -f "$SEED_ACCOUNTS" ]; then
     info "Seeding auth-service accounts (campaign-engine, segmentation-engine, etc.)..."
     as_user env \
-        MONGO_URL="mongodb://admin:$MONGO_PASS@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin" \
+        MONGO_URL="mongodb://admin:$MONGO_PASS_ENC@$INSTANCE1_IP:$MONGO_PORT/?authSource=admin" \
         MONGO_DB="pam" \
         "$VENV/bin/python" "$SEED_ACCOUNTS"
     ok "Service accounts seeded"
