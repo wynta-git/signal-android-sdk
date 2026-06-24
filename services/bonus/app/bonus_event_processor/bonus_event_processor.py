@@ -11,7 +11,9 @@ from app.bonus_event_processor.eligibility_checker import check_eligibility
 from app.bonus_event_processor.grant_writer import (
     check_applicability,
     check_occurrence,
+    compute_cashback_amount,
     compute_grant_amount,
+    write_cashback_grant,
     write_grant,
 )
 from app.bonus_event_processor.trigger_cache import get_triggers
@@ -202,6 +204,20 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                         event_name=event_name,
                         grant_amount=str(grant_amount),
                     )
+
+                    cashback_amount = compute_cashback_amount(cfg, trigger_amount)
+                    if cashback_amount > 0:
+                        cashback_grant_id = await write_cashback_grant(
+                            conn, t, cfg, pam_user_id, site_id, cashback_amount, bonus_code=promo_code
+                        )
+                        log.info(
+                            "cashback_granted",
+                            cashback_grant_id=cashback_grant_id,
+                            configure_id=cfg["id"],
+                            user_id=user_id,
+                            pam_user_id=pam_user_id,
+                            cashback_amount=str(cashback_amount),
+                        )
         except Exception as exc:
             log.error(
                 "bonus_grant_failed",

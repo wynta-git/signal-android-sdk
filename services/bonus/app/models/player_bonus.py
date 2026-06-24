@@ -115,6 +115,7 @@ class PlayerBonusTransactionSummary(BaseModel):
     expiry_amount: Decimal | None = None
     forfeit_amount: Decimal | None = None
     grant_txn_id: int | None = None
+    player_bonus_id: int | None = None
 
 
 # ── API 8: transaction detail ─────────────────────────────────────────────────

@@ -54,6 +54,7 @@ interface Transaction {
   expiry_amount?: string;
   forfeit_amount?: string;
   grant_txn_id?: number;
+  player_bonus_id?: number;
 }
 
 interface ChunkReleaseEvent {
@@ -770,8 +771,8 @@ function TransactionsScreen({
                 className="txn-row txn-row-grant"
                 onClick={() => onDetail(t)}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     {t.bonus_code && <span className="txn-code">{t.bonus_code}</span>}
                     <StatusBadge status="grant" />
                   </div>
@@ -780,6 +781,11 @@ function TransactionsScreen({
                     <span className="txn-arrow">›</span>
                   </div>
                 </div>
+                {t.player_bonus_id && (
+                  <div style={{ fontSize: "0.62rem", color: "#475569", marginBottom: 8, fontFamily: "monospace", letterSpacing: "0.03em" }}>
+                    ID: {String(t.player_bonus_id)}
+                  </div>
+                )}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
                   {[
                     { label: "Granted",  val: t.amount,                  color: "#cbd5e1" },
