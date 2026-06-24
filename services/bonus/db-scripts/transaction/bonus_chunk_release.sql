@@ -38,7 +38,7 @@ CREATE TABLE `bonus_chunk_release` (
     -- upstream wager transaction identifier; unique per chunk
 
     -- ── Amount ────────────────────────────────────────────────────────────────
-    `wager_amount`   DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    `wager_amount`   DECIMAL(18,2) DEFAULT NULL,
     -- wager amount attributed to this chunk from this wager event
     `release_amount` DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     -- amount credited to the player's wallet when this wager triggered a chunk release; 0 if no release occurred

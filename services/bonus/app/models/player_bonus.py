@@ -23,7 +23,7 @@ class ApplicableCodeResponse(BaseModel):
     display_on: str | None
     min_display_amount: Decimal | None
     wager_multiplier: Decimal
-    no_of_chunks: int
+    no_of_chunks: int | None
     applicability_frequency: str | None
 
 

@@ -66,7 +66,7 @@ CREATE TABLE `user_bonus_grant` (
     -- product sourced from bonus_release_trigger at grant time; NULL when trigger has no product constraint
     `wager_multiplier`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     -- x-wager requirement per chunk; 0 = no wagering — from bonus_configure
-    `no_of_chunks`       INT           NOT NULL DEFAULT 1,
+    `no_of_chunks`       INT           DEFAULT NULL,
     -- number of chunks the bonus was split into — from bonus_configure
     `chunk_expiry_days`  INT           DEFAULT NULL,
     -- days from grant until an unreleased chunk expires; NULL = no expiry

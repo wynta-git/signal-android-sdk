@@ -6,6 +6,8 @@ from typing import Any
 import aiomysql
 import structlog
 
+from app.bonus_event_processor.chunk_release_handler import release_all_chunks
+
 log = structlog.get_logger(__name__)
 
 _OCCURRENCE_COUNT_SQL = """
@@ -25,7 +27,7 @@ _INSERT_GRANT_SQL = """
          chunk_expiry_days, bonus_expiry_days,
          wager_chip_type, credit_chip_type, grant_amount,
          bonus_code, release_amount, bonus_grant_type)
-    VALUES (UUID_SHORT(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 # product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
 
@@ -133,68 +135,65 @@ async def write_grant(
     pam_user_id: int,
     site_id: int,
     grant_amount: Decimal,
+    player_bonus_id: int,
     bonus_code: str | None = None,
 ) -> int:
-    is_immediate = Decimal(str(configure["wager_multiplier"])) == Decimal("0")
-    release_amount = grant_amount if is_immediate else Decimal("0.00")
+    wager_multiplier = configure["wager_multiplier"]
+    no_of_chunks: int = configure["no_of_chunks"]
+    chunk_amount = (grant_amount / Decimal(str(no_of_chunks))).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    required_wager_amount = (chunk_amount * Decimal(str(wager_multiplier))).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
 
     async with conn.cursor() as cur:
-        # 1. Insert bonus_grant
         await cur.execute(
             _INSERT_GRANT_SQL,
             (
+                player_bonus_id,
                 configure["id"],
                 configure["subhead_id"],
                 configure["head_id"],
                 site_id,
                 pam_user_id,
                 trigger["product"],
-                configure["wager_multiplier"],
-                configure["no_of_chunks"],
+                wager_multiplier,
+                no_of_chunks,
                 configure["chunk_expiry_days"],
                 configure["bonus_expiry_days"],
                 configure["wager_chip_type"],
                 configure["credit_chip_type"],
                 grant_amount,
                 bonus_code,
-                release_amount,
+                Decimal("0.00"),
                 "CHUNK",
             ),
         )
         grant_id: int = cur.lastrowid  # type: ignore[assignment]
 
-        # 2. Insert bonus_chunk rows
-        no_of_chunks: int = configure["no_of_chunks"]
-        chunk_amount = (grant_amount / Decimal(str(no_of_chunks))).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
-        wager_multiplier = configure["wager_multiplier"]
-        chunk_status = "RELEASE" if is_immediate else "PENDING"
         for i in range(1, no_of_chunks + 1):
-            chunk_ref = f"CH{i:03d}"
-            required_wager_amount = (chunk_amount * Decimal(str(wager_multiplier))).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            )
             await cur.execute(
                 _INSERT_CHUNK_SQL,
-                (chunk_ref, grant_id, chunk_amount, wager_multiplier, required_wager_amount, chunk_status),
+                (f"CH{i:03d}", grant_id, chunk_amount, wager_multiplier, required_wager_amount, "PENDING"),
             )
 
-        # 3. Upsert bonus_budget_usage for all 9 combinations
         entities = [
             ("CONFIGURE", configure["id"]),
             ("SUBHEAD", configure["subhead_id"]),
             ("HEAD", configure["head_id"]),
         ]
-        periods = ["DAILY", "WEEKLY", "MONTHLY"]
         for entity_type, entity_id in entities:
-            for period in periods:
+            for period in ["DAILY", "WEEKLY", "MONTHLY"]:
                 await cur.execute(
                     _UPSERT_BUDGET_SQL,
                     (entity_type, entity_id, site_id, period, grant_amount),
                 )
 
         await conn.commit()
+
+    if Decimal(str(wager_multiplier)) == Decimal("0"):
+        await release_all_chunks(conn, grant_id)
 
     log.info(
         "bonus_grant_written",
@@ -215,28 +214,30 @@ async def write_cashback_grant(
     pam_user_id: int,
     site_id: int,
     cashback_amount: Decimal,
+    player_bonus_id: int,
     bonus_code: str | None = None,
 ) -> int:
-    """Create a single-chunk fully-released cashback grant (wager_multiplier forced to 0)."""
+    """Create a single-chunk cashback grant (wager_multiplier=0) and immediately release it."""
     async with conn.cursor() as cur:
         await cur.execute(
             _INSERT_GRANT_SQL,
             (
+                player_bonus_id,
                 configure["id"],
                 configure["subhead_id"],
                 configure["head_id"],
                 site_id,
                 pam_user_id,
                 trigger["product"],
-                0,                # wager_multiplier = 0 (no wagering for cashback)
-                1,                # no_of_chunks = 1
+                0,
+                1,
                 configure["chunk_expiry_days"],
                 configure["bonus_expiry_days"],
                 configure["wager_chip_type"],
                 configure["credit_chip_type"],
                 cashback_amount,
                 bonus_code,
-                cashback_amount,  # release_amount = full amount (immediate)
+                Decimal("0.00"),
                 "CASHBACK",
             ),
         )
@@ -244,7 +245,7 @@ async def write_cashback_grant(
 
         await cur.execute(
             _INSERT_CHUNK_SQL,
-            ("CH001", grant_id, cashback_amount, 0, Decimal("0.00"), "RELEASE"),
+            ("CH001", grant_id, cashback_amount, 0, Decimal("0.00"), "PENDING"),
         )
 
         entities = [
@@ -260,6 +261,8 @@ async def write_cashback_grant(
                 )
 
         await conn.commit()
+
+    await release_all_chunks(conn, grant_id)
 
     log.info(
         "cashback_grant_written",

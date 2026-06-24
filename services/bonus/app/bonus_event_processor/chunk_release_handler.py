@@ -42,6 +42,25 @@ _UPDATE_GRANT_RELEASE_SQL = """
     WHERE id = %s
 """
 
+_ALL_PENDING_CHUNKS_SQL = """
+    SELECT id, chunk_amount
+    FROM bonus_chunk
+    WHERE bonus_grant_id = %s
+      AND status = 'PENDING'
+"""
+
+_INSERT_CHUNK_RELEASE_SQL = """
+    INSERT INTO bonus_chunk_release (chunk_id, wager_ref, wager_amount, release_amount)
+    VALUES (%s, 'SYSTEM', 0.00, %s)
+"""
+
+_RELEASE_ALL_PENDING_CHUNKS_SQL = """
+    UPDATE bonus_chunk
+    SET status = 'RELEASED', release_amount = chunk_amount, updated_at = NOW()
+    WHERE bonus_grant_id = %s
+      AND status = 'PENDING'
+"""
+
 
 async def handle_chunk_release(
     conn: aiomysql.Connection,
@@ -136,4 +155,40 @@ async def handle_chunk_release(
         configure_id=trigger.configure_id,
         pam_user_id=pam_user_id,
         chunk_amount=str(chunk_amount),
+    )
+
+
+async def release_all_chunks(
+    conn: aiomysql.Connection,
+    bonus_grant_id: int,
+) -> None:
+    """Release all PENDING chunks for a grant in one pass.
+
+    Used when wagering_multiplier=0 (cashback) so the full grant amount
+    is immediately available — no per-event trigger needed.
+    """
+    async with conn.cursor() as cur:
+        await cur.execute(_ALL_PENDING_CHUNKS_SQL, (bonus_grant_id,))
+        chunks = await cur.fetchall()
+
+    if not chunks:
+        log.info("release_all_chunks_nothing_pending", bonus_grant_id=bonus_grant_id)
+        return
+
+    total: float = sum(float(row[1]) for row in chunks)
+
+    async with conn.cursor() as cur:
+        await cur.executemany(
+            _INSERT_CHUNK_RELEASE_SQL,
+            [(row[0], row[1]) for row in chunks],
+        )
+        await cur.execute(_RELEASE_ALL_PENDING_CHUNKS_SQL, (bonus_grant_id,))
+        await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (total, bonus_grant_id))
+    await conn.commit()
+
+    log.info(
+        "all_chunks_released",
+        bonus_grant_id=bonus_grant_id,
+        chunk_count=len(chunks),
+        total_released=str(total),
     )
