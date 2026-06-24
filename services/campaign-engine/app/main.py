@@ -47,7 +47,11 @@ async def lifespan(app: FastAPI):
     )
     app.state.ch = ch
 
-    producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+    producer = await make_kafka_producer(
+        settings.kafka_bootstrap_servers,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
+    )
     app.state.producer = producer
 
     health_classifier.start(db, ch)

@@ -42,7 +42,11 @@ async def main() -> None:
     await create_notification_delivery_indexes(db)
 
     redis = make_redis_client(settings.redis_url)
-    producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+    producer = await make_kafka_producer(
+        settings.kafka_bootstrap_servers,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
+    )
 
     stop_event = asyncio.Event()
 

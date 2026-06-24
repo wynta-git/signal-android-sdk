@@ -35,6 +35,8 @@ async def run_consumer(
         [settings.kafka_events_topic],
         settings.kafka_bootstrap_servers,
         settings.kafka_consumer_group,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
         auto_offset_reset="latest",
         value_deserializer=lambda b: json.loads(b.decode("utf-8")),
     )

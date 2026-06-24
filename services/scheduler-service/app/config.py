@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     kafka_dlq_topic: str = "pam.campaigns.schedule.dlq.v1"
     kafka_send_topic: str = "pam.campaigns.send.v1"
     kafka_consumer_group: str = "scheduler-service"
+    kafka_sasl_username: str = ""
+    kafka_sasl_password: str = ""
 
     redis_url: str
 

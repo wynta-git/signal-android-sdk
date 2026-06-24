@@ -37,6 +37,9 @@ MONGO_PORT="${MONGO_PORT:-27017}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 KAFKA_PORT="${KAFKA_PORT:-9092}"
 KAFKA_CONTROLLER_PORT="${KAFKA_CONTROLLER_PORT:-9093}"
+KAFKA_INTERNAL_PORT="${KAFKA_INTERNAL_PORT:-19092}"   # localhost-only PLAINTEXT for admin tools
+KAFKA_SASL_USER="${KAFKA_SASL_USER:-}"                # leave empty to skip SASL setup
+KAFKA_SASL_PASS="${KAFKA_SASL_PASS:-}"
 CH_HTTP_PORT="${CH_HTTP_PORT:-8123}"
 CH_NATIVE_PORT="${CH_NATIVE_PORT:-9000}"
 
@@ -55,7 +58,7 @@ echo "  PAM — Infrastructure Setup"
 echo "  Host IP:    $INSTANCE_IP"
 echo "  MongoDB:    admin / $MONGO_ADMIN_PASS  (port $MONGO_PORT)"
 echo "  Redis:      pass=$REDIS_PASS            (port $REDIS_PORT)"
-echo "  Kafka:      no auth                     (port $KAFKA_PORT)"
+echo "  Kafka:      ${KAFKA_SASL_USER:+SASL user=$KAFKA_SASL_USER}${KAFKA_SASL_USER:-no auth}  (port $KAFKA_PORT)"
 echo "  ClickHouse: default / $CH_DEFAULT_PASS  (ports $CH_HTTP_PORT, $CH_NATIVE_PORT)"
 echo ""
 echo "  Press Ctrl+C within 5s to abort."
@@ -330,6 +333,41 @@ create_topic "pam.campaigns.send.v1"          12
 create_topic "pam.campaigns.schedule.v1"      4
 create_topic "pam.campaigns.schedule.dlq.v1"  1
 create_topic "pam.notifications.delivery.v1"  12
+
+# ── 3b. Kafka SASL/SCRAM-SHA-256 (optional — only runs when KAFKA_SASL_USER is set) ──
+if [ -n "$KAFKA_SASL_USER" ] && [ -n "$KAFKA_SASL_PASS" ]; then
+    section "3b. Kafka SASL/SCRAM-SHA-256"
+
+    KAFKA_CFG="$KAFKA_INSTALL_DIR/config/kraft/server.properties"
+
+    info "Updating listeners — SASL_PLAINTEXT on $KAFKA_PORT, PLAINTEXT on 127.0.0.1:$KAFKA_INTERNAL_PORT..."
+    sed -i "s|^listeners=.*|listeners=SASL_PLAINTEXT://0.0.0.0:$KAFKA_PORT,PLAINTEXT://127.0.0.1:$KAFKA_INTERNAL_PORT,CONTROLLER://localhost:$KAFKA_CONTROLLER_PORT|" "$KAFKA_CFG"
+    sed -i "s|^advertised.listeners=.*|advertised.listeners=SASL_PLAINTEXT://$INSTANCE_IP:$KAFKA_PORT,PLAINTEXT://127.0.0.1:$KAFKA_INTERNAL_PORT|" "$KAFKA_CFG"
+
+    grep -qxF 'inter.broker.listener.name=PLAINTEXT' "$KAFKA_CFG" || \
+        echo 'inter.broker.listener.name=PLAINTEXT' >> "$KAFKA_CFG"
+    grep -qxF 'sasl.enabled.mechanisms=SCRAM-SHA-256' "$KAFKA_CFG" || \
+        echo 'sasl.enabled.mechanisms=SCRAM-SHA-256' >> "$KAFKA_CFG"
+    grep -q '^listener.security.protocol.map=' "$KAFKA_CFG" && \
+        sed -i "s|^listener.security.protocol.map=.*|listener.security.protocol.map=PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT|" "$KAFKA_CFG" || \
+        echo 'listener.security.protocol.map=PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT' >> "$KAFKA_CFG"
+    ok "server.properties updated for SASL"
+
+    systemctl restart kafka
+    info "Waiting 10s for Kafka to restart..."
+    sleep 10
+
+    info "Creating SCRAM user '$KAFKA_SASL_USER'..."
+    "$KAFKA_INSTALL_DIR/bin/kafka-configs.sh" \
+        --bootstrap-server "localhost:$KAFKA_INTERNAL_PORT" \
+        --alter \
+        --add-config "SCRAM-SHA-256=[iterations=8192,password=$KAFKA_SASL_PASS]" \
+        --entity-type users \
+        --entity-name "$KAFKA_SASL_USER"
+    ok "SASL user '$KAFKA_SASL_USER' created (SCRAM-SHA-256)"
+else
+    info "KAFKA_SASL_USER not set — skipping SASL setup (Kafka running in PLAINTEXT mode)"
+fi
 
 # ── 4. ClickHouse ─────────────────────────────────────────────────────────────
 section "4. ClickHouse"

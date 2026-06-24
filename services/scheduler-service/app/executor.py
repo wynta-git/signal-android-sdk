@@ -146,6 +146,8 @@ async def executor_loop(
         [settings.kafka_scheduler_topic],
         settings.kafka_bootstrap_servers,
         settings.kafka_consumer_group,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
         value_deserializer=lambda b: b,
     )
     log.info("executor.started", topic=settings.kafka_scheduler_topic)

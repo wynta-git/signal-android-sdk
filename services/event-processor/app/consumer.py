@@ -100,9 +100,13 @@ async def run_consumer(writer: ClickHouseWriter, redis: Redis) -> None:
         [settings.kafka_events_topic],
         settings.kafka_bootstrap_servers,
         settings.kafka_consumer_group,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
     )
     dlq_producer = await make_kafka_producer(
         settings.kafka_bootstrap_servers,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
         acks="all",
     )
     log.info(
