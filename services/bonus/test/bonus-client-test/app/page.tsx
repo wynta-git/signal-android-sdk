@@ -368,6 +368,7 @@ function DepositScreen({
           payment_method: paymentMethod,
           transaction_id: txnId,
           event_name: isbet ? "bet_placed" : "deposit_success",
+          ...(selectedPromo ? { promo_code: selectedPromo.code } : {}),
         }),
       });
       if (res.status === 202) {
@@ -466,6 +467,11 @@ function DepositScreen({
                 </div>
               ) : (
                 <div className="promo-list">
+                  {!selectedPromo && (
+                    <div style={{ fontSize: "0.72rem", color: "#f87171", marginBottom: 6, paddingLeft: 2 }}>
+                      Select a bonus to continue
+                    </div>
+                  )}
                   {promos.map((p) => (
                     <div
                       key={p.promo_id}
@@ -515,7 +521,7 @@ function DepositScreen({
             type="submit"
             className="btn-primary"
             style={{ marginTop: isbet ? 0 : 24 }}
-            disabled={depositing || !amount}
+            disabled={depositing || !amount || (!isbet && !promosLoading && promos.length > 0 && !selectedPromo)}
           >
             {depositing
               ? "Processing…"

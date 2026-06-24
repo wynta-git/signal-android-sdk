@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 
 import structlog
 from aiokafka import ConsumerRecord
@@ -101,6 +102,7 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
         trigger_amount = float(trigger_amount_raw) if trigger_amount_raw is not None else None
         event_product = props.get("product")
         event_payment_method = props.get("payment_method")
+        promo_code: str | None = props.get("promo_code") or None
 
         try:
             async with get_connection(POOL_BONUS) as conn:
@@ -124,6 +126,33 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                     trigger_pm = t.get("payment_method")
                     if trigger_pm and event_payment_method not in trigger_pm.split(","):
                         continue
+
+                    # ── Promo code filter ──────────────────────────────────────────────
+                    code_max_amount: Decimal | None = None
+                    async with conn.cursor() as cur:
+                        await cur.execute(
+                            "SELECT COUNT(*) FROM bonus_configure_code "
+                            "WHERE configure_id = %s AND active = 1",
+                            (cfg["id"],),
+                        )
+                        code_count: int = (await cur.fetchone())[0]
+
+                    if code_count > 0:
+                        if not promo_code:
+                            continue  # configure requires a code but event has none
+                        async with conn.cursor() as cur:
+                            await cur.execute(
+                                "SELECT max_amount FROM bonus_configure_code "
+                                "WHERE configure_id = %s AND code = %s AND active = 1 LIMIT 1",
+                                (cfg["id"], promo_code),
+                            )
+                            code_row = await cur.fetchone()
+                        if code_row is None:
+                            continue  # code doesn't match this configure
+                        if code_row[0] is not None:
+                            code_max_amount = Decimal(str(code_row[0]))
+                    elif promo_code:
+                        continue  # auto-trigger configure but event has a promo code
 
                     async with conn.cursor() as cur:
                         if not await check_occurrence(cur, pam_user_id, cfg["id"], t["occurrence"]):
@@ -157,10 +186,12 @@ async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
                         continue
 
                     grant_amount = compute_grant_amount(cfg, trigger_amount)
+                    if code_max_amount is not None:
+                        grant_amount = min(grant_amount, code_max_amount)
                     if grant_amount <= 0:
                         continue
 
-                    grant_id = await write_grant(conn, t, cfg, pam_user_id, site_id, grant_amount)
+                    grant_id = await write_grant(conn, t, cfg, pam_user_id, site_id, grant_amount, bonus_code=promo_code)
                     log.info(
                         "bonus_granted",
                         grant_id=grant_id,
