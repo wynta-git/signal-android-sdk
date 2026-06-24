@@ -224,8 +224,9 @@ export async function previewEvaluate(payload: {
 
 // ── Segment CRUD ──────────────────────────────────────────────────────────────
 
-export async function fetchSegments(): Promise<Segment[]> {
-  const res = await fetch(`${SEG_API}/segments`, { headers: authHeader() });
+export async function fetchSegments(brandId?: number): Promise<Segment[]> {
+  const url = brandId ? `${SEG_API}/segments?brand_id=${brandId}` : `${SEG_API}/segments`;
+  const res = await fetch(url, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchSegments failed: ${res.status}`);
   const data = await res.json();
   return data.map(toSegment);

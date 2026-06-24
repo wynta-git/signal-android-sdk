@@ -57,7 +57,7 @@ function toLabel(s: string): string {
 
 export const fetchSegments = createAsyncThunk(
   'segments/fetchAll',
-  () => segmentApi.fetchSegments()
+  (brandId?: number) => segmentApi.fetchSegments(brandId)
 );
 
 export const createSegment = createAsyncThunk(
