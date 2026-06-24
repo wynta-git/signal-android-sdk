@@ -311,14 +311,23 @@ fi
 # Create Kafka topics (idempotent — skips existing)
 section "3a. Creating Kafka topics"
 
+# Use the internal PLAINTEXT port if SASL is already configured on the main port
+KAFKA_CFG="$KAFKA_INSTALL_DIR/config/kraft/server.properties"
+if grep -q 'sasl.enabled.mechanisms' "$KAFKA_CFG" 2>/dev/null; then
+    KAFKA_ADMIN_PORT="$KAFKA_INTERNAL_PORT"
+    info "SASL already enabled — using internal PLAINTEXT port $KAFKA_ADMIN_PORT for admin tools"
+else
+    KAFKA_ADMIN_PORT="$KAFKA_PORT"
+fi
+
 create_topic() {
     local topic="$1" partitions="$2"
     if "$KAFKA_INSTALL_DIR/bin/kafka-topics.sh" \
-            --bootstrap-server "localhost:$KAFKA_PORT" --list 2>/dev/null | grep -qxF "$topic"; then
+            --bootstrap-server "localhost:$KAFKA_ADMIN_PORT" --list 2>/dev/null | grep -qxF "$topic"; then
         ok "Already exists: $topic"
     else
         "$KAFKA_INSTALL_DIR/bin/kafka-topics.sh" \
-            --bootstrap-server "localhost:$KAFKA_PORT" \
+            --bootstrap-server "localhost:$KAFKA_ADMIN_PORT" \
             --create \
             --topic "$topic" \
             --partitions "$partitions" \
