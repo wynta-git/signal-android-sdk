@@ -9,8 +9,8 @@
 # Run as root or with sudo:
 #   sudo bash setup-infra.sh
 #
-# Credentials can be overridden via environment variables before running:
-#   MONGO_ADMIN_PASS=secret REDIS_PASS=secret sudo bash setup-infra.sh
+# Credentials and ports can be overridden via environment variables:
+#   MONGO_ADMIN_PASS=secret MONGO_PORT=27018 sudo bash setup-infra.sh
 #
 # After this script completes, the data layer is ready.
 # Deploy the app layer on Instance 2 with:
@@ -28,6 +28,18 @@ KAFKA_VERSION="${KAFKA_VERSION:-3.7.1}"
 KAFKA_INSTALL_DIR="${KAFKA_INSTALL_DIR:-/opt/kafka}"
 APP_USER="${APP_USER:-ubuntu}"
 
+# ── distro override (auto-detected; set manually if lsb_release returns an unsupported name) ──
+# Supported MongoDB 7.0 values: focal, jammy, noble
+MONGO_DISTRO="${MONGO_DISTRO:-}"
+
+# ── ports — override via env vars before running ─────────────────────────────
+MONGO_PORT="${MONGO_PORT:-27017}"
+REDIS_PORT="${REDIS_PORT:-6379}"
+KAFKA_PORT="${KAFKA_PORT:-9092}"
+KAFKA_CONTROLLER_PORT="${KAFKA_CONTROLLER_PORT:-9093}"
+CH_HTTP_PORT="${CH_HTTP_PORT:-8123}"
+CH_NATIVE_PORT="${CH_NATIVE_PORT:-9000}"
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 ok()      { echo "  [OK]  $*"; }
 info()    { echo "  [--]  $*"; }
@@ -41,10 +53,10 @@ echo ""
 echo "======================================================"
 echo "  PAM — Infrastructure Setup"
 echo "  Host IP:    $INSTANCE_IP"
-echo "  MongoDB:    admin / $MONGO_ADMIN_PASS  (port 27017)"
-echo "  Redis:      pass=$REDIS_PASS            (port 6379)"
-echo "  Kafka:      no auth                     (port 9092)"
-echo "  ClickHouse: default / $CH_DEFAULT_PASS  (ports 8123, 9000)"
+echo "  MongoDB:    admin / $MONGO_ADMIN_PASS  (port $MONGO_PORT)"
+echo "  Redis:      pass=$REDIS_PASS            (port $REDIS_PORT)"
+echo "  Kafka:      no auth                     (port $KAFKA_PORT)"
+echo "  ClickHouse: default / $CH_DEFAULT_PASS  (ports $CH_HTTP_PORT, $CH_NATIVE_PORT)"
 echo ""
 echo "  Press Ctrl+C within 5s to abort."
 echo "======================================================"
@@ -68,17 +80,26 @@ if systemctl is-active --quiet mongod 2>/dev/null; then
     ok "MongoDB already running — skipping install"
 else
     info "Adding MongoDB 7.0 apt repository..."
+    # Map the detected codename to the nearest MongoDB-supported Ubuntu release
+    if [ -z "$MONGO_DISTRO" ]; then
+        _DISTRO=$(lsb_release -cs)
+        case "$_DISTRO" in
+            focal|jammy|noble) MONGO_DISTRO="$_DISTRO" ;;
+            *)                 MONGO_DISTRO="jammy"; warn "Unsupported distro '$_DISTRO' — using jammy repo for MongoDB (override with MONGO_DISTRO=)" ;;
+        esac
+    fi
+    info "Using MongoDB repo for: $MONGO_DISTRO"
     curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc \
         | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
     echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] \
-https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" \
+https://repo.mongodb.org/apt/ubuntu ${MONGO_DISTRO}/mongodb-org/7.0 multiverse" \
         > /etc/apt/sources.list.d/mongodb-org-7.0.list
     apt-get update -qq
     apt-get install -y -qq mongodb-org mongodb-mongosh
     ok "MongoDB 7.0 installed"
 
     info "Writing /etc/mongod.conf (auth disabled — temporary for user creation)..."
-    cat > /etc/mongod.conf <<'MONGOCFG'
+    cat > /etc/mongod.conf <<MONGOCFG
 storage:
   dbPath: /var/lib/mongodb
 
@@ -88,7 +109,7 @@ systemLog:
   path: /var/log/mongodb/mongod.log
 
 net:
-  port: 27017
+  port: $MONGO_PORT
   bindIp: 0.0.0.0
 
 processManagement:
@@ -100,7 +121,7 @@ MONGOCFG
     sleep 5
 
     info "Creating admin user..."
-    mongosh --quiet --eval "
+    mongosh --quiet --port "$MONGO_PORT" --eval "
         var db = db.getSiblingDB('admin');
         if (db.getUser('admin') === null) {
             db.createUser({
@@ -127,11 +148,11 @@ MONGOCFG
     info "Waiting 5s for MongoDB with auth..."
     sleep 5
 
-    if mongosh --quiet \
+    if mongosh --quiet --port "$MONGO_PORT" \
             --username admin --password "$MONGO_ADMIN_PASS" \
             --authenticationDatabase admin \
             --eval "db.adminCommand('ping').ok" 2>/dev/null | grep -q '^1$'; then
-        ok "MongoDB is up with authentication enabled"
+        ok "MongoDB is up with authentication enabled (port $MONGO_PORT)"
     else
         warn "MongoDB auth ping failed — check: journalctl -u mongod -n 50"
     fi
@@ -148,11 +169,13 @@ else
 
     REDIS_CFG="/etc/redis/redis.conf"
 
-    info "Configuring Redis (bind, password, protected-mode)..."
+    info "Configuring Redis (bind, port, password, protected-mode)..."
     # Bind to all interfaces
     sed -i 's/^bind 127\.0\.0\.1.*/bind 0.0.0.0/' "$REDIS_CFG"
     # Disable protected-mode (required when binding to 0.0.0.0 with password)
     sed -i 's/^protected-mode yes/protected-mode no/' "$REDIS_CFG"
+    # Set port
+    sed -i "s/^port .*/port $REDIS_PORT/" "$REDIS_CFG"
     # Set password — replace existing requirepass line or append
     if grep -q '^requirepass' "$REDIS_CFG"; then
         sed -i "s/^requirepass .*/requirepass $REDIS_PASS/" "$REDIS_CFG"
@@ -167,8 +190,8 @@ else
     systemctl enable redis-server
     sleep 2
 
-    if redis-cli -a "$REDIS_PASS" ping 2>/dev/null | grep -q "PONG"; then
-        ok "Redis is up on port 6379"
+    if redis-cli -p "$REDIS_PORT" -a "$REDIS_PASS" ping 2>/dev/null | grep -q "PONG"; then
+        ok "Redis is up on port $REDIS_PORT"
     else
         warn "Redis PING failed — check: journalctl -u redis-server -n 30"
     fi
@@ -200,15 +223,21 @@ else
     info "Configuring Kafka KRaft server.properties..."
     # Set the advertised listener to this instance's IP
     if grep -q '^advertised.listeners=' "$KAFKA_CFG"; then
-        sed -i "s|^advertised.listeners=.*|advertised.listeners=PLAINTEXT://$INSTANCE_IP:9092|" "$KAFKA_CFG"
+        sed -i "s|^advertised.listeners=.*|advertised.listeners=PLAINTEXT://$INSTANCE_IP:$KAFKA_PORT|" "$KAFKA_CFG"
     else
-        echo "advertised.listeners=PLAINTEXT://$INSTANCE_IP:9092" >> "$KAFKA_CFG"
+        echo "advertised.listeners=PLAINTEXT://$INSTANCE_IP:$KAFKA_PORT" >> "$KAFKA_CFG"
     fi
     # Set listeners (PLAINTEXT for clients + CONTROLLER for KRaft consensus)
     if grep -q '^listeners=' "$KAFKA_CFG"; then
-        sed -i "s|^listeners=.*|listeners=PLAINTEXT://$INSTANCE_IP:9092,CONTROLLER://localhost:9093|" "$KAFKA_CFG"
+        sed -i "s|^listeners=.*|listeners=PLAINTEXT://0.0.0.0:$KAFKA_PORT,CONTROLLER://localhost:$KAFKA_CONTROLLER_PORT|" "$KAFKA_CFG"
     else
-        echo "listeners=PLAINTEXT://$INSTANCE_IP:9092,CONTROLLER://localhost:9093" >> "$KAFKA_CFG"
+        echo "listeners=PLAINTEXT://0.0.0.0:$KAFKA_PORT,CONTROLLER://localhost:$KAFKA_CONTROLLER_PORT" >> "$KAFKA_CFG"
+    fi
+    # Update KRaft controller quorum voters port
+    if grep -q '^controller.quorum.voters=' "$KAFKA_CFG"; then
+        sed -i "s|^controller.quorum.voters=.*|controller.quorum.voters=1@localhost:$KAFKA_CONTROLLER_PORT|" "$KAFKA_CFG"
+    else
+        echo "controller.quorum.voters=1@localhost:$KAFKA_CONTROLLER_PORT" >> "$KAFKA_CFG"
     fi
     # Use a dedicated log directory
     if grep -q '^log.dirs=' "$KAFKA_CFG"; then
@@ -265,8 +294,8 @@ EOF
     KAFKA_UP=false
     for i in $(seq 1 $MAX_TRIES); do
         if "$KAFKA_INSTALL_DIR/bin/kafka-broker-api-versions.sh" \
-                --bootstrap-server "localhost:9092" &>/dev/null 2>&1; then
-            ok "Kafka is accepting connections on localhost:9092"
+                --bootstrap-server "localhost:$KAFKA_PORT" &>/dev/null 2>&1; then
+            ok "Kafka is accepting connections on localhost:$KAFKA_PORT"
             KAFKA_UP=true
             break
         fi
@@ -282,11 +311,11 @@ section "3a. Creating Kafka topics"
 create_topic() {
     local topic="$1" partitions="$2"
     if "$KAFKA_INSTALL_DIR/bin/kafka-topics.sh" \
-            --bootstrap-server "localhost:9092" --list 2>/dev/null | grep -qxF "$topic"; then
+            --bootstrap-server "localhost:$KAFKA_PORT" --list 2>/dev/null | grep -qxF "$topic"; then
         ok "Already exists: $topic"
     else
         "$KAFKA_INSTALL_DIR/bin/kafka-topics.sh" \
-            --bootstrap-server "localhost:9092" \
+            --bootstrap-server "localhost:$KAFKA_PORT" \
             --create \
             --topic "$topic" \
             --partitions "$partitions" \
@@ -340,14 +369,22 @@ CHEOF
 </clickhouse>
 CHEOF
 
+    info "Configuring ClickHouse ports..."
+    cat > /etc/clickhouse-server/config.d/pam-ports.xml <<CHEOF
+<clickhouse>
+    <http_port>$CH_HTTP_PORT</http_port>
+    <tcp_port>$CH_NATIVE_PORT</tcp_port>
+</clickhouse>
+CHEOF
+
     systemctl enable clickhouse-server
     systemctl start clickhouse-server
     info "Waiting 8s for ClickHouse to start..."
     sleep 8
 
-    if clickhouse-client --password "$CH_DEFAULT_PASS" \
+    if clickhouse-client --password "$CH_DEFAULT_PASS" --port "$CH_NATIVE_PORT" \
             --query "SELECT 1" &>/dev/null 2>&1; then
-        ok "ClickHouse is up (HTTP port 8123, native port 9000)"
+        ok "ClickHouse is up (HTTP port $CH_HTTP_PORT, native port $CH_NATIVE_PORT)"
     else
         warn "ClickHouse query failed — check: journalctl -u clickhouse-server -n 50"
     fi
@@ -360,11 +397,11 @@ echo ""
 warn "Ensure the following ports are open between instances (AWS SG / iptables):"
 echo ""
 echo "    Data layer inbound (this host):"
-echo "      27017  — MongoDB      (from app layer)"
-echo "      6379   — Redis        (from app layer)"
-echo "      9092   — Kafka        (from app layer)"
-echo "      8123   — ClickHouse   (from app layer, HTTP)"
-echo "      9000   — ClickHouse   (from app layer, native)"
+echo "      $MONGO_PORT   — MongoDB      (from app layer)"
+echo "      $REDIS_PORT   — Redis        (from app layer)"
+echo "      $KAFKA_PORT   — Kafka        (from app layer)"
+echo "      $CH_HTTP_PORT — ClickHouse   (from app layer, HTTP)"
+echo "      $CH_NATIVE_PORT — ClickHouse (from app layer, native)"
 echo ""
 echo "    App layer inbound:"
 echo "      8001–8006  — PAM services  (from your load balancer / clients)"
@@ -375,12 +412,12 @@ echo ""
 echo "======================================================"
 echo "  Infrastructure setup complete."
 echo ""
-echo "  Service       Port(s)         Credentials"
+echo "  Service       Port(s)                   Credentials"
 echo "  ─────────────────────────────────────────────────────"
-echo "  MongoDB       27017           admin / $MONGO_ADMIN_PASS"
-echo "  Redis         6379            pass: $REDIS_PASS"
-echo "  Kafka         9092            (no auth, KRaft)"
-echo "  ClickHouse    8123 / 9000     default / $CH_DEFAULT_PASS"
+echo "  MongoDB       $MONGO_PORT               admin / $MONGO_ADMIN_PASS"
+echo "  Redis         $REDIS_PORT               pass: $REDIS_PASS"
+echo "  Kafka         $KAFKA_PORT               (no auth, KRaft)"
+echo "  ClickHouse    $CH_HTTP_PORT / $CH_NATIVE_PORT   default / $CH_DEFAULT_PASS"
 echo ""
 echo "  Kafka topics:"
 echo "    pam.events.raw.v1                 (3 partitions)"
