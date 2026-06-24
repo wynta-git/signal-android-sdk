@@ -5,35 +5,42 @@ const TIMEOUT_MS = 10_000;
 
 export async function identifyPlayer(
   payload: IdentifyRequest,
-  bearerToken: string,
+  clientId: string,
+  clientSecret: string,
 ): Promise<IdentifyResponse> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   const requestBody = JSON.stringify(payload);
 
-  console.log('[WyntaSDK] identifyPlayer → URL:', IDENTIFY_URL);
-  console.log('[WyntaSDK] identifyPlayer → Headers:', {
+  const headers = {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${bearerToken}`,
-  });
-  console.log('[WyntaSDK] identifyPlayer → Body:', requestBody);
+    'X-Client-Id': clientId,
+    'X-Client-Secret': clientSecret,
+  };
+
+  console.log(
+    '\n[WyntaSDK] ══ setIdentity REQUEST ══\n' +
+    'URL    : POST ' + IDENTIFY_URL + '\n' +
+    'Headers: ' + JSON.stringify(headers) + '\n' +
+    'Body   : ' + requestBody
+  );
 
   try {
     const response = await fetch(IDENTIFY_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${bearerToken}`,
-      },
+      headers,
       body: requestBody,
       signal: controller.signal,
     });
 
-    console.log('[WyntaSDK] identifyPlayer → HTTP status:', response.status, response.statusText);
-
     const responseText = await response.text();
-    console.log('[WyntaSDK] identifyPlayer → Raw response:', responseText);
+
+    console.log(
+      '\n[WyntaSDK] ══ setIdentity RESPONSE ══\n' +
+      'Status : ' + response.status + ' ' + response.statusText + '\n' +
+      'Body   : ' + responseText
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText} — ${responseText}`);

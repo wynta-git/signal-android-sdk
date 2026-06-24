@@ -75,7 +75,7 @@ export const setIdentityThunk = createAsyncThunk<
   logger.log(`setIdentity → user: ${userId}`, identifyPayload);
 
   try {
-    await identifyPlayer(identifyPayload, current.clientSecret!);
+    await identifyPlayer(identifyPayload, current.clientId!, current.clientSecret!);
     logger.log('setIdentity response: success');
     return { success: true };
   } catch (err: unknown) {

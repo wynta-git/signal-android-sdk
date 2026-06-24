@@ -237,7 +237,17 @@ import WyntaSDK from 'wynta-react-native-sdk';
 
 ## Publishing
 
+To automatically build, bump version, publish to the npm registry, and verify:
+
 ```bash
-npm login
-npm publish
+npm run release <patch | minor | major>
 ```
+
+Example (for bug fixes / patches):
+```bash
+npm run release patch
+```
+
+> [!NOTE]
+> The script will automatically verify your authentication against the official npm registry, check for dirty git directories, and build compiler assets before publishing.
+

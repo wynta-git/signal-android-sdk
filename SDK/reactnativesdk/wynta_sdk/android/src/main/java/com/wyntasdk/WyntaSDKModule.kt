@@ -12,7 +12,7 @@ import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
 
-class WyntaSDKModule(reactContext: ReactApplicationContext) : 
+class WyntaSDKModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), ActivityEventListener {
 
     private var coldStartNotification: WritableMap? = null
@@ -27,19 +27,17 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
 
     override fun initialize() {
         super.initialize()
-        // Check if the application was launched from a notification (Cold Start)
-        val activity = currentActivity
+        val activity = reactApplicationContext.currentActivity
         if (activity != null) {
             handleIntent(activity.intent, isColdStart = true)
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
-        // Intercept when the app is running in the background and opened by a notification (Warm Start)
+    override fun onNewIntent(intent: Intent) {
         handleIntent(intent, isColdStart = false)
     }
 
-    override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
         // No-op
     }
 
@@ -47,7 +45,6 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
         if (intent == null) return
         val extras = intent.extras ?: return
 
-        // Check for Wynta push notification markers in the intent
         val campaignId = extras.getString("campaign_id") ?: extras.getString("wynta_campaign_id")
         if (campaignId != null) {
             val params = Arguments.createMap()
@@ -64,25 +61,18 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
                 coldStartNotification = params
             }
 
-            // Emit the event to the JS layer
             sendEvent("wynta_push_interaction", params)
         }
     }
 
-    /**
-     * Expose a React Method to allow JavaScript to fetch the cold-start notification
-     * when it initializes. This prevents missing cold-start taps that occur before
-     * the JS event listeners are fully registered.
-     */
     @ReactMethod
     fun getColdStartNotification(promise: Promise) {
         var notification = coldStartNotification
-        
-        // If we missed it during initialize(), check the current activity's intent on-demand
+
         if (notification == null) {
-            val activity = currentActivity
-            if (activity != null && activity.intent != null) {
-                val extras = activity.intent.extras
+            val activity = reactApplicationContext.currentActivity
+            if (activity != null) {
+                val extras = activity.intent?.extras
                 if (extras != null) {
                     val campaignId = extras.getString("campaign_id") ?: extras.getString("wynta_campaign_id")
                     if (campaignId != null) {
@@ -103,13 +93,12 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
 
         if (notification != null) {
             coldStartNotification = null
-            // Clear the extras so re-calling or screen rotations don't trigger duplicate tracks
             try {
-                val activity = currentActivity
+                val activity = reactApplicationContext.currentActivity
                 activity?.intent?.removeExtra("campaign_id")
                 activity?.intent?.removeExtra("wynta_campaign_id")
             } catch (e: Exception) {
-                // Ignore errors removing extras
+                // Ignore
             }
             promise.resolve(notification)
         } else {
@@ -120,7 +109,7 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun getStoredString(key: String, promise: Promise) {
         try {
-            val sharedPref = reactApplicationContext.getSharedPreferences("wynta_sdk_prefs", android.content.Context.MODE_PRIVATE)
+            val sharedPref = reactApplicationContext.getSharedPreferences("wynta_sdk_prefs", Context.MODE_PRIVATE)
             val value = sharedPref.getString(key, null)
             promise.resolve(value)
         } catch (e: Exception) {
@@ -131,7 +120,7 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun setStoredString(key: String, value: String, promise: Promise) {
         try {
-            val sharedPref = reactApplicationContext.getSharedPreferences("wynta_sdk_prefs", android.content.Context.MODE_PRIVATE)
+            val sharedPref = reactApplicationContext.getSharedPreferences("wynta_sdk_prefs", Context.MODE_PRIVATE)
             sharedPref.edit().putString(key, value).apply()
             promise.resolve(true)
         } catch (e: Exception) {
@@ -142,7 +131,7 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun removeStoredString(key: String, promise: Promise) {
         try {
-            val sharedPref = reactApplicationContext.getSharedPreferences("wynta_sdk_prefs", android.content.Context.MODE_PRIVATE)
+            val sharedPref = reactApplicationContext.getSharedPreferences("wynta_sdk_prefs", Context.MODE_PRIVATE)
             sharedPref.edit().remove(key).apply()
             promise.resolve(true)
         } catch (e: Exception) {
@@ -201,7 +190,7 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
                     smallIcon = appInfo.icon
                 }
             } catch (e: Exception) {
-                // Ignore fallback to default
+                // Fallback to default
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
