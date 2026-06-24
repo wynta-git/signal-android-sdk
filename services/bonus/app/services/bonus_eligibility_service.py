@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import aiomysql
 import structlog
+from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
+from app.services.bonus_cache import bust_eligibility_cache
 
 from app.exceptions import (
     BonusEligibilityDuplicateError,
@@ -99,7 +101,7 @@ def _row_hash(fields: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-async def add_bonus_eligibility(data: BonusEligibilityCreate) -> BonusEligibilityResponse:
+async def add_bonus_eligibility(data: BonusEligibilityCreate, redis: Redis | None = None) -> BonusEligibilityResponse:
     """Create one eligibility criterion row for a configure node."""
     log.info("add_bonus_eligibility.start", configure_id=data.configure_id)
 
@@ -150,6 +152,8 @@ async def add_bonus_eligibility(data: BonusEligibilityCreate) -> BonusEligibilit
         raise DatabaseError(str(exc)) from exc
 
     assert row is not None
+    if redis:
+        await bust_eligibility_cache(redis, data.configure_id)
     response = _row_to_response(row)
     log.info("add_bonus_eligibility.created", eligibility_id=response.id)
     return response
@@ -175,7 +179,7 @@ async def get_bonus_eligibility(eligibility_id: int) -> BonusEligibilityResponse
 
 
 async def update_bonus_eligibility(
-    eligibility_id: int, data: BonusEligibilityUpdate
+    eligibility_id: int, data: BonusEligibilityUpdate, redis: Redis | None = None
 ) -> BonusEligibilityResponse:
     """Partial update of a bonus_eligibility criterion row."""
     updates: dict[str, object] = {}
@@ -231,5 +235,7 @@ async def update_bonus_eligibility(
         raise DatabaseError(str(exc)) from exc
 
     assert updated_row is not None
+    if redis:
+        await bust_eligibility_cache(redis, row[1])  # type: ignore[possibly-undefined]
     log.info("update_bonus_eligibility.done", eligibility_id=eligibility_id)
     return _row_to_response(updated_row)

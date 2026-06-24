@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -6,7 +7,9 @@ import structlog
 from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
-from shared.services.user import get_or_create_pam_user
+from shared.services.user import get_or_create_pam_user, get_pam_user_id
+from app.bonus_event_processor.grant_writer import check_applicability
+from app.bonus_event_processor.eligibility_checker import check_eligibility
 from app.exceptions import (
     DatabaseError,
     PlayerBonusAlreadyRevertedError,
@@ -42,19 +45,32 @@ _APPLICABLE_CODES_SQL = """
         bcc.valid_from, bcc.valid_to, bcc.display_title, bcc.display_description,
         bcc.terms_url, bcc.banner_image_url, bcc.badge_text, bcc.cta_text,
         bcc.auto_apply, bcc.display_order, bcc.display_on, bcc.min_display_amount,
-        bc.wager_multiplier, bc.no_of_chunks, bc.applicability_frequency
+        bc.wager_multiplier, bc.no_of_chunks, bc.applicability_frequency,
+        bc.id AS configure_id
     FROM bonus_configure_code bcc
     JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
     WHERE bcc.active = 1
       AND bc.wager_chip_type = %s
       AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
       AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
+      AND bc.start_date <= NOW()
+      AND bc.end_date   >= NOW()
     ORDER BY bcc.display_order ASC
 """
 
 
-async def list_applicable_codes(user_id: str, chip_type: str) -> list[ApplicableCodeResponse]:
+async def list_applicable_codes(
+    user_id: str,
+    chip_type: str,
+    redis: Redis | None = None,
+    site_id: int | None = None,
+) -> list[ApplicableCodeResponse]:
     log.info("player_bonus.list_applicable_codes", user_id=user_id, chip_type=chip_type)
+
+    pam_user_id: int | None = None
+    if redis and site_id:
+        pam_user_id = await get_pam_user_id(redis, site_id, user_id)
+
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
@@ -63,6 +79,14 @@ async def list_applicable_codes(user_id: str, chip_type: str) -> list[Applicable
 
                 results: list[ApplicableCodeResponse] = []
                 for row in rows:
+                    configure_id: int = row[18]
+
+                    if pam_user_id is not None:
+                        if not await check_applicability(cur, pam_user_id, configure_id, row[17]):
+                            continue
+                        if redis and not await check_eligibility(redis, configure_id, {}):
+                            continue
+
                     results.append(ApplicableCodeResponse(
                         promo_id=row[0], code=row[1], max_amount=row[2],
                         valid_from=row[3], valid_to=row[4],
@@ -81,7 +105,9 @@ async def list_applicable_codes(user_id: str, chip_type: str) -> list[Applicable
 _VALIDATE_CODE_SQL = """
     SELECT
         bcc.id, bcc.code, bcc.display_title,
-        bc.wager_multiplier, bc.no_of_chunks
+        bc.wager_multiplier, bc.no_of_chunks,
+        bc.applicability_frequency,
+        bc.id AS configure_id
     FROM bonus_configure_code bcc
     JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
     WHERE bcc.active = 1
@@ -89,28 +115,77 @@ _VALIDATE_CODE_SQL = """
       AND bc.wager_chip_type = %s
       AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
       AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
+      AND (bc.start_date  IS NULL OR bc.start_date  <= NOW())
+      AND (bc.end_date    IS NULL OR bc.end_date    >= NOW())
     LIMIT 1
 """
 
+_CODE_CACHE_TTL = 600   # code config changes rarely
+_CODE_MISS_TTL  = 60    # negative-result sentinel TTL
 
-async def validate_code(user_id: str, chip_type: str, code: str, amount: Decimal | None = None) -> ValidateCodeResponse:
+
+async def validate_code(
+    user_id: str,
+    chip_type: str,
+    code: str,
+    amount: Decimal | None = None,
+    redis: Redis | None = None,
+    site_id: int | None = None,
+) -> ValidateCodeResponse:
     log.info("player_bonus.validate_code", user_id=user_id, chip_type=chip_type, code=code, amount=str(amount) if amount is not None else None)
     try:
-        async with get_connection(POOL_BONUS) as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(_VALIDATE_CODE_SQL, (code, chip_type))
-                row = await cur.fetchone()
-        if not row:
-            return ValidateCodeResponse(
-                valid=False, code=code,
-                reason="Code not found or not applicable for this chip type",
-            )
+        # ── 1. Code config — Redis cache-aside ────────────────────────────────
+        cache_key = f"pam:bonus:code:{code}:{chip_type}"
+        code_config: dict | None = None
+
+        if redis:
+            cached = await redis.get(cache_key)
+            if cached is not None:
+                parsed = json.loads(cached)
+                if parsed is not None:
+                    code_config = parsed
+
+        if code_config is None:
+            async with get_connection(POOL_BONUS) as conn:
+                async with conn.cursor() as cur:
+                    await cur.execute(_VALIDATE_CODE_SQL, (code, chip_type))
+                    row = await cur.fetchone()
+
+            if not row:
+                if redis:
+                    await redis.set(cache_key, "null", ex=_CODE_MISS_TTL)
+                return ValidateCodeResponse(valid=False, code=code, reason="Code not found or not applicable for this chip type")
+
+            code_config = {
+                "id": row[0], "code": row[1], "display_title": row[2],
+                "wager_multiplier": str(row[3]), "no_of_chunks": row[4],
+                "applicability_frequency": row[5], "configure_id": row[6],
+            }
+            if redis:
+                await redis.set(cache_key, json.dumps(code_config), ex=_CODE_CACHE_TTL)
+
+        # ── 2. User-specific checks (require redis + site_id) ─────────────────
+        if redis and site_id:
+            pam_user_id = await get_pam_user_id(redis, site_id, user_id)
+            if pam_user_id is None:
+                return ValidateCodeResponse(valid=False, code=code, reason="User not found")
+
+            configure_id: int = code_config["configure_id"]
+
+            async with get_connection(POOL_BONUS) as conn:
+                async with conn.cursor() as cur:
+                    if not await check_applicability(cur, pam_user_id, configure_id, code_config["applicability_frequency"]):
+                        return ValidateCodeResponse(valid=False, code=code, reason="Code already redeemed for this period")
+
+            if not await check_eligibility(redis, configure_id, {}):
+                return ValidateCodeResponse(valid=False, code=code, reason="You are not eligible for this offer")
+
         return ValidateCodeResponse(
-            valid=True, code=code,
-            promo_id=row[0],
-            display_title=row[2],
-            wager_multiplier=row[3],
-            no_of_chunks=row[4],
+            valid=True, code=code_config["code"],
+            promo_id=code_config["id"],
+            display_title=code_config["display_title"],
+            wager_multiplier=Decimal(code_config["wager_multiplier"]),
+            no_of_chunks=code_config["no_of_chunks"],
         )
     except Exception as exc:
         log.error("player_bonus.validate_code.error", error=str(exc))

@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -63,7 +63,7 @@ async def get_bonus_configure_detail(configure_id: int) -> BonusConfigureDetail:
 
 @router.patch("/{configure_id}", response_model=BonusConfigureResponse)
 async def patch_bonus_configure(
-    configure_id: int, payload: BonusConfigureUpdate, ctx: PortalAuthDep
+    configure_id: int, payload: BonusConfigureUpdate, ctx: PortalAuthDep, request: Request
 ) -> BonusConfigureResponse:
     """
     Partially update a bonus configure node.
@@ -72,7 +72,7 @@ async def patch_bonus_configure(
     required. Send ``"description": null`` to explicitly clear the description.
     """
     payload.updated_by = ctx.user_id
-    return await update_bonus_configure(configure_id, payload)
+    return await update_bonus_configure(configure_id, payload, request.app.state.redis)
 
 
 @router.put("/{configure_id}/limits", response_model=list[BudgetPeriod])
