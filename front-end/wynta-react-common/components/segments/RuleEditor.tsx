@@ -248,9 +248,10 @@ interface RuleEditorProps {
   metaOperators?: MetaOperators | null;
   onChange: (patch: Partial<RuleWithMeta>) => void;
   onRemove: () => void;
+  brandId?: number;
 }
 
-export default function RuleEditor({ rule, fields, metaOperators, onChange, onRemove }: RuleEditorProps) {
+export default function RuleEditor({ rule, fields, metaOperators, onChange, onRemove, brandId }: RuleEditorProps) {
   const dispatch = useDispatch();
   const allFields = (fields && fields.length > 0 ? fields : SEGMENT_FIELDS) as SegmentField[];
   const opsMap = OPS as Record<string, SegmentOp[]>;
@@ -267,7 +268,7 @@ export default function RuleEditor({ rule, fields, metaOperators, onChange, onRe
   useEffect(() => {
     /* Skip if data already cached — prevents duplicate calls in Strict Mode */
     if (eventNameForApi && eventProps.length === 0) {
-      dispatch(fetchMetaEventProperties({ projectId: PROJECT_ID, eventName: eventNameForApi }) as any);
+      dispatch(fetchMetaEventProperties({ projectId: PROJECT_ID, eventName: eventNameForApi, brandId }) as any);
     }
   }, [dispatch, eventNameForApi]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -278,7 +279,7 @@ export default function RuleEditor({ rule, fields, metaOperators, onChange, onRe
 
   useEffect(() => {
     if (traitName && !traitOps) {
-      dispatch(fetchTraitOperators(traitName) as any);
+      dispatch(fetchTraitOperators({ trait: traitName, brandId }) as any);
     }
   }, [dispatch, traitName, traitOps]);
 
@@ -289,7 +290,7 @@ export default function RuleEditor({ rule, fields, metaOperators, onChange, onRe
 
   useEffect(() => {
     if (derivedRuleName && !derivedConfig) {
-      dispatch(fetchDerivedRuleConfig(derivedRuleName) as any);
+      dispatch(fetchDerivedRuleConfig({ ruleName: derivedRuleName, brandId }) as any);
     }
   }, [dispatch, derivedRuleName, derivedConfig]);
 

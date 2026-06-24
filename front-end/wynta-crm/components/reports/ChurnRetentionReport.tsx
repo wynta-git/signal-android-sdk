@@ -184,7 +184,7 @@ function exportCsv(rows: CohortRow[]) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-interface Props { onOpenBuilder: () => void; }
+interface Props { onOpenBuilder: () => void; brandId?: number; }
 
 const WINDOW_OPTIONS = [
   { label: 'Last 7 days',  value: 7  },
@@ -194,7 +194,7 @@ const WINDOW_OPTIONS = [
 
 type SortKey = 'cohort' | 'players' | 'churned' | 'retained' | 'win_back';
 
-export default function ChurnRetentionReport({ onOpenBuilder }: Props) {
+export default function ChurnRetentionReport({ onOpenBuilder, brandId }: Props) {
   const [windowDays, setWindowDays] = useState(7);
   const [channel,    setChannel]    = useState('all');
   const [data,       setData]       = useState<ChurnRetentionData | null>(null);
@@ -206,14 +206,14 @@ export default function ChurnRetentionReport({ onOpenBuilder }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getChurnRetention(PROJECT_ID, { windowDays, channel, segmentId: null });
+      const result = await getChurnRetention(PROJECT_ID, { windowDays, channel, segmentId: null, brandId });
       setData(result);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [windowDays, channel]);
+  }, [windowDays, channel, brandId]);
 
   useEffect(() => { load(); }, [load]);
 

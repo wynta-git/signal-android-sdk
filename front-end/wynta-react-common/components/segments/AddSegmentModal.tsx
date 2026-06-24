@@ -289,6 +289,7 @@ export default function AddSegmentModal({
             initialValues={initialValues}
             onCancel={onClose}
             onSave={handleSave}
+            brandId={brandId}
           />
         )}
       </div>

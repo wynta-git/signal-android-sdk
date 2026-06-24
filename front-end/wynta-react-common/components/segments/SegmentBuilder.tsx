@@ -69,9 +69,10 @@ interface SegmentBuilderProps {
   mode?:         'create' | 'edit';
   segmentId?:    string;   // used in edit mode to call evaluate API
   initialValues?: SegmentBuilderInitialValues;
+  brandId?:      number;
 }
 
-export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segmentId, initialValues }: SegmentBuilderProps) {
+export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segmentId, initialValues, brandId }: SegmentBuilderProps) {
   const [name, setName]               = useState(() => initialValues?.name        ?? '');
   const [description, setDescription] = useState(() => initialValues?.description ?? '');
   const [combinator, setCombinator]   = useState<'AND' | 'OR'>(() => initialValues?.combinator ?? 'AND');
@@ -453,6 +454,7 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                             metaOperators={metaOperators}
                             onChange={(patch) => updateBehaviourRule(r.id, patch)}
                             onRemove={() => removeBehaviourRule(r.id)}
+                            brandId={brandId}
                           />
                         </div>
                       ))}
@@ -496,6 +498,7 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                             metaOperators={metaOperators}
                             onChange={(patch) => updatePropertyRule(r.id, patch)}
                             onRemove={() => removePropertyRule(r.id)}
+                            brandId={brandId}
                           />
                         </div>
                       ))}
