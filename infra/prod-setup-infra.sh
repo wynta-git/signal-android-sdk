@@ -374,6 +374,9 @@ if [ -n "$KAFKA_SASL_USER" ] && [ -n "$KAFKA_SASL_PASS" ]; then
         echo 'inter.broker.listener.name=PLAINTEXT' >> "$KAFKA_CFG"
     grep -qxF 'sasl.enabled.mechanisms=SCRAM-SHA-256' "$KAFKA_CFG" || \
         echo 'sasl.enabled.mechanisms=SCRAM-SHA-256' >> "$KAFKA_CFG"
+    # JAAS config — required by Kafka when any SASL listener is enabled
+    grep -qF 'listener.name.sasl_plaintext.scram-sha-256.sasl.jaas.config' "$KAFKA_CFG" || \
+        echo "listener.name.sasl_plaintext.scram-sha-256.sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=\"$KAFKA_SASL_USER\" password=\"$KAFKA_SASL_PASS\";" >> "$KAFKA_CFG"
     if grep -q '^listener.security.protocol.map=' "$KAFKA_CFG"; then
         sed -i "s|^listener.security.protocol.map=.*|listener.security.protocol.map=PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT|" "$KAFKA_CFG"
     else
