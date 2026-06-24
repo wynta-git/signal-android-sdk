@@ -93,6 +93,9 @@ _SELECT_WITH_CONFIG_SQL = """
         bc.bonus_amount_fixed,
         bc.bonus_amount_percent,
         bc.bonus_amount_max,
+        bc.cashback_bonus_amount_fixed,
+        bc.cashback_bonus_amount_percent,
+        bc.cashback_bonus_amount_max,
         bc.priority,
         bc.active,
         bs.head_id
@@ -355,7 +358,9 @@ def _row_to_trigger_with_config(row: tuple) -> TriggerWithConfigResponse:
     #              no_of_chunks[20] release_bucket[21] chunk_expiry_days[22]
     #              bonus_expiry_days[23] wager_chip_type[24] credit_chip_type[25]
     #              bonus_amount_fixed[26] bonus_amount_percent[27] bonus_amount_max[28]
-    #              priority[29] active[30]
+    #              cashback_bonus_amount_fixed[29] cashback_bonus_amount_percent[30]
+    #              cashback_bonus_amount_max[31] priority[32] active[33]
+    # bs columns:  head_id[34]
     raw_cfg = row[10]
     if isinstance(raw_cfg, str):
         try:
@@ -379,7 +384,7 @@ def _row_to_trigger_with_config(row: tuple) -> TriggerWithConfigResponse:
         configure=BonusConfigureSummary(
             id=row[12],
             subhead_id=row[13],
-            head_id=row[31],
+            head_id=row[34],
             name=row[14],
             description=row[15],
             start_date=_as_dt(row[16]),
@@ -395,8 +400,11 @@ def _row_to_trigger_with_config(row: tuple) -> TriggerWithConfigResponse:
             bonus_amount_fixed=row[26],
             bonus_amount_percent=row[27],
             bonus_amount_max=row[28],
-            priority=row[29],
-            active=bool(row[30]),
+            cashback_bonus_amount_fixed=row[29],
+            cashback_bonus_amount_percent=row[30],
+            cashback_bonus_amount_max=row[31],
+            priority=row[32],
+            active=bool(row[33]),
         ),
     )
 

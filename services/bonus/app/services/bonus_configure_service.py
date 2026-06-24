@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 
 import aiomysql
 import structlog
@@ -199,12 +200,12 @@ def _configure_row_hash(data: BonusConfigureCreate | dict) -> str:
             "start_date": str(data.start_date),
             "end_date": str(data.end_date),
             "applicability_frequency": data.applicability_frequency,
-            "wager_multiplier": str(data.wager_multiplier),
-            "no_of_chunks": data.no_of_chunks,
+            "wager_multiplier": str(data.wager_multiplier if data.wager_multiplier is not None else Decimal("0.00")),
+            "no_of_chunks": data.no_of_chunks if data.no_of_chunks is not None else 1,
             "release_bucket": data.release_bucket,
             "chunk_expiry_days": data.chunk_expiry_days,
             "bonus_expiry_days": data.bonus_expiry_days,
-            "wager_chip_type": data.wager_chip_type,
+            "wager_chip_type": data.wager_chip_type if data.wager_chip_type is not None else "CASH",
             "credit_chip_type": data.credit_chip_type,
             "bonus_amount_fixed": str(data.bonus_amount_fixed) if data.bonus_amount_fixed is not None else None,
             "bonus_amount_percent": str(data.bonus_amount_percent) if data.bonus_amount_percent is not None else None,
@@ -285,9 +286,12 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                     (
                         data.subhead_id, data.site_id, data.name, data.description,
                         data.start_date, data.end_date, data.applicability_frequency,
-                        data.wager_multiplier, data.no_of_chunks, data.release_bucket,
+                        data.wager_multiplier if data.wager_multiplier is not None else Decimal("0.00"),
+                        data.no_of_chunks if data.no_of_chunks is not None else 1,
+                        data.release_bucket,
                         data.chunk_expiry_days, data.bonus_expiry_days,
-                        data.wager_chip_type, data.credit_chip_type,
+                        data.wager_chip_type if data.wager_chip_type is not None else "CASH",
+                        data.credit_chip_type,
                         data.bonus_amount_fixed, data.bonus_amount_percent, data.bonus_amount_max,
                         data.cashback_bonus_amount_fixed, data.cashback_bonus_amount_percent, data.cashback_bonus_amount_max,
                         data.priority, int(data.active), data.created_by, data.created_by,
@@ -467,12 +471,23 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, 
         BonusConfigureDuplicateError:  new name conflicts within the same subhead.
         DatabaseError:                 unexpected DB failure.
     """
+    _not_null_defaults: dict[str, object] = {
+        "wager_multiplier": Decimal("0.00"),
+        "no_of_chunks": 1,
+        "wager_chip_type": "CASH",
+    }
+
     updates: dict[str, object] = {}
     for field, col in _PATCHABLE.items():
         if field not in data.model_fields_set:
             continue
         val = getattr(data, field)
-        updates[col] = int(val) if field == "active" and val is not None else val
+        if field == "active" and val is not None:
+            updates[col] = int(val)
+        elif val is None and field in _not_null_defaults:
+            updates[col] = _not_null_defaults[field]
+        else:
+            updates[col] = val
     updates["updated_by"] = data.updated_by
 
     log.info("update_bonus_configure.start", bonus_configure_id=configure_id, fields=list(updates))
@@ -526,9 +541,14 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, 
 
                 _audit_col_idx = {
                     "name": 3, "description": 4, "applicability_frequency": 7,
-                    "active": 22, "wager_multiplier": 8, "no_of_chunks": 9,
+                    "active": 22, "priority": 21,
+                    "wager_multiplier": 8, "no_of_chunks": 9, "release_bucket": 10,
+                    "chunk_expiry_days": 11, "bonus_expiry_days": 12,
+                    "wager_chip_type": 13, "credit_chip_type": 14,
                     "bonus_amount_fixed": 15, "bonus_amount_percent": 16, "bonus_amount_max": 17,
-                    "priority": 21,
+                    "cashback_bonus_amount_fixed": 18,
+                    "cashback_bonus_amount_percent": 19,
+                    "cashback_bonus_amount_max": 20,
                 }
                 old_audit: dict = {}
                 for col, idx in _audit_col_idx.items():

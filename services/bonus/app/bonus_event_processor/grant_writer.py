@@ -64,6 +64,10 @@ def compute_grant_amount(configure: dict[str, Any], trigger_amount: float | None
     fixed = configure.get("bonus_amount_fixed")
     pct = configure.get("bonus_amount_percent")
     cap = configure.get("bonus_amount_max")
+    no_of_chunks = configure.get("no_of_chunks")
+
+    if(no_of_chunks is None or no_of_chunks ==0):
+        return  Decimal("0.00")
 
     if fixed is not None:
         amount = Decimal(str(fixed))

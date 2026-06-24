@@ -1,229 +1,229 @@
-from __future__ import annotations
+# from __future__ import annotations
 
-import json
-from decimal import Decimal
+# import json
+# from decimal import Decimal
 
-import structlog
-from aiokafka import ConsumerRecord
-from redis.asyncio import Redis
+# import structlog
+# from aiokafka import ConsumerRecord
+# from redis.asyncio import Redis
 
-from app.bonus_event_processor.eligibility_checker import check_eligibility
-from app.bonus_event_processor.grant_writer import (
-    check_applicability,
-    check_occurrence,
-    compute_cashback_amount,
-    compute_grant_amount,
-    write_cashback_grant,
-    write_grant,
-)
-from app.bonus_event_processor.trigger_cache import get_triggers
-from shared.clients.mysql import POOL_BONUS, get_connection
-from shared.services.user import get_or_create_pam_user
+# from app.bonus_event_processor.eligibility_checker import check_eligibility
+# from app.bonus_event_processor.grant_writer import (
+#     check_applicability,
+#     check_occurrence,
+#     compute_cashback_amount,
+#     compute_grant_amount,
+#     write_cashback_grant,
+#     write_grant,
+# )
+# from app.bonus_event_processor.trigger_cache import get_triggers
+# from shared.clients.mysql import POOL_BONUS, get_connection
+# from shared.services.user import get_or_create_pam_user
 
-log = structlog.get_logger()
+# log = structlog.get_logger()
 
-_redis: Redis | None = None
-
-
-def set_redis(r: Redis) -> None:
-    global _redis
-    _redis = r
+# _redis: Redis | None = None
 
 
-async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
-    """
-    Called by KafkaConsumer for each committed batch.
+# def set_redis(r: Redis) -> None:
+#     global _redis
+#     _redis = r
 
-    Offsets are committed only after this function returns without raising.
-    Raise to prevent commit and force re-delivery on next restart.
-    """
-    for msg in batch:
-        try:
-            payload = json.loads(msg.value.decode())
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-            log.warning(
-                "bonus_msg_decode_failed",
-                topic=msg.topic,
-                partition=msg.partition,
-                offset=msg.offset,
-                error=str(exc),
-            )
-            continue
 
-        event_name = payload.get("event_name") or payload.get("event_type")
-        user_id = payload.get("user_id")
-        project_id = payload.get("project_id")
+# async def process_bonus_batch(batch: list[ConsumerRecord]) -> None:
+#     """
+#     Called by KafkaConsumer for each committed batch.
 
-        log.info(
-            "bonus_event_received",
-            topic=msg.topic,
-            partition=msg.partition,
-            offset=msg.offset,
-            event_name=event_name,
-            user_id=user_id,
-            project_id=project_id,
-        )
+#     Offsets are committed only after this function returns without raising.
+#     Raise to prevent commit and force re-delivery on next restart.
+#     """
+#     for msg in batch:
+#         try:
+#             payload = json.loads(msg.value.decode())
+#         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+#             log.warning(
+#                 "bonus_msg_decode_failed",
+#                 topic=msg.topic,
+#                 partition=msg.partition,
+#                 offset=msg.offset,
+#                 error=str(exc),
+#             )
+#             continue
 
-        try:
-            site_id = int(project_id)
-        except (TypeError, ValueError):
-            log.warning(
-                "bonus_event_invalid_site_id",
-                project_id=project_id,
-                event_name=event_name,
-                user_id=user_id,
-            )
-            continue
+#         event_name = payload.get("event_name") or payload.get("event_type")
+#         user_id = payload.get("user_id")
+#         project_id = payload.get("project_id")
 
-        if not event_name or not user_id:
-            log.warning(
-                "bonus_event_missing_fields",
-                event_name=event_name,
-                user_id=user_id,
-                site_id=site_id,
-            )
-            continue
+#         log.info(
+#             "bonus_event_received",
+#             topic=msg.topic,
+#             partition=msg.partition,
+#             offset=msg.offset,
+#             event_name=event_name,
+#             user_id=user_id,
+#             project_id=project_id,
+#         )
 
-        if _redis is None:
-            log.error("bonus_consumer_redis_not_initialized")
-            raise RuntimeError("Redis client not initialised — call set_redis() at startup")
+#         try:
+#             site_id = int(project_id)
+#         except (TypeError, ValueError):
+#             log.warning(
+#                 "bonus_event_invalid_site_id",
+#                 project_id=project_id,
+#                 event_name=event_name,
+#                 user_id=user_id,
+#             )
+#             continue
 
-        pam_user_id = await get_or_create_pam_user(_redis, site_id, user_id)
+#         if not event_name or not user_id:
+#             log.warning(
+#                 "bonus_event_missing_fields",
+#                 event_name=event_name,
+#                 user_id=user_id,
+#                 site_id=site_id,
+#             )
+#             continue
 
-        try:
-            triggers = await get_triggers(_redis, site_id, event_name)
-        except Exception as exc:
-            log.error("bonus_trigger_lookup_failed", site_id=site_id, event_name=event_name, error=str(exc))
-            raise
+#         if _redis is None:
+#             log.error("bonus_consumer_redis_not_initialized")
+#             raise RuntimeError("Redis client not initialised — call set_redis() at startup")
 
-        if not triggers:
-            continue
+#         pam_user_id = await get_or_create_pam_user(_redis, site_id, user_id)
 
-        props: dict = payload.get("properties") or {}
-        trigger_amount_raw = props.get("amount")
-        trigger_amount = float(trigger_amount_raw) if trigger_amount_raw is not None else None
-        event_product = props.get("product")
-        event_payment_method = props.get("payment_method")
-        promo_code: str | None = props.get("promo_code") or None
+#         try:
+#             triggers = await get_triggers(_redis, site_id, event_name)
+#         except Exception as exc:
+#             log.error("bonus_trigger_lookup_failed", site_id=site_id, event_name=event_name, error=str(exc))
+#             raise
 
-        try:
-            async with get_connection(POOL_BONUS) as conn:
-                for t in triggers:
-                    cfg = t["configure"]
+#         if not triggers:
+#             continue
 
-                    # Amount range check
-                    min_amt = t.get("min_trigger_amount")
-                    max_amt = t.get("max_trigger_amount")
-                    if min_amt is not None and (trigger_amount is None or trigger_amount < min_amt):
-                        continue
-                    if max_amt is not None and (trigger_amount is None or trigger_amount > max_amt):
-                        continue
+#         props: dict = payload.get("properties") or {}
+#         trigger_amount_raw = props.get("amount")
+#         trigger_amount = float(trigger_amount_raw) if trigger_amount_raw is not None else None
+#         event_product = props.get("product")
+#         event_payment_method = props.get("payment_method")
+#         promo_code: str | None = props.get("promo_code") or None
 
-                    # Product check
-                    trigger_product = t.get("product")
-                    if trigger_product and trigger_product != event_product:
-                        continue
+#         try:
+#             async with get_connection(POOL_BONUS) as conn:
+#                 for t in triggers:
+#                     cfg = t["configure"]
 
-                    # Payment method check (stored as comma-separated list)
-                    trigger_pm = t.get("payment_method")
-                    if trigger_pm and event_payment_method not in trigger_pm.split(","):
-                        continue
+#                     # Amount range check
+#                     min_amt = t.get("min_trigger_amount")
+#                     max_amt = t.get("max_trigger_amount")
+#                     if min_amt is not None and (trigger_amount is None or trigger_amount < min_amt):
+#                         continue
+#                     if max_amt is not None and (trigger_amount is None or trigger_amount > max_amt):
+#                         continue
 
-                    # ── Promo code filter ──────────────────────────────────────────────
-                    code_max_amount: Decimal | None = None
-                    async with conn.cursor() as cur:
-                        await cur.execute(
-                            "SELECT COUNT(*) FROM bonus_configure_code "
-                            "WHERE configure_id = %s AND active = 1",
-                            (cfg["id"],),
-                        )
-                        code_count: int = (await cur.fetchone())[0]
+#                     # Product check
+#                     trigger_product = t.get("product")
+#                     if trigger_product and trigger_product != event_product:
+#                         continue
 
-                    if code_count > 0:
-                        if not promo_code:
-                            continue  # configure requires a code but event has none
-                        async with conn.cursor() as cur:
-                            await cur.execute(
-                                "SELECT max_amount FROM bonus_configure_code "
-                                "WHERE configure_id = %s AND code = %s AND active = 1 LIMIT 1",
-                                (cfg["id"], promo_code),
-                            )
-                            code_row = await cur.fetchone()
-                        if code_row is None:
-                            continue  # code doesn't match this configure
-                        if code_row[0] is not None:
-                            code_max_amount = Decimal(str(code_row[0]))
-                    elif promo_code:
-                        continue  # auto-trigger configure but event has a promo code
+#                     # Payment method check (stored as comma-separated list)
+#                     trigger_pm = t.get("payment_method")
+#                     if trigger_pm and event_payment_method not in trigger_pm.split(","):
+#                         continue
 
-                    async with conn.cursor() as cur:
-                        if not await check_occurrence(cur, pam_user_id, cfg["id"], t["occurrence"]):
-                            log.info(
-                                "bonus_skipped_occurrence",
-                                user_id=user_id,
-                                pam_user_id=pam_user_id,
-                                configure_id=cfg["id"],
-                                occurrence=t["occurrence"],
-                            )
-                            continue
+#                     # ── Promo code filter ──────────────────────────────────────────────
+#                     code_max_amount: Decimal | None = None
+#                     async with conn.cursor() as cur:
+#                         await cur.execute(
+#                             "SELECT COUNT(*) FROM bonus_configure_code "
+#                             "WHERE configure_id = %s AND active = 1",
+#                             (cfg["id"],),
+#                         )
+#                         code_count: int = (await cur.fetchone())[0]
 
-                        if not await check_applicability(
-                            cur, pam_user_id, cfg["id"], cfg["applicability_frequency"]
-                        ):
-                            log.info(
-                                "bonus_skipped_applicability",
-                                user_id=user_id,
-                                pam_user_id=pam_user_id,
-                                configure_id=cfg["id"],
-                                freq=cfg["applicability_frequency"],
-                            )
-                            continue
+#                     if code_count > 0:
+#                         if not promo_code:
+#                             continue  # configure requires a code but event has none
+#                         async with conn.cursor() as cur:
+#                             await cur.execute(
+#                                 "SELECT max_amount FROM bonus_configure_code "
+#                                 "WHERE configure_id = %s AND code = %s AND active = 1 LIMIT 1",
+#                                 (cfg["id"], promo_code),
+#                             )
+#                             code_row = await cur.fetchone()
+#                         if code_row is None:
+#                             continue  # code doesn't match this configure
+#                         if code_row[0] is not None:
+#                             code_max_amount = Decimal(str(code_row[0]))
+#                     elif promo_code:
+#                         continue  # auto-trigger configure but event has a promo code
 
-                    if not await check_eligibility(_redis, cfg["id"], props):
-                        log.info(
-                            "bonus_skipped_eligibility",
-                            user_id=user_id,
-                            configure_id=cfg["id"],
-                        )
-                        continue
+#                     async with conn.cursor() as cur:
+#                         if not await check_occurrence(cur, pam_user_id, cfg["id"], t["occurrence"]):
+#                             log.info(
+#                                 "bonus_skipped_occurrence",
+#                                 user_id=user_id,
+#                                 pam_user_id=pam_user_id,
+#                                 configure_id=cfg["id"],
+#                                 occurrence=t["occurrence"],
+#                             )
+#                             continue
 
-                    grant_amount = compute_grant_amount(cfg, trigger_amount)
-                    if code_max_amount is not None:
-                        grant_amount = min(grant_amount, code_max_amount)
-                    if grant_amount <= 0:
-                        continue
+#                         if not await check_applicability(
+#                             cur, pam_user_id, cfg["id"], cfg["applicability_frequency"]
+#                         ):
+#                             log.info(
+#                                 "bonus_skipped_applicability",
+#                                 user_id=user_id,
+#                                 pam_user_id=pam_user_id,
+#                                 configure_id=cfg["id"],
+#                                 freq=cfg["applicability_frequency"],
+#                             )
+#                             continue
 
-                    grant_id = await write_grant(conn, t, cfg, pam_user_id, site_id, grant_amount, bonus_code=promo_code)
-                    log.info(
-                        "bonus_granted",
-                        grant_id=grant_id,
-                        configure_id=cfg["id"],
-                        user_id=user_id,
-                        pam_user_id=pam_user_id,
-                        site_id=site_id,
-                        event_name=event_name,
-                        grant_amount=str(grant_amount),
-                    )
+#                     if not await check_eligibility(_redis, cfg["id"], props):
+#                         log.info(
+#                             "bonus_skipped_eligibility",
+#                             user_id=user_id,
+#                             configure_id=cfg["id"],
+#                         )
+#                         continue
 
-                    cashback_amount = compute_cashback_amount(cfg, trigger_amount)
-                    if cashback_amount > 0:
-                        cashback_grant_id = await write_cashback_grant(
-                            conn, t, cfg, pam_user_id, site_id, cashback_amount, bonus_code=promo_code
-                        )
-                        log.info(
-                            "cashback_granted",
-                            cashback_grant_id=cashback_grant_id,
-                            configure_id=cfg["id"],
-                            user_id=user_id,
-                            pam_user_id=pam_user_id,
-                            cashback_amount=str(cashback_amount),
-                        )
-        except Exception as exc:
-            log.error(
-                "bonus_grant_failed",
-                site_id=site_id,
-                event_name=event_name,
-                user_id=user_id,
-                error=str(exc),
-            )
-            raise
+#                     grant_amount = compute_grant_amount(cfg, trigger_amount)
+#                     if code_max_amount is not None:
+#                         grant_amount = min(grant_amount, code_max_amount)
+#                     if grant_amount <= 0:
+#                         continue
+
+#                     grant_id = await write_grant(conn, t, cfg, pam_user_id, site_id, grant_amount, bonus_code=promo_code)
+#                     log.info(
+#                         "bonus_granted",
+#                         grant_id=grant_id,
+#                         configure_id=cfg["id"],
+#                         user_id=user_id,
+#                         pam_user_id=pam_user_id,
+#                         site_id=site_id,
+#                         event_name=event_name,
+#                         grant_amount=str(grant_amount),
+#                     )
+
+#                     cashback_amount = compute_cashback_amount(cfg, trigger_amount)
+#                     if cashback_amount > 0:
+#                         cashback_grant_id = await write_cashback_grant(
+#                             conn, t, cfg, pam_user_id, site_id, cashback_amount, bonus_code=promo_code
+#                         )
+#                         log.info(
+#                             "cashback_granted",
+#                             cashback_grant_id=cashback_grant_id,
+#                             configure_id=cfg["id"],
+#                             user_id=user_id,
+#                             pam_user_id=pam_user_id,
+#                             cashback_amount=str(cashback_amount),
+#                         )
+#         except Exception as exc:
+#             log.error(
+#                 "bonus_grant_failed",
+#                 site_id=site_id,
+#                 event_name=event_name,
+#                 user_id=user_id,
+#                 error=str(exc),
+#             )
+#             raise

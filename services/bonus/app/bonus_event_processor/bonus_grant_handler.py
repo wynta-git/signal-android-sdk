@@ -1,4 +1,4 @@
-"""BONUS_RELEASE handler.
+"""Bonus grant handler.
 
 When a trigger with release_type=BONUS_RELEASE fires:
   1. Apply amount / product / payment-method guards from the trigger.
@@ -21,7 +21,9 @@ from app.bonus_event_processor.eligibility_checker import check_eligibility
 from app.bonus_event_processor.grant_writer import (
     check_applicability,
     check_occurrence,
+    compute_cashback_amount,
     compute_grant_amount,
+    write_cashback_grant,
     write_grant,
 )
 from app.models.bonus_release_trigger import TriggerWithConfigResponse
@@ -29,7 +31,7 @@ from app.models.bonus_release_trigger import TriggerWithConfigResponse
 log = structlog.get_logger(__name__)
 
 
-async def handle_bonus_release(
+async def handle_bonus_grant(
     redis: Redis,
     conn: aiomysql.Connection,
     pam_user_id: int,
@@ -160,32 +162,43 @@ async def handle_bonus_release(
     if code_max_amount is not None:
         grant_amount = min(grant_amount, code_max_amount)
 
-    if grant_amount <= 0:
+    cfg_dict = cfg.model_dump()
+    trigger_dict = trigger.model_dump()
+
+    # ── Write main grant ──────────────────────────────────────────────────────
+    if grant_amount > 0:
+        grant_id = await write_grant(
+            conn,
+            trigger_dict,
+            cfg_dict,
+            pam_user_id,
+            site_id,
+            grant_amount,
+            bonus_code=promo_code,
+        )
         log.info(
-            "bonus_release_skipped_zero_amount",
+            "bonus_grant_written",
+            grant_id=grant_id,
             trigger_id=trigger.id,
             configure_id=cfg.id,
             pam_user_id=pam_user_id,
+            site_id=site_id,
+            grant_amount=str(grant_amount),
         )
-        return
 
-    # ── Write grant ───────────────────────────────────────────────────────────
-    grant_id = await write_grant(
-        conn,
-        trigger.model_dump(),
-        cfg.model_dump(),
-        pam_user_id,
-        site_id,
-        grant_amount,
-        bonus_code=promo_code,
-    )
+    # ── Write cashback grant (if configured) ──────────────────────────────────
+    cashback_amount = compute_cashback_amount(cfg_dict, trigger_amount)
+    if cashback_amount > 0:
+        if code_max_amount is not None:
+            cashback_amount = min(cashback_amount, code_max_amount)
 
-    log.info(
-        "bonus_release_granted",
-        grant_id=grant_id,
-        trigger_id=trigger.id,
-        configure_id=cfg.id,
-        pam_user_id=pam_user_id,
-        site_id=site_id,
-        grant_amount=str(grant_amount),
-    )
+        cashback_grant_id = await write_cashback_grant(
+            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, bonus_code=promo_code
+        )
+        log.info(
+            "cashback_grant_written",
+            cashback_grant_id=cashback_grant_id,
+            configure_id=cfg.id,
+            pam_user_id=pam_user_id,
+            cashback_amount=str(cashback_amount),
+        )
