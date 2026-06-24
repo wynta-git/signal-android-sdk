@@ -46,6 +46,11 @@ APP_USER="${APP_USER:-ubuntu}"
 MONGO_PASS="${MONGO_PASS:-glgpam2026}"
 REDIS_PASS="${REDIS_PASS:-glgpam2026}"
 CH_PASS="${CH_PASS:-glg2026}"
+MYSQL_HOST="${MYSQL_HOST:-$INSTANCE1_IP}"
+MYSQL_PORT="${MYSQL_PORT:-3306}"
+MYSQL_USER="${MYSQL_USER:-wynta}"
+MYSQL_PASS="${MYSQL_PASS:-glgapp2026}"
+MYSQL_DB="${MYSQL_DB:-wynta_common}"
 PRIVKEY_FILE="${PRIVKEY_FILE:-/home/ubuntu/pam-jwt-private.pem}"
 PUBKEY_FILE="${PUBKEY_FILE:-/home/ubuntu/pam-jwt-public.pem}"
 PROJECT_ID="${PROJECT_ID:-proj_demo}"
@@ -64,6 +69,7 @@ VENV="$REPO/.venv"
 url_encode() { python3 -c "import urllib.parse, sys; print(urllib.parse.quote_plus(sys.argv[1]))" "$1"; }
 MONGO_PASS_ENC=$(url_encode "$MONGO_PASS")
 REDIS_PASS_ENC=$(url_encode "$REDIS_PASS")
+MYSQL_PASS_ENC=$(url_encode "$MYSQL_PASS")
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 ok()      { echo "  [OK]  $*"; }
@@ -197,6 +203,11 @@ REDIS_URL=redis://:$REDIS_PASS_ENC@$INSTANCE1_IP:$REDIS_PORT
 REDIS_MAX_CONNECTIONS=20
 KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
 KAFKA_EVENTS_TOPIC=pam.events.raw.v1
+COMMON_DB_HOST=$MYSQL_HOST
+COMMON_DB_PORT=$MYSQL_PORT
+COMMON_DB_USER=$MYSQL_USER
+COMMON_DB_PASSWORD=$MYSQL_PASS_ENC
+COMMON_DB_NAME=$MYSQL_DB
 CORS_ORIGINS=["*"]
 DEBUG=false
 VERSION=0.1.0

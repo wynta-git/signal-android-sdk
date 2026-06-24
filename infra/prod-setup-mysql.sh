@@ -71,21 +71,17 @@ EOF
     section "3. Setting root password and creating app user"
 
     info "Configuring root user..."
-    mysql -u root <<SQL
-ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '$MYSQL_ROOT_PASS';
-CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED WITH caching_sha2_password BY '$MYSQL_ROOT_PASS';
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
-FLUSH PRIVILEGES;
-SQL
+    mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '$MYSQL_ROOT_PASS';"
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED WITH caching_sha2_password BY '$MYSQL_ROOT_PASS'; GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES;"
     ok "Root user configured"
 
     info "Creating database '$DB_NAME' and app user '$APP_USER'..."
-    mysql -u root -p"$MYSQL_ROOT_PASS" <<SQL
-CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '$APP_USER'@'%' IDENTIFIED WITH caching_sha2_password BY '$APP_PASS';
-GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$APP_USER'@'%';
-FLUSH PRIVILEGES;
-SQL
+    mysql -u root -p"$MYSQL_ROOT_PASS" \
+        -e "CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    mysql -u root -p"$MYSQL_ROOT_PASS" \
+        -e "CREATE USER IF NOT EXISTS '$APP_USER'@'%' IDENTIFIED WITH caching_sha2_password BY '$APP_PASS';"
+    mysql -u root -p"$MYSQL_ROOT_PASS" \
+        -e "GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$APP_USER'@'%'; FLUSH PRIVILEGES;"
     ok "Database '$DB_NAME' and user '$APP_USER' ready"
 
     # ── 4. Verify ─────────────────────────────────────────────────────────────
