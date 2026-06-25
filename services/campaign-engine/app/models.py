@@ -143,6 +143,7 @@ class SendJob(BaseModel):
     campaign_id: str
     campaign_run_id: str
     user_id: str
+    brand_id: str | None = None
     channel: Literal["push", "email", "sms", "webhook"]
     template_id: str
     context: dict[str, Any] = Field(default_factory=dict)

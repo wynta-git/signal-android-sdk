@@ -119,7 +119,7 @@ async def handle_send_job(
         return
 
     # 3. Device tokens
-    tokens = await get_user_device_tokens(db, job.project_id, job.user_id)
+    tokens = await get_user_device_tokens(db, job.project_id, job.user_id, brand_id=job.brand_id)
     if not tokens:
         log.warning("consumer.no_device_tokens")
         delivery_doc = {

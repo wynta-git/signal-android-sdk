@@ -10,6 +10,7 @@ class SendJob(BaseModel):
     campaign_id: str
     campaign_run_id: str
     user_id: str
+    brand_id: str | None = None
     channel: str
     template_id: str
     context: dict[str, Any] = {}

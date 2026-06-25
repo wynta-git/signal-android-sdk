@@ -25,6 +25,7 @@ async def emit_send_job(
         campaign_id=campaign.campaign_id,
         campaign_run_id=campaign_run_id,
         user_id=user_id,
+        brand_id=campaign.brand_id,
         channel=campaign.channel,
         template_id=campaign.template_id,
         context=context or {},

@@ -600,12 +600,15 @@ async def get_user(
 
 
 async def get_user_device_tokens(
-    db: AsyncIOMotorDatabase, project_id: str, user_id: str
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    brand_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    cursor = db["device_tokens"].find(
-        {"project_id": project_id, "user_id": user_id},
-        {"_id": 0},
-    )
+    query: dict[str, Any] = {"project_id": project_id, "user_id": user_id}
+    if brand_id is not None:
+        query["brand_id"] = brand_id
+    cursor = db["device_tokens"].find(query, {"_id": 0})
     return await cursor.to_list(length=None)
 
 
@@ -647,9 +650,10 @@ async def upsert_device_token(
     user_id: str,
     token: str,
     platform: str,
+    brand_id: str | None = None,
 ) -> None:
     await db["device_tokens"].update_one(
-        {"project_id": project_id, "user_id": user_id, "token": token},
+        {"project_id": project_id, "brand_id": brand_id, "user_id": user_id, "token": token},
         {"$set": {"platform": platform}},
         upsert=True,
     )
@@ -827,6 +831,7 @@ async def upsert_user_profile(
     anonymous_id: str | None,
     unset_traits: list[str],
     now: datetime,
+    brand_id: str | None = None,
 ) -> None:
     set_fields: dict[str, Any] = {f"traits.{k}": v for k, v in traits.items()}
     set_fields["last_seen_at"] = now
@@ -841,7 +846,7 @@ async def upsert_user_profile(
         update["$unset"] = {f"traits.{k}": "" for k in unset_traits}
 
     await db["users"].update_one(
-        {"project_id": project_id, "user_id": user_id},
+        {"project_id": project_id, "brand_id": brand_id, "user_id": user_id},
         update,
         upsert=True,
     )

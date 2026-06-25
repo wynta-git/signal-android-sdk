@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.dependencies import PortalAuthDep
 
@@ -30,8 +30,9 @@ async def list_events(
     redis=Depends(_redis),
     db=Depends(_db),
     meta=Depends(_meta),
+    brand_id: str | None = Query(None),
 ) -> dict:
-    return await meta.get_events(ctx.project_id, ch, redis, db)
+    return await meta.get_events(ctx.project_id, ch, redis, db, brand_id=brand_id)
 
 
 @router.get("/events/derived/{rule_id}")
@@ -56,8 +57,9 @@ async def list_event_properties(
     redis=Depends(_redis),
     db=Depends(_db),
     meta=Depends(_meta),
+    brand_id: str | None = Query(None),
 ) -> list[str]:
-    return await meta.get_event_properties(ctx.project_id, event_name, ch, redis, db)
+    return await meta.get_event_properties(ctx.project_id, event_name, ch, redis, db, brand_id=brand_id)
 
 
 @router.get("/events/{event_name}/properties/{prop_name}/operators")
@@ -69,8 +71,9 @@ async def get_property_operators(
     redis=Depends(_redis),
     db=Depends(_db),
     meta=Depends(_meta),
+    brand_id: str | None = Query(None),
 ) -> dict[str, Any]:
-    return await meta.get_property_operators(ctx.project_id, event_name, prop_name, ch, redis, db)
+    return await meta.get_property_operators(ctx.project_id, event_name, prop_name, ch, redis, db, brand_id=brand_id)
 
 
 @router.get("/traits/{trait_name}/operators")
@@ -80,8 +83,9 @@ async def get_trait_operators(
     db=Depends(_db),
     redis=Depends(_redis),
     meta=Depends(_meta),
+    brand_id: str | None = Query(None),
 ) -> dict[str, Any]:
-    return await meta.get_trait_operators(ctx.project_id, trait_name, db, redis)
+    return await meta.get_trait_operators(ctx.project_id, trait_name, db, redis, brand_id=brand_id)
 
 
 @router.get("/traits")
@@ -90,8 +94,9 @@ async def list_traits(
     db=Depends(_db),
     redis=Depends(_redis),
     meta=Depends(_meta),
+    brand_id: str | None = Query(None),
 ) -> list[str]:
-    return await meta.get_traits(ctx.project_id, db, redis)
+    return await meta.get_traits(ctx.project_id, db, redis, brand_id=brand_id)
 
 
 @router.get("/operators")

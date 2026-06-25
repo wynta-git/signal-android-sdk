@@ -74,6 +74,7 @@ Database: `pam`
 {
   _id: ObjectId,
   project_id: "proj_abc123",
+  brand_id: "brand_1" | null,       // null = project-wide (no brand scoping)
   user_id: "user_42",
   anonymous_ids: ["anon_xxx", "anon_yyy"],
   traits: {
@@ -86,7 +87,7 @@ Database: `pam`
   last_seen_at: ISODate
 }
 // Indexes:
-//   { project_id: 1, user_id: 1 } unique
+//   { project_id: 1, brand_id: 1, user_id: 1 } unique
 //   { project_id: 1, "traits.email_hash": 1 }
 //   { project_id: 1, last_seen_at: -1 }
 ```
@@ -162,12 +163,13 @@ Database: `pam`
 {
   _id: ObjectId,
   project_id: "proj_abc123",
+  brand_id: "brand_1" | null,       // null = project-wide; mirrors the user's brand_id
   user_id: "user_42",
   token: "<FCM registration token or APNs device token>",
   platform: "android" | "ios" | "web",
   created_at: ISODate
 }
-// Indexes: { project_id: 1, user_id: 1 }  (non-unique — one user, many tokens)
+// Indexes: { project_id: 1, brand_id: 1, user_id: 1 }  (non-unique — one user, many tokens)
 // Owner: api-service (SDK registers tokens). Read by: notifications-engine.
 ```
 
