@@ -195,12 +195,17 @@ async def validate_code(
 # ── 2. Consume bonus ──────────────────────────────────────────────────────────
 
 _NEXT_RELEASE_CHUNK_SQL = """
-    SELECT bc.id, bc.bonus_grant_id
+    SELECT bc.id, bc.bonus_grant_id, bc.consume_status, bc.release_status,
+           bc.release_amount,
+           COALESCE((SELECT SUM(c.consumed_amount) FROM bonus_consumed c WHERE c.chunk_id = bc.id), 0) AS consume_amount
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
-    WHERE pbg.pam_user_id = %s AND bc.release_status = 'RELEASE'
+    WHERE pbg.pam_user_id = %s
+      AND pbg.site_id = %s
+      AND bc.release_status IN ('RELEASED', 'PENDING')
+      AND bc.consume_status IN ('INIT', 'PENDING')
+      AND bc.release_amount > 0 
     ORDER BY bc.id ASC
-    LIMIT 1
 """
 
 _CONSUME_EXISTS_SQL = """
@@ -223,12 +228,12 @@ _UPDATE_GRANT_CONSUMED_SQL = """
     WHERE id = %s
 """
 
-_SELECT_CONSUMED_SQL = """
-    SELECT bc.id, bc.consumed_ref, bc.amount, bc.consumed_amount, bg.wager_chip_type
-    FROM bonus_consumed bc
-    JOIN bonus_grant bg ON bg.id = bc.bonus_grant_id
-    WHERE bc.id = %s
+_UPDATE_CHUNK_CONSUME_STATUS_SQL = """
+    UPDATE bonus_chunk
+    SET consume_status = 'CONSUMED', updated_at = NOW()
+    WHERE id = %s
 """
+
 
 
 async def consume_bonus(
@@ -250,30 +255,46 @@ async def consume_bonus(
                 if await cur.fetchone():
                     raise PlayerBonusConsumedError(0, data.consume_txn_id)
 
-                await cur.execute(_NEXT_RELEASE_CHUNK_SQL, (pam_user_id,))
-                chunk_row = await cur.fetchone()
-                if not chunk_row:
+                await cur.execute(_NEXT_RELEASE_CHUNK_SQL, (pam_user_id, site_id))
+                chunk_rows = await cur.fetchall()
+                if not chunk_rows:
                     raise PlayerBonusNotFoundError(data.user_id)
-                chunk_id, bonus_grant_id = chunk_row
 
-                # Cap consumed_amount at the remaining chunk balance
-                await cur.execute(
-                    "SELECT chunk_amount, COALESCE(SUM(c.consumed_amount), 0) "
-                    "FROM bonus_chunk bc "
-                    "LEFT JOIN bonus_consumed c ON c.chunk_id = bc.id "
-                    "WHERE bc.id = %s GROUP BY bc.chunk_amount",
-                    (chunk_id,),
-                )
-                bal_row = await cur.fetchone()
-                remaining = (float(bal_row[0]) - float(bal_row[1])) if bal_row else 0.0
-                consumed_amount = min(float(data.bonus_amount), max(0.0, remaining))
+                remaining_to_consume = float(data.bonus_amount)
+                total_consumed = 0.0
+                first_chunk_id = None
+                first_grant_id = None
+
+                for chunk_row in chunk_rows:
+                    if remaining_to_consume <= 0:
+                        break
+
+                    chunk_id, bonus_grant_id, _, _, release_amount, consume_amount = chunk_row
+                    available = max(0.0, float(release_amount) - float(consume_amount))
+                    if available <= 0:
+                        continue
+
+                    portion = min(remaining_to_consume, available)
+                    remaining_to_consume -= portion
+                    total_consumed += portion
+
+                    if first_chunk_id is None:
+                        first_chunk_id = chunk_id
+                        first_grant_id = bonus_grant_id
+
+                    await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (portion, bonus_grant_id))
+                    if portion >= available:
+                        await cur.execute(_UPDATE_CHUNK_CONSUME_STATUS_SQL, (chunk_id,))
+
+                if total_consumed == 0:
+                    raise PlayerBonusNotFoundError(data.user_id)
 
                 await cur.execute(
                     _INSERT_CONSUME_SQL,
                     (
-                        data.consume_txn_id, chunk_id, bonus_grant_id,
+                        data.consume_txn_id, first_chunk_id, first_grant_id,
                         data.wager_tnx_id,
-                        data.bonus_amount, data.transaction_amount, consumed_amount,
+                        data.bonus_amount, data.transaction_amount, total_consumed,
                         data.chip_type, data.session_key, data.platform_client_id,
                         data.product, data.game_type, data.game_variant,
                         data.game_name, data.game_action,
@@ -281,16 +302,16 @@ async def consume_bonus(
                         data.tertiary_transaction_id, data.base_request_id,
                     ),
                 )
-                new_id: int = cur.lastrowid
-                await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (consumed_amount, bonus_grant_id))
+                last_id = cur.lastrowid
+
                 await conn.commit()
 
-                await cur.execute(_SELECT_CONSUMED_SQL, (new_id,))
-                row = await cur.fetchone()
-
         return PlayerBonusConsumedResponse(
-            txn_id=row[0], consume_txn_id=row[1],
-            bonus_amount=row[2], consumed_amount=row[3], chip_type=row[4],
+            txn_id=last_id,
+            consume_txn_id=data.consume_txn_id,
+            bonus_amount=data.bonus_amount,
+            consumed_amount=Decimal(str(round(total_consumed, 2))),
+            chip_type=data.chip_type,
         )
     except (PlayerBonusNotFoundError, PlayerBonusConsumedError):
         raise
