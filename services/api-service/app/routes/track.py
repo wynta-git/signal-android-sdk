@@ -115,6 +115,7 @@ async def track(
                 update={
                     "project_id": ctx.project_id,
                     "site_id": ctx.site_id,
+                    "brand_id":ctx.site_id,
                     "client_id": ctx.client_id,
                     "received_at": datetime.now(timezone.utc),
                 }
