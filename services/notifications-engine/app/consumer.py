@@ -174,7 +174,7 @@ async def handle_send_job(
         platform = token_doc.get("platform", "android")
         token_hash = hashlib.sha256(token.encode()).hexdigest()[:16]
 
-        provider = await get_push_provider(platform, job.project_id, db)
+        provider = await get_push_provider(platform, job.project_id, db, brand_id=job.brand_id)
         provider_name = getattr(provider, "name", "push_stub")
         breaker = get_breaker(provider_name)
 

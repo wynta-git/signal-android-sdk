@@ -244,6 +244,21 @@ Database: `pam`
 // Alias wins on conflict: if both source and canonical arrive in the same event, source value is used.
 ```
 
+### `brand_settings`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  brand_id: "brand_01",
+  fcm_service_account_json: "<stringified JSON>",  // FCM service account for this brand
+  created_at: ISODate,
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1, brand_id: 1 } unique
+// Owner: campaign-engine settings API (writes). Read by: notifications-engine.
+// Falls back to projects.settings.fcm_service_account_json if no brand-specific credential found.
+```
+
 ### `dashboard_boosts`
 ```js
 {
