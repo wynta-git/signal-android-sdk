@@ -39,12 +39,12 @@ _INSERT_FORFEIT_SQL = """
 _PENDING_CHUNKS_SQL = """
     SELECT id, chunk_amount
     FROM bonus_chunk
-    WHERE bonus_grant_id = %s AND status = 'PENDING'
+    WHERE bonus_grant_id = %s AND release_status = 'PENDING'
 """
 
 _EXPIRE_CHUNK_SQL = """
     UPDATE bonus_chunk
-    SET status = 'EXPIRED', updated_at = NOW()
+    SET release_status = 'EXPIRED', updated_at = NOW()
     WHERE id = %s
 """
 

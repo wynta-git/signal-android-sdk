@@ -24,6 +24,7 @@ class DeviceInfo(BaseModel):
 class IdentifyRequest(BaseModel):
     user_id: str
     anonymous_id: str | None = None
+    brand_id: str | None = None
     traits: dict[str, Any] = Field(default_factory=dict)
     unset_traits: list[str] = Field(default_factory=list)
     timestamp: datetime
@@ -62,6 +63,9 @@ async def identify(
 
     now = datetime.now(timezone.utc)
 
+    # top-level brand_id takes priority; fall back to traits.brand_id if SDK sends it there
+    effective_brand_id = body.brand_id or body.traits.get("brand_id")
+
     db = request.app.state.mongo[settings.mongo_db]
     try:
         await upsert_user_profile(
@@ -72,6 +76,7 @@ async def identify(
             anonymous_id=body.anonymous_id,
             unset_traits=body.unset_traits,
             now=now,
+            brand_id=effective_brand_id,
         )
     except Exception:
         raise HTTPException(
@@ -86,6 +91,7 @@ async def identify(
             user_id=body.user_id,
             token=body.device.token,
             platform=body.device.platform,
+            brand_id=effective_brand_id,
         )
 
     log.info("identify", user_id=body.user_id, project_id=ctx.project_id)

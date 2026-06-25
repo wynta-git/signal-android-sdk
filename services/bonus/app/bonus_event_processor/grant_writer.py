@@ -32,8 +32,10 @@ _INSERT_GRANT_SQL = """
 # product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
 
 _INSERT_CHUNK_SQL = """
-    INSERT INTO bonus_chunk (chunk_ref, bonus_grant_id, chunk_amount, wager_multiplier, required_wager_amount, status)
-    VALUES (%s, %s, %s, %s, %s, %s)
+    INSERT INTO bonus_chunk
+        (chunk_ref, bonus_grant_id, site_id, pam_user_id,
+         chunk_amount, wager_multiplier, required_wager_amount, release_status)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _UPSERT_BUDGET_SQL = """
@@ -177,7 +179,7 @@ async def write_grant(
         for i in range(1, no_of_chunks + 1):
             await cur.execute(
                 _INSERT_CHUNK_SQL,
-                (f"CH{i:03d}", grant_id, chunk_amount, wager_multiplier, required_wager_amount, "PENDING"),
+                (f"CH{i:03d}", grant_id, site_id, pam_user_id, chunk_amount, wager_multiplier, required_wager_amount, "PENDING"),
             )
 
         entities = [
@@ -250,7 +252,7 @@ async def write_cashback_grant(
 
             await cur.execute(
                 _INSERT_CHUNK_SQL,
-                ("CH001", grant_id, cashback_amount, 0, Decimal("0.00"), "PENDING"),
+                ("CH001", grant_id, site_id, pam_user_id, cashback_amount, 0, Decimal("0.00"), "PENDING"),
             )
 
             entities = [

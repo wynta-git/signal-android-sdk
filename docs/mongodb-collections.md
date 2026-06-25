@@ -74,6 +74,7 @@ Database: `pam`
 {
   _id: ObjectId,
   project_id: "proj_abc123",
+  brand_id: "brand_1" | null,       // null = project-wide (no brand scoping)
   user_id: "user_42",
   anonymous_ids: ["anon_xxx", "anon_yyy"],
   traits: {
@@ -86,7 +87,7 @@ Database: `pam`
   last_seen_at: ISODate
 }
 // Indexes:
-//   { project_id: 1, user_id: 1 } unique
+//   { project_id: 1, brand_id: 1, user_id: 1 } unique
 //   { project_id: 1, "traits.email_hash": 1 }
 //   { project_id: 1, last_seen_at: -1 }
 ```
@@ -162,12 +163,13 @@ Database: `pam`
 {
   _id: ObjectId,
   project_id: "proj_abc123",
+  brand_id: "brand_1" | null,       // null = project-wide; mirrors the user's brand_id
   user_id: "user_42",
   token: "<FCM registration token or APNs device token>",
   platform: "android" | "ios" | "web",
   created_at: ISODate
 }
-// Indexes: { project_id: 1, user_id: 1 }  (non-unique — one user, many tokens)
+// Indexes: { project_id: 1, brand_id: 1, user_id: 1 }  (non-unique — one user, many tokens)
 // Owner: api-service (SDK registers tokens). Read by: notifications-engine.
 ```
 
@@ -240,6 +242,21 @@ Database: `pam`
 //        segmentation-engine (query-time col_map enrichment, meta property discovery).
 // canonical field can be a base column (amount, currency, order_id) or any dynamic column name.
 // Alias wins on conflict: if both source and canonical arrive in the same event, source value is used.
+```
+
+### `brand_settings`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  brand_id: "brand_01",
+  fcm_service_account_json: "<stringified JSON>",  // FCM service account for this brand
+  created_at: ISODate,
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1, brand_id: 1 } unique
+// Owner: campaign-engine settings API (writes). Read by: notifications-engine.
+// Falls back to projects.settings.fcm_service_account_json if no brand-specific credential found.
 ```
 
 ### `dashboard_boosts`

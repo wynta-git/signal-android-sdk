@@ -70,7 +70,7 @@ def _compile_filter(f: AnyFilter, project_id: str, compiled: CompiledRule, col_m
     if isinstance(f, EventFilter):
         compiled.event_queries.append(_compile_event_filter(f, project_id, col_map, brand_id))
     elif isinstance(f, TraitFilter):
-        compiled.trait_queries.append(_compile_trait_filter(f, project_id))
+        compiled.trait_queries.append(_compile_trait_filter(f, project_id, brand_id))
     elif isinstance(f, DidNotDoFilter):
         compiled.did_not_do_queries.append(_compile_did_not_do_filter(f, project_id, brand_id))
     elif isinstance(f, InSegmentFilter):
@@ -200,7 +200,7 @@ def _compile_did_not_do_filter(f: DidNotDoFilter, project_id: str, brand_id: str
     return CompiledEventQuery(sql=sql, params=params)
 
 
-def _compile_trait_filter(f: TraitFilter, project_id: str) -> CompiledTraitQuery:
+def _compile_trait_filter(f: TraitFilter, project_id: str, brand_id: str | None = None) -> CompiledTraitQuery:
     trait_path = f"traits.{f.trait}"
     match_expr: dict
 
@@ -217,8 +217,11 @@ def _compile_trait_filter(f: TraitFilter, project_id: str) -> CompiledTraitQuery
         mongo_op = _MONGO_OP_MAP[f.op]
         match_expr = {trait_path: {mongo_op: f.value}}
 
+    base_match: dict = {"project_id": project_id}
+    if brand_id is not None:
+        base_match["brand_id"] = brand_id
     pipeline = [
-        {"$match": {"project_id": project_id, **match_expr}},
+        {"$match": {**base_match, **match_expr}},
         {"$project": {"_id": 0, "user_id": 1}},
     ]
     return CompiledTraitQuery(pipeline=pipeline)

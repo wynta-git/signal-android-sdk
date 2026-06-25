@@ -375,8 +375,9 @@ function DepositScreen({
       if (res.status === 202) {
         onDeposited();
       } else {
-        const err = (await res.json()) as { detail?: string };
-        setError(err?.detail ?? `Error ${res.status}`);
+        const err = (await res.json()) as { detail?: string | Array<{ msg: string }> };
+        const d = err?.detail;
+        setError(Array.isArray(d) ? d.map((e) => e.msg).join("; ") || `Error ${res.status}` : d ?? `Error ${res.status}`);
         setDepositing(false);
       }
     } catch (err: unknown) {
@@ -1144,7 +1145,7 @@ function ConsumeScreen({
 }) {
   const [bonusAmount, setBonusAmount] = useState("10");
   const [wagerAmount, setWagerAmount] = useState("100");
-  const [chipType, setChipType] = useState("cash");
+  const [chipType, setChipType] = useState("CASH");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ConsumeResult | null>(null);
@@ -1165,15 +1166,20 @@ function ConsumeScreen({
           consume_txn_id: `con_${creds.userId}_${ts}`,
           wager_tnx_id: `wgr_${creds.userId}_${ts}`,
           bonus_amount: parseFloat(bonusAmount),
-          wager_amount: parseFloat(wagerAmount),
+          transaction_amount: parseFloat(wagerAmount),
           chip_type: chipType,
         }),
       });
-      const data = (await res.json()) as ConsumeResult & { detail?: string };
+      const data = (await res.json()) as ConsumeResult & { detail?: string | Array<{ msg: string; loc?: unknown[] }> };
       if (res.status === 201) {
         setResult(data);
       } else {
-        setError(data.detail ?? `Error ${res.status}`);
+        const detail = data.detail;
+        if (Array.isArray(detail)) {
+          setError(detail.map((e) => e.msg).join("; ") || `Error ${res.status}`);
+        } else {
+          setError(detail ?? `Error ${res.status}`);
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Network error");
@@ -1242,8 +1248,9 @@ function ConsumeScreen({
             <div className="input-group" style={{ marginBottom: 24 }}>
               <label>Chip Type</label>
               <select value={chipType} onChange={(e) => setChipType(e.target.value)}>
-                <option value="cash">Cash</option>
-                <option value="in_app_purchase">In-App Purchase</option>
+                <option value="CASH">Cash</option>
+                <option value="LOYALTY_PINTS">Loyalty Pints</option>
+                <option value="FUN_CHIPS">Fun Chips</option>
               </select>
             </div>
             <button
