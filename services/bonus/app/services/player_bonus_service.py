@@ -524,7 +524,7 @@ def _derive_status(
     if consumed == total:
         return "CONSUMED"
     if released == total:
-        return "RELEASED"
+        return "RELEASE"
     if released > 0:
         return "PARTIALLY_RELEASED"
     return "PENDING"

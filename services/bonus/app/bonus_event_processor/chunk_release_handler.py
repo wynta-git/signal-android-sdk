@@ -55,7 +55,7 @@ _INSERT_CHUNK_RELEASE_SQL = """
 
 _RELEASE_ALL_PENDING_CHUNKS_SQL = """
     UPDATE bonus_chunk
-    SET release_status = 'RELEASED', release_amount = chunk_amount, updated_at = NOW()
+    SET release_status = 'RELEASE', release_amount = chunk_amount, updated_at = NOW()
     WHERE bonus_grant_id = %s
       AND release_status = 'PENDING'
 """
