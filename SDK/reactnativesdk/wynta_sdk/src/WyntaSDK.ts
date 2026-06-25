@@ -3,6 +3,7 @@ import { store } from './store';
 import { sdkActions } from './store/sdkSlice';
 import { sendEventThunk, setIdentityThunk } from './store/thunks';
 import { getSessionId } from './services/SessionService';
+import { lifecycleService } from './services/LifecycleService';
 import { storage, STORAGE_KEYS } from './utils/storage';
 import { logger } from './utils/logger';
 import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
@@ -42,8 +43,8 @@ class WyntaSDKClass {
   }
 
   async initSDK(config: InitSDKConfig): Promise<void> {
-    if (!config.clientId || !config.clientSecret || !config.identity) {
-      throw new Error('initSDK requires clientId, clientSecret, and identity');
+    if (!config.clientId || !config.clientSecret) {
+      throw new Error('initSDK requires clientId and clientSecret');
     }
 
     // Restore persisted FCM token from storage (survives app restarts if AsyncStorage is installed)
@@ -52,7 +53,6 @@ class WyntaSDKClass {
     store.dispatch(sdkActions.initConfig({
       clientId: config.clientId,
       clientSecret: config.clientSecret,
-      userId: config.identity,
     }));
 
     if (savedFcmToken) {
@@ -61,7 +61,8 @@ class WyntaSDKClass {
     }
 
     getSessionId();
-    logger.log(`SDK initialized | userId=${config.identity} | session=${getSessionId()}`);
+    lifecycleService.start();
+    logger.log(`SDK initialized | session=${getSessionId()} | call setIdentity() next`);
 
     // Register native notification interaction listeners
     if (wyntaEventEmitter && !this.listenersRegistered) {

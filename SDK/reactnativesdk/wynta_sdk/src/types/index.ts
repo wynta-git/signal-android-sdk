@@ -1,12 +1,17 @@
 export interface InitSDKConfig {
   clientId: string;
   clientSecret: string;
-  identity: string;
 }
 
 export interface DeviceInfo {
   platform: string;
   os: string;
+  os_version?: string;
+  app_version?: string;
+  device_model?: string;
+  manufacturer?: string;
+  timezone?: string;
+  locale?: string;
   ua?: string;
 }
 

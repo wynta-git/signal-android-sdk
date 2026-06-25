@@ -6,6 +6,7 @@ export interface SDKState {
   userId: string | null;
   fcmToken: string | null;
   initialized: boolean;
+  appOpenTracked: boolean;
 }
 
 const initialState: SDKState = {
@@ -14,6 +15,7 @@ const initialState: SDKState = {
   userId: null,
   fcmToken: null,
   initialized: false,
+  appOpenTracked: false,
 };
 
 const sdkSlice = createSlice({
@@ -22,12 +24,16 @@ const sdkSlice = createSlice({
   reducers: {
     initConfig(
       state,
-      action: PayloadAction<{ clientId: string; clientSecret: string; userId: string }>,
+      action: PayloadAction<{ clientId: string; clientSecret: string }>,
     ) {
       state.clientId = action.payload.clientId;
       state.clientSecret = action.payload.clientSecret;
-      state.userId = action.payload.userId;
+      state.userId = null;
       state.initialized = true;
+      state.appOpenTracked = false;
+    },
+    setAppOpenTracked(state) {
+      state.appOpenTracked = true;
     },
     setIdentityData(
       state,
