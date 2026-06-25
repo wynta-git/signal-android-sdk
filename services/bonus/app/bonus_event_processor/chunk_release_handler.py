@@ -21,21 +21,17 @@ from app.models.bonus_release_trigger import TriggerWithConfigResponse
 log = structlog.get_logger(__name__)
 
 _PENDING_CHUNKS_SQL = """
-    SELECT id, chunk_amount, bonus_grant_id, required_wager_amount, wager_amount
-    FROM bonus_chunk
-    WHERE site_id = %s AND pam_user_id = %s AND release_status in  ('PENDING','INIT')
-    ORDER BY id ASC
+    SELECT bc.id, bc.chunk_amount, bc.bonus_grant_id, bc.required_wager_amount, bc.wager_amount,
+           bc.wager_multiplier
+    FROM bonus_chunk bc
+    WHERE bc.site_id = %s AND bc.pam_user_id = %s AND bc.release_status IN ('PENDING', 'INIT')
+    ORDER BY bc.id ASC
 """
 
-_UPDATE_CHUNK_WAGER_SQL = """
-    UPDATE bonus_chunk
-    SET wager_amount = wager_amount + %s, release_amount = %s, updated_at = NOW()
-    WHERE id = %s
-"""
 
 _RELEASE_CHUNK_WITH_WAGER_SQL = """
     UPDATE bonus_chunk
-    SET wager_amount = %s, release_amount = %s, release_status = 'RELEASE', updated_at = NOW()
+    SET wager_amount = %s, release_amount = %s, release_status = %s, updated_at = NOW()
     WHERE id = %s
 """
 
@@ -163,50 +159,40 @@ async def handle_chunk_release(
         if remaining <= Decimal("0.00"):
             break
 
-        chunk_id     = row[0]
-        chunk_amount = Decimal(str(row[1]))
-        grant_id     = row[2]
-        required     = Decimal(str(row[3]))
-        curr_wager   = Decimal(str(row[4]))
+        chunk_id          = row[0]
+        chunk_amount      = Decimal(str(row[1]))
+        grant_id          = row[2]
+        required          = Decimal(str(row[3]))
+        curr_wager        = Decimal(str(row[4]))
+        wager_multiplier  = Decimal(str(row[5]))
 
-        still_needed = required - curr_wager
-        contributed  = min(remaining, still_needed)
-        new_wager    = curr_wager + contributed
-        remaining   -= contributed
+        still_needed   = required - curr_wager
+        contributed    = min(remaining, still_needed)
+        new_wager      = curr_wager + contributed
+        remaining     -= contributed
+
+        is_full        = new_wager >= required
+        release_amount = chunk_amount if is_full else (new_wager / wager_multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        release_status = 'RELEASE' if is_full else 'PENDING'
+
+        event_release = (contributed / wager_multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         async with conn.cursor() as cur:
-            if new_wager >= required:
-                release_amount = chunk_amount
-                await cur.execute(_RELEASE_CHUNK_WITH_WAGER_SQL, (new_wager, release_amount, chunk_id))
-                await cur.execute(
-                    _INSERT_CHUNK_RELEASE_SQL,
-                    (chunk_id, site_id, event_id, wager_ref, float(contributed), float(release_amount)),
-                )
-                await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (release_amount, grant_id))
+            await cur.execute(_RELEASE_CHUNK_WITH_WAGER_SQL, (new_wager, release_amount, release_status, chunk_id))
+            await cur.execute(_INSERT_CHUNK_RELEASE_SQL, (chunk_id, site_id, event_id, wager_ref, float(contributed), float(event_release)))
+            await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (event_release, grant_id))
+            if is_full:
                 released_count += 1
-                log.info(
-                    "chunk_released",
-                    chunk_id=chunk_id,
-                    grant_id=grant_id,
-                    pam_user_id=pam_user_id,
-                    chunk_amount=str(chunk_amount),
-                    release_amount=str(release_amount),
-                    wager_contributed=str(contributed),
-                )
-            else:
-                release_amount = (new_wager / required * chunk_amount).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
-                await cur.execute(_UPDATE_CHUNK_WAGER_SQL, (contributed, release_amount, chunk_id))
-                log.info(
-                    "chunk_wager_partial",
-                    chunk_id=chunk_id,
-                    pam_user_id=pam_user_id,
-                    contributed=str(contributed),
-                    new_wager=str(new_wager),
-                    required=str(required),
-                    release_amount=str(release_amount),
-                )
+
+        log.info(
+            "chunk_released" if is_full else "chunk_wager_partial",
+            chunk_id=chunk_id,
+            pam_user_id=pam_user_id,
+            contributed=str(contributed),
+            new_wager=str(new_wager),
+            release_amount=str(release_amount),
+            release_status=release_status,
+        )
 
     await conn.commit()
 

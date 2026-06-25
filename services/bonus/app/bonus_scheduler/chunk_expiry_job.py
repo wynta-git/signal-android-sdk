@@ -15,7 +15,7 @@ _EXPIRED_CHUNKS_SQL = """
     SELECT bc.id, bc.chunk_amount, bc.bonus_grant_id
     FROM bonus_chunk bc
     JOIN bonus_grant bg ON bg.id = bc.bonus_grant_id
-    WHERE bc.status = 'PENDING'
+    WHERE bc.release_status = 'PENDING'
       AND bg.chunk_expiry_days IS NOT NULL
       AND DATE_ADD(bc.created_at, INTERVAL bg.chunk_expiry_days DAY) <= NOW()
     LIMIT %s
@@ -23,7 +23,7 @@ _EXPIRED_CHUNKS_SQL = """
 
 _EXPIRE_CHUNK_SQL = """
     UPDATE bonus_chunk
-    SET status = 'EXPIRED', updated_at = NOW()
+    SET release_status = 'EXPIRED', updated_at = NOW()
     WHERE id = %s
 """
 

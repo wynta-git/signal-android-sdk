@@ -145,11 +145,12 @@ class BonusChunkDetail(BaseModel):
     chunk_ref: str
     chunk_amount: Decimal
     wager_multiplier: Decimal
-    status: str
+    release_status: str
     required_wager_amount: Decimal
     wager_amount: Decimal
     created_at: datetime
     updated_at: datetime
+    consume_status: str
     releases: list[ChunkReleaseEvent] = []
     consumes: list[ChunkConsumeEvent] = []
 

@@ -198,7 +198,7 @@ _NEXT_RELEASE_CHUNK_SQL = """
     SELECT bc.id, bc.bonus_grant_id
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
-    WHERE pbg.pam_user_id = %s AND bc.status = 'RELEASE'
+    WHERE pbg.pam_user_id = %s AND bc.release_status = 'RELEASE'
     ORDER BY bc.id ASC
     LIMIT 1
 """
@@ -361,7 +361,7 @@ _PENDING_BONUS_BY_CHIP_SQL = """
     SELECT pbg.wager_chip_type, COALESCE(SUM(bc.chunk_amount), 0)
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
-    WHERE pbg.pam_user_id = %s AND bc.status = 'PENDING'
+    WHERE pbg.pam_user_id = %s AND bc.release_status = 'PENDING'
     GROUP BY pbg.wager_chip_type
 """
 
@@ -370,7 +370,7 @@ _WAGERING_REQUIRED_BY_CHIP_SQL = """
            COALESCE(SUM(bc.required_wager_amount - bc.wager_amount), 0)
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
-    WHERE pbg.pam_user_id = %s AND bc.status = 'PENDING'
+    WHERE pbg.pam_user_id = %s AND bc.release_status = 'PENDING'
     GROUP BY pbg.wager_chip_type
 """
 
@@ -440,7 +440,7 @@ _TRANSACTIONS_SQL = """
         FROM bonus_chunk bc
         JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
-          AND bc.status != 'PENDING'
+          AND bc.release_status != 'PENDING'
 
         UNION ALL
 
@@ -547,8 +547,8 @@ _GRANT_DETAIL_SQL = """
 """
 
 _CHUNKS_SQL = """
-    SELECT id, chunk_ref, chunk_amount, wager_multiplier, status,
-           required_wager_amount, wager_amount, created_at, updated_at
+    SELECT id, chunk_ref, chunk_amount, wager_multiplier, release_status,
+           required_wager_amount, wager_amount, created_at, updated_at, consume_status
     FROM bonus_chunk
     WHERE bonus_grant_id = %s
     ORDER BY chunk_ref ASC
@@ -642,8 +642,8 @@ async def get_player_transaction_detail(
         chunks = [
             BonusChunkDetail(
                 id=c[0], chunk_ref=c[1], chunk_amount=c[2], wager_multiplier=c[3],
-                status=c[4], required_wager_amount=c[5], wager_amount=c[6],
-                created_at=c[7], updated_at=c[8],
+                release_status=c[4], required_wager_amount=c[5], wager_amount=c[6],
+                created_at=c[7], updated_at=c[8], consume_status=c[9],
                 releases=releases_by_chunk.get(c[0], []),
                 consumes=consumes_by_chunk.get(c[0], []),
             )
