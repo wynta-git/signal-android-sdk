@@ -65,6 +65,7 @@ async def get_client_context(
 
     ctx = TokenContext(
         project_id=result.program_id,
+        project_key= result.project_key,
         site_id=result.site_id,
         client_id=result.client_id,
         scope=["events:write"],
