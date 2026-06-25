@@ -41,6 +41,7 @@ interface BonusSummary {
   bonus_balance: string;
   pending_bonus: string;
   wagering_required: string;
+  wagering_done: string;
 }
 
 interface Transaction {
@@ -638,6 +639,7 @@ function WalletScreen({ creds, nav }: { creds: Creds; nav: (t: Tab) => void }) {
           const released = parseFloat(s.bonus_balance);
           const pending = parseFloat(s.pending_bonus);
           const wagering = parseFloat(s.wagering_required);
+          const wageringDone = parseFloat(s.wagering_done ?? "0");
           const total = released + pending;
           const isCash = s.chip_type.toLowerCase() === "cash";
           return (
@@ -691,7 +693,7 @@ function WalletScreen({ creds, nav }: { creds: Creds; nav: (t: Tab) => void }) {
                   >
                     Wagering Progress
                   </div>
-                  <ProgressBar value={wagering > 0 ? 0 : 1} max={wagering} />
+                  <ProgressBar value={wageringDone} max={wageringDone + wagering} />
                   <div
                     style={{
                       fontSize: "0.7rem",

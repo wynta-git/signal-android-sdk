@@ -388,7 +388,8 @@ _PENDING_BONUS_BY_CHIP_SQL = """
 
 _WAGERING_REQUIRED_BY_CHIP_SQL = """
     SELECT pbg.wager_chip_type,
-           COALESCE(SUM(bc.required_wager_amount - bc.wager_amount), 0)
+           COALESCE(SUM(bc.required_wager_amount - bc.wager_amount), 0),
+           COALESCE(SUM(bc.wager_amount), 0)
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
     WHERE pbg.pam_user_id = %s AND bc.release_status = 'PENDING'
@@ -401,7 +402,7 @@ async def get_player_bonus_summary(pam_user_id: int) -> list[PlayerBonusSummaryR
     from collections import defaultdict
     from decimal import Decimal as D
     data: dict[str, dict] = defaultdict(
-        lambda: {"bonus_balance": D(0), "pending_bonus": D(0), "wagering_required": D(0)}
+        lambda: {"bonus_balance": D(0), "pending_bonus": D(0), "wagering_required": D(0), "wagering_done": D(0)}
     )
     try:
         async with get_connection(POOL_BONUS) as conn:
@@ -415,8 +416,9 @@ async def get_player_bonus_summary(pam_user_id: int) -> list[PlayerBonusSummaryR
                     data[chip]["pending_bonus"] = val
 
                 await cur.execute(_WAGERING_REQUIRED_BY_CHIP_SQL, (pam_user_id,))
-                for chip, val in await cur.fetchall():
-                    data[chip]["wagering_required"] = val
+                for chip, remaining, done in await cur.fetchall():
+                    data[chip]["wagering_required"] = remaining
+                    data[chip]["wagering_done"] = done
 
         return [
             PlayerBonusSummaryResponse(chip_type=chip, **vals)

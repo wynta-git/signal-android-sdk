@@ -92,6 +92,7 @@ class PlayerBonusSummaryResponse(BaseModel):
     bonus_balance: Decimal
     pending_bonus: Decimal
     wagering_required: Decimal
+    wagering_done: Decimal
 
 
 # ── API 5: referral code ─────────────────────────────────────────────────────
