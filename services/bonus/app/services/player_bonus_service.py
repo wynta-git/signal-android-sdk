@@ -50,6 +50,7 @@ _APPLICABLE_CODES_SQL = """
     FROM bonus_configure_code bcc
     JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
     WHERE bcc.active = 1
+      AND bcc.site_id = %s
       AND bc.wager_chip_type = %s
       AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
       AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
@@ -74,7 +75,7 @@ async def list_applicable_codes(
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
-                await cur.execute(_APPLICABLE_CODES_SQL, (chip_type,))
+                await cur.execute(_APPLICABLE_CODES_SQL, (site_id, chip_type))
                 rows = await cur.fetchall()
 
                 results: list[ApplicableCodeResponse] = []
@@ -202,7 +203,7 @@ _NEXT_RELEASE_CHUNK_SQL = """
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
     WHERE pbg.pam_user_id = %s
       AND pbg.site_id = %s
-      AND bc.release_status IN ('RELEASED', 'PENDING')
+      AND bc.release_status IN ('RELEASED', 'PENDING','RELEASE')
       AND bc.consume_status IN ('INIT', 'PENDING')
       AND bc.release_amount > 0 
     ORDER BY bc.id ASC

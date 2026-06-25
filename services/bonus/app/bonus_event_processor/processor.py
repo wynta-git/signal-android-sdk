@@ -52,22 +52,12 @@ async def process_bonus_event(redis: Redis, event: dict[str, Any]) -> None:
     player_user_id: str | None = event.get("user_id")
     project_id = event.get("project_id")
     event_id: str = str(event.get("event_id") or "")
-
+    site_id = event.get("site_id")
     if not event_id:
         log.warning("bonus_event_missing_event_id", event_name=event_name, player_user_id=player_user_id)
         return
 
-    try:
-        site_id = int(project_id)
-    except (TypeError, ValueError):
-        log.warning(
-            "bonus_event_invalid_site_id",
-            project_id=project_id,
-            event_name=event_name,
-            player_user_id=player_user_id,
-        )
-        return
-
+   
     if not event_name or not player_user_id:
         log.warning(
             "bonus_event_missing_fields",

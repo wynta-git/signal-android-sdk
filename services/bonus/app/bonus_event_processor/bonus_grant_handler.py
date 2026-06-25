@@ -101,12 +101,13 @@ async def handle_bonus_grant(
 
     # ── Promo code filter ─────────────────────────────────────────────────────
     promo_code: str | None = props.get("promo_code") or None
+    code_id: int | None = None
     code_max_amount: Decimal | None = None
 
     if promo_code:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT max_amount FROM bonus_configure_code "
+                "SELECT id, max_amount FROM bonus_configure_code "
                 "WHERE configure_id = %s AND code = %s AND active = 1 LIMIT 1",
                 (cfg.id, promo_code),
             )
@@ -122,8 +123,9 @@ async def handle_bonus_grant(
             )
             return
 
-        if code_row[0] is not None:
-            code_max_amount = Decimal(str(code_row[0]))
+        code_id = code_row[0]
+        if code_row[1] is not None:
+            code_max_amount = Decimal(str(code_row[1]))
 
     # ── Occurrence + applicability ────────────────────────────────────────────
     async with conn.cursor() as cur:
@@ -196,6 +198,7 @@ async def handle_bonus_grant(
             player_bonus_id,
             event_id,
             bonus_code=promo_code,
+            bonus_code_id=code_id,
         )
         log.info(
             "bonus_grant_written",
@@ -214,7 +217,8 @@ async def handle_bonus_grant(
             cashback_amount = min(cashback_amount, code_max_amount)
 
         cashback_grant_id = await write_cashback_grant(
-            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, player_bonus_id, event_id, bonus_code=promo_code
+            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, player_bonus_id, event_id,
+            bonus_code=promo_code, bonus_code_id=code_id,
         )
         log.info(
             "cashback_grant_written",
