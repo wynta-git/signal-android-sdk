@@ -10,7 +10,7 @@ When a trigger with release_type=CHUNK_RELEASE fires:
 """
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import aiomysql
@@ -23,19 +23,19 @@ log = structlog.get_logger(__name__)
 _PENDING_CHUNKS_SQL = """
     SELECT id, chunk_amount, bonus_grant_id, required_wager_amount, wager_amount
     FROM bonus_chunk
-    WHERE site_id = %s AND pam_user_id = %s AND release_status = 'PENDING'
+    WHERE site_id = %s AND pam_user_id = %s AND release_status in  ('PENDING','INIT')
     ORDER BY id ASC
 """
 
 _UPDATE_CHUNK_WAGER_SQL = """
     UPDATE bonus_chunk
-    SET wager_amount = wager_amount + %s, updated_at = NOW()
+    SET wager_amount = wager_amount + %s, release_amount = %s, updated_at = NOW()
     WHERE id = %s
 """
 
 _RELEASE_CHUNK_WITH_WAGER_SQL = """
     UPDATE bonus_chunk
-    SET wager_amount = %s, release_status = 'RELEASE', updated_at = NOW()
+    SET wager_amount = %s, release_amount = %s, release_status = 'RELEASE', updated_at = NOW()
     WHERE id = %s
 """
 
@@ -133,6 +133,15 @@ async def handle_chunk_release(
     site_id: int = trigger.site_id
     wager_ref: str = str(props.get("wager_tnx_id") or "")
     remaining = Decimal(str(trigger_amount)) if trigger_amount else Decimal("0.00")
+    if remaining <= Decimal("0.00"):
+        log.info(
+            "chunk_release_no_remaining",
+            trigger_id=trigger.id,
+            pam_user_id=pam_user_id,
+            site_id=site_id,
+            remaining=remaining
+        )
+        return
 
     async with conn.cursor() as cur:
         await cur.execute(_PENDING_CHUNKS_SQL, (site_id, pam_user_id))
@@ -167,12 +176,13 @@ async def handle_chunk_release(
 
         async with conn.cursor() as cur:
             if new_wager >= required:
-                await cur.execute(_RELEASE_CHUNK_WITH_WAGER_SQL, (new_wager, chunk_id))
+                release_amount = chunk_amount
+                await cur.execute(_RELEASE_CHUNK_WITH_WAGER_SQL, (new_wager, release_amount, chunk_id))
                 await cur.execute(
                     _INSERT_CHUNK_RELEASE_SQL,
-                    (chunk_id, site_id, event_id, wager_ref, float(contributed), chunk_amount),
+                    (chunk_id, site_id, event_id, wager_ref, float(contributed), float(release_amount)),
                 )
-                await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (chunk_amount, grant_id))
+                await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (release_amount, grant_id))
                 released_count += 1
                 log.info(
                     "chunk_released",
@@ -180,10 +190,14 @@ async def handle_chunk_release(
                     grant_id=grant_id,
                     pam_user_id=pam_user_id,
                     chunk_amount=str(chunk_amount),
+                    release_amount=str(release_amount),
                     wager_contributed=str(contributed),
                 )
             else:
-                await cur.execute(_UPDATE_CHUNK_WAGER_SQL, (contributed, chunk_id))
+                release_amount = (new_wager / required * chunk_amount).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
+                await cur.execute(_UPDATE_CHUNK_WAGER_SQL, (contributed, release_amount, chunk_id))
                 log.info(
                     "chunk_wager_partial",
                     chunk_id=chunk_id,
@@ -191,6 +205,7 @@ async def handle_chunk_release(
                     contributed=str(contributed),
                     new_wager=str(new_wager),
                     required=str(required),
+                    release_amount=str(release_amount),
                 )
 
     await conn.commit()
