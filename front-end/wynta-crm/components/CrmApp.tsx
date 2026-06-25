@@ -143,18 +143,18 @@ function CrmShell() {
 
       <main className="crm-main">
         <div className="crm-content">
-          {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} /> :
+          {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} brandId={brandId} /> :
            activeNav === 'segments'         ? <SegmentsPage brandId={brandId} /> :
            activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} brandId={brandId} /> :
            activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :
-           activeNav === 'reports:campaign' ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:create')} /> :
-           activeNav === 'reports:segment'  ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:create')} /> :
-           activeNav === 'reports:channel'  ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:create')} /> :
-           activeNav === 'reports:lifecycle'? <PlayerLifecycleReport  onOpenBuilder={() => handleNavChange('reports:create')} /> :
-           activeNav === 'reports:churn'    ? <ChurnRetentionReport  onOpenBuilder={() => handleNavChange('reports:create')} /> :
+           activeNav === 'reports:campaign' ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
+           activeNav === 'reports:segment'  ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
+           activeNav === 'reports:channel'  ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
+           activeNav === 'reports:lifecycle'? <PlayerLifecycleReport  onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
+           activeNav === 'reports:churn'    ? <ChurnRetentionReport  onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
            activeNav === 'reports:create'   ? (
              <CustomReportBuilder
                onSave={handleCreate}

@@ -381,10 +381,13 @@ export async function fetchMetaEvents(projectId: string): Promise<MetaEventsRaw>
 
 export async function fetchMetaEventProperties(
   projectId: string,
-  eventName: string
+  eventName: string,
+  brandId?: number,
 ): Promise<string[]> {
+  const params = new URLSearchParams({ project_id: projectId });
+  if (brandId) params.set('brand_id', String(brandId));
   const res = await fetch(
-    `${SEG_API}/meta/events/${encodeURIComponent(eventName)}/properties?project_id=${projectId}`,
+    `${SEG_API}/meta/events/${encodeURIComponent(eventName)}/properties?${params}`,
     { headers: authHeader() }
   );
   if (!res.ok) throw new Error(`fetchMetaEventProperties failed: ${res.status}`);
@@ -405,18 +408,20 @@ export async function fetchMetaOperators(): Promise<MetaOperators> {
   return res.json();
 }
 
-export async function fetchTraitOperators(trait: string): Promise<TraitOperatorsResponse> {
+export async function fetchTraitOperators(trait: string, brandId?: number): Promise<TraitOperatorsResponse> {
+  const params = brandId ? `?brand_id=${brandId}` : '';
   const res = await fetch(
-    `${SEG_API}/meta/traits/${encodeURIComponent(trait)}/operators`,
+    `${SEG_API}/meta/traits/${encodeURIComponent(trait)}/operators${params}`,
     { headers: authHeader() }
   );
   if (!res.ok) throw new Error(`fetchTraitOperators failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchDerivedRuleConfig(ruleName: string): Promise<DerivedRuleConfig> {
+export async function fetchDerivedRuleConfig(ruleName: string, brandId?: number): Promise<DerivedRuleConfig> {
+  const params = brandId ? `?brand_id=${brandId}` : '';
   const res = await fetch(
-    `${SEG_API}/meta/events/derived/${encodeURIComponent(ruleName)}`,
+    `${SEG_API}/meta/events/derived/${encodeURIComponent(ruleName)}${params}`,
     { headers: authHeader() }
   );
   if (!res.ok) throw new Error(`fetchDerivedRuleConfig failed: ${res.status}`);

@@ -161,23 +161,23 @@ export const fetchMetaOperators = createAsyncThunk(
 
 export const fetchMetaEventProperties = createAsyncThunk(
   'segments/fetchMetaEventProperties',
-  ({ projectId, eventName }: { projectId: string; eventName: string }) =>
-    segmentApi.fetchMetaEventProperties(projectId, eventName)
+  ({ projectId, eventName, brandId }: { projectId: string; eventName: string; brandId?: number }) =>
+    segmentApi.fetchMetaEventProperties(projectId, eventName, brandId)
       .then(props => ({ eventName, props }))
 );
 
 /** Fetches operators for a specific trait. Cached in metaTraitOperators. */
 export const fetchTraitOperators = createAsyncThunk(
   'segments/fetchTraitOperators',
-  (trait: string) =>
-    segmentApi.fetchTraitOperators(trait).then(data => ({ trait, data }))
+  ({ trait, brandId }: { trait: string; brandId?: number }) =>
+    segmentApi.fetchTraitOperators(trait, brandId).then(data => ({ trait, data }))
 );
 
 /** Fetches config (parameters) for a derived rule. Cached in metaDerivedRules. */
 export const fetchDerivedRuleConfig = createAsyncThunk(
   'segments/fetchDerivedRuleConfig',
-  (ruleName: string) =>
-    segmentApi.fetchDerivedRuleConfig(ruleName).then(data => ({ ruleName, data }))
+  ({ ruleName, brandId }: { ruleName: string; brandId?: number }) =>
+    segmentApi.fetchDerivedRuleConfig(ruleName, brandId).then(data => ({ ruleName, data }))
 );
 
 /** Fetches operators for one parameter of a derived rule. Cached in metaDerivedParamOps. */

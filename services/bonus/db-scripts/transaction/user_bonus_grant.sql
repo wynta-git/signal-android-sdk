@@ -57,6 +57,8 @@ CREATE TABLE `user_bonus_grant` (
     -- references bonus_head.id
     `site_id`            INT           NOT NULL,
     `pam_user_id`      VARCHAR(50)   NOT NULL,
+    `event_id`           CHAR(36)      NOT NULL,
+    -- UUID of the source event that triggered this grant; used for idempotency replay checks
 
     -- ── Config snapshot (copied from bonus_configure at grant time) ───────────
     `bonus_code`         VARCHAR(50)   DEFAULT NULL,
@@ -66,7 +68,7 @@ CREATE TABLE `user_bonus_grant` (
     -- product sourced from bonus_release_trigger at grant time; NULL when trigger has no product constraint
     `wager_multiplier`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     -- x-wager requirement per chunk; 0 = no wagering — from bonus_configure
-    `no_of_chunks`       INT           NOT NULL DEFAULT 1,
+    `no_of_chunks`       INT           DEFAULT NULL,
     -- number of chunks the bonus was split into — from bonus_configure
     `chunk_expiry_days`  INT           DEFAULT NULL,
     -- days from grant until an unreleased chunk expires; NULL = no expiry
@@ -87,13 +89,13 @@ CREATE TABLE `user_bonus_grant` (
     `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_user_bonus_grant_player_bonus_id`    (`player_bonus_id`),
     KEY `idx_user_bonus_grant_configure_id`             (`configure_id`),
     KEY `idx_user_bonus_grant_subhead_id`               (`subhead_id`),
     KEY `idx_user_bonus_grant_head_id`                  (`head_id`),
     KEY `idx_user_bonus_grant_pam_user_id`            (`pam_user_id`),
     KEY `idx_user_bonus_grant_site_date`                (`site_id`, `created_at`),
-    KEY `idx_user_bonus_grant_bonus_code`               (`bonus_code`)
+    KEY `idx_user_bonus_grant_bonus_code`               (`bonus_code`),
+    KEY `idx_user_bonus_grant_event_site`               (`event_id`, `site_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- -----------------------------------------------------------------------------

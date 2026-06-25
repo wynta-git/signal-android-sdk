@@ -39,6 +39,7 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
     trigger_cache_ttl: int = 300  # seconds
+    dedup_event_ttl: int = 604800  # 7 days
 
     scheduler_interval_minutes: int = 60
     scheduler_batch_size: int = 500
