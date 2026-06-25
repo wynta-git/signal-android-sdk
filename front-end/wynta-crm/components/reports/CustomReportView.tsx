@@ -3,10 +3,9 @@ import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from '../../store';
 import { fetchReport, deleteReport, clearActiveReport } from '../../store/slices/reportsSlice';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import { ALL_METRICS, DATE_RANGE_LABELS } from './CustomReportBuilder';
 import type { MetricValue, DateRange } from '../../services/reportsApi';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 const METRIC_LABEL: Record<string, string> = Object.fromEntries(
   ALL_METRICS.map(m => [m.key, m.label])
@@ -42,18 +41,19 @@ interface Props {
 
 export default function CustomReportView({ reportId, onBack, onCreateNew, onDeleted }: Props) {
   const dispatch = useDispatch<AppDispatch>();
+  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const report   = useSelector((s: RootState) => s.reports.activeReport);
   const status   = useSelector((s: RootState) => s.reports.status.active);
 
   useEffect(() => {
-    dispatch(fetchReport({ reportId, projectId: PROJECT_ID }));
+    dispatch(fetchReport({ reportId, projectId: projectId }));
     return () => { dispatch(clearActiveReport()); };
   }, [dispatch, reportId]);
 
   async function handleDelete() {
     if (!report) return;
     if (!confirm(`Delete "${report.name}"?`)) return;
-    await dispatch(deleteReport({ reportId: report.report_id, projectId: PROJECT_ID }));
+    await dispatch(deleteReport({ reportId: report.report_id, projectId: projectId }));
     onDeleted?.();
     onBack();
   }

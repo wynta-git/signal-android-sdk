@@ -134,7 +134,7 @@ export default function EventsPage({ brandId }: { brandId?: number }) {
   const [propSearch, setPropSearch] = useState('');
 
   useEffect(() => {
-    dispatch(fetchEvents({ brandId }));
+    dispatch(fetchEvents(brandId));
     dispatch(fetchTraits(brandId));
   }, [dispatch, brandId]);
 

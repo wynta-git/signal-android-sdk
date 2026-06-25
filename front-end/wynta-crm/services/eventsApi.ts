@@ -17,9 +17,9 @@ export interface EventsResponse {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 
-export async function getEvents(projectId: string, brandId?: number): Promise<EventsResponse> {
-  let url = `${SEG_API}/meta/events?project_id=${encodeURIComponent(projectId)}`;
-  if (brandId) url += `&brand_id=${brandId}`;
+export async function getEvents(brandId?: number): Promise<EventsResponse> {
+  let url = `${SEG_API}/meta/events`;
+  if (brandId) url += `?brand_id=${brandId}`;
   const res = await fetch(url, { headers: authHeader() });
   if (!res.ok) throw new Error(`getEvents failed: ${res.status}`);
   const data = await res.json();

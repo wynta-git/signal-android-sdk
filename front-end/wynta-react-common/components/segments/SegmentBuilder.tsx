@@ -9,11 +9,10 @@ import {
   selectMetaTraits, selectMetaEvents, selectMetaOperators,
   evaluateSegment,
 } from '../../store/slices/segmentsSlice';
+import { selectProjectId } from '../../store/slices/usersSlice';
 import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
 import { previewEvaluate } from '../../services/segmentApi';
 import type { SegmentRule, SegmentField, MetaEventItem } from '../../types';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 function toLabel(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -89,21 +88,17 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
   const [propertyExpanded, setPropertyExpanded]   = useState(true);
   const propertyPickerRef  = useRef<HTMLDivElement>(null);
   const behaviourPickerRef = useRef<HTMLDivElement>(null);
-  const metaFetchedRef     = useRef(false);
-
   const dispatch      = useDispatch();
+  const projectId     = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const metaTraits    = useCommonSelector(selectMetaTraits);
   const metaEvents    = useCommonSelector(selectMetaEvents);   // MetaEventItem[]
   const metaOperators = useCommonSelector(selectMetaOperators);
 
-  /* Fire once — ref persists through React 18 Strict Mode remount */
   useEffect(() => {
-    if (metaFetchedRef.current) return;
-    metaFetchedRef.current = true;
-    dispatch(fetchMetaTraits(PROJECT_ID) as any);
-    dispatch(fetchMetaEvents(PROJECT_ID) as any);
+    dispatch(fetchMetaTraits(brandId) as any);
+    dispatch(fetchMetaEvents({ projectId, brandId }) as any);
     dispatch(fetchMetaOperators() as any);
-  }, [dispatch]);
+  }, [dispatch, projectId, brandId]);
 
   useEffect(() => {
     if (!activePicker) return;

@@ -3,8 +3,6 @@ import * as campaignApi from '../../services/campaignApi';
 import type { Campaign, CampaignPayload } from '../../services/campaignApi';
 import type { AsyncStatus } from 'wynta-react-common/types';
 
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
-
 // ── State ─────────────────────────────────────────────────────────────────────
 
 interface CampaignsState {
@@ -28,9 +26,9 @@ let _fetchInFlight = false;
 
 export const fetchCampaigns = createAsyncThunk(
   'campaigns/fetchAll',
-  async (arg?: { projectId?: string; brandId?: number }) => {
+  async ({ projectId, brandId }: { projectId: string; brandId?: number }) => {
     try {
-      return await campaignApi.fetchCampaigns(arg?.projectId ?? PROJECT_ID, arg?.brandId);
+      return await campaignApi.fetchCampaigns(projectId, brandId);
     } finally {
       _fetchInFlight = false;
     }
@@ -52,56 +50,51 @@ export const fetchCampaigns = createAsyncThunk(
 
 export const getCampaign = createAsyncThunk(
   'campaigns/get',
-  ({ projectId, campaignId }: { projectId?: string; campaignId: string }) =>
-    campaignApi.getCampaign(projectId ?? PROJECT_ID, campaignId)
+  ({ projectId, campaignId }: { projectId: string; campaignId: string }) =>
+    campaignApi.getCampaign(projectId, campaignId)
 );
 
 export const createCampaign = createAsyncThunk(
   'campaigns/create',
-  ({ projectId, payload, brandId }: { projectId?: string; payload: CampaignPayload; brandId?: number }) =>
-    campaignApi.createCampaign(projectId ?? PROJECT_ID, payload, brandId)
+  ({ projectId, payload, brandId }: { projectId: string; payload: CampaignPayload; brandId?: number }) =>
+    campaignApi.createCampaign(projectId, payload, brandId)
 );
 
 export const updateCampaign = createAsyncThunk(
   'campaigns/update',
-  ({ projectId, campaignId, payload }: { projectId?: string; campaignId: string; payload: Partial<CampaignPayload> }) =>
-    campaignApi.updateCampaign(projectId ?? PROJECT_ID, campaignId, payload)
+  ({ projectId, campaignId, payload }: { projectId: string; campaignId: string; payload: Partial<CampaignPayload> }) =>
+    campaignApi.updateCampaign(projectId, campaignId, payload)
       .then(c => ({ campaignId, campaign: c }))
 );
 
 export const deleteCampaign = createAsyncThunk(
   'campaigns/delete',
-  ({ projectId, campaignId }: { projectId?: string; campaignId: string }) =>
-    campaignApi.deleteCampaign(projectId ?? PROJECT_ID, campaignId)
-      .then(() => campaignId)
+  ({ projectId, campaignId }: { projectId: string; campaignId: string }) =>
+    campaignApi.deleteCampaign(projectId, campaignId).then(() => campaignId)
 );
 
 export const activateCampaign = createAsyncThunk(
   'campaigns/activate',
-  ({ projectId, campaignId }: { projectId?: string; campaignId: string }) =>
-    campaignApi.activateCampaign(projectId ?? PROJECT_ID, campaignId)
-      .then(c => ({ campaignId, campaign: c }))
+  ({ projectId, campaignId }: { projectId: string; campaignId: string }) =>
+    campaignApi.activateCampaign(projectId, campaignId).then(c => ({ campaignId, campaign: c }))
 );
 
 export const pauseCampaign = createAsyncThunk(
   'campaigns/pause',
-  ({ projectId, campaignId }: { projectId?: string; campaignId: string }) =>
-    campaignApi.pauseCampaign(projectId ?? PROJECT_ID, campaignId)
-      .then(c => ({ campaignId, campaign: c }))
+  ({ projectId, campaignId }: { projectId: string; campaignId: string }) =>
+    campaignApi.pauseCampaign(projectId, campaignId).then(c => ({ campaignId, campaign: c }))
 );
 
 export const resumeCampaign = createAsyncThunk(
   'campaigns/resume',
-  ({ projectId, campaignId }: { projectId?: string; campaignId: string }) =>
-    campaignApi.resumeCampaign(projectId ?? PROJECT_ID, campaignId)
-      .then(c => ({ campaignId, campaign: c }))
+  ({ projectId, campaignId }: { projectId: string; campaignId: string }) =>
+    campaignApi.resumeCampaign(projectId, campaignId).then(c => ({ campaignId, campaign: c }))
 );
 
 export const cancelCampaign = createAsyncThunk(
   'campaigns/cancel',
-  ({ projectId, campaignId }: { projectId?: string; campaignId: string }) =>
-    campaignApi.cancelCampaign(projectId ?? PROJECT_ID, campaignId)
-      .then(c => ({ campaignId, campaign: c }))
+  ({ projectId, campaignId }: { projectId: string; campaignId: string }) =>
+    campaignApi.cancelCampaign(projectId, campaignId).then(c => ({ campaignId, campaign: c }))
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -371,8 +371,11 @@ export interface MetaEventsRaw {
   derived_rules: string[];
 }
 
-export async function fetchMetaEvents(projectId: string): Promise<MetaEventsRaw> {
-  const res = await fetch(`${SEG_API}/meta/events?project_id=${projectId}`, {
+export async function fetchMetaEvents(projectId: string, brandId?: number): Promise<MetaEventsRaw> {
+  const params = new URLSearchParams();
+  if (brandId) params.set('brand_id', String(brandId));
+  const query = params.toString() ? `?${params}` : '';
+  const res = await fetch(`${SEG_API}/meta/events${query}`, {
     headers: authHeader(),
   });
   if (!res.ok) throw new Error(`fetchMetaEvents failed: ${res.status}`);
@@ -394,8 +397,11 @@ export async function fetchMetaEventProperties(
   return res.json();
 }
 
-export async function fetchMetaTraits(projectId: string): Promise<string[]> {
-  const res = await fetch(`${SEG_API}/meta/traits?project_id=${projectId}`, {
+export async function fetchMetaTraits(brandId?: number): Promise<string[]> {
+  const params = new URLSearchParams();
+  if (brandId) params.set('brand_id', String(brandId));
+  const query = params.toString() ? `?${params}` : '';
+  const res = await fetch(`${SEG_API}/meta/traits${query}`, {
     headers: authHeader(),
   });
   if (!res.ok) throw new Error(`fetchMetaTraits failed: ${res.status}`);

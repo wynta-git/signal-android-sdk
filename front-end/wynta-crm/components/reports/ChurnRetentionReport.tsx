@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import { getChurnRetention } from '../../services/reportsApi';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import type { ChurnRetentionData, CohortRow, TrendPoint } from '../../services/reportsApi';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -195,6 +195,7 @@ const WINDOW_OPTIONS = [
 type SortKey = 'cohort' | 'players' | 'churned' | 'retained' | 'win_back';
 
 export default function ChurnRetentionReport({ onOpenBuilder, brandId }: Props) {
+  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const [windowDays, setWindowDays] = useState(7);
   const [channel,    setChannel]    = useState('all');
   const [data,       setData]       = useState<ChurnRetentionData | null>(null);
@@ -206,7 +207,7 @@ export default function ChurnRetentionReport({ onOpenBuilder, brandId }: Props) 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getChurnRetention(PROJECT_ID, { windowDays, channel, segmentId: null, brandId });
+      const result = await getChurnRetention(projectId, { windowDays, channel, segmentId: null, brandId });
       setData(result);
     } catch (e) {
       console.error(e);
