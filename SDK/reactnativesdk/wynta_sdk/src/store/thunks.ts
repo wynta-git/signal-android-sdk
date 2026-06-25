@@ -77,6 +77,23 @@ export const setIdentityThunk = createAsyncThunk<
   try {
     await identifyPlayer(identifyPayload, current.clientId!, current.clientSecret!);
     logger.log('setIdentity response: success');
+
+    // Auto-track sdk_init + session_started + app_opened on the first setIdentity call after each initSDK
+    if (!current.appOpenTracked) {
+      dispatch(sdkActions.setAppOpenTracked());
+      const clientId = current.clientId!;
+      const clientSecret = current.clientSecret!;
+      trackEvent(buildEvent('sdk_init', {}, userId), clientId, clientSecret).catch((err) => {
+        logger.log(`[WyntaSDK] sdk_init auto-track failed: ${err}`);
+      });
+      trackEvent(buildEvent('session_started', {}, userId), clientId, clientSecret).catch((err) => {
+        logger.log(`[WyntaSDK] session_started auto-track failed: ${err}`);
+      });
+      trackEvent(buildEvent('app_opened', {}, userId), clientId, clientSecret).catch((err) => {
+        logger.log(`[WyntaSDK] app_opened auto-track failed: ${err}`);
+      });
+    }
+
     return { success: true };
   } catch (err: unknown) {
     const error = err as Error;
