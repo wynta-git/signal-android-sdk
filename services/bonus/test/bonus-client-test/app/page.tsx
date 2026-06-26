@@ -107,7 +107,8 @@ interface ExpiryEvent {
   expired_at: string;
 }
 
-interface TransactionDetail {
+interface GrantTxnDetail {
+  type: "GRANT";
   txn_id: number;
   user_id: string;
   bonus_code: string | null;
@@ -126,6 +127,79 @@ interface TransactionDetail {
   forfeit: ForfeitDetail | null;
   expiry_events: ExpiryEvent[];
 }
+
+interface ChunkReleaseRow {
+  id: number;
+  chunk_ref: string;
+  wager_amount: string;
+  release_amount: string;
+  bonus_grant_id: number;
+}
+
+interface ChunkConsumedRow {
+  id: number;
+  chunk_ref: string;
+  consumed_amount: string;
+  bonus_grant_id: number;
+}
+
+interface ReleaseTxnDetail {
+  type: "RELEASE";
+  id: number;
+  wager_ref: string;
+  chip_type: string | null;
+  product: string | null;
+  game_type: string | null;
+  game_name: string | null;
+  wager_amount: string;
+  release_amount: string;
+  created_at: string;
+  chunks: ChunkReleaseRow[];
+}
+
+interface ConsumeTxnDetail {
+  type: "CONSUME";
+  id: number;
+  wager_ref: string | null;
+  chip_type: string | null;
+  product: string | null;
+  game_type: string | null;
+  game_name: string | null;
+  amount: string;
+  consumed_amount: string;
+  wager_amount: string;
+  created_at: string;
+  chunks: ChunkConsumedRow[];
+}
+
+interface ExpiryTxnDetail {
+  type: "EXPIRY";
+  id: number;
+  chunk_id: number;
+  chunk_ref: string;
+  amount: string;
+  expiry_type: string;
+  operator: string | null;
+  expired_at: string;
+}
+
+interface ForfeitTxnDetail {
+  type: "FORFEIT";
+  id: number;
+  bonus_grant_id: number;
+  requested_amount: string;
+  amount: string;
+  forfeit_type: string;
+  operator: string | null;
+  forfeited_at: string;
+}
+
+type TxnDetailResponse =
+  | GrantTxnDetail
+  | ReleaseTxnDetail
+  | ConsumeTxnDetail
+  | ExpiryTxnDetail
+  | ForfeitTxnDetail;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +228,14 @@ function fmtDate(iso: string): string {
     return iso;
   }
 }
+
+const TYPE_MAP: Record<string, string> = {
+  grant: "GRANT",
+  released: "RELEASE",
+  consumed: "CONSUME",
+  expiry: "EXPIRY",
+  forfeited: "FORFEIT",
+};
 
 // ── Shared components ──────────────────────────────────────────────────────────
 
@@ -204,7 +286,7 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 
 function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
   const [userId, setUserId] = useState("P1001");
-  const [clientId, setClientId] = useState("site1-backend-v0");
+  const [clientId, setClientId] = useState("bonus-test-v1");
   const [secret, setSecret] = useState("abc@123456");
 
   function handleSubmit(e: React.FormEvent) {
@@ -376,9 +458,15 @@ function DepositScreen({
       if (res.status === 202) {
         onDeposited();
       } else {
-        const err = (await res.json()) as { detail?: string | Array<{ msg: string }> };
+        const err = (await res.json()) as {
+          detail?: string | Array<{ msg: string }>;
+        };
         const d = err?.detail;
-        setError(Array.isArray(d) ? d.map((e) => e.msg).join("; ") || `Error ${res.status}` : d ?? `Error ${res.status}`);
+        setError(
+          Array.isArray(d)
+            ? d.map((e) => e.msg).join("; ") || `Error ${res.status}`
+            : (d ?? `Error ${res.status}`),
+        );
         setDepositing(false);
       }
     } catch (err: unknown) {
@@ -471,7 +559,14 @@ function DepositScreen({
               ) : (
                 <div className="promo-list">
                   {!selectedPromo && (
-                    <div style={{ fontSize: "0.72rem", color: "#f87171", marginBottom: 6, paddingLeft: 2 }}>
+                    <div
+                      style={{
+                        fontSize: "0.72rem",
+                        color: "#f87171",
+                        marginBottom: 6,
+                        paddingLeft: 2,
+                      }}
+                    >
                       Select a bonus to continue
                     </div>
                   )}
@@ -524,7 +619,11 @@ function DepositScreen({
             type="submit"
             className="btn-primary"
             style={{ marginTop: isbet ? 0 : 24 }}
-            disabled={depositing || !amount || (!isbet && !promosLoading && promos.length > 0 && !selectedPromo)}
+            disabled={
+              depositing ||
+              !amount ||
+              (!isbet && !promosLoading && promos.length > 0 && !selectedPromo)
+            }
           >
             {depositing
               ? "Processing…"
@@ -693,7 +792,10 @@ function WalletScreen({ creds, nav }: { creds: Creds; nav: (t: Tab) => void }) {
                   >
                     Wagering Progress
                   </div>
-                  <ProgressBar value={wageringDone} max={wageringDone + wagering} />
+                  <ProgressBar
+                    value={wageringDone}
+                    max={wageringDone + wagering}
+                  />
                   <div
                     style={{
                       fontSize: "0.7rem",
@@ -774,46 +876,103 @@ function TransactionsScreen({
                 className="txn-row txn-row-grant"
                 onClick={() => onDetail(t)}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    {t.bonus_code && <span className="txn-code">{t.bonus_code}</span>}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 6,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {t.bonus_code && (
+                      <span className="txn-code">{t.bonus_code}</span>
+                    )}
                     <StatusBadge status="grant" />
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                  >
                     <span className="txn-date">{fmtDate(t.created_at)}</span>
                     <span className="txn-arrow">›</span>
                   </div>
                 </div>
                 {t.player_bonus_id && (
-                  <div style={{ fontSize: "0.62rem", color: "#475569", marginBottom: 8, fontFamily: "monospace", letterSpacing: "0.03em" }}>
+                  <div
+                    style={{
+                      fontSize: "0.62rem",
+                      color: "#475569",
+                      marginBottom: 8,
+                      fontFamily: "monospace",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
                     ID: {String(t.player_bonus_id)}
                   </div>
                 )}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gap: 6,
+                  }}
+                >
                   {[
-                    { label: "Granted",  val: t.amount,                  color: "#cbd5e1" },
-                    { label: "Released", val: t.release_amount ?? "0",   color: "#93c5fd" },
-                    { label: "Consumed", val: t.consumed_amount ?? "0",  color: "#c4b5fd" },
-                    { label: "Exp+Forf", val: String(expForf),           color: expForfColor },
+                    { label: "Granted", val: t.amount, color: "#cbd5e1" },
+                    {
+                      label: "Released",
+                      val: t.release_amount ?? "0",
+                      color: "#93c5fd",
+                    },
+                    {
+                      label: "Consumed",
+                      val: t.consumed_amount ?? "0",
+                      color: "#c4b5fd",
+                    },
+                    {
+                      label: "Exp+Forf",
+                      val: String(expForf),
+                      color: expForfColor,
+                    },
                   ].map(({ label, val, color }) => (
-                    <div key={label} style={{ background: "#0f1117", borderRadius: 8, padding: "6px 8px" }}>
-                      <div style={{ fontSize: "0.78rem", fontWeight: 700, color }}>{`₹${fmt(val)}`}</div>
-                      <div style={{ fontSize: "0.6rem", color: "#475569", marginTop: 2 }}>{label}</div>
+                    <div
+                      key={label}
+                      style={{
+                        background: "#0f1117",
+                        borderRadius: 8,
+                        padding: "6px 8px",
+                      }}
+                    >
+                      <div
+                        style={{ fontSize: "0.78rem", fontWeight: 700, color }}
+                      >{`₹${fmt(val)}`}</div>
+                      <div
+                        style={{
+                          fontSize: "0.6rem",
+                          color: "#475569",
+                          marginTop: 2,
+                        }}
+                      >
+                        {label}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             );
           }
-          const parentGrant = t.grant_txn_id
-            ? { ...t, txn_id: t.grant_txn_id, type: "grant", bonus_code: null }
-            : null;
           return (
             <div
               key={`${t.type}-${t.txn_id}`}
-              className={`txn-row ${parentGrant ? "" : "txn-row-leaf"}`}
-              onClick={parentGrant ? () => onDetail(parentGrant) : undefined}
-              style={parentGrant ? undefined : { cursor: "default" }}
+              className="txn-row"
+              onClick={() => onDetail(t)}
             >
               <div className="txn-left">
                 <div className="txn-type">
@@ -823,7 +982,7 @@ function TransactionsScreen({
               </div>
               <div className="txn-right">
                 <div className="txn-amount">₹{fmt(t.amount)}</div>
-                {parentGrant && <div className="txn-arrow">›</div>}
+                <div className="txn-arrow">›</div>
               </div>
             </div>
           );
@@ -834,34 +993,618 @@ function TransactionsScreen({
   );
 }
 
-// ── Screen 6: TXN_DETAIL ───────────────────────────────────────────────────────
+// ── Detail sub-components ─────────────────────────────────────────────────────
+
+function MetaRow({ items }: { items: { label: string; value: string }[] }) {
+  return (
+    <div
+      style={{
+        background: "#181824",
+        border: "1px solid #252535",
+        borderRadius: 12,
+        padding: "10px 14px",
+        marginBottom: 16,
+        display: "flex",
+        gap: 16,
+        flexWrap: "wrap",
+      }}
+    >
+      {items.map(({ label, value }) => (
+        <div key={label}>
+          <div
+            style={{
+              fontSize: "0.6rem",
+              color: "#475569",
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+              marginBottom: 2,
+            }}
+          >
+            {label}
+          </div>
+          <div
+            style={{ fontSize: "0.82rem", fontWeight: 700, color: "#94a3b8" }}
+          >
+            {value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GrantDetail({ detail }: { detail: GrantTxnDetail }) {
+  const expTotal = detail.expiry_events.reduce(
+    (s, e) => s + parseFloat(e.amount),
+    0,
+  );
+  const expColor = expTotal > 0 ? "#fb923c" : "#475569";
+  const forfAmt = detail.forfeit?.amount ?? "0";
+  const forfColor = parseFloat(forfAmt) > 0 ? "#f87171" : "#475569";
+  return (
+    <>
+      <div className="amounts-grid" style={{ marginBottom: 16 }}>
+        {(
+          [
+            { label: "Granted", val: detail.grant_amount, color: "#cbd5e1" },
+            { label: "Released", val: detail.release_amount, color: "#93c5fd" },
+            { label: "Consumed", val: detail.bonus_consumed, color: "#c4b5fd" },
+          ] as { label: string; val: string; color: string }[]
+        ).map(({ label, val, color }) => (
+          <div key={label} className="amount-cell">
+            <div className="amount-val" style={{ color }}>
+              ₹{fmt(val)}
+            </div>
+            <div className="amount-label" style={{ color }}>
+              {label}
+            </div>
+          </div>
+        ))}
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: expColor }}>
+            ₹{fmt(expTotal)}
+          </div>
+          <div className="amount-label" style={{ color: expColor }}>
+            Expired
+          </div>
+        </div>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: forfColor }}>
+            ₹{fmt(forfAmt)}
+          </div>
+          <div className="amount-label" style={{ color: forfColor }}>
+            Forfeited
+          </div>
+        </div>
+      </div>
+
+      <MetaRow
+        items={[
+          {
+            label: "Chip",
+            value: `${detail.wager_chip_type} → ${detail.credit_chip_type}`,
+          },
+          { label: "Chunks", value: String(detail.no_of_chunks) },
+          { label: "Wager", value: `${detail.wager_multiplier}×` },
+          { label: "Granted", value: fmtDate(detail.created_at) },
+        ]}
+      />
+
+      {detail.forfeit && (
+        <div
+          style={{
+            background: "#200a0a",
+            border: "1px solid #450a0a",
+            borderRadius: 12,
+            padding: "12px 14px",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 6,
+            }}
+          >
+            <span
+              style={{ color: "#f87171", fontWeight: 700, fontSize: "0.85rem" }}
+            >
+              ⛔ Forfeited
+            </span>
+            <span style={{ color: "#64748b", fontSize: "0.72rem" }}>
+              {fmtDate(detail.forfeit.forfeited_at)}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <div>
+              <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                Requested{" "}
+              </span>
+              <span style={{ color: "#fca5a5", fontWeight: 600 }}>
+                ₹{fmt(detail.forfeit.requested_amount)}
+              </span>
+            </div>
+            <div>
+              <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                Forfeited{" "}
+              </span>
+              <span style={{ color: "#f87171", fontWeight: 700 }}>
+                ₹{fmt(detail.forfeit.amount)}
+              </span>
+            </div>
+            <div>
+              <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                [{detail.forfeit.type}]
+              </span>
+            </div>
+            {detail.forfeit.operator && (
+              <div>
+                <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                  by {detail.forfeit.operator}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {detail.expiry_events.length > 0 && (
+        <div
+          style={{
+            background: "#1c1008",
+            border: "1px solid #431c00",
+            borderRadius: 12,
+            padding: "12px 14px",
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              color: "#fb923c",
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              marginBottom: 8,
+            }}
+          >
+            ⏱ Expiry Events
+          </div>
+          {detail.expiry_events.map((ev) => (
+            <div
+              key={ev.id}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "5px 0",
+                borderTop: "1px solid #2d1800",
+              }}
+            >
+              <span style={{ color: "#94a3b8", fontSize: "0.78rem" }}>
+                Chunk #{ev.chunk_id} · {fmtDate(ev.expired_at)}
+              </span>
+              <span
+                style={{
+                  color: "#fb923c",
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                }}
+              >
+                −₹{fmt(ev.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="section-label">Chunks ({detail.chunks.length})</div>
+      {detail.chunks.map((c, i) => {
+        const wagerDone = parseFloat(c.wager_amount);
+        const wagerReq = parseFloat(c.required_wager_amount);
+        const pct =
+          wagerReq > 0 ? Math.min(100, (wagerDone / wagerReq) * 100) : 0;
+        return (
+          <div key={c.id ?? i} className="chunk-card">
+            <div className="chunk-header">
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span className="chunk-amount">₹{fmt(c.chunk_amount)}</span>
+                <span style={{ fontSize: "0.7rem", color: "#475569" }}>
+                  {c.chunk_ref}
+                </span>
+              </div>
+              <StatusBadge status={c.status} />
+            </div>
+            <div className="chunk-wager-label">
+              Wagered ₹{fmt(c.wager_amount)} of ₹{fmt(c.required_wager_amount)}
+              {wagerReq > 0 && ` (${pct.toFixed(0)}%)`}
+            </div>
+            <ProgressBar value={wagerDone} max={wagerReq > 0 ? wagerReq : 1} />
+            {c.releases.length > 0 && (
+              <div className="chunk-events">
+                <div
+                  className="chunk-events-label"
+                  style={{ color: "#93c5fd" }}
+                >
+                  ↑ Releases ({c.releases.length})
+                </div>
+                {c.releases.map((r) => (
+                  <div key={r.id} className="chunk-event-row release">
+                    <div className="chunk-event-main">
+                      <span className="chunk-event-ref">{r.wager_ref}</span>
+                      <span className="chunk-event-date">
+                        {fmtDate(r.created_at)}
+                      </span>
+                    </div>
+                    <div className="chunk-event-amounts">
+                      <span style={{ color: "#64748b" }}>
+                        Wager ₹{fmt(r.wager_amount)}
+                      </span>
+                      <span style={{ color: "#4ade80", fontWeight: 700 }}>
+                        +₹{fmt(r.release_amount)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {c.consumes.length > 0 && (
+              <div className="chunk-events">
+                <div
+                  className="chunk-events-label"
+                  style={{ color: "#c4b5fd" }}
+                >
+                  ↓ Consumed ({c.consumes.length})
+                </div>
+                {c.consumes.map((con) => (
+                  <div key={con.id} className="chunk-event-row consume">
+                    <div className="chunk-event-main">
+                      <span className="chunk-event-ref">
+                        {con.consumed_ref}
+                      </span>
+                      <span className="chunk-event-date">
+                        {fmtDate(con.created_at)}
+                      </span>
+                    </div>
+                    <div className="chunk-event-amounts">
+                      <span style={{ color: "#64748b" }}>
+                        Wager ₹{fmt(con.wager_amount)}
+                      </span>
+                      <span style={{ color: "#f87171", fontWeight: 700 }}>
+                        −₹{fmt(con.consumed_amount)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function ReleaseDetail({
+  detail,
+  onGrantDetail,
+}: {
+  detail: ReleaseTxnDetail;
+  onGrantDetail: (id: number) => void;
+}) {
+  return (
+    <>
+      <div className="amounts-grid" style={{ marginBottom: 16 }}>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: "#93c5fd" }}>
+            ₹{fmt(detail.wager_amount)}
+          </div>
+          <div className="amount-label" style={{ color: "#93c5fd" }}>
+            Wagered
+          </div>
+        </div>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: "#6ee7b7" }}>
+            ₹{fmt(detail.release_amount)}
+          </div>
+          <div className="amount-label" style={{ color: "#6ee7b7" }}>
+            Released
+          </div>
+        </div>
+      </div>
+      <MetaRow
+        items={[
+          { label: "Wager Ref", value: detail.wager_ref },
+          { label: "Chip", value: detail.chip_type ?? "—" },
+          { label: "Product", value: detail.product ?? "—" },
+          { label: "Game Type", value: detail.game_type ?? "—" },
+          { label: "Date", value: fmtDate(detail.created_at) },
+        ]}
+      />
+      <div className="section-label">
+        Chunks Released ({detail.chunks.length})
+      </div>
+      {detail.chunks.map((c) => (
+        <div key={c.id} className="chunk-card">
+          <div className="chunk-header">
+            <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontFamily: "monospace" }}>
+              {c.chunk_ref}
+            </span>
+            <span style={{ color: "#6ee7b7", fontWeight: 700, fontSize: "0.88rem" }}>
+              +₹{fmt(c.release_amount)}
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+            <span style={{ fontSize: "0.72rem", color: "#475569" }}>
+              Wagered ₹{fmt(c.wager_amount)}
+            </span>
+            <button
+              onClick={() => onGrantDetail(c.bonus_grant_id)}
+              style={{ fontSize: "0.7rem", color: "#c4b5fd", background: "#18082a", border: "1px solid #2d1545", borderRadius: 6, padding: "3px 9px", cursor: "pointer" }}
+            >
+              Grant #{c.bonus_grant_id} ›
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function ConsumeDetail({
+  detail,
+  onGrantDetail,
+}: {
+  detail: ConsumeTxnDetail;
+  onGrantDetail: (id: number) => void;
+}) {
+  return (
+    <>
+      <div className="amounts-grid" style={{ marginBottom: 16 }}>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: "#94a3b8" }}>
+            ₹{fmt(detail.amount)}
+          </div>
+          <div className="amount-label">Requested</div>
+        </div>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: "#c4b5fd" }}>
+            ₹{fmt(detail.consumed_amount)}
+          </div>
+          <div className="amount-label" style={{ color: "#c4b5fd" }}>
+            Consumed
+          </div>
+        </div>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: "#93c5fd" }}>
+            ₹{fmt(detail.wager_amount)}
+          </div>
+          <div className="amount-label" style={{ color: "#93c5fd" }}>
+            Wager
+          </div>
+        </div>
+      </div>
+      <MetaRow
+        items={[
+          { label: "Wager Ref", value: detail.wager_ref ?? "—" },
+          { label: "Chip", value: detail.chip_type ?? "—" },
+          { label: "Game", value: detail.game_name ?? detail.product ?? "—" },
+          { label: "Date", value: fmtDate(detail.created_at) },
+        ]}
+      />
+      <div className="section-label">Chunks Used ({detail.chunks.length})</div>
+      {detail.chunks.map((c) => (
+        <div key={c.id} className="chunk-card">
+          <div className="chunk-header">
+            <span style={{ fontSize: "0.8rem", color: "#94a3b8", fontFamily: "monospace" }}>
+              {c.chunk_ref}
+            </span>
+            <span style={{ color: "#f87171", fontWeight: 700, fontSize: "0.88rem" }}>
+              −₹{fmt(c.consumed_amount)}
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+            <button
+              onClick={() => onGrantDetail(c.bonus_grant_id)}
+              style={{ fontSize: "0.7rem", color: "#c4b5fd", background: "#18082a", border: "1px solid #2d1545", borderRadius: 6, padding: "3px 9px", cursor: "pointer" }}
+            >
+              Grant #{c.bonus_grant_id} ›
+            </button>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
+function ExpiryDetail({ detail }: { detail: ExpiryTxnDetail }) {
+  return (
+    <div
+      style={{
+        background: "#1c1008",
+        border: "1px solid #431c00",
+        borderRadius: 12,
+        padding: "16px 14px",
+      }}
+    >
+      <div
+        style={{
+          color: "#fb923c",
+          fontWeight: 700,
+          fontSize: "0.9rem",
+          marginBottom: 16,
+        }}
+      >
+        ⏱ Chunk Expiry
+      </div>
+      <div className="amounts-grid" style={{ marginBottom: 16 }}>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: "#fb923c" }}>
+            ₹{fmt(detail.amount)}
+          </div>
+          <div className="amount-label" style={{ color: "#fb923c" }}>
+            Expired
+          </div>
+        </div>
+      </div>
+      {(
+        [
+          { label: "Chunk Ref", value: detail.chunk_ref },
+          { label: "Type", value: detail.expiry_type },
+          { label: "Operator", value: detail.operator ?? "System" },
+          { label: "Expired At", value: fmtDate(detail.expired_at) },
+        ] as { label: string; value: string }[]
+      ).map(({ label, value }) => (
+        <div
+          key={label}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            padding: "7px 0",
+            borderTop: "1px solid #2d1800",
+          }}
+        >
+          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{label}</span>
+          <span
+            style={{ fontSize: "0.82rem", color: "#94a3b8", fontWeight: 600 }}
+          >
+            {value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ForfeitDetail({ detail }: { detail: ForfeitTxnDetail }) {
+  return (
+    <div
+      style={{
+        background: "#200a0a",
+        border: "1px solid #450a0a",
+        borderRadius: 12,
+        padding: "16px 14px",
+      }}
+    >
+      <div
+        style={{
+          color: "#f87171",
+          fontWeight: 700,
+          fontSize: "0.9rem",
+          marginBottom: 16,
+        }}
+      >
+        ⛔ Bonus Forfeited
+      </div>
+      <div className="amounts-grid" style={{ marginBottom: 16 }}>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: "#fca5a5" }}>
+            ₹{fmt(detail.requested_amount)}
+          </div>
+          <div className="amount-label">Requested</div>
+        </div>
+        <div className="amount-cell">
+          <div className="amount-val" style={{ color: "#f87171" }}>
+            ₹{fmt(detail.amount)}
+          </div>
+          <div className="amount-label" style={{ color: "#f87171" }}>
+            Forfeited
+          </div>
+        </div>
+      </div>
+      {(
+        [
+          { label: "Type", value: detail.forfeit_type },
+          { label: "Operator", value: detail.operator ?? "System" },
+          { label: "Forfeited At", value: fmtDate(detail.forfeited_at) },
+        ] as { label: string; value: string }[]
+      ).map(({ label, value }) => (
+        <div
+          key={label}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            padding: "7px 0",
+            borderTop: "1px solid #450a0a",
+          }}
+        >
+          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{label}</span>
+          <span
+            style={{ fontSize: "0.82rem", color: "#94a3b8", fontWeight: 600 }}
+          >
+            {value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TxnDetailContent({
+  detail,
+  onGrantDetail,
+}: {
+  detail: TxnDetailResponse;
+  onGrantDetail: (id: number) => void;
+}) {
+  if (detail.type === "GRANT")   return <GrantDetail detail={detail} />;
+  if (detail.type === "RELEASE") return <ReleaseDetail detail={detail} onGrantDetail={onGrantDetail} />;
+  if (detail.type === "CONSUME") return <ConsumeDetail detail={detail} onGrantDetail={onGrantDetail} />;
+  if (detail.type === "EXPIRY")  return <ExpiryDetail detail={detail} />;
+  if (detail.type === "FORFEIT") return <ForfeitDetail detail={detail} />;
+  return null;
+}
+
+// ── Screen 6: TXN_DETAIL ─────────────────────────────────────────────────────
 
 function TxnDetailScreen({
   creds,
   txn,
   onBack,
+  onGrantDetail,
 }: {
   creds: Creds;
   txn: Transaction;
   onBack: () => void;
+  onGrantDetail: (id: number) => void;
 }) {
-  const [detail, setDetail] = useState<TransactionDetail | null>(null);
+  const [detail, setDetail] = useState<TxnDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const apiType = TYPE_MAP[txn.type] ?? "GRANT";
 
   useEffect(() => {
+    setDetail(null);
+    setFetchError(null);
+    setLoading(true);
     (async () => {
       try {
         const res = await fetch(
-          `/api/transactions/${encodeURIComponent(creds.userId)}/${txn.txn_id}`,
+          `/api/transaction-detail/${encodeURIComponent(creds.userId)}?id=${txn.txn_id}&type=${apiType}`,
           { headers: s2sHeaders(creds) },
         );
-        if (res.ok) setDetail((await res.json()) as TransactionDetail);
+        if (res.ok) {
+          setDetail((await res.json()) as TxnDetailResponse);
+        } else {
+          setFetchError(`Error ${res.status}`);
+        }
       } catch {
-        // show partial info
+        setFetchError("Network error");
       }
       setLoading(false);
     })();
-  }, [creds, txn.txn_id]);
+  }, [creds, txn.txn_id, apiType]);
+
+  const headerTitle =
+    txn.type === "grant"
+      ? (txn.bonus_code ?? `Grant #${txn.txn_id}`)
+      : txn.type === "released"
+        ? `Release #${txn.txn_id}`
+        : txn.type === "consumed"
+          ? `Consume #${txn.txn_id}`
+          : txn.type === "expiry"
+            ? `Expiry #${txn.txn_id}`
+            : `Forfeit #${txn.txn_id}`;
 
   return (
     <div className="screen">
@@ -870,161 +1613,20 @@ function TxnDetailScreen({
           ‹
         </button>
         <div className="detail-header-row">
-          <span className="header-label">
-            {txn.bonus_code ?? `Txn #${txn.txn_id}`}
-          </span>
-          {detail && <StatusBadge status={detail.status} />}
+          <span className="header-label">{headerTitle}</span>
+          {detail?.type === "GRANT" && <StatusBadge status={detail.status} />}
         </div>
       </div>
       <div className="screen-body">
         {loading && <Spinner />}
-        {!loading && !detail && (
+        {fetchError && <div className="error-toast">{fetchError}</div>}
+        {!loading && !detail && !fetchError && (
           <div className="empty-state">
             <div className="empty-icon">⚠️</div>
             <div className="empty-title">Could not load details</div>
           </div>
         )}
-        {detail && (
-          <>
-            {/* 5-cell amounts grid */}
-            <div className="amounts-grid" style={{ marginBottom: 16 }}>
-              {[
-                { label: "Granted",  val: detail.grant_amount,   color: "#cbd5e1" },
-                { label: "Released", val: detail.release_amount, color: "#93c5fd" },
-                { label: "Consumed", val: detail.bonus_consumed, color: "#c4b5fd" },
-              ].map(({ label, val, color }) => (
-                <div key={label} className="amount-cell">
-                  <div className="amount-val" style={{ color }}>₹{fmt(val)}</div>
-                  <div className="amount-label" style={{ color }}>{label}</div>
-                </div>
-              ))}
-              {(() => {
-                const expTotal = detail.expiry_events.reduce((s, e) => s + parseFloat(e.amount), 0);
-                const expColor = expTotal > 0 ? "#fb923c" : "#475569";
-                return (
-                  <div className="amount-cell">
-                    <div className="amount-val" style={{ color: expColor }}>₹{fmt(expTotal)}</div>
-                    <div className="amount-label" style={{ color: expColor }}>Expired</div>
-                  </div>
-                );
-              })()}
-              {(() => {
-                const forfAmt = detail.forfeit?.amount ?? "0";
-                const forfColor = parseFloat(forfAmt) > 0 ? "#f87171" : "#475569";
-                return (
-                  <div className="amount-cell">
-                    <div className="amount-val" style={{ color: forfColor }}>₹{fmt(forfAmt)}</div>
-                    <div className="amount-label" style={{ color: forfColor }}>Forfeited</div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Metadata bar */}
-            <div style={{ background: "#181824", border: "1px solid #252535", borderRadius: 12, padding: "10px 14px", marginBottom: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
-              {[
-                { label: "Chip",    value: `${detail.wager_chip_type} → ${detail.credit_chip_type}` },
-                { label: "Chunks",  value: String(detail.no_of_chunks) },
-                { label: "Wager",   value: `${detail.wager_multiplier}×` },
-                { label: "Granted", value: fmtDate(detail.created_at) },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <div style={{ fontSize: "0.6rem", color: "#475569", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>{label}</div>
-                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#94a3b8" }}>{value}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Forfeit section */}
-            {detail.forfeit && (
-              <div style={{ background: "#200a0a", border: "1px solid #450a0a", borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ color: "#f87171", fontWeight: 700, fontSize: "0.85rem" }}>⛔ Forfeited</span>
-                  <span style={{ color: "#64748b", fontSize: "0.72rem" }}>{fmtDate(detail.forfeit.forfeited_at)}</span>
-                </div>
-                <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                  <div><span style={{ color: "#64748b", fontSize: "0.75rem" }}>Requested </span><span style={{ color: "#fca5a5", fontWeight: 600 }}>₹{fmt(detail.forfeit.requested_amount)}</span></div>
-                  <div><span style={{ color: "#64748b", fontSize: "0.75rem" }}>Forfeited </span><span style={{ color: "#f87171", fontWeight: 700 }}>₹{fmt(detail.forfeit.amount)}</span></div>
-                  <div><span style={{ color: "#64748b", fontSize: "0.75rem" }}>[{detail.forfeit.type}]</span></div>
-                  {detail.forfeit.operator && <div><span style={{ color: "#64748b", fontSize: "0.75rem" }}>by {detail.forfeit.operator}</span></div>}
-                </div>
-              </div>
-            )}
-
-            {/* Expiry events */}
-            {detail.expiry_events.length > 0 && (
-              <div style={{ background: "#1c1008", border: "1px solid #431c00", borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
-                <div style={{ color: "#fb923c", fontWeight: 700, fontSize: "0.85rem", marginBottom: 8 }}>⏱ Expiry Events</div>
-                {detail.expiry_events.map((ev) => (
-                  <div key={ev.id} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderTop: "1px solid #2d1800" }}>
-                    <span style={{ color: "#94a3b8", fontSize: "0.78rem" }}>Chunk #{ev.chunk_id} · {fmtDate(ev.expired_at)}</span>
-                    <span style={{ color: "#fb923c", fontWeight: 700, fontSize: "0.82rem" }}>−₹{fmt(ev.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Chunks */}
-            <div className="section-label">Chunks ({detail.chunks.length})</div>
-            {detail.chunks.map((c, i) => {
-              const wagerDone = parseFloat(c.wager_amount);
-              const wagerReq = parseFloat(c.required_wager_amount);
-              const pct = wagerReq > 0 ? Math.min(100, (wagerDone / wagerReq) * 100) : 0;
-              return (
-                <div key={c.id ?? i} className="chunk-card">
-                  <div className="chunk-header">
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                      <span className="chunk-amount">₹{fmt(c.chunk_amount)}</span>
-                      <span style={{ fontSize: "0.7rem", color: "#475569" }}>{c.chunk_ref}</span>
-                    </div>
-                    <StatusBadge status={c.status} />
-                  </div>
-                  <div className="chunk-wager-label">
-                    Wagered ₹{fmt(c.wager_amount)} of ₹{fmt(c.required_wager_amount)}
-                    {wagerReq > 0 && ` (${pct.toFixed(0)}%)`}
-                  </div>
-                  <ProgressBar value={wagerDone} max={wagerReq > 0 ? wagerReq : 1} />
-
-                  {c.releases.length > 0 && (
-                    <div className="chunk-events">
-                      <div className="chunk-events-label" style={{ color: "#93c5fd" }}>↑ Releases ({c.releases.length})</div>
-                      {c.releases.map((r) => (
-                        <div key={r.id} className="chunk-event-row release">
-                          <div className="chunk-event-main">
-                            <span className="chunk-event-ref">{r.wager_ref}</span>
-                            <span className="chunk-event-date">{fmtDate(r.created_at)}</span>
-                          </div>
-                          <div className="chunk-event-amounts">
-                            <span style={{ color: "#64748b" }}>Wager ₹{fmt(r.wager_amount)}</span>
-                            <span style={{ color: "#4ade80", fontWeight: 700 }}>+₹{fmt(r.release_amount)}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {c.consumes.length > 0 && (
-                    <div className="chunk-events">
-                      <div className="chunk-events-label" style={{ color: "#c4b5fd" }}>↓ Consumed ({c.consumes.length})</div>
-                      {c.consumes.map((con) => (
-                        <div key={con.id} className="chunk-event-row consume">
-                          <div className="chunk-event-main">
-                            <span className="chunk-event-ref">{con.consumed_ref}</span>
-                            <span className="chunk-event-date">{fmtDate(con.created_at)}</span>
-                          </div>
-                          <div className="chunk-event-amounts">
-                            <span style={{ color: "#64748b" }}>Wager ₹{fmt(con.wager_amount)}</span>
-                            <span style={{ color: "#f87171", fontWeight: 700 }}>−₹{fmt(con.consumed_amount)}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </>
-        )}
+        {detail && <TxnDetailContent detail={detail} onGrantDetail={onGrantDetail} />}
       </div>
     </div>
   );
@@ -1172,13 +1774,17 @@ function ConsumeScreen({
           chip_type: chipType,
         }),
       });
-      const data = (await res.json()) as ConsumeResult & { detail?: string | Array<{ msg: string; loc?: unknown[] }> };
+      const data = (await res.json()) as ConsumeResult & {
+        detail?: string | Array<{ msg: string; loc?: unknown[] }>;
+      };
       if (res.status === 201) {
         setResult(data);
       } else {
         const detail = data.detail;
         if (Array.isArray(detail)) {
-          setError(detail.map((e) => e.msg).join("; ") || `Error ${res.status}`);
+          setError(
+            detail.map((e) => e.msg).join("; ") || `Error ${res.status}`,
+          );
         } else {
           setError(detail ?? `Error ${res.status}`);
         }
@@ -1192,7 +1798,9 @@ function ConsumeScreen({
   return (
     <div className="screen has-tabs">
       <div className="screen-header deposit-header">
-        <div className="avatar small">{creds.userId.slice(0, 2).toUpperCase()}</div>
+        <div className="avatar small">
+          {creds.userId.slice(0, 2).toUpperCase()}
+        </div>
         <span className="header-label">Consume Bonus</span>
       </div>
       <div className="screen-body">
@@ -1200,7 +1808,9 @@ function ConsumeScreen({
 
         {result ? (
           <div className="card" style={{ marginBottom: 20 }}>
-            <div className="card-title" style={{ color: "#6ee7b7" }}>Consumed ✓</div>
+            <div className="card-title" style={{ color: "#6ee7b7" }}>
+              Consumed ✓
+            </div>
             <div className="amounts-grid" style={{ marginTop: 12 }}>
               <div className="amount-cell">
                 <div className="amount-val">₹{fmt(result.consumed_amount)}</div>
@@ -1249,7 +1859,10 @@ function ConsumeScreen({
             </div>
             <div className="input-group" style={{ marginBottom: 24 }}>
               <label>Chip Type</label>
-              <select value={chipType} onChange={(e) => setChipType(e.target.value)}>
+              <select
+                value={chipType}
+                onChange={(e) => setChipType(e.target.value)}
+              >
                 <option value="CASH">Cash</option>
                 <option value="LOYALTY_PINTS">Loyalty Pints</option>
                 <option value="FUN_CHIPS">Fun Chips</option>
@@ -1304,6 +1917,7 @@ export default function Home() {
   const [creds, setCreds] = useState<Creds | null>(null);
   const [summary, setSummary] = useState<BonusSummary[]>([]);
   const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
+  const [txnHistory, setTxnHistory] = useState<Transaction[]>([]);
 
   const handleProcessingDone = useCallback((s: BonusSummary[]) => {
     setSummary(s);
@@ -1373,7 +1987,18 @@ export default function Home() {
         <TxnDetailScreen
           creds={creds}
           txn={selectedTxn}
-          onBack={() => setScreen("TRANSACTIONS")}
+          onBack={() => {
+            if (txnHistory.length > 0) {
+              setSelectedTxn(txnHistory[txnHistory.length - 1]);
+              setTxnHistory((h) => h.slice(0, -1));
+            } else {
+              setScreen("TRANSACTIONS");
+            }
+          }}
+          onGrantDetail={(grantId) => {
+            setTxnHistory((h) => [...h, selectedTxn]);
+            setSelectedTxn({ txn_id: grantId, type: "grant", amount: "0", created_at: new Date().toISOString(), bonus_code: null });
+          }}
         />
       )}
     </div>

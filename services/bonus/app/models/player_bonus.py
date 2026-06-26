@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -190,3 +191,81 @@ class PlayerBonusTransactionDetail(BaseModel):
     chunks: list[BonusChunkDetail]
     forfeit: BonusForfeitDetail | None
     expiry_events: list[BonusExpiryDetail]
+
+
+# ── API 9: per-type transaction detail ────────────────────────────────────────
+
+class ChunkReleaseRow(BaseModel):
+    id: int
+    chunk_ref: str
+    wager_amount: Decimal
+    release_amount: Decimal
+    bonus_grant_id: int
+
+
+class ChunkConsumedRow(BaseModel):
+    id: int
+    chunk_ref: str
+    consumed_amount: Decimal
+    bonus_grant_id: int
+
+
+class GrantTxnDetail(PlayerBonusTransactionDetail):
+    type: Literal["GRANT"] = "GRANT"
+
+
+class ReleaseTxnDetail(BaseModel):
+    type: Literal["RELEASE"] = "RELEASE"
+    id: int
+    wager_ref: str
+    chip_type: str | None
+    product: str | None
+    game_type: str | None
+    game_name: str | None
+    wager_amount: Decimal
+    release_amount: Decimal
+    created_at: datetime
+    chunks: list[ChunkReleaseRow]
+
+
+class ConsumeTxnDetail(BaseModel):
+    type: Literal["CONSUME"] = "CONSUME"
+    id: int
+    wager_ref: str | None
+    chip_type: str | None
+    product: str | None
+    game_type: str | None
+    game_name: str | None
+    amount: Decimal
+    consumed_amount: Decimal
+    wager_amount: Decimal
+    created_at: datetime
+    chunks: list[ChunkConsumedRow]
+
+
+class ExpiryTxnDetail(BaseModel):
+    type: Literal["EXPIRY"] = "EXPIRY"
+    id: int
+    chunk_id: int
+    chunk_ref: str
+    amount: Decimal
+    expiry_type: str
+    operator: str | None
+    expired_at: datetime
+
+
+class ForfeitTxnDetail(BaseModel):
+    type: Literal["FORFEIT"] = "FORFEIT"
+    id: int
+    bonus_grant_id: int
+    requested_amount: Decimal
+    amount: Decimal
+    forfeit_type: str
+    operator: str | None
+    forfeited_at: datetime
+
+
+TxnDetailResponse = Annotated[
+    GrantTxnDetail | ReleaseTxnDetail | ConsumeTxnDetail | ExpiryTxnDetail | ForfeitTxnDetail,
+    Field(discriminator="type"),
+]

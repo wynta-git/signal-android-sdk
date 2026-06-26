@@ -18,6 +18,7 @@ from app.models.player_bonus import (
     PlayerBonusTransactionDetail,
     PlayerBonusTransactionSummary,
     PlayerReferralCodeResponse,
+    TxnDetailResponse,
     ValidateCodeRequest,
     ValidateCodeResponse,
 )
@@ -26,6 +27,7 @@ from app.services.player_bonus_service import (
     get_player_bonus_summary,
     get_player_referral_code,
     get_player_transaction_detail,
+    get_txn_detail_by_type,
     list_applicable_codes,
     list_player_transactions,
     revert_consumption,
@@ -134,6 +136,18 @@ async def get_transaction_detail(
 ) -> PlayerBonusTransactionDetail:
     pam_id = await _resolve_pam_user(request, x_client_id, user_id)
     return await get_player_transaction_detail(pam_id, user_id, txn_id)
+
+
+@router.get("/{user_id}/transaction-detail", response_model=TxnDetailResponse)
+async def get_transaction_detail_by_type(
+    user_id: str,
+    request: Request,
+    txn_id: int = Query(..., alias="id"),
+    txn_type: str = Query(..., alias="type", pattern=r"^(GRANT|RELEASE|CONSUME|EXPIRY|FORFEIT)$"),
+    x_client_id: str = Header(..., alias="x-client-id"),
+) -> TxnDetailResponse:
+    pam_id = await _resolve_pam_user(request, x_client_id, user_id)
+    return await get_txn_detail_by_type(pam_id, user_id, txn_id, txn_type)
 
 
 @router.get("/{user_id}/referral-code", response_model=PlayerReferralCodeResponse)

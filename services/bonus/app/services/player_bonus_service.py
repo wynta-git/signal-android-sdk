@@ -22,7 +22,13 @@ from app.models.player_bonus import (
     BonusExpiryDetail,
     BonusForfeitDetail,
     ChunkConsumeEvent,
+    ChunkConsumedRow,
     ChunkReleaseEvent,
+    ChunkReleaseRow,
+    ConsumeTxnDetail,
+    ExpiryTxnDetail,
+    ForfeitTxnDetail,
+    GrantTxnDetail,
     PlayerBonusConsumeCreate,
     PlayerBonusConsumedResponse,
     PlayerBonusRevertResponse,
@@ -30,6 +36,7 @@ from app.models.player_bonus import (
     PlayerBonusTransactionDetail,
     PlayerBonusTransactionSummary,
     PlayerReferralCodeResponse,
+    ReleaseTxnDetail,
     ValidateCodeResponse,
 )
 
@@ -241,6 +248,7 @@ _UPDATE_CHUNK_CONSUME_AMOUNT_SQL = """
     SET consume_amount = consume_amount + %s, updated_at = NOW()
     WHERE id = %s
 """
+
 
 _UPDATE_CHUNK_CONSUME_STATUS_SQL = """
     UPDATE bonus_chunk
@@ -489,14 +497,14 @@ _TRANSACTIONS_SQL = """
 
         UNION ALL
 
-        SELECT MIN(bcr.id)             AS txn_id,
-               NULL                    AS bonus_code,
-               SUM(bcr.release_amount) AS amount,
-               'released'              AS type,
-               MIN(bcr.created_at)     AS created_at,
+        SELECT COALESCE(MIN(bcr.bonus_release_id), MIN(bcr.id)) AS txn_id,
+               NULL                     AS bonus_code,
+               SUM(bcr.release_amount)  AS amount,
+               'released'               AS type,
+               MIN(bcr.created_at)      AS created_at,
                NULL, NULL, NULL, NULL,
-               pbg.id                  AS grant_txn_id,
-               NULL                    AS player_bonus_id
+               pbg.id                   AS grant_txn_id,
+               NULL                     AS player_bonus_id
         FROM bonus_chunk_release bcr
         JOIN bonus_chunk bc  ON bc.id  = bcr.chunk_id
         JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
@@ -621,6 +629,56 @@ _CONSUME_EVENTS_SQL = """
 """
 
 
+_RELEASE_DETAIL_SQL = """
+    SELECT br.id, br.wager_ref, br.chip_type, br.product, br.game_type, br.game_name,
+           br.wager_amount, br.release_amount, br.created_at
+    FROM bonus_release br
+    WHERE br.id = %s AND br.pam_user_id = %s
+"""
+
+_RELEASE_CHUNKS_SQL = """
+    SELECT bcr.id, bc.chunk_ref, bcr.wager_amount, bcr.release_amount, bc.bonus_grant_id
+    FROM bonus_chunk_release bcr
+    JOIN bonus_chunk bc ON bc.id = bcr.chunk_id
+    WHERE bcr.bonus_release_id = %s
+    ORDER BY bc.chunk_ref ASC
+"""
+
+_CONSUME_DETAIL_SQL = """
+    SELECT bcon.id, bcon.wager_ref, bcon.chip_type, bcon.product, bcon.game_type,
+           bcon.game_name, bcon.amount, bcon.consumed_amount, bcon.wager_amount, bcon.created_at
+    FROM bonus_consumed bcon
+    JOIN bonus_chunk_consumed bcc ON bcc.bonus_consumed_id = bcon.id
+    JOIN bonus_grant bg ON bg.id = bcc.bonus_grant_id
+    WHERE bcon.id = %s AND bg.pam_user_id = %s
+    LIMIT 1
+"""
+
+_CONSUME_CHUNKS_SQL = """
+    SELECT bcc.id, bc.chunk_ref, bcc.consumed_amount, bcc.bonus_grant_id
+    FROM bonus_chunk_consumed bcc
+    JOIN bonus_chunk bc ON bc.id = bcc.chunk_id
+    WHERE bcc.bonus_consumed_id = %s
+    ORDER BY bc.chunk_ref ASC
+"""
+
+_EXPIRY_DETAIL_SQL = """
+    SELECT bce.id, bce.chunk_id, bc.chunk_ref, bce.amount, bce.type, bce.operator, bce.expired_at
+    FROM bonus_chunk_expiry bce
+    JOIN bonus_chunk bc ON bc.id = bce.chunk_id
+    JOIN bonus_grant bg ON bg.id = bc.bonus_grant_id
+    WHERE bce.id = %s AND bg.pam_user_id = %s
+"""
+
+_FORFEIT_DETAIL_SQL = """
+    SELECT bf.id, bf.bonus_grant_id, bf.requested_amount, bf.amount,
+           bf.type, bf.operator, bf.forfeited_at
+    FROM bonus_forfeit bf
+    JOIN bonus_grant bg ON bg.id = bf.bonus_grant_id
+    WHERE bf.id = %s AND bg.pam_user_id = %s
+"""
+
+
 async def get_player_transaction_detail(
     pam_user_id: int, user_id: str, txn_id: int
 ) -> PlayerBonusTransactionDetail:
@@ -718,7 +776,125 @@ async def get_player_transaction_detail(
         raise DatabaseError(str(exc)) from exc
 
 
-# ── 7. Referral code ──────────────────────────────────────────────────────────
+# ── 7. Per-type transaction detail ───────────────────────────────────────────
+
+async def _get_grant_detail(pam_user_id: int, user_id: str, txn_id: int) -> GrantTxnDetail:
+    detail = await get_player_transaction_detail(pam_user_id, user_id, txn_id)
+    return GrantTxnDetail(type="GRANT", **detail.model_dump())
+
+
+async def _get_release_detail(pam_user_id: int, txn_id: int) -> ReleaseTxnDetail:
+    log.info("player_bonus.release_detail", pam_user_id=pam_user_id, txn_id=txn_id)
+    try:
+        async with get_connection(POOL_BONUS) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_RELEASE_DETAIL_SQL, (txn_id, pam_user_id))
+                row = await cur.fetchone()
+                if not row:
+                    raise PlayerBonusNotFoundError(txn_id)
+                await cur.execute(_RELEASE_CHUNKS_SQL, (txn_id,))
+                chunk_rows = await cur.fetchall()
+        return ReleaseTxnDetail(
+            id=row[0], wager_ref=row[1], chip_type=row[2], product=row[3],
+            game_type=row[4], game_name=row[5], wager_amount=row[6],
+            release_amount=row[7], created_at=row[8],
+            chunks=[
+                ChunkReleaseRow(id=c[0], chunk_ref=c[1], wager_amount=c[2], release_amount=c[3], bonus_grant_id=c[4])
+                for c in chunk_rows
+            ],
+        )
+    except PlayerBonusNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("player_bonus.release_detail.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+async def _get_consume_detail(pam_user_id: int, txn_id: int) -> ConsumeTxnDetail:
+    log.info("player_bonus.consume_detail", pam_user_id=pam_user_id, txn_id=txn_id)
+    try:
+        async with get_connection(POOL_BONUS) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_CONSUME_DETAIL_SQL, (txn_id, pam_user_id))
+                row = await cur.fetchone()
+                if not row:
+                    raise PlayerBonusNotFoundError(txn_id)
+                await cur.execute(_CONSUME_CHUNKS_SQL, (txn_id,))
+                chunk_rows = await cur.fetchall()
+        return ConsumeTxnDetail(
+            id=row[0], wager_ref=row[1], chip_type=row[2], product=row[3],
+            game_type=row[4], game_name=row[5], amount=row[6],
+            consumed_amount=row[7], wager_amount=row[8], created_at=row[9],
+            chunks=[
+                ChunkConsumedRow(id=c[0], chunk_ref=c[1], consumed_amount=c[2], bonus_grant_id=c[3])
+                for c in chunk_rows
+            ],
+        )
+    except PlayerBonusNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("player_bonus.consume_detail.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+async def _get_expiry_detail(pam_user_id: int, txn_id: int) -> ExpiryTxnDetail:
+    log.info("player_bonus.expiry_detail", pam_user_id=pam_user_id, txn_id=txn_id)
+    try:
+        async with get_connection(POOL_BONUS) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_EXPIRY_DETAIL_SQL, (txn_id, pam_user_id))
+                row = await cur.fetchone()
+                if not row:
+                    raise PlayerBonusNotFoundError(txn_id)
+        return ExpiryTxnDetail(
+            id=row[0], chunk_id=row[1], chunk_ref=row[2], amount=row[3],
+            expiry_type=row[4], operator=row[5], expired_at=row[6],
+        )
+    except PlayerBonusNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("player_bonus.expiry_detail.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+async def _get_forfeit_detail(pam_user_id: int, txn_id: int) -> ForfeitTxnDetail:
+    log.info("player_bonus.forfeit_detail", pam_user_id=pam_user_id, txn_id=txn_id)
+    try:
+        async with get_connection(POOL_BONUS) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_FORFEIT_DETAIL_SQL, (txn_id, pam_user_id))
+                row = await cur.fetchone()
+                if not row:
+                    raise PlayerBonusNotFoundError(txn_id)
+        return ForfeitTxnDetail(
+            id=row[0], bonus_grant_id=row[1], requested_amount=row[2], amount=row[3],
+            forfeit_type=row[4], operator=row[5], forfeited_at=row[6],
+        )
+    except PlayerBonusNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("player_bonus.forfeit_detail.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+async def get_txn_detail_by_type(
+    pam_user_id: int,
+    user_id: str,
+    txn_id: int,
+    txn_type: str,
+) -> GrantTxnDetail | ReleaseTxnDetail | ConsumeTxnDetail | ExpiryTxnDetail | ForfeitTxnDetail:
+    if txn_type == "GRANT":
+        return await _get_grant_detail(pam_user_id, user_id, txn_id)
+    simple_handlers = {
+        "RELEASE": _get_release_detail,
+        "CONSUME": _get_consume_detail,
+        "EXPIRY":  _get_expiry_detail,
+        "FORFEIT": _get_forfeit_detail,
+    }
+    return await simple_handlers[txn_type](pam_user_id, txn_id)
+
+
+# ── 8. Referral code ──────────────────────────────────────────────────────────
 
 _REFERRAL_CODE_SQL = """
     SELECT user_id, referral_code, created_at
