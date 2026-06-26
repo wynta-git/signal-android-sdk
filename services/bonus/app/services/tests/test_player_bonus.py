@@ -433,7 +433,7 @@ async def test_transaction_detail_status_fully_released(
 
     result = await get_player_transaction_detail(42, "user123", 5)
 
-    assert result.status == "RELEASED"
+    assert result.status == "RELEASE"
 
 
 async def test_transaction_detail_status_pending(cur: AsyncMock, patch_conn: MagicMock) -> None:

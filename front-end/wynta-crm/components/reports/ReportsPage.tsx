@@ -3,16 +3,16 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from '../../store';
 import { fetchReports, createReport } from '../../store/slices/reportsSlice';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import type { ReportFilters } from '../../services/reportsApi';
 import CustomReportBuilder  from './CustomReportBuilder';
 import CustomReportView     from './CustomReportView';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 type View = 'list' | 'create' | { type: 'report'; id: string };
 
 export default function ReportsPage() {
   const dispatch  = useDispatch<AppDispatch>();
+  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const reports   = useSelector((s: RootState) => s.reports.reports);
   const listStatus   = useSelector((s: RootState) => s.reports.status.list);
   const creating  = useSelector((s: RootState) => s.reports.status.creating === 'loading');
@@ -20,14 +20,14 @@ export default function ReportsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
-    dispatch(fetchReports(PROJECT_ID));
+    dispatch(fetchReports(projectId));
   }, [dispatch]);
 
   async function handleSave(name: string, metrics: string[], filters: ReportFilters) {
     setCreateError(null);
-    const result = await dispatch(createReport({ payload: { name, metrics, filters }, projectId: PROJECT_ID }));
+    const result = await dispatch(createReport({ payload: { name, metrics, filters }, projectId: projectId }));
     if (createReport.fulfilled.match(result)) {
-      await dispatch(fetchReports(PROJECT_ID));
+      await dispatch(fetchReports(projectId));
       setView('list');
     } else {
       setCreateError('Failed to create report. Please try again.');

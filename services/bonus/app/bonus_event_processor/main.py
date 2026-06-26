@@ -11,6 +11,8 @@ import structlog
 from app.config import settings
 from app.db import close_pool, init_pool
 from app.bonus_event_processor.consumer import run_consumer
+from app.bonus_event_processor.chunk_expiry_job import run_chunk_expiry_job
+from app.bonus_event_processor.bonus_forfeit_job import run_bonus_forfeit_job
 from shared.clients.redis import make_redis_client
 
 
@@ -41,6 +43,29 @@ _configure_logging()
 log = structlog.get_logger()
 
 
+async def _run_scheduler(stop_event: asyncio.Event) -> None:
+    log.info(
+        "bonus_scheduler.starting",
+        interval_minutes=settings.scheduler_interval_minutes,
+        batch_size=settings.scheduler_batch_size,
+    )
+    while not stop_event.is_set():
+        try:
+            await asyncio.gather(
+                run_chunk_expiry_job(settings.scheduler_batch_size),
+                run_bonus_forfeit_job(settings.scheduler_batch_size),
+            )
+        except Exception:
+            log.exception("bonus_scheduler.job_error")
+
+        interval_s = settings.scheduler_interval_minutes * 60
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=interval_s)
+        except asyncio.TimeoutError:
+            pass
+    log.info("bonus_scheduler.stopped")
+
+
 async def main() -> None:
     log.info(
         "bonus_consumer_starting",
@@ -55,19 +80,22 @@ async def main() -> None:
     redis = make_redis_client(settings.redis_url)
     log.info("bonus_consumer_redis_ready", url=settings.redis_url)
 
-    consumer_task = asyncio.create_task(run_consumer(redis))
+    stop_event     = asyncio.Event()
+    consumer_task  = asyncio.create_task(run_consumer(redis))
+    scheduler_task = asyncio.create_task(_run_scheduler(stop_event))
 
     loop = asyncio.get_running_loop()
 
     def _on_signal(sig: signal.Signals) -> None:
         log.info("shutdown_signal_received", signal=sig.name)
         consumer_task.cancel()
+        stop_event.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda s=sig: _on_signal(s))
 
     try:
-        await consumer_task
+        await asyncio.gather(consumer_task, scheduler_task, return_exceptions=True)
     except asyncio.CancelledError:
         log.info("bonus_consumer_stopped")
     finally:

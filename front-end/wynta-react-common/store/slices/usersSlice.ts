@@ -20,7 +20,7 @@ interface UsersState {
   authError: string | null;
   // ── Bridge ────────────────────────────────────────────────────────────────
   bridgeToken: string | null;
-  bridgeData: Record<string, unknown> | null;
+  bridgeData: WyntaBridge | null;
 }
 
 const initialState: UsersState = {
@@ -61,7 +61,7 @@ const usersSlice = createSlice({
     /** Store the full bridge payload extracted from X-Wynta-Bridge header */
     setBridgeData(state, action: { payload: WyntaBridge }) {
       state.bridgeToken = action.payload.token ?? null;
-      state.bridgeData = action.payload as Record<string, unknown>;
+      state.bridgeData = action.payload;
       // Bridge token is only valid for exchange_token — do NOT register it here.
       // The real auth token is registered in authenticateWithBridgeToken.fulfilled.
     },
@@ -138,5 +138,18 @@ export const selectBridgeToken = (state: { users: UsersState }) =>
   state.users.bridgeToken;
 export const selectBridgeData = (state: { users: UsersState }) =>
   state.users.bridgeData;
+
+export const selectProjectId = (state: { users: UsersState }): string | null => {
+  const id = state.users.bridgeData?.user?.id;
+  return id != null ? String(id) : null;
+};
+export const selectSiteId = (state: { users: UsersState }) =>
+  state.users.bridgeData?.site_id ?? null;
+export const selectIsAdmin = (state: { users: UsersState }) =>
+  state.users.bridgeData?.is_admin ?? false;
+export const selectAllowed = (state: { users: UsersState }) =>
+  state.users.bridgeData?.allowed ?? [];
+export const selectBridgeUser = (state: { users: UsersState }) =>
+  state.users.bridgeData?.user ?? null;
 
 export default usersSlice.reducer;

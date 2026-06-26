@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/pam/services/bonus
-ExecStart=/opt/pam/services/bonus/app/.venv/bin/python -m app.event_consumer.main
+ExecStart=/opt/pam/services/bonus/app/.venv/bin/python -m app.bonus_event_processor.main
 Restart=on-failure
 RestartSec=5
 KillMode=mixed

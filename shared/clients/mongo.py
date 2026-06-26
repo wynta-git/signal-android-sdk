@@ -609,7 +609,19 @@ async def get_user_device_tokens(
     if brand_id is not None:
         query["brand_id"] = brand_id
     cursor = db["device_tokens"].find(query, {"_id": 0})
-    return await cursor.to_list(length=None)
+    tokens = await cursor.to_list(length=None)
+    if tokens:
+        return tokens
+
+    # Fallback: read FCM token from users.traits.fcm_token
+    user = await db["users"].find_one(
+        {"project_id": project_id, "user_id": user_id},
+        {"traits.fcm_token": 1, "_id": 0},
+    )
+    fcm_token = (user or {}).get("traits", {}).get("fcm_token")
+    if fcm_token:
+        return [{"token": fcm_token, "platform": "android", "project_id": project_id, "user_id": user_id, "brand_id": brand_id}]
+    return []
 
 
 async def get_project_fcm_credential(

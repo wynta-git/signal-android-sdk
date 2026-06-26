@@ -1,5 +1,6 @@
 'use client';
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useDispatch } from 'react-redux';
 import Icon from '../Icon';
 import RuleEditor from './RuleEditor';
@@ -9,11 +10,10 @@ import {
   selectMetaTraits, selectMetaEvents, selectMetaOperators,
   evaluateSegment,
 } from '../../store/slices/segmentsSlice';
+import { selectProjectId } from '../../store/slices/usersSlice';
 import { SEGMENT_FIELDS, OPS } from '../../services/mocks/segments';
 import { previewEvaluate } from '../../services/segmentApi';
 import type { SegmentRule, SegmentField, MetaEventItem } from '../../types';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 function toLabel(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -87,31 +87,32 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
   const [csvFile, setCsvFile]                 = useState<File | null>(null);
   const [behaviourExpanded, setBehaviourExpanded] = useState(true);
   const [propertyExpanded, setPropertyExpanded]   = useState(true);
-  const propertyPickerRef  = useRef<HTMLDivElement>(null);
-  const behaviourPickerRef = useRef<HTMLDivElement>(null);
-  const metaFetchedRef     = useRef(false);
-
+  const propertyPickerRef  = useRef<HTMLButtonElement>(null);
+  const behaviourPickerRef = useRef<HTMLButtonElement>(null);
+  const pickerRef          = useRef<HTMLDivElement>(null);
+  const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const dispatch      = useDispatch();
+  const projectId     = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const metaTraits    = useCommonSelector(selectMetaTraits);
   const metaEvents    = useCommonSelector(selectMetaEvents);   // MetaEventItem[]
   const metaOperators = useCommonSelector(selectMetaOperators);
 
-  /* Fire once — ref persists through React 18 Strict Mode remount */
   useEffect(() => {
-    if (metaFetchedRef.current) return;
-    metaFetchedRef.current = true;
-    dispatch(fetchMetaTraits(PROJECT_ID) as any);
-    dispatch(fetchMetaEvents(PROJECT_ID) as any);
+    dispatch(fetchMetaTraits(brandId) as any);
+    dispatch(fetchMetaEvents({ projectId, brandId }) as any);
     dispatch(fetchMetaOperators() as any);
-  }, [dispatch]);
+  }, [dispatch, projectId, brandId]);
 
   useEffect(() => {
     if (!activePicker) return;
     const onDown = (e: MouseEvent) => {
-      const ref = activePicker === 'property' ? propertyPickerRef : behaviourPickerRef;
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const btnRef = activePicker === 'property' ? propertyPickerRef : behaviourPickerRef;
+      const inBtn    = btnRef.current?.contains(e.target as Node);
+      const inPicker = pickerRef.current?.contains(e.target as Node);
+      if (!inBtn && !inPicker) {
         setActivePicker(null);
         setPickerSearch('');
+        setPickerPos(null);
       }
     };
     document.addEventListener('mousedown', onDown);
@@ -156,7 +157,18 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
   }, [pickerSearch, metaTraits, usedPropertyKeys]);
 
   const togglePicker = (mode: 'property' | 'behaviour') => {
-    setActivePicker(prev => (prev === mode ? null : mode));
+    if (activePicker === mode) {
+      setActivePicker(null);
+      setPickerSearch('');
+      setPickerPos(null);
+      return;
+    }
+    const btnRef = mode === 'behaviour' ? behaviourPickerRef : propertyPickerRef;
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPickerPos({ top: r.bottom + 6, left: r.left });
+    }
+    setActivePicker(mode);
     setPickerSearch('');
   };
 
@@ -255,16 +267,21 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
     });
   };
 
-  const renderPicker = (type: 'property' | 'behaviour') =>
-    activePicker === type ? (
-      <div className="builder-picker">
+  const renderPicker = (type: 'property' | 'behaviour') => {
+    if (activePicker !== type || !pickerPos) return null;
+    return createPortal(
+      <div
+        ref={pickerRef}
+        className="builder-picker"
+        style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.left, zIndex: 9999 }}
+      >
         <div className="builder-picker-header">
           <Icon name={type === 'behaviour' ? 'zap' : 'tag'} size={12} color="var(--blue)"/>
           <span>{type === 'behaviour' ? 'Events & Rules' : 'Traits'}</span>
           <button
             type="button"
             className="builder-picker-close"
-            onClick={() => { setActivePicker(null); setPickerSearch(''); }}
+            onClick={() => { setActivePicker(null); setPickerSearch(''); setPickerPos(null); }}
             aria-label="Close"
           >
             <Icon name="x" size={13}/>
@@ -277,7 +294,7 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
             placeholder={`Search ${type === 'behaviour' ? 'events & rules' : 'traits'}…`}
             value={pickerSearch}
             onChange={e => setPickerSearch(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') { setActivePicker(null); setPickerSearch(''); } }}
+            onKeyDown={e => { if (e.key === 'Escape') { setActivePicker(null); setPickerSearch(''); setPickerPos(null); } }}
           />
         </div>
         <div className="builder-picker-list">
@@ -326,8 +343,10 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
             ))
           )}
         </div>
-      </div>
-    ) : null;
+      </div>,
+      document.body,
+    );
+  };
 
   return (
     <>
@@ -459,8 +478,9 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                         </div>
                       ))}
                     </div>
-                    <div className="builder-add-row" ref={behaviourPickerRef}>
+                    <div className="builder-add-row">
                       <button
+                        ref={behaviourPickerRef}
                         className={'builder-add' + (activePicker === 'behaviour' ? ' active' : '')}
                         type="button"
                         onClick={() => togglePicker('behaviour')}
@@ -503,8 +523,9 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                         </div>
                       ))}
                     </div>
-                    <div className="builder-add-row" ref={propertyPickerRef}>
+                    <div className="builder-add-row">
                       <button
+                        ref={propertyPickerRef}
                         className={'builder-add' + (activePicker === 'property' ? ' active' : '')}
                         type="button"
                         onClick={() => togglePicker('property')}

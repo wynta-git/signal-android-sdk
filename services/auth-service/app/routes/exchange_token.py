@@ -5,6 +5,7 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from app.cache import get_redis
 from app.config import settings
 from shared.auth.external_token import InvalidExternalTokenError, validate_external_jwt
 from shared.auth.portal_token import PORTAL_JWT_ALGORITHM, PORTAL_JWT_ISSUER, PORTAL_TOKEN_TYPE
@@ -35,7 +36,12 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
         raise HTTPException(status_code=503, detail={"code": "not_configured", "message": "External JWT validation not configured"})
 
     try:
-        ext_ctx = validate_external_jwt(body.token, settings.external_jwt_secret_key)
+        ext_ctx = await validate_external_jwt(
+            body.token,
+            settings.external_jwt_secret_key,
+            redis=get_redis(),
+            program_key_cache_ttl=settings.program_key_cache_ttl,
+        )
     except InvalidExternalTokenError:
         log.warning("exchange_token_invalid_external_jwt")
         raise HTTPException(

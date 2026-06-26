@@ -11,9 +11,9 @@ export default function KpiStrip() {
   const released     = Number(kpi.monthly_released);
   const monthlyLimit = Number(kpi.monthly_limit);
   const pctOfLimit   = kpi.monthly_pct;
-  const consumed     = released * 0.58;
-  const pending      = released * 0.27;
-  const forfeit      = released * 0.15;
+  const consumed     = Number(kpi.monthly_consumed);
+  const pending      = Number(kpi.monthly_pending);
+  const forfeit      = Number(kpi.monthly_forfeit);
 
   return (
     <div className="kpi-strip">

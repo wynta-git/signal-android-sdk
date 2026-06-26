@@ -3,8 +3,6 @@ import * as reportsApi from '../../services/reportsApi';
 import type { CustomReport, CustomReportWithData, CreateReportPayload } from '../../services/reportsApi';
 import type { AsyncStatus } from 'wynta-react-common/types';
 
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
-
 interface ReportsState {
   reports: CustomReport[];
   activeReport: CustomReportWithData | null;
@@ -23,25 +21,25 @@ const initialState: ReportsState = {
 
 export const fetchReports = createAsyncThunk(
   'reports/list',
-  (projectId?: string) => reportsApi.listReports(projectId ?? PROJECT_ID),
+  (projectId?: string) => reportsApi.listReports(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo'),
 );
 
 export const fetchReport = createAsyncThunk(
   'reports/get',
   ({ reportId, projectId }: { reportId: string; projectId?: string }) =>
-    reportsApi.getReport(projectId ?? PROJECT_ID, reportId),
+    reportsApi.getReport(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo', reportId),
 );
 
 export const createReport = createAsyncThunk(
   'reports/create',
   ({ payload, projectId }: { payload: CreateReportPayload; projectId?: string }) =>
-    reportsApi.createReport(projectId ?? PROJECT_ID, payload),
+    reportsApi.createReport(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo', payload),
 );
 
 export const deleteReport = createAsyncThunk(
   'reports/delete',
   async ({ reportId, projectId }: { reportId: string; projectId?: string }) => {
-    await reportsApi.deleteReport(projectId ?? PROJECT_ID, reportId);
+    await reportsApi.deleteReport(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo', reportId);
     return reportId;
   },
 );

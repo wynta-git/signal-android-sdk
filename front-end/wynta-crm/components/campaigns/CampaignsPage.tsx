@@ -1,8 +1,9 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'wynta-react-common/components/Icon';
 import { useAppSelector } from '../../store/hooks';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import {
   fetchCampaigns,
   getCampaign,
@@ -106,12 +107,13 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
 
 export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: boolean; brandId?: number }) {
   const dispatch     = useDispatch<any>();
+  const projectId    = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const apiCampaigns = useAppSelector(selectAllCampaigns);
   const status       = useAppSelector(selectCampaignsStatus);
 
   useEffect(() => {
-    dispatch(fetchCampaigns({ brandId }));
-  }, [dispatch, brandId]);
+    dispatch(fetchCampaigns({ projectId, brandId }));
+  }, [dispatch, projectId, brandId]);
 
   const rows = apiCampaigns;
 
@@ -190,7 +192,7 @@ export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: 
   async function openWizard(c: Campaign, viewOnly: boolean) {
     setLoadingId(c.id);
     try {
-      const full = await dispatch(getCampaign({ campaignId: c.id })).unwrap();
+      const full = await dispatch(getCampaign({ projectId, campaignId: c.id })).unwrap();
       setEditCampaign(full);
       setWizardViewMode(viewOnly);
     } catch {
@@ -204,18 +206,17 @@ export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: 
 
   function handleAction(action: string, c: Campaign) {
     setOpenMenu(null);
-    const ids = { campaignId: c.id };
     if (action === 'view')      { openWizard(c, true);  return; }
     if (action === 'edit')      { openWizard(c, false); return; }
     if (action === 'delete')    setDeleteTarget(c);
-    if (action === 'activate')  dispatch(activateCampaign(ids));
-    if (action === 'pause')     dispatch(pauseCampaign(ids));
-    if (action === 'resume')    dispatch(resumeCampaign(ids));
-    if (action === 'cancel')    dispatch(cancelCampaign(ids));
+    if (action === 'activate')  dispatch(activateCampaign({ projectId, campaignId: c.id }));
+    if (action === 'pause')     dispatch(pauseCampaign({ projectId, campaignId: c.id }));
+    if (action === 'resume')    dispatch(resumeCampaign({ projectId, campaignId: c.id }));
+    if (action === 'cancel')    dispatch(cancelCampaign({ projectId, campaignId: c.id }));
     if (action === 'duplicate') {
       /* Fetch full details so title/content/deep_link are available in the copy */
       setLoadingId(c.id);
-      dispatch(getCampaign({ campaignId: c.id }))
+      dispatch(getCampaign({ projectId, campaignId: c.id }))
         .unwrap()
         .then((full: Campaign) => {
           setEditCampaign({ ...full, id: '', name: `${full.name} (copy)`, status: 'draft' });
@@ -271,7 +272,7 @@ export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: 
         campaign={editCampaign ?? undefined}
         viewMode={wizardViewMode}
         onClose={closeWizard}
-        onSaved={() => { closeWizard(); dispatch(fetchCampaigns({ brandId })); }}
+        onSaved={() => { closeWizard(); dispatch(fetchCampaigns({ projectId, brandId })); }}
         brandId={brandId}
       />
     );
@@ -470,7 +471,7 @@ export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: 
           campaign={deleteTarget}
           onClose={() => setDeleteTarget(null)}
           onConfirm={() => {
-            dispatch(deleteCampaign({ campaignId: deleteTarget.id }));
+            dispatch(deleteCampaign({ projectId, campaignId: deleteTarget.id }));
             setDeleteTarget(null);
           }}
         />

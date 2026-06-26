@@ -3,18 +3,14 @@ from typing import Any
 
 import jwt
 import structlog
+from redis.asyncio import Redis
+
+from shared.clients.mysql import POOL_COMMON, get_connection
+from shared.clients.redis import get_str, set_with_ttl
 
 log = structlog.get_logger()
 
 EXTERNAL_JWT_ALGORITHM = "HS256"
-
-# Temporary mapping: external program id → PAM project_id. Remove once Wynta sends project_id directly.
-_PROGRAM_ID_TO_PROJECT_ID: dict[int, str] = {
-    233: "proj_demo",
-    92: "proj_demo",
-    8: "proj_demo",
-    23: "proj_demo",
-}
 
 
 class InvalidExternalTokenError(Exception):
@@ -28,7 +24,40 @@ class ExternalTokenContext:
     project_id: str
 
 
-def validate_external_jwt(token: str, secret_key: str) -> ExternalTokenContext:
+_CACHE_KEY_PREFIX = "pam:prog_key:"
+
+
+async def _fetch_project_key(
+    program_id: int,
+    redis: Redis | None = None,
+    ttl: int = 3600,
+) -> str | None:
+    cache_key = f"{_CACHE_KEY_PREFIX}{program_id}"
+    if redis is not None:
+        cached = await get_str(redis, cache_key)
+        if cached is not None:
+            return cached
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT project_key FROM project WHERE id = %s LIMIT 1",
+                (program_id,),
+            )
+            row = await cur.fetchone()
+
+    value = row[0] if row else None
+    if value is not None and redis is not None:
+        await set_with_ttl(redis, cache_key, value, ttl)
+    return value
+
+
+async def validate_external_jwt(
+    token: str,
+    secret_key: str,
+    redis: Redis | None = None,
+    program_key_cache_ttl: int = 3600,
+) -> ExternalTokenContext:
     try:
         payload: dict[str, Any] = jwt.decode(
             token,
@@ -57,7 +86,7 @@ def validate_external_jwt(token: str, secret_key: str) -> ExternalTokenContext:
     if raw_project_id is None:
         raise InvalidExternalTokenError()
 
-    project_id = _PROGRAM_ID_TO_PROJECT_ID.get(int(raw_project_id))
+    project_id = await _fetch_project_key(int(raw_project_id), redis=redis, ttl=program_key_cache_ttl)
     if project_id is None:
         log.warning("external_jwt_unmapped_program_id", program_id=raw_project_id)
         raise InvalidExternalTokenError()

@@ -32,6 +32,7 @@
 
 CREATE TABLE `bonus_chunk_release` (
     `id`          BIGINT        NOT NULL AUTO_INCREMENT,
+    `bonus_release_id`          BIGINT        NOT NULL,
     `chunk_id`    BIGINT        NOT NULL,
     -- references bonus_chunk.id
     `site_id`     INT           NOT NULL,
@@ -49,7 +50,6 @@ CREATE TABLE `bonus_chunk_release` (
     `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_chunk_wager_ref`          (`chunk_id`, `wager_ref`),
     KEY `idx_bonus_chunk_wager_chunk_id`           (`chunk_id`),
     KEY `idx_bonus_chunk_release_event_site`       (`event_id`, `site_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

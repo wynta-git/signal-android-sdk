@@ -111,20 +111,14 @@ export const fetchSegmentMembers = createAsyncThunk(
 
 export const fetchMetaTraits = createAsyncThunk(
   'segments/fetchMetaTraits',
-  (projectId: string) => segmentApi.fetchMetaTraits(projectId),
-  {
-    condition: (_arg, { getState }) => {
-      const s = (getState() as { segments?: SegmentsState }).segments;
-      return !s || s.metaTraits.length === 0;
-    },
-  }
+  (brandId?: number) => segmentApi.fetchMetaTraits(brandId)
 );
 
 /** Fetches raw_events + derived_rules, combines into MetaEventItem[] */
 export const fetchMetaEvents = createAsyncThunk(
   'segments/fetchMetaEvents',
-  async (projectId: string): Promise<MetaEventItem[]> => {
-    const raw = await segmentApi.fetchMetaEvents(projectId);
+  async ({ projectId, brandId }: { projectId: string; brandId?: number }): Promise<MetaEventItem[]> => {
+    const raw = await segmentApi.fetchMetaEvents(projectId, brandId);
     // Normalise: handle both old string[] (legacy) and new { raw_events, derived_rules }
     if (Array.isArray(raw)) {
       return (raw as unknown as string[]).map(e => ({
@@ -139,12 +133,6 @@ export const fetchMetaEvents = createAsyncThunk(
       items.push({ id: r, label: toLabel(r), source: 'derived_rule' });
     }
     return items;
-  },
-  {
-    condition: (_arg, { getState }) => {
-      const s = (getState() as { segments?: SegmentsState }).segments;
-      return !s || s.metaEvents.length === 0;
-    },
   }
 );
 

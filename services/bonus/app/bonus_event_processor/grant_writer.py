@@ -140,6 +140,7 @@ async def write_grant(
     player_bonus_id: int,
     event_id: str,
     bonus_code: str | None = None,
+    bonus_code_id: int | None = None,
 ) -> int:
     wager_multiplier = configure["wager_multiplier"]
     no_of_chunks: int = configure["no_of_chunks"]
@@ -187,6 +188,8 @@ async def write_grant(
             ("SUBHEAD", configure["subhead_id"]),
             ("HEAD", configure["head_id"]),
         ]
+        if bonus_code_id is not None:
+            entities.append(("BONUS_CODE", bonus_code_id))
         for entity_type, entity_id in entities:
             for period in ["DAILY", "WEEKLY", "MONTHLY"]:
                 await cur.execute(
@@ -221,6 +224,7 @@ async def write_cashback_grant(
     player_bonus_id: int,
     event_id: str,
     bonus_code: str | None = None,
+    bonus_code_id: int | None = None,
 ) -> int:
     """Create a single-chunk cashback grant (wager_multiplier=0) and immediately release it."""
     try:
@@ -260,6 +264,8 @@ async def write_cashback_grant(
                 ("SUBHEAD", configure["subhead_id"]),
                 ("HEAD", configure["head_id"]),
             ]
+            if bonus_code_id is not None:
+                entities.append(("BONUS_CODE", bonus_code_id))
             for entity_type, entity_id in entities:
                 for period in ["DAILY", "WEEKLY", "MONTHLY"]:
                     await cur.execute(

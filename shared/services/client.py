@@ -114,6 +114,7 @@ class ClientValidationResult(BaseModel):
     site_name: str | None
     program_id: int | None
     project_name: str | None
+    project_key: str | None
 
 
 class SiteConfig(BaseModel):

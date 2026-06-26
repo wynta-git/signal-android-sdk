@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
     redis_cache_ttl: int = 600  # 10 minutes
+    program_key_cache_ttl: int = 10800  # 3 hours — program→project_key mapping is near-static
 
     common_db_host: str = "43.204.90.164"
     common_db_port: int = 3306

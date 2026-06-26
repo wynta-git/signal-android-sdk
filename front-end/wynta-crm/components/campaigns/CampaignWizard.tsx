@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import Icon from 'wynta-react-common/components/Icon';
 import { useCommonSelector } from 'wynta-react-common/store/hooks';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import {
   fetchSegments,
   selectAllSegments,
@@ -196,6 +197,7 @@ interface Props {
 /* ------------------------------------------------------------------ */
 export default function CampaignWizard({ channel, campaign, viewMode = false, onClose, onSaved, brandId }: Props) {
   const dispatch   = useDispatch<any>();
+  const projectId  = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const isEdit     = !!campaign?.id;
   const [step, setStep]         = useState(1);
   const [saving, setSaving]     = useState(false);
@@ -402,10 +404,10 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
 
       if (savedId) {
         /* PATCH /campaigns/{campaign_id} */
-        await dispatch(updateCampaign({ campaignId: savedId, payload })).unwrap();
+        await dispatch(updateCampaign({ projectId, campaignId: savedId, payload })).unwrap();
       } else {
         /* POST /campaigns */
-        const result = await dispatch(createCampaign({ payload, brandId })).unwrap();
+        const result = await dispatch(createCampaign({ projectId, payload, brandId })).unwrap();
         savedId = result.id;
         setActiveCampaignId(savedId);
       }
@@ -434,16 +436,16 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
 
       if (savedId) {
         /* PATCH /campaigns/{campaign_id} */
-        await dispatch(updateCampaign({ campaignId: savedId, payload })).unwrap();
+        await dispatch(updateCampaign({ projectId, campaignId: savedId, payload })).unwrap();
       } else {
         /* POST /campaigns */
-        const result = await dispatch(createCampaign({ payload, brandId })).unwrap();
+        const result = await dispatch(createCampaign({ projectId, payload, brandId })).unwrap();
         savedId = result.id;
         setActiveCampaignId(savedId);
       }
 
       /* POST /campaigns/{campaign_id}/activate */
-      await dispatch(activateCampaign({ campaignId: savedId! })).unwrap();
+      await dispatch(activateCampaign({ projectId, campaignId: savedId! })).unwrap();
 
       showNotif('success', 'Campaign published successfully.');
       /* Redirect to list */
