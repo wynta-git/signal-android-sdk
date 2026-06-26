@@ -32,6 +32,7 @@
 
 CREATE TABLE `bonus_chunk_release` (
     `id`          BIGINT        NOT NULL AUTO_INCREMENT,
+    `bonus_release_id`          BIGINT        NOT NULL,
     `chunk_id`    BIGINT        NOT NULL,
     -- references bonus_chunk.id
     `site_id`     INT           NOT NULL,

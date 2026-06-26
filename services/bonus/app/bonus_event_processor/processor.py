@@ -28,7 +28,7 @@ async def _dispatch(
     if trigger.release_type == "BONUS_RELEASE":
         await handle_bonus_grant(redis, conn, pam_user_id, props, trigger, event_id)
     elif trigger.release_type == "CHUNK_RELEASE":
-        await handle_chunk_release(conn, pam_user_id, props, trigger, event_id)
+        await handle_chunk_release(redis, conn, pam_user_id, props, trigger, event_id)
     else:
         log.warning(
             "bonus_unknown_release_type",
