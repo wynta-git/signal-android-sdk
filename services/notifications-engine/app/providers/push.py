@@ -60,6 +60,10 @@ class FcmV1Provider:
         body: dict[str, Any] = {
             "message": {
                 "token": recipient.token,
+                "notification": {
+                    "title": payload.title,
+                    "body": payload.body,
+                },
                 "data": data,
             }
         }
