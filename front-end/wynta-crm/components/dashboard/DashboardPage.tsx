@@ -48,7 +48,7 @@ import PlayerHealth      from './PlayerHealth';
 import SegmentsBreakdown from './SegmentsBreakdown';
 import DateRangePicker   from './DateRangePicker';
 
-export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: string) => void }) {
+export default function DashboardPage({ onNavChange, brandId }: { onNavChange?: (nav: string) => void; brandId?: number }) {
   const dispatch   = useAppDispatch();
   const windowDays   = useAppSelector(selectDashboardWindowDays);
   const dateRange    = useAppSelector(selectDashboardDateRange);
@@ -60,11 +60,11 @@ export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: str
     range: { start: string; end: string },
     compare?: { start: string; end: string },
   ) {
-    dispatch(fetchDashboardSummary({ windowDays: w, startDate: range.start, endDate: range.end, compareStart: compare?.start, compareEnd: compare?.end }));
-    dispatch(fetchDashboardChannels({ windowDays: w, startDate: range.start, endDate: range.end }));
-    dispatch(fetchDashboardSegments({}));
-    dispatch(fetchDashboardCampaigns({}));
-    dispatch(fetchDashboardAnalytics({ windowDays: w, startDate: range.start, endDate: range.end, compareStart: compare?.start, compareEnd: compare?.end }));
+    dispatch(fetchDashboardSummary({ windowDays: w, startDate: range.start, endDate: range.end, compareStart: compare?.start, compareEnd: compare?.end, brandId }));
+    dispatch(fetchDashboardChannels({ windowDays: w, startDate: range.start, endDate: range.end, brandId }));
+    dispatch(fetchDashboardSegments({ brandId }));
+    dispatch(fetchDashboardCampaigns({ brandId }));
+    dispatch(fetchDashboardAnalytics({ windowDays: w, startDate: range.start, endDate: range.end, compareStart: compare?.start, compareEnd: compare?.end, brandId }));
   }
 
   useEffect(() => {
@@ -84,7 +84,7 @@ export default function DashboardPage({ onNavChange }: { onNavChange?: (nav: str
     return () => clearInterval(interval);
   // pathname in deps means this re-runs every time user navigates back to dashboard
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, brandId]);
 
   function handleWindowChange(
     w: number,

@@ -128,12 +128,14 @@ export async function fetchSummary(
   endDate?: string,
   compareStart?: string,
   compareEnd?: string,
+  brandId?: number,
 ): Promise<SummaryData> {
   const params = new URLSearchParams({ window_days: String(windowDays) });
   if (startDate)    params.set('start_date',    startDate);
   if (endDate)      params.set('end_date',      endDate);
   if (compareStart) params.set('compare_start', compareStart);
   if (compareEnd)   params.set('compare_end',   compareEnd);
+  if (brandId)      params.set('brand_id',      String(brandId));
   const res = await fetch(`${ROOT(projectId)}/summary?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchSummary failed: ${res.status}`);
   return res.json();
@@ -144,18 +146,22 @@ export async function fetchChannels(
   windowDays = 30,
   startDate?: string,
   endDate?: string,
+  brandId?: number,
 ): Promise<ChannelData[]> {
   const params = new URLSearchParams({ window_days: String(windowDays) });
   if (startDate) params.set('start_date', startDate);
   if (endDate)   params.set('end_date',   endDate);
+  if (brandId)   params.set('brand_id',   String(brandId));
   const res = await fetch(`${ROOT(projectId)}/channels?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchChannels failed: ${res.status}`);
   const data = await res.json();
   return Array.isArray(data) ? data : (data.channels ?? data.items ?? []);
 }
 
-export async function fetchSegments(projectId: string, limit = 10, offset = 0): Promise<SegmentsData> {
-  const res = await fetch(`${ROOT(projectId)}/segments?limit=${limit}&offset=${offset}`, { headers: authHeader() });
+export async function fetchSegments(projectId: string, limit = 10, offset = 0, brandId?: number): Promise<SegmentsData> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (brandId) params.set('brand_id', String(brandId));
+  const res = await fetch(`${ROOT(projectId)}/segments?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchSegments failed: ${res.status}`);
   const data = await res.json();
   if (Array.isArray(data)) return { items: data, total: data.length, offset: 0, limit };
@@ -163,8 +169,10 @@ export async function fetchSegments(projectId: string, limit = 10, offset = 0): 
   return data;
 }
 
-export async function fetchCampaigns(projectId: string, limit = 10, offset = 0): Promise<CampaignsData> {
-  const res = await fetch(`${ROOT(projectId)}/campaigns?limit=${limit}&offset=${offset}`, { headers: authHeader() });
+export async function fetchCampaigns(projectId: string, limit = 10, offset = 0, brandId?: number): Promise<CampaignsData> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (brandId) params.set('brand_id', String(brandId));
+  const res = await fetch(`${ROOT(projectId)}/campaigns?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchDashboardCampaigns failed: ${res.status}`);
   const data = await res.json();
   if (Array.isArray(data)) return { items: data, total: data.length, offset: 0, limit };
@@ -179,12 +187,14 @@ export async function fetchAnalytics(
   endDate?: string,
   compareStart?: string,
   compareEnd?: string,
+  brandId?: number,
 ): Promise<AnalyticsData> {
   const params = new URLSearchParams({ window_days: String(windowDays) });
   if (startDate)    params.set('start_date',    startDate);
   if (endDate)      params.set('end_date',      endDate);
   if (compareStart) params.set('compare_start', compareStart);
   if (compareEnd)   params.set('compare_end',   compareEnd);
+  if (brandId)      params.set('brand_id',      String(brandId));
   const res = await fetch(`${ROOT(projectId)}/analytics?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchAnalytics failed: ${res.status}`);
   return res.json();

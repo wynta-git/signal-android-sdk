@@ -94,6 +94,7 @@ export interface CampaignStatsFilters {
   windowDays: number;
   channel:    string;
   segmentId:  string | null;
+  brandId?:   number;
 }
 
 export interface TrendPoint {
@@ -155,6 +156,7 @@ export interface SegmentAnalysisData {
 export interface SegmentAnalysisFilters {
   windowDays: number;
   segmentId:  string | null;
+  brandId?:   number;
 }
 
 export async function getSegmentAnalysis(
@@ -165,6 +167,7 @@ export async function getSegmentAnalysis(
     window_days: String(filters.windowDays),
     ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
   });
+  if (filters.brandId) params.set('brand_id', String(filters.brandId));
   const res = await fetch(`${root(projectId)}/segment-analysis?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`getSegmentAnalysis failed: ${res.status}`);
   return res.json();
@@ -199,6 +202,7 @@ export interface ChannelDeliveryFilters {
   windowDays: number;
   channel:    string;
   segmentId:  string | null;
+  brandId?:   number;
 }
 
 export async function getChannelDelivery(
@@ -210,6 +214,7 @@ export async function getChannelDelivery(
     channel:     filters.channel,
     ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
   });
+  if (filters.brandId) params.set('brand_id', String(filters.brandId));
   const res = await fetch(`${root(projectId)}/channel-delivery?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`getChannelDelivery failed: ${res.status}`);
   return res.json();
@@ -242,6 +247,7 @@ export interface PlayerLifecycleData {
 export interface PlayerLifecycleFilters {
   windowDays: number;
   segmentId:  string | null;
+  brandId?:   number;
 }
 
 export async function getPlayerLifecycle(
@@ -252,6 +258,7 @@ export async function getPlayerLifecycle(
     window_days: String(filters.windowDays),
     ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
   });
+  if (filters.brandId) params.set('brand_id', String(filters.brandId));
   const res = await fetch(`${root(projectId)}/player-lifecycle?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`getPlayerLifecycle failed: ${res.status}`);
   return res.json();
@@ -285,6 +292,7 @@ export interface ChurnRetentionFilters {
   windowDays: number;
   channel:    string;
   segmentId:  string | null;
+  brandId?:   number;
 }
 
 export async function getChurnRetention(
@@ -296,6 +304,7 @@ export async function getChurnRetention(
     channel:     filters.channel,
     ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
   });
+  if (filters.brandId) params.set('brand_id', String(filters.brandId));
   const res = await fetch(`${root(projectId)}/churn-retention?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`getChurnRetention failed: ${res.status}`);
   return res.json();
@@ -310,6 +319,7 @@ export async function getCampaignStats(
     channel:     filters.channel,
     ...(filters.segmentId ? { segment_id: filters.segmentId } : {}),
   });
+  if (filters.brandId) params.set('brand_id', String(filters.brandId));
   const res = await fetch(`${root(projectId)}/campaign-stats?${params}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`getCampaignStats failed: ${res.status}`);
   return res.json();

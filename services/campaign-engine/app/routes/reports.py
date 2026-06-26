@@ -294,7 +294,6 @@ _TIER_LABELS   = ("primary", "secondary", "tertiary")
 
 @router.get("/campaign-stats")
 async def get_campaign_stats(
-    project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
     ch: ChDep,
@@ -304,8 +303,7 @@ async def get_campaign_stats(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     now   = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
@@ -589,7 +587,6 @@ async def _query_deposit_totals(
 
 @router.get("/channel-delivery")
 async def get_channel_delivery(
-    project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
     ch: ChDep,
@@ -597,8 +594,7 @@ async def get_channel_delivery(
     channel: str = Query(default="all"),
     segment_id: str | None = Query(default=None),
 ) -> dict:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     now        = datetime.now(timezone.utc)
     since      = now - timedelta(days=window_days)
@@ -705,7 +701,6 @@ async def get_channel_delivery(
 
 @router.get("/segment-analysis")
 async def get_segment_analysis(
-    project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
     ch: ChDep,
@@ -713,8 +708,7 @@ async def get_segment_analysis(
     segment_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> dict:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     now   = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
@@ -853,15 +847,13 @@ _LIFECYCLE_STAGE_DEFS: list[tuple[str, str, str]] = [
 
 @router.get("/player-lifecycle")
 async def get_player_lifecycle(
-    project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
     ch: ChDep,
     window_days: int = Query(default=7, ge=1, le=90),
     segment_id: str | None = Query(default=None),
 ) -> dict:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     now           = datetime.now(timezone.utc)
     since         = now - timedelta(days=window_days)
@@ -1008,7 +1000,6 @@ _MONTH_NAMES = [
 
 @router.get("/churn-retention")
 async def get_churn_retention(
-    project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
     ch: ChDep,
@@ -1016,8 +1007,7 @@ async def get_churn_retention(
     channel: str = Query(default="all"),
     segment_id: str | None = Query(default=None),
 ) -> dict:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     now   = datetime.now(timezone.utc)
     since = now - timedelta(days=window_days)
@@ -1132,14 +1122,12 @@ async def get_churn_retention(
 
 @router.post("", status_code=201)
 async def create_report(
-    project_id: str,
     body: CreateReportRequest,
     ctx: PortalAuthDep,
     db: DbDep,
 ) -> dict:
     _require_user_id(ctx)
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     now = datetime.now(timezone.utc)
     doc = {
@@ -1163,13 +1151,11 @@ async def create_report(
 
 @router.get("")
 async def list_reports(
-    project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
 ) -> dict:
     _require_user_id(ctx)
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     docs = await db[_COLLECTION].find(
         {"user_id": ctx.user_id, "project_id": project_id},
@@ -1185,15 +1171,13 @@ async def list_reports(
 
 @router.get("/{report_id}")
 async def get_report(
-    project_id: str,
     report_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
     ch: ChDep,
 ) -> dict:
     _require_user_id(ctx)
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     doc = await db[_COLLECTION].find_one(
         {"report_id": report_id, "user_id": ctx.user_id, "project_id": project_id},
@@ -1214,15 +1198,13 @@ async def get_report(
 
 @router.patch("/{report_id}")
 async def update_report(
-    project_id: str,
     report_id: str,
     body: UpdateReportRequest,
     ctx: PortalAuthDep,
     db: DbDep,
 ) -> dict:
     _require_user_id(ctx)
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     update: dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
     if body.name is not None:
@@ -1250,14 +1232,12 @@ async def update_report(
 
 @router.delete("/{report_id}", status_code=204)
 async def delete_report(
-    project_id: str,
     report_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
 ) -> None:
     _require_user_id(ctx)
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Project mismatch"})
+    project_id = ctx.project_id
 
     result = await db[_COLLECTION].delete_one(
         {"report_id": report_id, "user_id": ctx.user_id, "project_id": project_id}

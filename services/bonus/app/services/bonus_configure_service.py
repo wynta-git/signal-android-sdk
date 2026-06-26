@@ -1,9 +1,12 @@
 import json
+from decimal import Decimal
 
 import aiomysql
 import structlog
+from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
+from app.services.bonus_cache import bust_code_cache, bust_eligibility_cache, bust_trigger_cache
 
 from app.exceptions import (
     BonusConfigureDuplicateError,
@@ -197,12 +200,12 @@ def _configure_row_hash(data: BonusConfigureCreate | dict) -> str:
             "start_date": str(data.start_date),
             "end_date": str(data.end_date),
             "applicability_frequency": data.applicability_frequency,
-            "wager_multiplier": str(data.wager_multiplier),
-            "no_of_chunks": data.no_of_chunks,
+            "wager_multiplier": str(data.wager_multiplier if data.wager_multiplier is not None else Decimal("0.00")),
+            "no_of_chunks": data.no_of_chunks if data.no_of_chunks is not None else 1,
             "release_bucket": data.release_bucket,
             "chunk_expiry_days": data.chunk_expiry_days,
             "bonus_expiry_days": data.bonus_expiry_days,
-            "wager_chip_type": data.wager_chip_type,
+            "wager_chip_type": data.wager_chip_type if data.wager_chip_type is not None else "CASH",
             "credit_chip_type": data.credit_chip_type,
             "bonus_amount_fixed": str(data.bonus_amount_fixed) if data.bonus_amount_fixed is not None else None,
             "bonus_amount_percent": str(data.bonus_amount_percent) if data.bonus_amount_percent is not None else None,
@@ -283,9 +286,12 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                     (
                         data.subhead_id, data.site_id, data.name, data.description,
                         data.start_date, data.end_date, data.applicability_frequency,
-                        data.wager_multiplier, data.no_of_chunks, data.release_bucket,
+                        data.wager_multiplier if data.wager_multiplier is not None else Decimal("0.00"),
+                        data.no_of_chunks if data.no_of_chunks is not None else 1,
+                        data.release_bucket,
                         data.chunk_expiry_days, data.bonus_expiry_days,
-                        data.wager_chip_type, data.credit_chip_type,
+                        data.wager_chip_type if data.wager_chip_type is not None else "CASH",
+                        data.credit_chip_type,
                         data.bonus_amount_fixed, data.bonus_amount_percent, data.bonus_amount_max,
                         data.cashback_bonus_amount_fixed, data.cashback_bonus_amount_percent, data.cashback_bonus_amount_max,
                         data.priority, int(data.active), data.created_by, data.created_by,
@@ -454,7 +460,7 @@ async def list_bonus_configures_by_subhead(subhead_id: int) -> list[BonusConfigu
     return result
 
 
-async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) -> BonusConfigureResponse:
+async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, redis: Redis | None = None) -> BonusConfigureResponse:
     """
     Partial update of a bonus_configure row.
 
@@ -465,12 +471,22 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
         BonusConfigureDuplicateError:  new name conflicts within the same subhead.
         DatabaseError:                 unexpected DB failure.
     """
+    _not_null_defaults: dict[str, object] = {
+        "wager_multiplier": Decimal("0.00"),
+        "wager_chip_type": "CASH",
+    }
+
     updates: dict[str, object] = {}
     for field, col in _PATCHABLE.items():
         if field not in data.model_fields_set:
             continue
         val = getattr(data, field)
-        updates[col] = int(val) if field == "active" and val is not None else val
+        if field == "active" and val is not None:
+            updates[col] = int(val)
+        elif val is None and field in _not_null_defaults:
+            updates[col] = _not_null_defaults[field]
+        else:
+            updates[col] = val
     updates["updated_by"] = data.updated_by
 
     log.info("update_bonus_configure.start", bonus_configure_id=configure_id, fields=list(updates))
@@ -524,9 +540,14 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
 
                 _audit_col_idx = {
                     "name": 3, "description": 4, "applicability_frequency": 7,
-                    "active": 22, "wager_multiplier": 8, "no_of_chunks": 9,
+                    "active": 22, "priority": 21,
+                    "wager_multiplier": 8, "no_of_chunks": 9, "release_bucket": 10,
+                    "chunk_expiry_days": 11, "bonus_expiry_days": 12,
+                    "wager_chip_type": 13, "credit_chip_type": 14,
                     "bonus_amount_fixed": 15, "bonus_amount_percent": 16, "bonus_amount_max": 17,
-                    "priority": 21,
+                    "cashback_bonus_amount_fixed": 18,
+                    "cashback_bonus_amount_percent": 19,
+                    "cashback_bonus_amount_max": 20,
                 }
                 old_audit: dict = {}
                 for col, idx in _audit_col_idx.items():
@@ -545,6 +566,12 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
                 await cur.execute(_SELECT_SQL, (configure_id,))
                 updated_row = await cur.fetchone()
 
+                await cur.execute(
+                    "SELECT code FROM bonus_configure_code WHERE configure_id = %s",
+                    (configure_id,),
+                )
+                code_rows = await cur.fetchall()
+
     except BonusConfigureNotFoundError:
         raise
     except aiomysql.IntegrityError as exc:
@@ -556,6 +583,13 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate) 
         raise DatabaseError(str(exc)) from exc
 
     assert updated_row is not None
+    if redis:
+        old_chip = str(row[13])  # type: ignore[possibly-undefined]
+        new_chip = str(new_values_cl["wager_chip_type"])  # type: ignore[possibly-undefined]
+        codes = [r[0] for r in code_rows]  # type: ignore[possibly-undefined]
+        await bust_code_cache(redis, codes, list({old_chip, new_chip}))
+        await bust_eligibility_cache(redis, configure_id)
+        await bust_trigger_cache(redis, site_id)  # type: ignore[possibly-undefined]
     log.info("update_bonus_configure.done", bonus_configure_id=configure_id)
     return _row_to_response(updated_row)
 
@@ -579,17 +613,17 @@ _UPSERT_CONFIGURE_LIMIT_SQL = """
 
 _SELECT_CONFIGURE_BUDGET_SQL = """
     SELECT
-        bl.period_type,
+        bu.period_type,
         bl.budget_limit,
-        COALESCE(bu.budget_used, 0.00) AS budget_used,
+        bu.budget_used,
         bu.reset_at
-    FROM bonus_budget_limit bl
-    LEFT JOIN bonus_budget_usage bu
-        ON  bu.entity_type = bl.entity_type
-        AND bu.entity_id   = bl.entity_id
-        AND bu.period_type = bl.period_type
-    WHERE bl.entity_type = 'CONFIGURE' AND bl.entity_id = %s
-    ORDER BY CASE bl.period_type
+    FROM bonus_budget_usage bu
+    LEFT JOIN bonus_budget_limit bl
+        ON  bl.entity_type = bu.entity_type
+        AND bl.entity_id   = bu.entity_id
+        AND bl.period_type = bu.period_type
+    WHERE bu.entity_type = 'CONFIGURE' AND bu.entity_id = %s
+    ORDER BY CASE bu.period_type
         WHEN 'DAILY'   THEN 1
         WHEN 'WEEKLY'  THEN 2
         WHEN 'MONTHLY' THEN 3

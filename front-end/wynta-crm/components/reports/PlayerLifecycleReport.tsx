@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import { getPlayerLifecycle } from '../../services/reportsApi';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import type { PlayerLifecycleData, LifecycleStageRow } from '../../services/reportsApi';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -85,7 +85,7 @@ function exportCsv(rows: LifecycleStageRow[]) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-interface Props { onOpenBuilder: () => void; }
+interface Props { onOpenBuilder: () => void; brandId?: number; }
 
 const WINDOW_OPTIONS = [
   { label: 'Last 7 days',  value: 7  },
@@ -95,7 +95,8 @@ const WINDOW_OPTIONS = [
 
 type SortKey = 'stage' | 'players' | 'pct_of_total' | 'avg_deposits_30d' | 'crm_touchpoints';
 
-export default function PlayerLifecycleReport({ onOpenBuilder }: Props) {
+export default function PlayerLifecycleReport({ onOpenBuilder, brandId }: Props) {
+  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const [windowDays, setWindowDays] = useState(7);
   const [data,       setData]       = useState<PlayerLifecycleData | null>(null);
   const [loading,    setLoading]    = useState(true);
@@ -105,14 +106,14 @@ export default function PlayerLifecycleReport({ onOpenBuilder }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getPlayerLifecycle(PROJECT_ID, { windowDays, segmentId: null });
+      const result = await getPlayerLifecycle(projectId, { windowDays, segmentId: null, brandId });
       setData(result);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [windowDays]);
+  }, [windowDays, brandId]);
 
   useEffect(() => { load(); }, [load]);
 

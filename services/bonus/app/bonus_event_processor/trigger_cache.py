@@ -35,6 +35,9 @@ _FETCH_SQL = """
         bc.bonus_amount_fixed,
         bc.bonus_amount_percent,
         bc.bonus_amount_max,
+        bc.cashback_bonus_amount_fixed,
+        bc.cashback_bonus_amount_percent,
+        bc.cashback_bonus_amount_max,
         bc.priority,
         bs.head_id
     FROM bonus_release_trigger brt
@@ -82,8 +85,11 @@ def _row_to_dict(row: tuple) -> dict:
             "bonus_amount_fixed": _serialize(row[18]),
             "bonus_amount_percent": _serialize(row[19]),
             "bonus_amount_max": _serialize(row[20]),
-            "priority": row[21],
-            "head_id": row[22],
+            "cashback_bonus_amount_fixed": _serialize(row[21]),
+            "cashback_bonus_amount_percent": _serialize(row[22]),
+            "cashback_bonus_amount_max": _serialize(row[23]),
+            "priority": row[24],
+            "head_id": row[25],
         },
     }
 

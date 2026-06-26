@@ -1,38 +1,39 @@
 """CHUNK_RELEASE handler.
 
 When a trigger with release_type=CHUNK_RELEASE fires:
-  1. Apply the same amount / product / payment-method guards as BONUS_RELEASE.
-  2. Find the next PENDING chunk for this user + configure.
-  3. Promote its status PENDING → RELEASE.
-  4. Increment bonus_grant.release_amount by the chunk amount.
-
-The player can then consume RELEASE-status chunks via the consume_bonus API.
+  1. Apply the min/max amount guards.
+  2. Find all PENDING chunks for this player+site, oldest first.
+  3. Apply trigger_amount as wager contribution across chunks in order.
+     - Partial: wager_amount incremented but required_wager_amount not yet met.
+     - Full: release_status → RELEASE, audit row inserted, grant release_amount updated.
+  4. One commit covers all chunk updates from the event.
 """
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import aiomysql
 import structlog
+from redis.asyncio import Redis
 
+from app.config import settings
 from app.models.bonus_release_trigger import TriggerWithConfigResponse
 
 log = structlog.get_logger(__name__)
 
-_NEXT_PENDING_CHUNK_SQL = """
-    SELECT bc.id, bc.chunk_amount, bc.bonus_grant_id
+_PENDING_CHUNKS_SQL = """
+    SELECT bc.id, bc.chunk_amount, bc.bonus_grant_id, bc.required_wager_amount, bc.wager_amount,
+           bc.wager_multiplier
     FROM bonus_chunk bc
-    JOIN bonus_grant bg ON bg.id = bc.bonus_grant_id
-    WHERE bg.pam_user_id = %s
-      AND bg.configure_id = %s
-      AND bc.status = 'PENDING'
+    WHERE bc.site_id = %s AND bc.pam_user_id = %s AND bc.release_status IN ('PENDING', 'INIT')
     ORDER BY bc.id ASC
-    LIMIT 1
 """
 
-_RELEASE_CHUNK_SQL = """
+
+_RELEASE_CHUNK_WITH_WAGER_SQL = """
     UPDATE bonus_chunk
-    SET status = 'RELEASE', updated_at = NOW()
+    SET wager_amount = %s, release_amount = %s, release_status = %s, updated_at = NOW()
     WHERE id = %s
 """
 
@@ -42,18 +43,58 @@ _UPDATE_GRANT_RELEASE_SQL = """
     WHERE id = %s
 """
 
+_ALL_PENDING_CHUNKS_SQL = """
+    SELECT id, chunk_amount
+    FROM bonus_chunk
+    WHERE bonus_grant_id = %s
+      AND release_status = 'PENDING'
+"""
+
+_INSERT_CHUNK_RELEASE_SQL = """
+    INSERT INTO bonus_chunk_release (chunk_id, site_id, event_id, wager_ref, wager_amount, release_amount, bonus_release_id)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
+"""
+
+_UPDATE_BONUS_RELEASE_TOTALS_SQL = """
+    UPDATE bonus_release SET wager_amount = %s, release_amount = %s WHERE id = %s
+"""
+
+_RELEASE_ALL_PENDING_CHUNKS_SQL = """
+    UPDATE bonus_chunk
+    SET release_status = 'RELEASE', release_amount = chunk_amount, updated_at = NOW()
+    WHERE bonus_grant_id = %s
+      AND release_status = 'PENDING'
+"""
+
+_INSERT_BONUS_RELEASE_SQL = """
+    INSERT INTO bonus_release
+        (site_id, pam_user_id, event_id, wager_ref,
+         chip_type, product, game_type, game_name,
+         wager_amount, release_amount)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+"""
+
 
 async def handle_chunk_release(
+    redis: Redis,
     conn: aiomysql.Connection,
     pam_user_id: int,
     props: dict[str, Any],
     trigger: TriggerWithConfigResponse,
+    event_id: str,
 ) -> None:
-    """Release the next pending bonus chunk for the matched trigger."""
+    """Apply wager contribution to pending chunks and release any that meet their target."""
+
+    # ── Dedup: skip if this event was already processed for this site ─────────
+    site_id: int = trigger.site_id
+    dedup_key = f"bonus:chunk_release:dedup:{event_id}:{site_id}"
+    if await redis.exists(dedup_key):
+        log.info("chunk_release_duplicate_event", event_id=event_id, site_id=site_id)
+        return
 
     # ── Amount range ──────────────────────────────────────────────────────────
     trigger_amount: float | None = None
-    raw_amount = props.get("amount")
+    raw_amount = props.get("transaction_amount")
     if raw_amount is not None:
         try:
             trigger_amount = float(raw_amount)
@@ -106,34 +147,140 @@ async def handle_chunk_release(
     #         )
     #         return
 
-    # ── Find next pending chunk ───────────────────────────────────────────────
-    async with conn.cursor() as cur:
-        await cur.execute(_NEXT_PENDING_CHUNK_SQL, (pam_user_id, trigger.configure_id))
-        row = await cur.fetchone()
-
-    if row is None:
+    # ── Fetch all PENDING chunks for this player/site, oldest first ───────────
+    wager_ref: str = str(props.get("wager_tnx_id") or "")
+    remaining = Decimal(str(trigger_amount)) if trigger_amount else Decimal("0.00")
+    if remaining <= Decimal("0.00"):
         log.info(
-            "chunk_release_no_pending_chunk",
+            "chunk_release_no_remaining",
             trigger_id=trigger.id,
-            configure_id=trigger.configure_id,
             pam_user_id=pam_user_id,
+            site_id=site_id,
+            remaining=remaining
         )
         return
 
-    chunk_id, chunk_amount, bonus_grant_id = row[0], row[1], row[2]
-
-    # ── Release: PENDING → RELEASE ────────────────────────────────────────────
     async with conn.cursor() as cur:
-        await cur.execute(_RELEASE_CHUNK_SQL, (chunk_id,))
-        await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (chunk_amount, bonus_grant_id))
+        await cur.execute(_PENDING_CHUNKS_SQL, (site_id, pam_user_id))
+        chunks = await cur.fetchall()
+
+    if not chunks:
+        log.info(
+            "chunk_release_no_pending_chunks",
+            trigger_id=trigger.id,
+            pam_user_id=pam_user_id,
+            site_id=site_id,
+        )
+        return
+
+    # ── Insert bonus_release header row; totals back-filled after the loop ───
+    async with conn.cursor() as cur:
+        await cur.execute(
+            _INSERT_BONUS_RELEASE_SQL,
+            (
+                site_id, str(pam_user_id), event_id, wager_ref,
+                props.get("chip_type"), props.get("product"),
+                props.get("game_type"), props.get("game_name"),
+                0.00, 0.00,
+            ),
+        )
+        bonus_release_id = cur.lastrowid
+
+    # ── Apply wager contribution across chunks in FIFO order ─────────────────
+    released_count = 0
+    total_wager    = Decimal("0.00")
+    total_release  = Decimal("0.00")
+
+    for row in chunks:
+        if remaining <= Decimal("0.00"):
+            break
+
+        chunk_id          = row[0]
+        chunk_amount      = Decimal(str(row[1]))
+        grant_id          = row[2]
+        required          = Decimal(str(row[3]))
+        curr_wager        = Decimal(str(row[4]))
+        wager_multiplier  = Decimal(str(row[5]))
+
+        still_needed   = required - curr_wager
+        contributed    = min(remaining, still_needed)
+        new_wager      = curr_wager + contributed
+        remaining     -= contributed
+
+        is_full        = new_wager >= required
+        release_amount = chunk_amount if is_full else (new_wager / wager_multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        release_status = 'RELEASE' if is_full else 'PENDING'
+
+        event_release  = (contributed / wager_multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        total_wager   += contributed
+        total_release += event_release
+
+        async with conn.cursor() as cur:
+            await cur.execute(_RELEASE_CHUNK_WITH_WAGER_SQL, (new_wager, release_amount, release_status, chunk_id))
+            await cur.execute(_INSERT_CHUNK_RELEASE_SQL, (chunk_id, site_id, event_id, wager_ref, float(contributed), float(event_release), bonus_release_id))
+            await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (event_release, grant_id))
+            if is_full:
+                released_count += 1
+
+        log.info(
+            "chunk_released" if is_full else "chunk_wager_partial",
+            chunk_id=chunk_id,
+            pam_user_id=pam_user_id,
+            contributed=str(contributed),
+            new_wager=str(new_wager),
+            release_amount=str(release_amount),
+            release_status=release_status,
+        )
+
+    async with conn.cursor() as cur:
+        await cur.execute(_UPDATE_BONUS_RELEASE_TOTALS_SQL, (float(total_wager), float(total_release), bonus_release_id))
+
+    await conn.commit()
+    await redis.set(dedup_key, "1", ex=settings.dedup_event_ttl)
+
+    log.info(
+        "chunk_release_complete",
+        trigger_id=trigger.id,
+        pam_user_id=pam_user_id,
+        site_id=site_id,
+        released_count=released_count,
+        trigger_amount=str(trigger_amount),
+    )
+
+
+async def release_all_chunks(
+    conn: aiomysql.Connection,
+    bonus_grant_id: int,
+    site_id: int,
+    event_id: str,
+) -> None:
+    """Release all PENDING chunks for a grant in one pass.
+
+    Used when wagering_multiplier=0 (cashback) so the full grant amount
+    is immediately available — no per-event trigger needed.
+    """
+    async with conn.cursor() as cur:
+        await cur.execute(_ALL_PENDING_CHUNKS_SQL, (bonus_grant_id,))
+        chunks = await cur.fetchall()
+
+    if not chunks:
+        log.info("release_all_chunks_nothing_pending", bonus_grant_id=bonus_grant_id)
+        return
+
+    total: float = sum(float(row[1]) for row in chunks)
+
+    async with conn.cursor() as cur:
+        await cur.executemany(
+            _INSERT_CHUNK_RELEASE_SQL,
+            [(row[0], site_id, event_id, "SYSTEM", 0.00, row[1]) for row in chunks],
+        )
+        await cur.execute(_RELEASE_ALL_PENDING_CHUNKS_SQL, (bonus_grant_id,))
+        await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (total, bonus_grant_id))
     await conn.commit()
 
     log.info(
-        "chunk_released",
-        chunk_id=chunk_id,
+        "all_chunks_released",
         bonus_grant_id=bonus_grant_id,
-        trigger_id=trigger.id,
-        configure_id=trigger.configure_id,
-        pam_user_id=pam_user_id,
-        chunk_amount=str(chunk_amount),
+        chunk_count=len(chunks),
+        total_released=str(total),
     )

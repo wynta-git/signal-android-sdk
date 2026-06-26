@@ -23,7 +23,7 @@ class ApplicableCodeResponse(BaseModel):
     display_on: str | None
     min_display_amount: Decimal | None
     wager_multiplier: Decimal
-    no_of_chunks: int
+    no_of_chunks: int | None
     applicability_frequency: str | None
 
 
@@ -33,6 +33,7 @@ class ValidateCodeRequest(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=50)
     chip_type: str = Field(..., pattern=r'^(cash|in_app_purchase)$')
     code: str = Field(..., min_length=1, max_length=50)
+    amount: Decimal | None = Field(None, ge=0)
 
 
 class ValidateCodeResponse(BaseModel):
@@ -48,14 +49,23 @@ class ValidateCodeResponse(BaseModel):
 # ── API 2: consume ────────────────────────────────────────────────────────────
 
 class PlayerBonusConsumeCreate(BaseModel):
-    user_id: str = Field(..., min_length=1, max_length=50)
-    consume_txn_id: str = Field(..., min_length=1, max_length=50)
-    wager_amount: Decimal = Field(..., ge=0)
+    user_id: str = Field(..., min_length=1, max_length=100)
+    consume_txn_id: str = Field(..., min_length=1, max_length=100)
+    transaction_amount: Decimal = Field(..., ge=0)
     bonus_amount: Decimal = Field(..., ge=0)
-    chip_type: str = Field(..., pattern=r'^(cash|in_app_purchase)$')
-    wager_tnx_id: str = Field(..., min_length=1, max_length=50)
-    game_id: str | None = Field(None, max_length=50)
-    round_id: str | None = Field(None, max_length=50)
+    chip_type: str = Field(..., pattern=r'^(CASH|LOYALTY_PINTS|FUN_CHIPS)$')
+    wager_tnx_id: str | None = Field(None, max_length=100)
+    session_key: str | None = Field(None, max_length=200)
+    platform_client_id: str | None = Field(None, max_length=100)
+    product: str | None = Field(None, max_length=100)
+    game_type: str | None = Field(None, pattern=r'^(GAME|TOURNEY|CONTEST)$')
+    game_variant: str | None = Field(None, max_length=100)
+    game_name: str | None = Field(None, max_length=200)
+    game_action: str | None = Field(None, max_length=100)
+    primary_transaction_id: int | None = None
+    secondary_transaction_id: int | None = None
+    tertiary_transaction_id: int | None = None
+    base_request_id: int | None = None
 
 
 class PlayerBonusConsumedResponse(BaseModel):
@@ -82,6 +92,7 @@ class PlayerBonusSummaryResponse(BaseModel):
     bonus_balance: Decimal
     pending_bonus: Decimal
     wagering_required: Decimal
+    wagering_done: Decimal
 
 
 # ── API 5: referral code ─────────────────────────────────────────────────────
@@ -100,6 +111,12 @@ class PlayerBonusTransactionSummary(BaseModel):
     amount: Decimal
     type: str
     created_at: datetime
+    release_amount: Decimal | None = None
+    consumed_amount: Decimal | None = None
+    expiry_amount: Decimal | None = None
+    forfeit_amount: Decimal | None = None
+    grant_txn_id: int | None = None
+    player_bonus_id: int | None = None
 
 
 # ── API 8: transaction detail ─────────────────────────────────────────────────
@@ -117,9 +134,7 @@ class ChunkConsumeEvent(BaseModel):
     id: int
     chunk_id: int
     consumed_ref: str
-    wager_ref: str
-    amount: Decimal
-    wager_amount: Decimal
+    wager_ref: str | None
     consumed_amount: Decimal
     created_at: datetime
 
@@ -129,11 +144,12 @@ class BonusChunkDetail(BaseModel):
     chunk_ref: str
     chunk_amount: Decimal
     wager_multiplier: Decimal
-    status: str
+    release_status: str
     required_wager_amount: Decimal
     wager_amount: Decimal
     created_at: datetime
     updated_at: datetime
+    consume_status: str
     releases: list[ChunkReleaseEvent] = []
     consumes: list[ChunkConsumeEvent] = []
 

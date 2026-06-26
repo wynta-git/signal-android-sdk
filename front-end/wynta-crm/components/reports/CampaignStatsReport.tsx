@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import { getCampaignStats } from '../../services/reportsApi';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import type { CampaignStatsData, TrendPoint, CampaignRow } from '../../services/reportsApi';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -192,7 +192,7 @@ function exportCsv(rows: CampaignRow[]) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-interface Props { onOpenBuilder: () => void; }
+interface Props { onOpenBuilder: () => void; brandId?: number; }
 
 const WINDOW_OPTIONS = [
   { label: 'Last 7 days',  value: 7  },
@@ -210,7 +210,8 @@ const CHANNEL_OPTIONS = [
 
 type SortKey = 'name' | 'channel' | 'sent' | 'open_rate' | 'ctr' | 'conversions';
 
-export default function CampaignStatsReport({ onOpenBuilder }: Props) {
+export default function CampaignStatsReport({ onOpenBuilder, brandId }: Props) {
+  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const [windowDays, setWindowDays] = useState(7);
   const [channel,    setChannel]    = useState('all');
   const [data,       setData]       = useState<CampaignStatsData | null>(null);
@@ -222,14 +223,14 @@ export default function CampaignStatsReport({ onOpenBuilder }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getCampaignStats(PROJECT_ID, { windowDays, channel, segmentId: null });
+      const result = await getCampaignStats(projectId, { windowDays, channel, segmentId: null, brandId });
       setData(result);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [windowDays, channel]);
+  }, [windowDays, channel, brandId]);
 
   useEffect(() => { load(); }, [load]);
 

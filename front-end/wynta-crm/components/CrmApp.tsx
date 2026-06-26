@@ -1,14 +1,13 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Provider }  from 'react-redux';
+import { Provider, useSelector }  from 'react-redux';
 import dynamic       from 'next/dynamic';
 import { store }     from '../store';
 import { getToken }  from 'wynta-react-common/services/tokenRegistry';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import CrmSidebar    from './CrmSidebar';
 import { listReports, createReport as createReportApi } from '../services/reportsApi';
 import type { ReportFilters, CustomReport } from '../services/reportsApi';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 const SegmentsPage       = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
 const CampaignsPage      = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
@@ -76,17 +75,33 @@ export default function CrmApp() {
 }
 
 function CrmShell() {
+  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const [activeNav,       setActiveNav]       = useState('dashboard');
   const [campaignAutoAdd, setCampaignAutoAdd] = useState(false);
   const [customReports,   setCustomReports]   = useState<CustomReport[]>([]);
   const [creating,        setCreating]        = useState(false);
   const [createError,     setCreateError]     = useState<string | null>(null);
+  const [brandId,         setBrandId]         = useState<number | undefined>(() => {
+    if (typeof document === 'undefined') return undefined;
+    const el = document.querySelector<HTMLElement>('.brand-switch-item.active');
+    return el?.dataset.siteId ? Number(el.dataset.siteId) : undefined;
+  });
 
   useEffect(() => { refreshCustomReports(); }, []);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<{ brandId: number }>).detail?.brandId;
+      refreshCustomReports();
+      if (id) setBrandId(id);
+    };
+    window.addEventListener('wynta:brand-changed', handler);
+    return () => window.removeEventListener('wynta:brand-changed', handler);
+  }, []);
+
   async function refreshCustomReports() {
     try {
-      const list = await listReports(PROJECT_ID);
+      const list = await listReports(projectId);
       setCustomReports(list);
     } catch {}
   }
@@ -106,7 +121,7 @@ function CrmShell() {
     setCreating(true);
     setCreateError(null);
     try {
-      const { report_id } = await createReportApi(PROJECT_ID, { name, metrics, filters });
+      const { report_id } = await createReportApi(projectId, { name, metrics, filters });
       await refreshCustomReports();
       setActiveNav(`reports:cr:${report_id}`);
     } catch {
@@ -128,24 +143,25 @@ function CrmShell() {
 
       <main className="crm-main">
         <div className="crm-content">
-          {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} /> :
-           activeNav === 'segments'         ? <SegmentsPage     /> :
-           activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} /> :
-           activeNav === 'events'           ? <EventsPage       /> :
+          {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} brandId={brandId} /> :
+           activeNav === 'segments'         ? <SegmentsPage brandId={brandId} /> :
+           activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} brandId={brandId} /> :
+           activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :
-           activeNav === 'reports:campaign' ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:create')} /> :
-           activeNav === 'reports:segment'  ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:create')} /> :
-           activeNav === 'reports:channel'  ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:create')} /> :
-           activeNav === 'reports:lifecycle'? <PlayerLifecycleReport  onOpenBuilder={() => handleNavChange('reports:create')} /> :
-           activeNav === 'reports:churn'    ? <ChurnRetentionReport  onOpenBuilder={() => handleNavChange('reports:create')} /> :
+           activeNav === 'reports:campaign' ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
+           activeNav === 'reports:segment'  ? <SegmentAnalysisReport onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
+           activeNav === 'reports:channel'  ? <ChannelDeliveryReport   onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
+           activeNav === 'reports:lifecycle'? <PlayerLifecycleReport  onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
+           activeNav === 'reports:churn'    ? <ChurnRetentionReport  onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
            activeNav === 'reports:create'   ? (
              <CustomReportBuilder
                onSave={handleCreate}
                onCancel={() => handleNavChange('reports:churn')}
                saving={creating}
                error={createError}
+               brandId={brandId}
              />
            ) :
            reportId ? (

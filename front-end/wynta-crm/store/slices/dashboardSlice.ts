@@ -5,8 +5,6 @@ import type {
 } from '../../services/dashboardApi';
 import type { AsyncStatus } from 'wynta-react-common/types';
 
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
-
 // ── State ─────────────────────────────────────────────────────────────────────
 
 interface DateRange    { start: string; end: string; }
@@ -52,42 +50,44 @@ const initialState: DashboardState = {
 
 export const fetchDashboardSummary = createAsyncThunk(
   'dashboard/summary',
-  ({ projectId, windowDays, startDate, endDate, compareStart, compareEnd }: {
+  ({ projectId, windowDays, startDate, endDate, compareStart, compareEnd, brandId }: {
     projectId?: string; windowDays?: number;
     startDate?: string; endDate?: string;
     compareStart?: string; compareEnd?: string;
+    brandId?: number;
   } = {}) =>
-    dashboardApi.fetchSummary(projectId ?? PROJECT_ID, windowDays ?? 7, startDate, endDate, compareStart, compareEnd)
+    dashboardApi.fetchSummary(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo', windowDays ?? 7, startDate, endDate, compareStart, compareEnd, brandId)
 );
 
 export const fetchDashboardChannels = createAsyncThunk(
   'dashboard/channels',
-  ({ projectId, windowDays, startDate, endDate }: {
-    projectId?: string; windowDays?: number; startDate?: string; endDate?: string;
+  ({ projectId, windowDays, startDate, endDate, brandId }: {
+    projectId?: string; windowDays?: number; startDate?: string; endDate?: string; brandId?: number;
   } = {}) =>
-    dashboardApi.fetchChannels(projectId ?? PROJECT_ID, windowDays ?? 7, startDate, endDate)
+    dashboardApi.fetchChannels(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo', windowDays ?? 7, startDate, endDate, brandId)
 );
 
 export const fetchDashboardSegments = createAsyncThunk(
   'dashboard/segments',
-  ({ projectId, limit, offset }: { projectId?: string; limit?: number; offset?: number } = {}) =>
-    dashboardApi.fetchSegments(projectId ?? PROJECT_ID, limit, offset)
+  ({ projectId, limit, offset, brandId }: { projectId?: string; limit?: number; offset?: number; brandId?: number } = {}) =>
+    dashboardApi.fetchSegments(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo', limit, offset, brandId)
 );
 
 export const fetchDashboardCampaigns = createAsyncThunk(
   'dashboard/campaigns',
-  ({ projectId, limit, offset }: { projectId?: string; limit?: number; offset?: number } = {}) =>
-    dashboardApi.fetchCampaigns(projectId ?? PROJECT_ID, limit, offset)
+  ({ projectId, limit, offset, brandId }: { projectId?: string; limit?: number; offset?: number; brandId?: number } = {}) =>
+    dashboardApi.fetchCampaigns(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo', limit, offset, brandId)
 );
 
 export const fetchDashboardAnalytics = createAsyncThunk(
   'dashboard/analytics',
-  ({ projectId, windowDays, startDate, endDate, compareStart, compareEnd }: {
+  ({ projectId, windowDays, startDate, endDate, compareStart, compareEnd, brandId }: {
     projectId?: string; windowDays?: number;
     startDate?: string; endDate?: string;
     compareStart?: string; compareEnd?: string;
+    brandId?: number;
   } = {}) =>
-    dashboardApi.fetchAnalytics(projectId ?? PROJECT_ID, windowDays ?? 7, startDate, endDate, compareStart, compareEnd)
+    dashboardApi.fetchAnalytics(projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo', windowDays ?? 7, startDate, endDate, compareStart, compareEnd, brandId)
 );
 
 // ── Slice ─────────────────────────────────────────────────────────────────────

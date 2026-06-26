@@ -600,19 +600,42 @@ async def get_user(
 
 
 async def get_user_device_tokens(
-    db: AsyncIOMotorDatabase, project_id: str, user_id: str
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    brand_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    cursor = db["device_tokens"].find(
+    query: dict[str, Any] = {"project_id": project_id, "user_id": user_id}
+    if brand_id is not None:
+        query["brand_id"] = brand_id
+    cursor = db["device_tokens"].find(query, {"_id": 0})
+    tokens = await cursor.to_list(length=None)
+    if tokens:
+        return tokens
+
+    # Fallback: read FCM token from users.traits.fcm_token
+    user = await db["users"].find_one(
         {"project_id": project_id, "user_id": user_id},
-        {"_id": 0},
+        {"traits.fcm_token": 1, "_id": 0},
     )
-    return await cursor.to_list(length=None)
+    fcm_token = (user or {}).get("traits", {}).get("fcm_token")
+    if fcm_token:
+        return [{"token": fcm_token, "platform": "android", "project_id": project_id, "user_id": user_id, "brand_id": brand_id}]
+    return []
 
 
 async def get_project_fcm_credential(
-    db: AsyncIOMotorDatabase, project_id: str
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
 ) -> str | None:
-    """Return the FCM service-account JSON string for a project, or None if not configured."""
+    """Return the FCM service-account JSON string for a brand or project, or None if not configured."""
+    if brand_id:
+        brand_doc = await db["brand_settings"].find_one(
+            {"project_id": project_id, "brand_id": brand_id},
+            {"fcm_service_account_json": 1, "_id": 0},
+        )
+        if brand_doc and brand_doc.get("fcm_service_account_json"):
+            return brand_doc["fcm_service_account_json"]
+
     doc = await db["projects"].find_one(
         {"project_id": project_id},
         {"settings.fcm_service_account_json": 1, "_id": 0},
@@ -620,6 +643,30 @@ async def get_project_fcm_credential(
     if not doc:
         return None
     return (doc.get("settings") or {}).get("fcm_service_account_json")
+
+
+async def upsert_brand_fcm_credential(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    brand_id: str,
+    fcm_service_account_json: str,
+    now: datetime,
+) -> None:
+    await db["brand_settings"].update_one(
+        {"project_id": project_id, "brand_id": brand_id},
+        {"$set": {"fcm_service_account_json": fcm_service_account_json, "updated_at": now},
+         "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+
+
+async def get_brand_fcm_settings(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str
+) -> dict | None:
+    return await db["brand_settings"].find_one(
+        {"project_id": project_id, "brand_id": brand_id},
+        {"_id": 0, "fcm_service_account_json": 1},
+    )
 
 
 async def create_notification_delivery_indexes(db: AsyncIOMotorDatabase) -> None:
@@ -647,9 +694,10 @@ async def upsert_device_token(
     user_id: str,
     token: str,
     platform: str,
+    brand_id: str | None = None,
 ) -> None:
     await db["device_tokens"].update_one(
-        {"project_id": project_id, "user_id": user_id, "token": token},
+        {"project_id": project_id, "brand_id": brand_id, "user_id": user_id, "token": token},
         {"$set": {"platform": platform}},
         upsert=True,
     )
@@ -827,6 +875,7 @@ async def upsert_user_profile(
     anonymous_id: str | None,
     unset_traits: list[str],
     now: datetime,
+    brand_id: str | None = None,
 ) -> None:
     set_fields: dict[str, Any] = {f"traits.{k}": v for k, v in traits.items()}
     set_fields["last_seen_at"] = now
@@ -841,7 +890,7 @@ async def upsert_user_profile(
         update["$unset"] = {f"traits.{k}": "" for k in unset_traits}
 
     await db["users"].update_one(
-        {"project_id": project_id, "user_id": user_id},
+        {"project_id": project_id, "brand_id": brand_id, "user_id": user_id},
         update,
         upsert=True,
     )

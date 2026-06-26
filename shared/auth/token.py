@@ -20,6 +20,7 @@ class InvalidTokenError(Exception):
 @dataclass(frozen=True)
 class TokenContext:
     project_id: str
+    project_key: str
     site_id: str
     client_id: str
     scope: list[str]

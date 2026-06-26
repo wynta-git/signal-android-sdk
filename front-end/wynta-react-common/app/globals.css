@@ -1494,15 +1494,11 @@ body {
   border-radius: 999px;
 }
 .builder-picker {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
   width: 280px;
   background: #fff;
   border: 1px solid var(--g200);
   border-radius: var(--rl);
   box-shadow: var(--shm);
-  z-index: 50;
   overflow: hidden;
 }
 .builder-picker-header {

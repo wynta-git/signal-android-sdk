@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { useAppSelector } from '../../store/hooks';
 import Icon from 'wynta-react-common/components/Icon';
@@ -117,7 +117,7 @@ function EventList({ title, icon, iconColor, items, selected, loading, onSelect,
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function EventsPage() {
+export default function EventsPage({ brandId }: { brandId?: number }) {
   const dispatch       = useDispatch<any>();
   const rawEvents      = useAppSelector(selectRawEvents);
   const derivedRules   = useAppSelector(selectDerivedRules);
@@ -132,15 +132,11 @@ export default function EventsPage() {
   const traitsError    = useAppSelector(selectTraitsError);
 
   const [propSearch, setPropSearch] = useState('');
-  const didFetch = useRef(false);
 
-  /* Fetch events + traits once on mount */
   useEffect(() => {
-    if (didFetch.current) return;
-    didFetch.current = true;
-    dispatch(fetchEvents());
-    dispatch(fetchTraits());
-  }, [dispatch]);
+    dispatch(fetchEvents(brandId));
+    dispatch(fetchTraits(brandId));
+  }, [dispatch, brandId]);
 
   /* Auto-select first raw event after load */
   useEffect(() => {

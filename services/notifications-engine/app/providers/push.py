@@ -60,6 +60,10 @@ class FcmV1Provider:
         body: dict[str, Any] = {
             "message": {
                 "token": recipient.token,
+                "notification": {
+                    "title": payload.title,
+                    "body": payload.body,
+                },
                 "data": data,
             }
         }
@@ -175,16 +179,17 @@ async def get_push_provider(
     platform: str,
     project_id: str,
     db: AsyncIOMotorDatabase,
+    brand_id: str | None = None,
 ) -> ChannelProvider:
-    """Route by platform, load per-project FCM credentials. Falls back to stub if unconfigured."""
+    """Route by platform, load per-brand then per-project FCM credentials. Falls back to stub if unconfigured."""
     if platform == "ios":
         return ApnsStubProvider()
 
     from shared.clients.mongo import get_project_fcm_credential
 
-    credential_json = await get_project_fcm_credential(db, project_id)
+    credential_json = await get_project_fcm_credential(db, project_id, brand_id=brand_id)
     if not credential_json:
-        log.warning("fcm_v1.no_credentials_fallback_stub", project_id=project_id)
+        log.warning("fcm_v1.no_credentials_fallback_stub", project_id=project_id, brand_id=brand_id)
         return FcmStubProvider()
 
     fcm_project_id: str = json.loads(credential_json)["project_id"]

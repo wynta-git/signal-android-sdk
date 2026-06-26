@@ -224,8 +224,9 @@ export async function previewEvaluate(payload: {
 
 // ── Segment CRUD ──────────────────────────────────────────────────────────────
 
-export async function fetchSegments(): Promise<Segment[]> {
-  const res = await fetch(`${SEG_API}/segments`, { headers: authHeader() });
+export async function fetchSegments(brandId?: number): Promise<Segment[]> {
+  const url = brandId ? `${SEG_API}/segments?brand_id=${brandId}` : `${SEG_API}/segments`;
+  const res = await fetch(url, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchSegments failed: ${res.status}`);
   const data = await res.json();
   return data.map(toSegment);
@@ -242,6 +243,7 @@ export async function createSegment(payload: {
   /** "filter" = JSON conditions payload (default); "custom" = CSV multipart upload */
   segmentType?: "filter" | "custom";
   csvFile?: File;
+  brandId?: number;
 }): Promise<Segment> {
   /* ── CSV / custom type — multipart/form-data ── */
   if (payload.segmentType === "custom" && payload.csvFile) {
@@ -251,6 +253,7 @@ export async function createSegment(payload: {
     form.append("refresh_strategy", payload.refresh_strategy ?? "scheduled");
     if (payload.created_by)        form.append("created_by", payload.created_by);
     if (payload.scheduled_cron)    form.append("scheduled_cron", payload.scheduled_cron);
+    if (payload.brandId)           form.append("brand_id", String(payload.brandId));
     form.append("file", payload.csvFile);
 
     const res = await fetch(`${SEG_API}/segments`, {
@@ -272,6 +275,7 @@ export async function createSegment(payload: {
     created_by:       payload.created_by ?? null,
   };
   if (payload.scheduled_cron) body.scheduled_cron = payload.scheduled_cron;
+  if (payload.brandId)        body.brand_id = String(payload.brandId);
 
   const res = await fetch(`${SEG_API}/segments`, {
     method: "POST",
@@ -367,8 +371,11 @@ export interface MetaEventsRaw {
   derived_rules: string[];
 }
 
-export async function fetchMetaEvents(projectId: string): Promise<MetaEventsRaw> {
-  const res = await fetch(`${SEG_API}/meta/events?project_id=${projectId}`, {
+export async function fetchMetaEvents(projectId: string, brandId?: number): Promise<MetaEventsRaw> {
+  const params = new URLSearchParams();
+  if (brandId) params.set('brand_id', String(brandId));
+  const query = params.toString() ? `?${params}` : '';
+  const res = await fetch(`${SEG_API}/meta/events${query}`, {
     headers: authHeader(),
   });
   if (!res.ok) throw new Error(`fetchMetaEvents failed: ${res.status}`);
@@ -377,18 +384,24 @@ export async function fetchMetaEvents(projectId: string): Promise<MetaEventsRaw>
 
 export async function fetchMetaEventProperties(
   projectId: string,
-  eventName: string
+  eventName: string,
+  brandId?: number,
 ): Promise<string[]> {
+  const params = new URLSearchParams({ project_id: projectId });
+  if (brandId) params.set('brand_id', String(brandId));
   const res = await fetch(
-    `${SEG_API}/meta/events/${encodeURIComponent(eventName)}/properties?project_id=${projectId}`,
+    `${SEG_API}/meta/events/${encodeURIComponent(eventName)}/properties?${params}`,
     { headers: authHeader() }
   );
   if (!res.ok) throw new Error(`fetchMetaEventProperties failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchMetaTraits(projectId: string): Promise<string[]> {
-  const res = await fetch(`${SEG_API}/meta/traits?project_id=${projectId}`, {
+export async function fetchMetaTraits(brandId?: number): Promise<string[]> {
+  const params = new URLSearchParams();
+  if (brandId) params.set('brand_id', String(brandId));
+  const query = params.toString() ? `?${params}` : '';
+  const res = await fetch(`${SEG_API}/meta/traits${query}`, {
     headers: authHeader(),
   });
   if (!res.ok) throw new Error(`fetchMetaTraits failed: ${res.status}`);
@@ -401,18 +414,20 @@ export async function fetchMetaOperators(): Promise<MetaOperators> {
   return res.json();
 }
 
-export async function fetchTraitOperators(trait: string): Promise<TraitOperatorsResponse> {
+export async function fetchTraitOperators(trait: string, brandId?: number): Promise<TraitOperatorsResponse> {
+  const params = brandId ? `?brand_id=${brandId}` : '';
   const res = await fetch(
-    `${SEG_API}/meta/traits/${encodeURIComponent(trait)}/operators`,
+    `${SEG_API}/meta/traits/${encodeURIComponent(trait)}/operators${params}`,
     { headers: authHeader() }
   );
   if (!res.ok) throw new Error(`fetchTraitOperators failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchDerivedRuleConfig(ruleName: string): Promise<DerivedRuleConfig> {
+export async function fetchDerivedRuleConfig(ruleName: string, brandId?: number): Promise<DerivedRuleConfig> {
+  const params = brandId ? `?brand_id=${brandId}` : '';
   const res = await fetch(
-    `${SEG_API}/meta/events/derived/${encodeURIComponent(ruleName)}`,
+    `${SEG_API}/meta/events/derived/${encodeURIComponent(ruleName)}${params}`,
     { headers: authHeader() }
   );
   if (!res.ok) throw new Error(`fetchDerivedRuleConfig failed: ${res.status}`);

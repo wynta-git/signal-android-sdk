@@ -153,7 +153,11 @@ export interface KpiSnapshot {
   active_subheads: number;
   active_configures: number;
   active_codes: number;
+  monthly_granted: number;
   monthly_released: number;
+  monthly_consumed: number;
+  monthly_pending: number;
+  monthly_forfeit: number;
   monthly_limit: number;
   monthly_pct: number;
 }

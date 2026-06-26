@@ -3,16 +3,16 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import type { AppDispatch, RootState } from '../../store';
 import { fetchReports, createReport } from '../../store/slices/reportsSlice';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import type { ReportFilters } from '../../services/reportsApi';
 import CustomReportBuilder  from './CustomReportBuilder';
 import CustomReportView     from './CustomReportView';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 type View = 'list' | 'create' | { type: 'report'; id: string };
 
 export default function ReportsPage() {
   const dispatch  = useDispatch<AppDispatch>();
+  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const reports   = useSelector((s: RootState) => s.reports.reports);
   const listStatus   = useSelector((s: RootState) => s.reports.status.list);
   const creating  = useSelector((s: RootState) => s.reports.status.creating === 'loading');
@@ -20,14 +20,14 @@ export default function ReportsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
-    dispatch(fetchReports(PROJECT_ID));
+    dispatch(fetchReports(projectId));
   }, [dispatch]);
 
   async function handleSave(name: string, metrics: string[], filters: ReportFilters) {
     setCreateError(null);
-    const result = await dispatch(createReport({ payload: { name, metrics, filters }, projectId: PROJECT_ID }));
+    const result = await dispatch(createReport({ payload: { name, metrics, filters }, projectId: projectId }));
     if (createReport.fulfilled.match(result)) {
-      await dispatch(fetchReports(PROJECT_ID));
+      await dispatch(fetchReports(projectId));
       setView('list');
     } else {
       setCreateError('Failed to create report. Please try again.');
@@ -63,12 +63,6 @@ export default function ReportsPage() {
           <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--crm-fg1)' }}>Custom Reports</div>
           <div style={{ fontSize: 12, color: 'var(--crm-fg3)', marginTop: 3 }}>Custom reports scoped to your account</div>
         </div>
-        <button
-          onClick={() => setView('create')}
-          style={{ padding: '8px 16px', borderRadius: 7, border: 'none', background: 'var(--crm-blue)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-        >
-          + Custom Report
-        </button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
@@ -79,13 +73,7 @@ export default function ReportsPage() {
         {listStatus === 'succeeded' && reports.length === 0 && (
           <div style={{ textAlign: 'center', padding: 60 }}>
             <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--crm-fg2)', marginBottom: 8 }}>No custom reports yet</div>
-            <div style={{ fontSize: 13, color: 'var(--crm-fg4)', marginBottom: 20 }}>Create a report to track the metrics that matter to you</div>
-            <button
-              onClick={() => setView('create')}
-              style={{ padding: '9px 20px', borderRadius: 7, border: 'none', background: 'var(--crm-blue)', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
-            >
-              + Create Custom Report
-            </button>
+            <div style={{ fontSize: 13, color: 'var(--crm-fg4)' }}>Create a report to track the metrics that matter to you</div>
           </div>
         )}
 

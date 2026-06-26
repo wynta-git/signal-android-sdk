@@ -2,8 +2,6 @@ import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import * as eventsApi from '../../services/eventsApi';
 import type { AsyncStatus } from 'wynta-react-common/types';
 
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
-
 // ── State ─────────────────────────────────────────────────────────────────────
 
 interface EventsState {
@@ -38,18 +36,18 @@ const initialState: EventsState = {
 
 export const fetchEvents = createAsyncThunk(
   'events/fetchAll',
-  (projectId?: string) => eventsApi.getEvents(projectId ?? PROJECT_ID),
+  (brandId?: number) => eventsApi.getEvents(brandId),
 );
 
 export const fetchTraits = createAsyncThunk(
   'events/fetchTraits',
-  () => eventsApi.getTraits(),
+  (brandId?: number) => eventsApi.getTraits(brandId),
 );
 
 export const fetchEventProperties = createAsyncThunk(
   'events/fetchProperties',
   ({ eventName, projectId }: { eventName: string; projectId?: string }) =>
-    eventsApi.getEventProperties(eventName, projectId ?? PROJECT_ID)
+    eventsApi.getEventProperties(eventName, projectId ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo')
       .then(props => ({ eventName, props })),
 );
 

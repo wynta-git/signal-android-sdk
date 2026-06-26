@@ -57,7 +57,7 @@ function toLabel(s: string): string {
 
 export const fetchSegments = createAsyncThunk(
   'segments/fetchAll',
-  () => segmentApi.fetchSegments()
+  (brandId?: number) => segmentApi.fetchSegments(brandId)
 );
 
 export const createSegment = createAsyncThunk(
@@ -72,6 +72,7 @@ export const createSegment = createAsyncThunk(
     created_by?: string | null;
     segmentType?: 'filter' | 'custom';
     csvFile?: File;
+    brandId?: number;
   }) => segmentApi.createSegment(payload)
 );
 
@@ -110,20 +111,14 @@ export const fetchSegmentMembers = createAsyncThunk(
 
 export const fetchMetaTraits = createAsyncThunk(
   'segments/fetchMetaTraits',
-  (projectId: string) => segmentApi.fetchMetaTraits(projectId),
-  {
-    condition: (_arg, { getState }) => {
-      const s = (getState() as { segments?: SegmentsState }).segments;
-      return !s || s.metaTraits.length === 0;
-    },
-  }
+  (brandId?: number) => segmentApi.fetchMetaTraits(brandId)
 );
 
 /** Fetches raw_events + derived_rules, combines into MetaEventItem[] */
 export const fetchMetaEvents = createAsyncThunk(
   'segments/fetchMetaEvents',
-  async (projectId: string): Promise<MetaEventItem[]> => {
-    const raw = await segmentApi.fetchMetaEvents(projectId);
+  async ({ projectId, brandId }: { projectId: string; brandId?: number }): Promise<MetaEventItem[]> => {
+    const raw = await segmentApi.fetchMetaEvents(projectId, brandId);
     // Normalise: handle both old string[] (legacy) and new { raw_events, derived_rules }
     if (Array.isArray(raw)) {
       return (raw as unknown as string[]).map(e => ({
@@ -138,12 +133,6 @@ export const fetchMetaEvents = createAsyncThunk(
       items.push({ id: r, label: toLabel(r), source: 'derived_rule' });
     }
     return items;
-  },
-  {
-    condition: (_arg, { getState }) => {
-      const s = (getState() as { segments?: SegmentsState }).segments;
-      return !s || s.metaEvents.length === 0;
-    },
   }
 );
 
@@ -160,23 +149,23 @@ export const fetchMetaOperators = createAsyncThunk(
 
 export const fetchMetaEventProperties = createAsyncThunk(
   'segments/fetchMetaEventProperties',
-  ({ projectId, eventName }: { projectId: string; eventName: string }) =>
-    segmentApi.fetchMetaEventProperties(projectId, eventName)
+  ({ projectId, eventName, brandId }: { projectId: string; eventName: string; brandId?: number }) =>
+    segmentApi.fetchMetaEventProperties(projectId, eventName, brandId)
       .then(props => ({ eventName, props }))
 );
 
 /** Fetches operators for a specific trait. Cached in metaTraitOperators. */
 export const fetchTraitOperators = createAsyncThunk(
   'segments/fetchTraitOperators',
-  (trait: string) =>
-    segmentApi.fetchTraitOperators(trait).then(data => ({ trait, data }))
+  ({ trait, brandId }: { trait: string; brandId?: number }) =>
+    segmentApi.fetchTraitOperators(trait, brandId).then(data => ({ trait, data }))
 );
 
 /** Fetches config (parameters) for a derived rule. Cached in metaDerivedRules. */
 export const fetchDerivedRuleConfig = createAsyncThunk(
   'segments/fetchDerivedRuleConfig',
-  (ruleName: string) =>
-    segmentApi.fetchDerivedRuleConfig(ruleName).then(data => ({ ruleName, data }))
+  ({ ruleName, brandId }: { ruleName: string; brandId?: number }) =>
+    segmentApi.fetchDerivedRuleConfig(ruleName, brandId).then(data => ({ ruleName, data }))
 );
 
 /** Fetches operators for one parameter of a derived rule. Cached in metaDerivedParamOps. */

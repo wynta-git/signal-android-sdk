@@ -4,8 +4,15 @@
 
 export interface WyntaBridge {
   token?: string;
-  user?:  unknown;
-  [key: string]: unknown;
+  user?: {
+    id: number;
+    email: string;
+    partner: string;
+    pack: string;
+  };
+  allowed?: string[];
+  is_admin?: boolean;
+  site_id?: number;
 }
 
 export type AsyncStatus = 'idle' | 'loading' | 'succeeded' | 'failed';

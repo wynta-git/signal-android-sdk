@@ -304,7 +304,7 @@ export default function ConfigureForm({
     dates?: string;
     bonus?: string;
   }>({});
-  const [step2Errors, setStep2Errors] = useState<{ cashback?: string }>({});
+  const [step2Errors, setStep2Errors] = useState<{ cashback?: string; trigger?: string }>({});
   const [step4Errors, setStep4Errors] = useState<{
     segment?: string;
     code?: string;
@@ -337,18 +337,18 @@ export default function ConfigureForm({
     start_date: startDate ? new Date(startDate).toISOString() : null,
     end_date: endDate ? new Date(endDate).toISOString() : null,
     priority,
-    wager_multiplier: chunksOn ? wagerMult : 0,
-    no_of_chunks: chunksOn ? chunks : 1,
+    wager_multiplier: chunksOn ? wagerMult : null,
+    no_of_chunks: chunksOn ? chunks : null,
     release_bucket: chunksOn && fullRelease ? "FULL" : null,
     chunk_expiry_days: chunksOn ? chunkExp : null,
-    wager_chip_type: wagerChip,
+    wager_chip_type: chunksOn ? wagerChip : null,
     credit_chip_type: creditChip,
     bonus_amount_fixed: mechanicsTab === "fixed" ? toNum(fixed) : null,
     bonus_amount_percent: mechanicsTab === "percent" ? toNum(pct) : null,
     bonus_amount_max: mechanicsTab === "percent" ? toNum(max) : null,
-    cashback_bonus_amount_fixed: cashbackOn && chunksOn ? toNum(cbFixed) : null,
-    cashback_bonus_amount_percent: cashbackOn && chunksOn ? toNum(cbPct) : null,
-    cashback_bonus_amount_max: cashbackOn && chunksOn ? toNum(cbMax) : null,
+    cashback_bonus_amount_fixed: cashbackOn ? toNum(cbFixed) : null,
+    cashback_bonus_amount_percent: cashbackOn ? toNum(cbPct) : null,
+    cashback_bonus_amount_max: cashbackOn ? toNum(cbMax) : null,
     bonus_expiry_days: bonusExp,
     active,
     _budget: [
@@ -671,87 +671,90 @@ export default function ConfigureForm({
             </div>
           </div>
 
-          <div className="section-divider" />
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: cashbackOn ? 12 : 0,
-            }}
-          >
-            <div className="section-divider-label" style={{ margin: 0 }}>
-              Cashback Bonus
-            </div>
-            <Toggle
-              on={cashbackOn}
-              onChange={(v) => {
-                setCashbackOn(v);
-                if (!v) {
-                  setCbFixed("");
-                  setCbPct("");
-                  setCbMax("");
-                }
-              }}
-              label={cashbackOn ? "Enabled" : "Disabled"}
-            />
-          </div>
+        </>
+      )}
 
-          {cashbackOn && (
-            <>
-              <div className="field-group" style={{ marginTop: 12 }}>
-                <div className="row-2">
-                  <div>
-                    <label>Cashback fixed (₹)</label>
-                    <input
-                      value={cbFixed}
-                      placeholder="e.g. 200"
-                      style={step2Errors.cashback && !cbFixed.trim() ? { borderColor: "var(--red, #e53e3e)" } : undefined}
-                      onChange={(e) => { setCbFixed(e.target.value); setStep2Errors({}); }}
-                    />
-                  </div>
-                  <div>
-                    <label>Cashback percent (%)</label>
-                    <div style={{ position: "relative" }}>
-                      <input
-                        value={cbPct}
-                        placeholder="e.g. 10"
-                        onChange={(e) => { setCbPct(e.target.value); setStep2Errors({}); }}
-                        style={{ paddingRight: 28, ...(step2Errors.cashback && !cbPct.trim() ? { borderColor: "var(--red, #e53e3e)" } : {}) }}
-                      />
-                      <span
-                        style={{
-                          position: "absolute",
-                          right: 10,
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          color: "var(--g400)",
-                          fontSize: 13,
-                        }}
-                      >
-                        %
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="helper">
-                  Use either fixed or percent. Leave the other empty.
-                </div>
-              </div>
-              <div className="field-group">
-                <label>Maximum cashback (₹)</label>
+      {/* Cashback Bonus — independent of chunks */}
+      <div className="section-divider" />
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: cashbackOn ? 12 : 0,
+        }}
+      >
+        <div className="section-divider-label" style={{ margin: 0 }}>
+          Cashback Bonus
+        </div>
+        <Toggle
+          on={cashbackOn}
+          onChange={(v) => {
+            setCashbackOn(v);
+            if (!v) {
+              setCbFixed("");
+              setCbPct("");
+              setCbMax("");
+            }
+            setStep2Errors((p) => ({ ...p, trigger: undefined }));
+          }}
+          label={cashbackOn ? "Enabled" : "Disabled"}
+        />
+      </div>
+
+      {cashbackOn && (
+        <>
+          <div className="field-group" style={{ marginTop: 12 }}>
+            <div className="row-2">
+              <div>
+                <label>Cashback fixed (₹)</label>
                 <input
-                  value={cbMax}
-                  placeholder="leave empty for ∞"
-                  onChange={(e) => setCbMax(e.target.value)}
+                  value={cbFixed}
+                  placeholder="e.g. 200"
+                  style={step2Errors.cashback && !cbFixed.trim() ? { borderColor: "var(--red, #e53e3e)" } : undefined}
+                  onChange={(e) => { setCbFixed(e.target.value); setStep2Errors((p) => ({ ...p, cashback: undefined })); }}
                 />
               </div>
-              {step2Errors.cashback && (
-                <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
-                  {step2Errors.cashback}
+              <div>
+                <label>Cashback percent (%)</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    value={cbPct}
+                    placeholder="e.g. 10"
+                    onChange={(e) => { setCbPct(e.target.value); setStep2Errors((p) => ({ ...p, cashback: undefined })); }}
+                    style={{ paddingRight: 28, ...(step2Errors.cashback && !cbPct.trim() ? { borderColor: "var(--red, #e53e3e)" } : {}) }}
+                  />
+                  <span
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "var(--g400)",
+                      fontSize: 13,
+                    }}
+                  >
+                    %
+                  </span>
                 </div>
-              )}
-            </>
+              </div>
+            </div>
+            <div className="helper">
+              Use either fixed or percent. Leave the other empty.
+            </div>
+          </div>
+          <div className="field-group">
+            <label>Maximum cashback (₹)</label>
+            <input
+              value={cbMax}
+              placeholder="leave empty for ∞"
+              onChange={(e) => setCbMax(e.target.value)}
+            />
+          </div>
+          {step2Errors.cashback && (
+            <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+              {step2Errors.cashback}
+            </div>
           )}
         </>
       )}
@@ -771,10 +774,15 @@ export default function ConfigureForm({
         </div>
         <Toggle
           on={triggerEnabled}
-          onChange={setTriggerEnabled}
+          onChange={(v) => { setTriggerEnabled(v); if (v) setStep2Errors((p) => ({ ...p, trigger: undefined })); }}
           label={triggerEnabled ? "Enabled" : "Skip"}
         />
       </div>
+      {step2Errors.trigger && (
+        <div style={{ color: "var(--red, #e53e3e)", fontSize: 11, marginTop: 4 }}>
+          {step2Errors.trigger}
+        </div>
+      )}
 
       {triggerEnabled && (
         <>
@@ -1228,12 +1236,15 @@ export default function ConfigureForm({
 
     if (step === 2) {
       const errors: typeof step2Errors = {};
-      if (cashbackOn && chunksOn) {
+      if (cashbackOn) {
         const hasCbFixed = cbFixed.trim() !== "" && Number(cbFixed) > 0;
         const hasCbPct = cbPct.trim() !== "" && Number(cbPct) > 0;
         if (!hasCbFixed && !hasCbPct) {
           errors.cashback = "Enter a cashback fixed amount or percentage (must be > 0).";
         }
+      }
+      if ((chunksOn || cashbackOn) && !triggerEnabled) {
+        errors.trigger = "Release Trigger is required when chunks or cashback is enabled.";
       }
       setStep2Errors(errors);
       if (Object.keys(errors).length > 0) return;

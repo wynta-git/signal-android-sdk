@@ -1,7 +1,10 @@
 import { getToken } from 'wynta-react-common/services/tokenRegistry';
 
 const BASE = process.env.NEXT_PUBLIC_CAMPAIGN_API_URL || "http://3.7.48.14:8004";
-const CAMPAIGN_ROOT = `${BASE}/api/v1/campaign/projects`;
+
+function campaignRoot(projectId: string): string {
+  return `${BASE}/api/v1/campaign/projects/${projectId}`;
+}
 
 const authHeader = () => ({
   "Content-Type": "application/json",
@@ -309,8 +312,10 @@ function mergePayload(from: Campaign, payload: Partial<CampaignPayload>): Campai
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
 
-export async function fetchCampaigns(projectId: string): Promise<Campaign[]> {
-  const res = await fetch(`${CAMPAIGN_ROOT}/${projectId}`, { headers: authHeader() });
+export async function fetchCampaigns(projectId: string, brandId?: number): Promise<Campaign[]> {
+  const root = campaignRoot(projectId);
+  const url = brandId ? `${root}?brand_id=${brandId}` : root;
+  const res = await fetch(url, { headers: authHeader() });
   if (!res.ok) throw new Error(`fetchCampaigns failed: ${res.status}`);
   const data = await res.json();
   const raw: RawCampaign[] = Array.isArray(data) ? data : (data.campaigns ?? data.results ?? []);
@@ -318,14 +323,15 @@ export async function fetchCampaigns(projectId: string): Promise<Campaign[]> {
 }
 
 export async function getCampaign(projectId: string, campaignId: string): Promise<Campaign> {
-  const res = await fetch(`${CAMPAIGN_ROOT}/${projectId}/${campaignId}`, { headers: authHeader() });
+  const res = await fetch(`${campaignRoot(projectId)}/${campaignId}`, { headers: authHeader() });
   if (!res.ok) throw new Error(`getCampaign failed: ${res.status}`);
   return toCampaign(await res.json());
 }
 
-export async function createCampaign(projectId: string, payload: CampaignPayload): Promise<Campaign> {
+export async function createCampaign(projectId: string, payload: CampaignPayload, brandId?: number): Promise<Campaign> {
   const body = toApiPayload(payload);
-  const res = await fetch(`${CAMPAIGN_ROOT}/${projectId}`, {
+  if (brandId) body.brand_id = String(brandId);
+  const res = await fetch(campaignRoot(projectId), {
     method: "POST",
     headers: authHeader(),
     body: JSON.stringify(body),
@@ -337,7 +343,7 @@ export async function createCampaign(projectId: string, payload: CampaignPayload
 
 export async function updateCampaign(projectId: string, campaignId: string, payload: Partial<CampaignPayload>): Promise<Campaign> {
   const body = toApiPayload(payload);
-  const res = await fetch(`${CAMPAIGN_ROOT}/${projectId}/${campaignId}`, {
+  const res = await fetch(`${campaignRoot(projectId)}/${campaignId}`, {
     method: "PATCH",
     headers: authHeader(),
     body: JSON.stringify(body),
@@ -348,7 +354,7 @@ export async function updateCampaign(projectId: string, campaignId: string, payl
 }
 
 export async function deleteCampaign(projectId: string, campaignId: string): Promise<void> {
-  const res = await fetch(`${CAMPAIGN_ROOT}/${projectId}/${campaignId}`, {
+  const res = await fetch(`${campaignRoot(projectId)}/${campaignId}`, {
     method: "DELETE",
     headers: authHeader(),
   });
@@ -459,7 +465,7 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 async function campaignAction(projectId: string, campaignId: string, action: string): Promise<Campaign> {
-  const res = await fetch(`${CAMPAIGN_ROOT}/${projectId}/${campaignId}/${action}`, {
+  const res = await fetch(`${campaignRoot(projectId)}/${campaignId}/${action}`, {
     method: "POST",
     headers: authHeader(),
   });
@@ -467,7 +473,7 @@ async function campaignAction(projectId: string, campaignId: string, action: str
   return toCampaign(await res.json());
 }
 
-export const activateCampaign = (pid: string, cid: string) => campaignAction(pid, cid, "activate");
-export const pauseCampaign    = (pid: string, cid: string) => campaignAction(pid, cid, "pause");
-export const resumeCampaign   = (pid: string, cid: string) => campaignAction(pid, cid, "resume");
-export const cancelCampaign   = (pid: string, cid: string) => campaignAction(pid, cid, "cancel");
+export const activateCampaign = (projectId: string, cid: string) => campaignAction(projectId, cid, "activate");
+export const pauseCampaign    = (projectId: string, cid: string) => campaignAction(projectId, cid, "pause");
+export const resumeCampaign   = (projectId: string, cid: string) => campaignAction(projectId, cid, "resume");
+export const cancelCampaign   = (projectId: string, cid: string) => campaignAction(projectId, cid, "cancel");

@@ -58,9 +58,9 @@ CREATE TABLE `bonus_configure` (
     `applicability_frequency` VARCHAR(20)   NOT NULL DEFAULT 'EVERYTIME',
     -- EVERYTIME | ONCE | MONTHLY | WEEKLY
     -- ── Bonus release config ─────────────────────────────────────────────────
-    `wager_multiplier`       DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
+    `wager_multiplier`       DECIMAL(10,2)  DEFAULT NULL,
     -- 0 = no wagering required; >0 = chunk wager multiplier
-    `no_of_chunks`           INT            NOT NULL DEFAULT 1,
+    `no_of_chunks`           INT            DEFAULT NULL 1,
     -- number of equal chunks the bonus is split into
     `release_bucket`         VARCHAR(50)    DEFAULT NULL,
     -- trigger bucket that releases the bonus (e.g. DEPOSIT_INSTANT)

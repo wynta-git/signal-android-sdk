@@ -161,7 +161,10 @@ class ClickHouseWriter:
         col_map = await self._schema_mgr.ensure_columns(project_id, all_raw_keys)
 
         # Stable, sorted column order so all rows in this insert call align.
-        prop_cols = sorted(set(col_map.values()))
+        # Exclude any property column that collides with a base column (e.g. a
+        # property key that sanitizes to "user_id" would duplicate the base column).
+        _base_col_set = set(_BASE_COLUMNS)
+        prop_cols = sorted(c for c in set(col_map.values()) if c not in _base_col_set)
         column_names = _BASE_COLUMNS + prop_cols
 
         tbl = self._schema_mgr.table_name(project_id)

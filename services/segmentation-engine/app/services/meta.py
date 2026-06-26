@@ -74,12 +74,14 @@ class MetaService:
         self._refreshing: set[str] = set()
 
     async def get_events(
-        self, project_id: str, ch: AsyncClient, redis: Redis, db: AsyncIOMotorDatabase
+        self, project_id: str, ch: AsyncClient, redis: Redis, db: AsyncIOMotorDatabase,
+        brand_id: str | None = None,
     ) -> dict:
-        raw_key = f"meta:{project_id}:events"
+        brand_key = brand_id or "all"
+        raw_key = f"meta:{project_id}:{brand_key}:events"
         derived_key = f"meta:{project_id}:derived_rule_ids"
         raw_events, derived_rules = await asyncio.gather(
-            self._cached(raw_key, redis, lambda: self._fetch_events(project_id, ch)),
+            self._cached(raw_key, redis, lambda: self._fetch_events(project_id, ch, brand_id)),
             self._cached(derived_key, redis, lambda: self._fetch_derived_rule_ids(project_id, db)),
         )
         return {"raw_events": raw_events, "derived_rules": derived_rules}
@@ -98,26 +100,32 @@ class MetaService:
         }
 
     async def get_event_properties(
-        self, project_id: str, event_name: str, ch: AsyncClient, redis: Redis, db: AsyncIOMotorDatabase
+        self, project_id: str, event_name: str, ch: AsyncClient, redis: Redis, db: AsyncIOMotorDatabase,
+        brand_id: str | None = None,
     ) -> list[str]:
-        key = f"meta:{project_id}:event_props:{event_name}"
+        brand_key = brand_id or "all"
+        key = f"meta:{project_id}:{brand_key}:event_props:{event_name}"
         return await self._cached(
-            key, redis, lambda: self._fetch_event_properties(project_id, event_name, ch, db)
+            key, redis, lambda: self._fetch_event_properties(project_id, event_name, ch, db, brand_id)
         )
 
     async def get_traits(
-        self, project_id: str, db: AsyncIOMotorDatabase, redis: Redis
+        self, project_id: str, db: AsyncIOMotorDatabase, redis: Redis,
+        brand_id: str | None = None,
     ) -> list[str]:
-        key = f"meta:{project_id}:traits"
-        return await self._cached(key, redis, lambda: self._fetch_traits(project_id, db))
+        brand_key = brand_id or "all"
+        key = f"meta:{project_id}:{brand_key}:traits"
+        return await self._cached(key, redis, lambda: self._fetch_traits(project_id, db, brand_id))
 
     def get_operators(self) -> dict[str, Any]:
         return _OPERATORS
 
     async def get_trait_operators(
-        self, project_id: str, trait_name: str, db: AsyncIOMotorDatabase, redis: Redis
+        self, project_id: str, trait_name: str, db: AsyncIOMotorDatabase, redis: Redis,
+        brand_id: str | None = None,
     ) -> dict[str, Any]:
-        key = f"meta:{project_id}:trait_operators:{trait_name}"
+        brand_key = brand_id or "all"
+        key = f"meta:{project_id}:{brand_key}:trait_operators:{trait_name}"
         raw = await redis.get(key)
         if raw is not None:
             blob = json.loads(raw)
@@ -128,7 +136,7 @@ class MetaService:
         if schema:
             trait_type = schema["type"]
         else:
-            trait_type = await self._fetch_trait_type_from_users(project_id, trait_name, db)
+            trait_type = await self._fetch_trait_type_from_users(project_id, trait_name, db, brand_id)
 
         data = {"type": trait_type, "operators": _OPERATORS_BY_TYPE[trait_type]}
         await redis.set(
@@ -146,18 +154,20 @@ class MetaService:
         ch: AsyncClient,
         redis: Redis,
         db: AsyncIOMotorDatabase,
+        brand_id: str | None = None,
     ) -> dict[str, Any]:
-        key = f"meta:{project_id}:prop_operators:{event_name}:{prop_name}"
+        brand_key = brand_id or "all"
+        key = f"meta:{project_id}:{brand_key}:prop_operators:{event_name}:{prop_name}"
         raw = await redis.get(key)
         if raw is not None:
             blob = json.loads(raw)
             if time.time() - blob["ts"] > _PROP_TYPE_SOFT_TTL and key not in self._refreshing:
                 asyncio.create_task(
-                    self._refresh_prop_type(key, redis, project_id, event_name, prop_name, ch, db)
+                    self._refresh_prop_type(key, redis, project_id, event_name, prop_name, ch, db, brand_id)
                 )
             return blob["data"]
 
-        prop_type = await self._fetch_property_type(project_id, event_name, prop_name, ch, db)
+        prop_type = await self._fetch_property_type(project_id, event_name, prop_name, ch, db, brand_id)
         data = {"type": prop_type, "operators": _OPERATORS_BY_TYPE[prop_type]}
         await redis.set(
             key,
@@ -196,12 +206,20 @@ class MetaService:
 
     # ── fetchers ──────────────────────────────────────────────────────────────
 
-    async def _fetch_events(self, project_id: str, ch: AsyncClient) -> list[str]:
+    async def _fetch_events(self, project_id: str, ch: AsyncClient, brand_id: str | None = None) -> list[str]:
         table = f"pam.events_{project_id}"
         try:
-            result = await ch.query(
-                f"SELECT DISTINCT event_name FROM {table} ORDER BY event_name LIMIT 1000"
-            )
+            if brand_id:
+                result = await ch.query(
+                    f"SELECT DISTINCT event_name FROM {table}"
+                    " WHERE brand_id = {brand_id:String}"
+                    " ORDER BY event_name LIMIT 1000",
+                    parameters={"brand_id": brand_id},
+                )
+            else:
+                result = await ch.query(
+                    f"SELECT DISTINCT event_name FROM {table} ORDER BY event_name LIMIT 1000"
+                )
             return [row[0] for row in result.result_rows]
         except Exception as exc:
             log.warning("meta.fetch_events_failed", project_id=project_id, error=str(exc))
@@ -214,7 +232,8 @@ class MetaService:
     })
 
     async def _fetch_event_properties(
-        self, project_id: str, event_name: str, ch: AsyncClient, db: AsyncIOMotorDatabase
+        self, project_id: str, event_name: str, ch: AsyncClient, db: AsyncIOMotorDatabase,
+        brand_id: str | None = None,
     ) -> list[str]:
         table = f"events_{project_id}"
         ch_props: list[str] = []
@@ -235,10 +254,14 @@ class MetaService:
                 checks = ", ".join(
                     f"countIf(`{col}` IS NOT NULL) > 0" for col in dynamic_cols
                 )
+                brand_clause = " AND brand_id = {brand_id:String}" if brand_id else ""
+                params: dict = {"event_name": event_name}
+                if brand_id:
+                    params["brand_id"] = brand_id
                 check_result = await ch.query(
                     f"SELECT {checks} FROM pam.{table} "
-                    f"WHERE event_name = {{event_name:String}}",
-                    parameters={"event_name": event_name},
+                    f"WHERE event_name = {{event_name:String}}{brand_clause}",
+                    parameters=params,
                 )
                 if check_result.result_rows:
                     row = check_result.result_rows[0]
@@ -263,10 +286,11 @@ class MetaService:
         prop_name: str,
         ch: AsyncClient,
         db: AsyncIOMotorDatabase,
+        brand_id: str | None = None,
     ) -> None:
         self._refreshing.add(key)
         try:
-            prop_type = await self._fetch_property_type(project_id, event_name, prop_name, ch, db)
+            prop_type = await self._fetch_property_type(project_id, event_name, prop_name, ch, db, brand_id)
             data = {"type": prop_type, "operators": _OPERATORS_BY_TYPE[prop_type]}
             await redis.set(
                 key,
@@ -285,17 +309,22 @@ class MetaService:
         prop_name: str,
         ch: AsyncClient,
         db: AsyncIOMotorDatabase,
+        brand_id: str | None = None,
     ) -> str:
         aliases = await get_field_aliases(db, project_id, event_name)
         col = aliases.get(prop_name, prop_name)
 
         table = f"pam.events_{project_id}"
         try:
+            brand_clause = " AND brand_id = {brand_id:String}" if brand_id else ""
+            params: dict = {"event_name": event_name}
+            if brand_id:
+                params["brand_id"] = brand_id
             result = await ch.query(
                 f"SELECT `{col}` FROM {table} "
-                f"WHERE event_name = {{event_name:String}} AND `{col}` IS NOT NULL "
-                f"LIMIT 200",
-                parameters={"event_name": event_name},
+                f"WHERE event_name = {{event_name:String}} AND `{col}` IS NOT NULL"
+                f"{brand_clause} LIMIT 200",
+                parameters=params,
             )
             values = [row[0] for row in result.result_rows]
         except Exception as exc:
@@ -311,12 +340,13 @@ class MetaService:
         return _infer_type(values)
 
     async def _fetch_trait_type_from_users(
-        self, project_id: str, trait_name: str, db: AsyncIOMotorDatabase
+        self, project_id: str, trait_name: str, db: AsyncIOMotorDatabase,
+        brand_id: str | None = None,
     ) -> str:
-        cursor = db["users"].find(
-            {"project_id": project_id, f"traits.{trait_name}": {"$exists": True}},
-            {f"traits.{trait_name}": 1, "_id": 0},
-        ).limit(200)
+        query: dict = {"project_id": project_id, f"traits.{trait_name}": {"$exists": True}}
+        if brand_id is not None:
+            query["brand_id"] = brand_id
+        cursor = db["users"].find(query, {f"traits.{trait_name}": 1, "_id": 0}).limit(200)
         docs = await cursor.to_list(length=None)
         values = [d["traits"][trait_name] for d in docs if trait_name in d.get("traits", {})]
         return _infer_type(values)
@@ -328,9 +358,14 @@ class MetaService:
         rules = await storage.list_derived_rules(db, project_id)
         return [r["rule_id"] for r in rules]
 
-    async def _fetch_traits(self, project_id: str, db: AsyncIOMotorDatabase) -> list[str]:
+    async def _fetch_traits(
+        self, project_id: str, db: AsyncIOMotorDatabase, brand_id: str | None = None
+    ) -> list[str]:
+        match: dict = {"project_id": project_id}
+        if brand_id is not None:
+            match["brand_id"] = brand_id
         pipeline = [
-            {"$match": {"project_id": project_id}},
+            {"$match": match},
             {"$project": {"keys": {"$objectToArray": "$traits"}}},
             {"$unwind": "$keys"},
             {"$group": {"_id": "$keys.k"}},

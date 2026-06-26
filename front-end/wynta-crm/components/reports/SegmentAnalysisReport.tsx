@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useSelector } from 'react-redux';
 import { getSegmentAnalysis } from '../../services/reportsApi';
+import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import type { SegmentAnalysisData, SegmentRow } from '../../services/reportsApi';
-
-const PROJECT_ID = process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ function exportCsv(rows: SegmentRow[]) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-interface Props { onOpenBuilder: () => void; }
+interface Props { onOpenBuilder: () => void; brandId?: number; }
 
 const WINDOW_OPTIONS = [
   { label: 'Last 7 days',  value: 7  },
@@ -81,7 +81,8 @@ const WINDOW_OPTIONS = [
 
 type SortKey = 'name' | 'users' | 'growth_7d' | 'open_rate' | 'conversion';
 
-export default function SegmentAnalysisReport({ onOpenBuilder }: Props) {
+export default function SegmentAnalysisReport({ onOpenBuilder, brandId }: Props) {
+  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const [windowDays,  setWindowDays]  = useState(7);
   const [segmentId,   setSegmentId]   = useState<string | null>(null);
   const [data,        setData]        = useState<SegmentAnalysisData | null>(null);
@@ -92,14 +93,14 @@ export default function SegmentAnalysisReport({ onOpenBuilder }: Props) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getSegmentAnalysis(PROJECT_ID, { windowDays, segmentId });
+      const result = await getSegmentAnalysis(projectId, { windowDays, segmentId, brandId });
       setData(result);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [windowDays, segmentId]);
+  }, [windowDays, segmentId, brandId]);
 
   useEffect(() => { load(); }, [load]);
 
