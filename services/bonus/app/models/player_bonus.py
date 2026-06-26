@@ -134,9 +134,7 @@ class ChunkConsumeEvent(BaseModel):
     id: int
     chunk_id: int
     consumed_ref: str
-    wager_ref: str
-    amount: Decimal
-    wager_amount: Decimal
+    wager_ref: str | None
     consumed_amount: Decimal
     created_at: datetime
 

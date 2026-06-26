@@ -4,14 +4,13 @@
 --
 -- DESCRIPTION
 -- ───────────
--- Records each bonus consumption event — the deduction of released bonus
--- balance as a player's qualifying wager is settled. One row per wager per
--- chunk; the sum of amount for a given chunk_id equals the total bonus
--- consumed against that chunk.
+-- Event-level record of each bonus consumption request. One row per API call
+-- to consume_bonus(). Per-chunk breakdown is stored in bonus_chunk_consumed
+-- (child table; one row per chunk drawn down by this event).
 --
 -- COLUMN GROUPS
 -- ─────────────
--- Identity    : id, consumed_ref, chunk_id, bonus_grant_id, wager_ref
+-- Identity    : id, wager_ref
 -- Game context: chip_type, session_key, client_id, product, game_type,
 --               game_variant, game_name, game_action
 -- Txn IDs     : primary_transaction_id, secondary_transaction_id,
@@ -21,28 +20,22 @@
 --
 -- USAGE
 -- ─────
--- • Appended by consume_bonus() when a wager draws down released bonus balance.
--- • consumed_ref is the upstream consumption identifier; unique per chunk
---   to prevent double-counting on event replay.
--- • wager_ref links back to the originating wager (optional — platform may
---   not always supply a wager transaction reference).
+-- • Inserted once per consume_bonus() call, before child bonus_chunk_consumed
+--   rows are written.
+-- • consumed_amount is the pre-aggregated total across all child rows.
+-- • Idempotency is enforced at the child level via the UNIQUE KEY on
+--   (chunk_id, consumed_ref) in bonus_chunk_consumed.
+-- • wager_ref links back to the originating wager (optional).
 -- • Never updated after insert.
 --
 -- RELATIONSHIPS
 -- ─────────────
--- bonus_chunk.id  ← bonus_consumed.chunk_id
--- bonus_grant.id  ← bonus_consumed.bonus_grant_id
+-- bonus_chunk_consumed.bonus_consumed_id → bonus_consumed.id
 --
 -- =============================================================================
 
 CREATE TABLE `bonus_consumed` (
     `id`                        BIGINT        NOT NULL AUTO_INCREMENT,
-    `consumed_ref`              VARCHAR(100)  NOT NULL,
-    -- upstream consumption identifier (consume_txn_id); unique per chunk
-    `chunk_id`                  BIGINT        NOT NULL,
-    -- references bonus_chunk.id
-    `bonus_grant_id`            BIGINT        NOT NULL,
-    -- references bonus_grant.id
     `wager_ref`                 VARCHAR(100)  DEFAULT NULL,
     -- originating wager transaction reference (wager_tnx_id); optional
 
@@ -80,9 +73,6 @@ CREATE TABLE `bonus_consumed` (
     `created_at`                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_consumed_ref`              (`chunk_id`, `consumed_ref`),
-    KEY `idx_bonus_consumed_chunk_id`               (`chunk_id`),
-    KEY `idx_bonus_consumed_bonus_grant_id`         (`bonus_grant_id`),
     KEY `idx_bonus_consumed_wager_ref`              (`wager_ref`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -90,14 +80,14 @@ CREATE TABLE `bonus_consumed` (
 -- Sample data
 -- -----------------------------------------------------------------------------
 INSERT INTO `bonus_consumed`
-    (`id`, `consumed_ref`, `chunk_id`, `bonus_grant_id`, `wager_ref`,
+    (`id`, `wager_ref`,
      `chip_type`, `session_key`, `client_id`, `product`,
      `game_type`, `game_variant`, `game_name`, `game_action`,
      `primary_transaction_id`, `secondary_transaction_id`,
      `tertiary_transaction_id`, `base_request_id`,
      `amount`, `wager_amount`, `consumed_amount`)
 VALUES
-    (1, 'TXN20260510001', 1, 1, 'WAGER_REF_001',
+    (1, 'WAGER_REF_001',
      'CASH', 'sess_rummy_abc123', 'site1-backend-v0', 'RUMMY',
      'TOURNEY', 'holdem', 'Friday Holdem', 'REGISTER_TOURNY',
      1001, 1002, 1003, 1000,
