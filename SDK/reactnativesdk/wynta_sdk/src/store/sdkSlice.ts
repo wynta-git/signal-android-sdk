@@ -1,8 +1,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+// TODO: replace PROD_BASE_URL with the real production URL when available
+const PROD_BASE_URL = 'https://qa-app.fozilpartners.com/api/v1';
+const QA_BASE_URL   = 'https://qa-app.fozilpartners.com/api/v1';
+
+const QA_PREFIX = 'QA_';
+
 export interface SDKState {
   clientId: string | null;
   clientSecret: string | null;
+  baseUrl: string;
+  environment: 'qa' | 'production';
   userId: string | null;
   fcmToken: string | null;
   initialized: boolean;
@@ -12,6 +20,8 @@ export interface SDKState {
 const initialState: SDKState = {
   clientId: null,
   clientSecret: null,
+  baseUrl: PROD_BASE_URL,
+  environment: 'production',
   userId: null,
   fcmToken: null,
   initialized: false,
@@ -26,8 +36,14 @@ const sdkSlice = createSlice({
       state,
       action: PayloadAction<{ clientId: string; clientSecret: string }>,
     ) {
-      state.clientId = action.payload.clientId;
+      const rawClientId = action.payload.clientId;
+      const isQA = rawClientId.startsWith(QA_PREFIX);
+
+      // Strip the QA_ prefix before storing — never sent in API headers
+      state.clientId = isQA ? rawClientId.slice(QA_PREFIX.length) : rawClientId;
       state.clientSecret = action.payload.clientSecret;
+      state.baseUrl = isQA ? QA_BASE_URL : PROD_BASE_URL;
+      state.environment = isQA ? 'qa' : 'production';
       state.userId = null;
       state.initialized = true;
       state.appOpenTracked = false;

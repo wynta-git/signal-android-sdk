@@ -1,7 +1,7 @@
 {
-  "name": "@wynta/react-native-sdk",
-  "version": "1.0.2",
-  "description": "Official React Native SDK for Wynta",
+  "name": "signal-react-native-sdk",
+  "version": "1.0.1",
+  "description": "Official React Native SDK for Signal",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
@@ -9,7 +9,7 @@
     "dist",
     "android",
     "ios",
-    "WyntaSDK.podspec"
+    "SignalSDK.podspec"
   ],
   "scripts": {
     "build": "tsc --project tsconfig.json",
@@ -21,12 +21,11 @@
     "release": "./publish.sh"
   },
   "keywords": [
-    "wynta",
+    "signal",
     "react-native",
-    "sdk",
-    "affiliate"
+    "sdk"
   ],
-  "author": "Wynta",
+  "author": "Signal",
   "license": "MIT",
   "peerDependencies": {
     "react": ">=17.0.0",

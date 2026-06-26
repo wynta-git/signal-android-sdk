@@ -16,7 +16,7 @@ REGISTRY="--registry=https://registry.npmjs.org/"
 
 # Print header
 echo -e "${CYAN}==================================================${NC}"
-echo -e "${CYAN}        Wynta SDK Release & Publish Script        ${NC}"
+echo -e "${CYAN}       Signal SDK Release & Publish Script        ${NC}"
 echo -e "${CYAN}==================================================${NC}"
 
 # Navigate to the script's directory (ensures paths are relative to this directory)
@@ -27,17 +27,15 @@ cd "$(dirname "$0")"
 # -------------------------------------------------------------
 echo -e "\n${BLUE}[1/5] Checking NPM Authentication...${NC}"
 if ! npm whoami $REGISTRY > /dev/null 2>&1; then
-    echo -e "${YELLOW}Warning: You do not appear to be logged in to npm.${NC}"
-    echo -e "${YELLOW}Please run 'npm login' first if you expect npm publish to succeed.${NC}"
-    read -p "Do you want to proceed with the publish process anyway? (y/N): " -r CONTINUE_LATER
-    if [[ ! $CONTINUE_LATER =~ ^[Yy]$ ]]; then
-        echo -e "${RED}Publication aborted.${NC}"
+    echo -e "${YELLOW}Not logged in to npm. Starting login to official registry...${NC}"
+    npm login $REGISTRY
+    if ! npm whoami $REGISTRY > /dev/null 2>&1; then
+        echo -e "${RED}Login failed. Publication aborted.${NC}"
         exit 1
     fi
-else
-    NPM_USER=$(npm whoami $REGISTRY)
-    echo -e "${GREEN}✓ Logged in to NPM as user: ${NPM_USER}${NC}"
 fi
+NPM_USER=$(npm whoami $REGISTRY)
+echo -e "${GREEN}✓ Logged in to NPM as user: ${NPM_USER}${NC}"
 
 # -------------------------------------------------------------
 # 2. Check Package Information & Version

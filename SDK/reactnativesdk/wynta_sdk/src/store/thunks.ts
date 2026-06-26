@@ -12,7 +12,7 @@ export const sendEventThunk = createAsyncThunk<
   { eventName: string; properties?: Record<string, unknown> },
   { state: RootState; rejectValue: string }
 >('wynta/sendEvent', async ({ eventName, properties = {} }, { getState, rejectWithValue }) => {
-  const { clientId, clientSecret, userId } = getState().sdk;
+  const { clientId, clientSecret, baseUrl, userId } = getState().sdk;
 
   try {
     const event = buildEvent(eventName, properties, userId!);
@@ -22,7 +22,7 @@ export const sendEventThunk = createAsyncThunk<
       'X-Client-Id': clientId,
       'X-Client-Secret': clientSecret,
     });
-    const apiResponse = await trackEvent(event, clientId!, clientSecret!);
+    const apiResponse = await trackEvent(event, clientId!, clientSecret!, baseUrl);
     logger.log('Event response:', apiResponse);
     return { success: true, accepted: apiResponse.accepted, rejected: apiResponse.rejected };
   } catch (err: unknown) {
@@ -75,7 +75,7 @@ export const setIdentityThunk = createAsyncThunk<
   logger.log(`setIdentity → user: ${userId}`, identifyPayload);
 
   try {
-    await identifyPlayer(identifyPayload, current.clientId!, current.clientSecret!);
+    await identifyPlayer(identifyPayload, current.clientId!, current.clientSecret!, current.baseUrl);
     logger.log('setIdentity response: success');
 
     // Auto-track sdk_init + session_started + app_opened on the first setIdentity call after each initSDK
@@ -83,13 +83,14 @@ export const setIdentityThunk = createAsyncThunk<
       dispatch(sdkActions.setAppOpenTracked());
       const clientId = current.clientId!;
       const clientSecret = current.clientSecret!;
-      trackEvent(buildEvent('sdk_init', {}, userId), clientId, clientSecret).catch((err) => {
+      const baseUrl = current.baseUrl;
+      trackEvent(buildEvent('sdk_init', {}, userId), clientId, clientSecret, baseUrl).catch((err) => {
         logger.log(`[WyntaSDK] sdk_init auto-track failed: ${err}`);
       });
-      trackEvent(buildEvent('session_started', {}, userId), clientId, clientSecret).catch((err) => {
+      trackEvent(buildEvent('session_started', {}, userId), clientId, clientSecret, baseUrl).catch((err) => {
         logger.log(`[WyntaSDK] session_started auto-track failed: ${err}`);
       });
-      trackEvent(buildEvent('app_opened', {}, userId), clientId, clientSecret).catch((err) => {
+      trackEvent(buildEvent('app_opened', {}, userId), clientId, clientSecret, baseUrl).catch((err) => {
         logger.log(`[WyntaSDK] app_opened auto-track failed: ${err}`);
       });
     }

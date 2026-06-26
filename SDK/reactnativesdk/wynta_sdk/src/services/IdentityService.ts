@@ -1,13 +1,15 @@
 import { IdentifyRequest, IdentifyResponse } from '../types';
+import { fireApiLog } from '../utils/apiLogger';
 
-const IDENTIFY_URL = 'https://qa-app.fozilpartners.com/api/v1/events/identify';
 const TIMEOUT_MS = 10_000;
 
 export async function identifyPlayer(
   payload: IdentifyRequest,
   clientId: string,
   clientSecret: string,
+  baseUrl: string,
 ): Promise<IdentifyResponse> {
+  const IDENTIFY_URL = `${baseUrl}/events/identify`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -41,6 +43,15 @@ export async function identifyPlayer(
       'Status : ' + response.status + ' ' + response.statusText + '\n' +
       'Body   : ' + responseText
     );
+
+    fireApiLog({
+      url: IDENTIFY_URL,
+      method: 'POST',
+      requestHeaders: headers,
+      requestBody,
+      responseStatus: response.status,
+      responseBody: responseText,
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText} — ${responseText}`);

@@ -151,7 +151,7 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
     fun showNotification(title: String, body: String, data: ReadableMap) {
         val context = reactApplicationContext
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "default_push_channel"
+        val channelId = "wynta_default"
         val packageName = context.packageName
 
         val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
@@ -196,9 +196,10 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     channelId,
-                    "App Notifications",
+                    "Wynta Notifications",
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
+                    description = "Push notifications from Wynta"
                     enableLights(true)
                     enableVibration(true)
                 }

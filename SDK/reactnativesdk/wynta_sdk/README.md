@@ -1,253 +1,151 @@
-# Wynta React Native SDK
+# Signal React Native SDK
 
-Official React Native SDK for Wynta.
+Official React Native SDK for Signal — event tracking, user identity, and push notification management.
 
 ## Installation
 
 ```bash
-npm install wynta-react-native-sdk
+npm install signal-react-native-sdk
 ```
+
+**iOS — link native dependencies:**
+
+```bash
+cd ios && pod install && cd ..
+```
+
+---
 
 ## Quick Start
 
+### 1. Initialize (App.tsx)
+
 ```typescript
-import WyntaSDK from 'wynta-react-native-sdk';
+import SignalSDK from 'signal-react-native-sdk';
 
-// Initialize once at app startup (e.g. in App.tsx)
-WyntaSDK.init({ debug: true });
+await SignalSDK.initSDK({
+  clientId: 'YOUR_CLIENT_ID',
+  clientSecret: 'YOUR_CLIENT_SECRET',
+});
 
-// Verify integration
-const result = WyntaSDK.test();
-console.log(result);
-// { success: true, message: 'Wynta SDK initialized successfully' }
+// Set identity right after init
+await SignalSDK.setIdentity({ user_id: 'anon-' + generateUUID() });
 ```
 
-## Named imports
+### 2. Identify user after login
 
 ```typescript
-import { test, init, getVersion, sendEvent, sendFCMToken, setIdentity } from 'wynta-react-native-sdk';
-
-test();         // { success: true, message: '...' }
-getVersion();   // '0.1.0'
+await SignalSDK.setIdentity({
+  user_id: 'ply_776192',
+  traits: {
+    email: 'player@example.com',
+    first_name: 'Alex',
+    country: 'MT',
+    currency: 'EUR',
+    kyc_status: 'pending',
+  },
+});
 ```
 
-## Type imports
+### 3. Track events
 
 ```typescript
-import type {
-  SDKConfig,
-  SDKTestResult,
-  EventPayload,
-  EventResult,
-  FCMTokenPayload,
-  FCMTokenResult,
-  IdentityData,
-  IdentityResult,
-  IdentityValidationError,
-} from 'wynta-react-native-sdk';
+await SignalSDK.sendEvent('deposit_success', {
+  amount: 100,
+  currency: 'EUR',
+  transaction_id: 'txn_abc123',
+});
+
+await SignalSDK.sendEvent('game_started', {
+  game_id: 'slots_001',
+  game_name: 'Lucky Spin',
+});
+```
+
+### 4. Register FCM token
+
+```typescript
+import messaging from '@react-native-firebase/messaging';
+
+const fcmToken = await messaging().getToken();
+await SignalSDK.setIdentity({ fcm_token: fcmToken });
+// Token refresh is handled automatically by the SDK
+```
+
+### 5. Background push (index.js)
+
+```javascript
+import messaging from '@react-native-firebase/messaging';
+import SignalSDK from 'signal-react-native-sdk';
+
+messaging().setBackgroundMessageHandler(SignalSDK.handleBackgroundMessage);
+```
+
+### 6. Logout
+
+```typescript
+SignalSDK.clearIdentity();
+await SignalSDK.setIdentity({ user_id: 'anon-' + generateUUID() });
 ```
 
 ---
 
 ## API
 
-### `WyntaSDK.init(config?)`
+| Method | Description |
+|--------|-------------|
+| `initSDK(config)` | Initialize the SDK. Call once at app startup. |
+| `setIdentity(payload)` | Set or update user identity and traits. |
+| `clearIdentity()` | Clear the current user identity on logout. |
+| `sendEvent(name, properties?)` | Track a player event. |
+| `handleBackgroundMessage` | Pass to Firebase `setBackgroundMessageHandler` for killed/background push. |
 
-Initialize the SDK. Call once at app startup before using any other method.
+### `initSDK(config)`
 
-| Option    | Type    | Description                  |
-|-----------|---------|------------------------------|
-| `apiKey`  | string  | Your Wynta API key           |
-| `baseUrl` | string  | Custom base URL override     |
-| `debug`   | boolean | Enable verbose debug logging |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `clientId` | string | Yes | Your Signal client ID. Prefix with `QA_` to route to QA environment automatically. |
+| `clientSecret` | string | Yes | Your Signal client secret. |
+| `onApiLog` | function | No | Callback fired after every HTTP call — useful for debugging. |
 
----
+### `setIdentity(payload)`
 
-### `WyntaSDK.test()`
+| Field | Type | Description |
+|-------|------|-------------|
+| `user_id` | string | Player ID or anonymous UUID. |
+| `fcm_token` | string | FCM push token — stored and synced automatically. |
+| `traits` | object | Player attributes (email, country, kyc_status, vip_level, etc.). |
+| `unset_traits` | string[] | Trait keys to remove from the player profile. |
 
-Returns `{ success: true, message: string }`. Use to verify the SDK is installed and importable.
+### `sendEvent(name, properties?)`
 
----
-
-### `WyntaSDK.sendEvent(payload)`
-
-Simulate sending an analytics event to the Wynta backend.
-
-**Payload:**
-
-| Field         | Type                        | Required | Description                        |
-|---------------|-----------------------------|----------|------------------------------------|
-| `eventName`   | string                      | Yes      | Name of the event                  |
-| `screenName`  | string                      | No       | Screen where the event occurred    |
-| `metadata`    | Record\<string, unknown\>   | No       | Additional key-value context       |
-
-**Example:**
-
-```typescript
-const result = WyntaSDK.sendEvent({
-  eventName: 'button_clicked',
-  screenName: 'Home',
-  metadata: { source: 'demo' },
-});
-// { success: true, message: 'Event sent successfully (mock)', payload: {...} }
-```
+`properties` is a free-form `Record<string, unknown>`. Reserved keys (`user_id`, `session_id`, etc.) are automatically stripped — pass them freely without side effects.
 
 ---
 
-### `WyntaSDK.sendFCMToken(payload)`
+## Environment Routing
 
-Submit an FCM push notification token to the Wynta backend.
-
-**Payload:**
-
-| Field      | Type   | Required | Description                 |
-|------------|--------|----------|-----------------------------|
-| `userId`   | string | Yes      | ID of the current user      |
-| `fcmToken` | string | Yes      | FCM token from the device   |
-
-**Example:**
+Prefix your `clientId` with `QA_` to automatically route all traffic to the QA backend:
 
 ```typescript
-const result = WyntaSDK.sendFCMToken({
-  userId: '123',
-  fcmToken: 'device_fcm_token_here',
-});
-// { success: true, message: 'FCM token submitted successfully (mock)', payload: {...} }
+await SignalSDK.initSDK({ clientId: 'QA_your-client-id', clientSecret: '...' });
+// → routes to QA, strips the prefix before sending requests
 ```
+
+No other configuration needed — production is the default.
 
 ---
 
-### `WyntaSDK.setIdentity(identity)`
+## Full Integration Guide
 
-Set or update the identity of the current user. Call this after `init()` and again any time the user's identity changes (e.g. after login or profile update).
-
-- Validates required fields before sending.
-- Returns a structured result with `success`, `message`, and `errors` (if validation fails).
-- Designed for extensibility — pass any extra key-value pairs alongside the core fields and they will be forwarded to the backend without requiring an SDK version bump.
-
-**Identity fields:**
-
-| Field    | Type   | Required | Description                              |
-|----------|--------|----------|------------------------------------------|
-| `userId` | string | **Yes**  | Unique identifier for the user           |
-| `name`   | string | No       | Full name of the user                    |
-| `email`  | string | No       | Email address (validated for format)     |
-| `phone`  | string | No       | Phone number                             |
-| `...`    | any    | No       | Any additional custom fields             |
-
-**Example — success:**
-
-```typescript
-const result = WyntaSDK.setIdentity({
-  userId: '12345',
-  name: 'John Doe',
-  email: 'john@example.com',
-  phone: '+911234567890',
-});
-
-console.log(result);
-// {
-//   success: true,
-//   message: 'Identity set successfully (mock)',
-//   payload: { userId: '12345', name: 'John Doe', email: 'john@example.com', phone: '+911234567890' }
-// }
-```
-
-**Example — validation failure (missing userId):**
-
-```typescript
-const result = WyntaSDK.setIdentity({ userId: '' });
-
-console.log(result);
-// {
-//   success: false,
-//   message: 'Identity validation failed.',
-//   errors: [{ field: 'userId', message: 'userId is required and must be a non-empty string.' }]
-// }
-```
-
-**Example — with custom extensibility fields:**
-
-```typescript
-WyntaSDK.setIdentity({
-  userId: '12345',
-  email: 'john@example.com',
-  plan: 'premium',       // custom field
-  referralCode: 'ABC10', // custom field
-});
-```
-
-**Recommended integration (App.tsx):**
-
-```typescript
-import WyntaSDK from 'wynta-react-native-sdk';
-
-// After SDK init and after the user logs in:
-WyntaSDK.init({ apiKey: 'your-api-key', debug: __DEV__ });
-
-WyntaSDK.setIdentity({
-  userId: currentUser.id,
-  name: currentUser.displayName,
-  email: currentUser.email,
-  phone: currentUser.phone,
-});
-```
+See [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md) for the complete guide covering the full player lifecycle, push notification tracking, background push handling, and TypeScript types.
 
 ---
-
-### `WyntaSDK.getVersion()`
-
-Returns the SDK version string (e.g. `'0.1.0'`).
-
-### `WyntaSDK.getName()`
-
-Returns `'Wynta React Native SDK'`.
-
-### `WyntaSDK.isInitialized()`
-
-Returns `true` if `init()` has been called.
-
-### `WyntaSDK.getConfig()`
-
-Returns a read-only copy of the active configuration passed to `init()`.
-
----
-
-## Building
-
-```bash
-npm run build
-```
-
-Output is written to `dist/`.
-
-## Local development / testing
-
-From the consuming app root:
-
-```bash
-npm install ../wynta_sdk
-```
-
-Then import normally:
-
-```typescript
-import WyntaSDK from 'wynta-react-native-sdk';
-```
 
 ## Publishing
 
-To automatically build, bump version, publish to the npm registry, and verify:
-
 ```bash
-npm run release <patch | minor | major>
+./publish.sh
 ```
 
-Example (for bug fixes / patches):
-```bash
-npm run release patch
-```
-
-> [!NOTE]
-> The script will automatically verify your authentication against the official npm registry, check for dirty git directories, and build compiler assets before publishing.
-
+See [PUBLISHING.md](./PUBLISHING.md) for the full publish workflow.

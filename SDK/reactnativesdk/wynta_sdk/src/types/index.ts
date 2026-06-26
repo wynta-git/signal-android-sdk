@@ -1,6 +1,16 @@
+export interface ApiLogEntry {
+  url: string;
+  method: string;
+  requestHeaders: Record<string, string>;
+  requestBody: string;
+  responseStatus: number;
+  responseBody: string;
+}
+
 export interface InitSDKConfig {
   clientId: string;
   clientSecret: string;
+  onApiLog?: (entry: ApiLogEntry) => void;
 }
 
 export interface DeviceInfo {

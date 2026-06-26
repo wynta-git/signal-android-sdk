@@ -6,6 +6,7 @@ import { getSessionId } from './services/SessionService';
 import { lifecycleService } from './services/LifecycleService';
 import { storage, STORAGE_KEYS } from './utils/storage';
 import { logger } from './utils/logger';
+import { setApiLogCallback } from './utils/apiLogger';
 import { NativeModules, NativeEventEmitter, Platform } from 'react-native';
 
 const { WyntaSDKModule } = NativeModules;
@@ -60,6 +61,7 @@ class WyntaSDKClass {
       logger.log(`FCM token restored from storage`);
     }
 
+    setApiLogCallback(config.onApiLog);
     getSessionId();
     lifecycleService.start();
     logger.log(`SDK initialized | session=${getSessionId()} | call setIdentity() next`);
@@ -145,6 +147,50 @@ class WyntaSDKClass {
     store.dispatch(sdkActions.clearIdentity());
     logger.log('Identity cleared');
   }
+
+  /**
+   * Call this from messaging().setBackgroundMessageHandler() in your index.js.
+   * Handles data-only FCM messages when the app is killed or in the background.
+   * Posts a real notification via the native layer — no JS app lifecycle required.
+   *
+   * Example (index.js):
+   *   messaging().setBackgroundMessageHandler(WyntaSDK.handleBackgroundMessage);
+   */
+  handleBackgroundMessage = async (remoteMessage: any): Promise<void> => {
+    if (Platform.OS !== 'android') return; // iOS handled natively via swizzling
+
+    // When a notification block is present, Firebase auto-renders the notification
+    // in background/killed state. Posting again would cause a duplicate and Android
+    // suppresses the heads-up banner as "recently noisy". Only handle data-only messages.
+    if (remoteMessage?.notification) {
+      logger.log('[WyntaSDK] handleBackgroundMessage: notification block present — Firebase handles rendering');
+      return;
+    }
+
+    const data = remoteMessage?.data ?? {};
+    const title = data.title ?? '';
+    const body  = data.body  ?? '';
+
+    if (!title && !body) {
+      logger.log('[WyntaSDK] handleBackgroundMessage: no title/body in data, skipping');
+      return;
+    }
+
+    if (WyntaSDKModule?.showNotification) {
+      WyntaSDKModule.showNotification(title, body, {
+        campaign_id:       data.campaign_id       ?? data.wynta_campaign_id ?? null,
+        campaign_name:     data.campaign_name     ?? null,
+        notification_type: data.notification_type ?? 'promotional',
+        channel:           data.channel           ?? 'push',
+        template_id:       data.template_id       ?? null,
+        action_id:         data.action_id         ?? null,
+        deep_link:         data.deep_link         ?? null,
+      });
+      logger.log('[WyntaSDK] handleBackgroundMessage: notification posted natively');
+    } else {
+      logger.log('[WyntaSDK] handleBackgroundMessage: WyntaSDKModule not available');
+    }
+  };
 
   async sendEvent(
     eventName: string,

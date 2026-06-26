@@ -92,7 +92,7 @@ class LifecycleService {
   };
 
   private emit(eventName: string): void {
-    const { clientId, clientSecret, userId, initialized } = store.getState().sdk;
+    const { clientId, clientSecret, baseUrl, userId, initialized } = store.getState().sdk;
     if (!initialized || !userId || !clientId || !clientSecret) {
       logger.log(`[WyntaSDK] Lifecycle event '${eventName}' skipped — no active identity`);
       return;
@@ -100,7 +100,7 @@ class LifecycleService {
 
     const event = buildEvent(eventName, {}, userId);
     logger.log(`[WyntaSDK] Lifecycle → ${eventName}`, event.event_id);
-    trackEvent(event, clientId, clientSecret).catch((err) => {
+    trackEvent(event, clientId, clientSecret, baseUrl).catch((err) => {
       logger.log(`[WyntaSDK] Lifecycle event '${eventName}' failed: ${err}`);
     });
   }

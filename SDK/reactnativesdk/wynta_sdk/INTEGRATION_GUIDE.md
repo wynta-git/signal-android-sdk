@@ -1,6 +1,6 @@
-# Wynta React Native SDK — Integration Guide
+# Signal React Native SDK — Integration Guide
 
-This guide covers everything a client application needs to integrate the Wynta SDK: initialization, user identity, push notification token management, and event tracking.
+This guide covers everything a client application needs to integrate the Signal SDK: initialization, user identity, push notification token management, event tracking, and background push handling.
 
 ---
 
@@ -14,27 +14,27 @@ This guide covers everything a client application needs to integrate the Wynta S
    - [Updating traits](#33-updating-traits)
    - [Logout](#34-logout)
 4. [FCM Token — Push Notifications](#4-fcm-token--push-notifications)
-5. [Event Tracking](#5-event-tracking)
-6. [Full Lifecycle Example](#6-full-lifecycle-example)
-7. [API Reference](#7-api-reference)
-8. [TypeScript Types](#8-typescript-types)
+5. [Background Push Handling](#5-background-push-handling)
+6. [Event Tracking](#6-event-tracking)
+7. [Full Lifecycle Example](#7-full-lifecycle-example)
+8. [API Reference](#8-api-reference)
+9. [TypeScript Types](#9-typescript-types)
 
 ---
 
 ## 1. Installation
 
 ```bash
-npm install @wynta/react-native-sdk
+npm install signal-react-native-sdk
 ```
 
 **For iOS (Native Bridge Linking):**
 
-Because the Wynta SDK contains native wrappers for automatic push notification tracking, you must link the iOS pod dependencies:
+Because the Signal SDK contains native wrappers for automatic push notification tracking, you must link the iOS pod dependencies:
 
 ```bash
 cd ios && pod install && cd ..
 ```
-
 
 ---
 
@@ -43,43 +43,48 @@ cd ios && pod install && cd ..
 Call `initSDK` once at app startup, before anything else. It is `async` — always `await` it.
 
 ```typescript
-import WyntaSDK from 'wynta-react-native-sdk';
+import SignalSDK from 'signal-react-native-sdk';
 
-await WyntaSDK.initSDK({
+await SignalSDK.initSDK({
   clientId: 'YOUR_CLIENT_ID',
   clientSecret: 'YOUR_CLIENT_SECRET',
-  identity: 'anon-' + generateUUID(), // start with anonymous ID
 });
 ```
 
 **Config fields:**
 
-| Field          | Type   | Required | Description                                                    |
-|----------------|--------|----------|----------------------------------------------------------------|
-| `clientId`     | string | Yes      | Your Wynta client ID                                          |
-| `clientSecret` | string | Yes      | Your Wynta client secret (used as Bearer token for identify)  |
-| `identity`     | string | Yes      | Initial user ID — use an anonymous UUID before login          |
+| Field           | Type     | Required | Description                                                 |
+|-----------------|----------|----------|-------------------------------------------------------------|
+| `clientId`      | string   | Yes      | Your Signal client ID                                       |
+| `clientSecret`  | string   | Yes      | Your Signal client secret (used as Bearer token)            |
+| `onApiLog`      | function | No       | Callback fired after every HTTP call — useful for debugging |
+
+> **QA Environment:** If your `clientId` starts with `QA_` (e.g. `QA_your-client-id`), the SDK automatically routes all traffic to the QA backend and strips the prefix internally. No other configuration needed.
 
 **What `initSDK` does:**
 - Stores credentials in the internal Redux store
 - Creates a stable session ID for this app session
 - Restores any previously saved FCM token from native device storage (SharedPreferences / NSUserDefaults)
+- Automatically sets up an FCM token refresh listener — no extra code needed in your app
+
+After `initSDK`, always call `setIdentity` to set a user ID before tracking events.
 
 **Recommended location — `App.tsx`:**
 
 ```typescript
 import React, { useEffect } from 'react';
-import WyntaSDK from 'wynta-react-native-sdk';
-import { generateUUID } from './utils'; // your UUID helper
+import SignalSDK from 'signal-react-native-sdk';
 
 export default function App() {
   useEffect(() => {
     const bootstrap = async () => {
-      await WyntaSDK.initSDK({
+      await SignalSDK.initSDK({
         clientId: 'YOUR_CLIENT_ID',
         clientSecret: 'YOUR_CLIENT_SECRET',
-        identity: 'anon-' + generateUUID(),
       });
+
+      // Set anonymous identity immediately after init
+      await SignalSDK.setIdentity({ user_id: 'anon-' + generateUUID() });
     };
     bootstrap();
   }, []);
@@ -96,31 +101,24 @@ Identity tells the SDK **who is using the app**. The SDK maintains one active id
 
 ### 3.1 Anonymous (pre-login)
 
-The `identity` you pass to `initSDK` immediately becomes the active user ID. Events sent before login are attributed to this anonymous ID. No extra call is needed.
+Call `setIdentity` right after `initSDK` with an anonymous UUID. Events sent before login are attributed to this anonymous ID.
 
 ```typescript
-// initSDK already sets identity: 'anon-xxxxxxxx'
-// Events will be tracked under that anonymous ID immediately
-
-await WyntaSDK.sendEvent('app_open', { screen: 'Splash' });
-await WyntaSDK.sendEvent('onboarding_started', {});
-```
-
-You can optionally call `setIdentity` to explicitly mark the user as anonymous:
-
-```typescript
-await WyntaSDK.setIdentity({
-  user_id: 'anon-xxxxxxxx',
-  anonymous_id: 'anon-xxxxxxxx',
+await SignalSDK.setIdentity({
+  user_id: 'anon-' + generateUUID(),
 });
+
+// Events can now be tracked immediately
+await SignalSDK.sendEvent('app_open', { screen: 'Splash' });
+await SignalSDK.sendEvent('onboarding_started', {});
 ```
 
 ### 3.2 After login
 
-Call `setIdentity` immediately after a successful login. Pass the real `user_id` and as many player traits as you have available. The SDK will send these to the Wynta backend (`POST /v1/events/identify`) and all subsequent events will be attributed to the real player.
+Call `setIdentity` immediately after a successful login. Pass the real `user_id` and as many player traits as you have available. The SDK will send these to the Signal backend and all subsequent events will be attributed to the real player.
 
 ```typescript
-await WyntaSDK.setIdentity({
+await SignalSDK.setIdentity({
   user_id: 'ply_776192',
   traits: {
     email: 'player@example.com',
@@ -147,17 +145,17 @@ You can call `setIdentity` at any point to update specific traits without re-sen
 
 ```typescript
 // KYC approved
-await WyntaSDK.setIdentity({
+await SignalSDK.setIdentity({
   traits: { kyc_status: 'approved' },
 });
 
 // VIP tier upgrade
-await WyntaSDK.setIdentity({
+await SignalSDK.setIdentity({
   traits: { vip_level: 'gold' },
 });
 
 // Removing a field
-await WyntaSDK.setIdentity({
+await SignalSDK.setIdentity({
   unset_traits: ['referral_code'],
 });
 ```
@@ -169,10 +167,10 @@ await WyntaSDK.setIdentity({
 Call `clearIdentity` when the user logs out. This clears the `user_id` from the SDK. The FCM token is intentionally preserved because it is device-level, not user-level.
 
 ```typescript
-WyntaSDK.clearIdentity();
+SignalSDK.clearIdentity();
 
 // After logout, re-set an anonymous ID so events can still be tracked
-await WyntaSDK.setIdentity({
+await SignalSDK.setIdentity({
   user_id: 'anon-' + generateUUID(),
 });
 ```
@@ -181,23 +179,20 @@ await WyntaSDK.setIdentity({
 
 ## 4. FCM Token & Push Notifications
 
-The SDK manages the FCM token lifecycle and **automatically tracks push notification interaction events (opens and clicks) under the hood** using native wrappers for iOS and Android. You do not need to write manual event tracking code for these.
+The SDK manages the FCM token lifecycle and **automatically tracks push notification interaction events (opens and clicks) under the hood** using native wrappers for iOS and Android.
 
 ### 4.1 Automatic Push Tracking
 
-When a user interacts with a notification sent by your push server, the SDK intercepts the interaction at the native level and fires the appropriate event:
+When a user interacts with a notification, the SDK intercepts the interaction at the native level and fires the appropriate event:
 
-*   **`notification_opened`**: Sent when the user taps on the general notification banner to open the app.
-*   **`notification_clicked`**: Sent when the user taps on a specific action button (CTA) inside the notification.
+- **`notification_opened`**: User taps the notification banner to open the app.
+- **`notification_clicked`**: User taps a specific action button (CTA) inside the notification.
 
-> [!TIP]
-> **Foreground Notification Banners:** By default, mobile operating systems do not show notification banners when the app is in the foreground. The Wynta SDK automatically forces heads-up banners to display natively at the top of the screen when a push notification is received while the app is active, for both iOS and Android. If clicked, they are tracked automatically.
+> **Foreground Notification Banners:** The Signal SDK automatically forces heads-up banners to display natively when a push is received while the app is active (both iOS and Android). Clicks are tracked automatically.
 
 #### Required Push Payload Structure
-To enable automatic tracking, the custom data payload of your push notifications must contain the following keys:
 
 ##### For standard notification opens (`notification_opened`):
-Include the following in the data payload:
 ```json
 {
   "campaign_id": "camp_100",
@@ -208,7 +203,6 @@ Include the following in the data payload:
 ```
 
 ##### For specific button/action clicks (`notification_clicked`):
-In addition to the campaign fields, include the `action_id` and optional `deep_link`:
 ```json
 {
   "campaign_id": "camp_100",
@@ -221,19 +215,15 @@ In addition to the campaign fields, include the `action_id` and optional `deep_l
 ```
 
 #### Generated Event Formats
-The SDK parses this payload and tracks it dynamically with session and device metadata:
 
-##### Example: `notification_opened` Payload recorded by SDK
+##### Example: `notification_opened`
 ```json
 {
   "user_id": "ply_776192",
   "session_id": "sess_abc12398",
-  "event_id": "a1b2c3d4-0000-0000-0000-0040",
   "event_name": "notification_opened",
   "timestamp": "2026-05-18T15:22:00.000Z",
-  "device_type": "mobile",
   "platform": "android",
-  "brand_id": "brand_01",
   "properties": {
     "campaign_id": "camp_100",
     "campaign_name": "Weekend Deposit Boost",
@@ -244,61 +234,35 @@ The SDK parses this payload and tracks it dynamically with session and device me
 }
 ```
 
-##### Example: `notification_clicked` Payload recorded by SDK
-```json
-{
-  "user_id": "ply_776192",
-  "session_id": "sess_abc12398",
-  "event_id": "a1b2c3d4-0000-0000-0000-0041",
-  "event_name": "notification_clicked",
-  "timestamp": "2026-05-18T15:22:05.000Z",
-  "device_type": "mobile",
-  "platform": "android",
-  "brand_id": "brand_01",
-  "properties": {
-    "campaign_id": "camp_100",
-    "campaign_name": "Weekend Deposit Boost",
-    "notification_type": "promotional",
-    "channel": "push",
-    "template_id": "tmpl_push_01",
-    "action_id": "cta_deposit_now",
-    "deep_link": "/casino/deposit"
-  }
-}
-```
-
 ### 4.2 Registering the FCM Token
 
-You only need to pass the FCM token using `setIdentity` once — the SDK handles storing, persisting, and automatically attaching it to the active user's identity.
+Pass the FCM token via `setIdentity` once — the SDK stores, persists, and automatically attaches it to the active user's identity.
 
 ```typescript
 import messaging from '@react-native-firebase/messaging';
 
-// Register the token (normally after permissions are granted)
 const fcmToken = await messaging().getToken();
-await WyntaSDK.setIdentity({ fcm_token: fcmToken });
+await SignalSDK.setIdentity({ fcm_token: fcmToken });
 ```
 
-> [!NOTE]
-> **Automated Token Refresh:** You do **not** need to set up an `onTokenRefresh` listener in your app code. The Wynta SDK automatically monitors FCM token rotation events under the hood and registers the updated token with the Wynta backend.
-```
+> **Automated Token Refresh:** You do **not** need to set up an `onTokenRefresh` listener. The Signal SDK automatically monitors FCM token rotation and registers the updated token with the backend.
 
-### 4.4 How the SDK handles the FCM token
+### 4.3 How the SDK handles the FCM token
 
 | Behaviour | Detail |
-|---|---|
+|-----------|--------|
 | **Storage** | Saved automatically to native device storage (SharedPreferences / NSUserDefaults). Survives app restarts. |
 | **Restoration** | On `initSDK`, the last saved token is loaded automatically. No extra call needed. |
-| **Deduplication** | The token is only persisted and sent again if it has changed. |
+| **Deduplication** | Only persisted and sent again if it has changed. |
 | **Sent as trait** | Forwarded to the backend as `traits.fcm_token` in the identify call. |
-| **Logout behaviour** | `clearIdentity()` clears `user_id` but **keeps the FCM token** — so push notifications keep working for the logged-out session. |
+| **Logout behaviour** | `clearIdentity()` clears `user_id` but **keeps the FCM token** — push notifications keep working after logout. |
 
 ### Combined login + token example
 
 ```typescript
 const fcmToken = await messaging().getToken();
 
-await WyntaSDK.setIdentity({
+await SignalSDK.setIdentity({
   user_id: 'ply_776192',
   fcm_token: fcmToken,
   traits: {
@@ -310,76 +274,106 @@ await WyntaSDK.setIdentity({
 
 ---
 
-## 5. Event Tracking
+## 5. Background Push Handling
+
+For push notifications received when the app is **killed or in the background** (data-only FCM messages), wire up `handleBackgroundMessage` in your `index.js`:
+
+```javascript
+// index.js
+import { AppRegistry } from 'react-native';
+import App from './App';
+import { name as appName } from './app.json';
+import messaging from '@react-native-firebase/messaging';
+import SignalSDK from 'signal-react-native-sdk';
+
+// Runs in headless mode — no React lifecycle needed
+messaging().setBackgroundMessageHandler(SignalSDK.handleBackgroundMessage);
+
+AppRegistry.registerComponent(appName, () => App);
+```
+
+**How it works:**
+- If the FCM payload has a `notification` block, Firebase renders the notification automatically — the SDK steps aside to avoid duplicates.
+- If the payload is data-only (no `notification` block), the SDK reads `data.title` / `data.body` and posts the notification natively via the Android layer.
+- iOS is handled natively via swizzling — no extra code needed.
+
+**Data-only push payload example (triggers SDK rendering):**
+```json
+{
+  "data": {
+    "title": "You have a new bonus!",
+    "body": "Tap to claim your welcome bonus.",
+    "campaign_id": "camp_100",
+    "campaign_name": "Welcome Bonus",
+    "notification_type": "promotional"
+  }
+}
+```
+
+---
+
+## 6. Event Tracking
 
 Use `sendEvent` to track any player action or screen view.
 
 ```typescript
-await WyntaSDK.sendEvent(eventName, properties);
+await SignalSDK.sendEvent(eventName, properties);
 ```
 
 ### Events do NOT depend on login state
 
-Events can be sent as soon as `initSDK` completes — whether the user is anonymous or logged in. The SDK uses whatever identity is currently active (anonymous UUID or real player ID). You do not need to wait for login before tracking events.
+Events can be sent as soon as `initSDK` + `setIdentity` completes — whether the user is anonymous or logged in.
 
 ```
-App start  →  initSDK (anonymous ID set)  →  sendEvent ✓
-             setIdentity (login)          →  sendEvent ✓  (now attributed to real player)
-             clearIdentity (logout)        →  setIdentity (new anon ID)  →  sendEvent ✓
+App start  →  initSDK  →  setIdentity (anon)  →  sendEvent ✓
+                          setIdentity (login)  →  sendEvent ✓  (attributed to real player)
+                          clearIdentity (logout) →  setIdentity (new anon)  →  sendEvent ✓
 ```
+
+### Reserved property keys
+
+The following keys are **automatically stripped** from `properties` even if passed — they are already top-level fields managed by the SDK:
+
+`user_id`, `session_id`, `event_id`, `event_name`, `timestamp`, `device_type`, `platform`, `brand_id`
 
 ### Common events
 
 ```typescript
 // Screen view
-await WyntaSDK.sendEvent('screen_view', { screen_name: 'Home' });
+await SignalSDK.sendEvent('screen_view', { screen_name: 'Home' });
 
 // Button / CTA tap
-await WyntaSDK.sendEvent('button_tap', { button_id: 'deposit_cta', screen: 'Wallet' });
+await SignalSDK.sendEvent('button_tap', { button_id: 'deposit_cta', screen: 'Wallet' });
 
 // Game started
-await WyntaSDK.sendEvent('game_started', {
+await SignalSDK.sendEvent('game_started', {
   game_id: 'slots_001',
   game_name: 'Lucky Spin',
   category: 'slots',
 });
 
-// Deposit initiated
-await WyntaSDK.sendEvent('deposit_initiated', {
-  amount: 100,
-  currency: 'EUR',
-  payment_method: 'card',
-});
-
-// Deposit completed
-await WyntaSDK.sendEvent('deposit_completed', {
+// Deposit
+await SignalSDK.sendEvent('deposit_success', {
   amount: 100,
   currency: 'EUR',
   transaction_id: 'txn_abc123',
 });
 
 // Bonus claimed
-await WyntaSDK.sendEvent('bonus_claimed', {
+await SignalSDK.sendEvent('bonus_claimed', {
   bonus_id: 'welcome_bonus',
   bonus_type: 'deposit_match',
 });
 ```
 
-### Properties
-
-`properties` is a free-form `Record<string, unknown>`. Pass any key-value data relevant to the event. All values must be JSON-serialisable.
-
 ---
 
-## 6. Full Lifecycle Example
-
-Below is a complete integration showing the full user journey from app launch to login to logout.
+## 7. Full Lifecycle Example
 
 ```typescript
 import React, { useEffect } from 'react';
 import messaging from '@react-native-firebase/messaging';
-import WyntaSDK from 'wynta-react-native-sdk';
-import { generateUUID } from './utils';
+import SignalSDK from 'signal-react-native-sdk';
 
 export default function App() {
 
@@ -388,28 +382,25 @@ export default function App() {
   }, []);
 
   const initializeSDK = async () => {
-    // 1. Initialize with anonymous identity
-    await WyntaSDK.initSDK({
+    // 1. Initialize SDK
+    await SignalSDK.initSDK({
       clientId: 'YOUR_CLIENT_ID',
       clientSecret: 'YOUR_CLIENT_SECRET',
-      identity: 'anon-' + generateUUID(),
     });
 
-    // 2. Track app open — works immediately, no login needed
-    await WyntaSDK.sendEvent('app_open', { version: '2.1.0' });
+    // 2. Set anonymous identity
+    await SignalSDK.setIdentity({ user_id: 'anon-' + generateUUID() });
 
-    // 3. Register FCM token (stored and forwarded automatically)
+    // 3. Track app open
+    await SignalSDK.sendEvent('app_open', { version: '1.0.0' });
+
+    // 4. Register FCM token (token refresh is handled automatically by the SDK)
     try {
       const fcmToken = await messaging().getToken();
-      await WyntaSDK.setIdentity({ fcm_token: fcmToken });
-    } catch (e) {
+      await SignalSDK.setIdentity({ fcm_token: fcmToken });
+    } catch {
       // notification permission not granted — safe to ignore
     }
-
-    // 4. Listen for FCM token refresh
-    messaging().onTokenRefresh(async (newToken) => {
-      await WyntaSDK.setIdentity({ fcm_token: newToken });
-    });
   };
 
   return <YourAppNavigator />;
@@ -419,8 +410,7 @@ export default function App() {
 // --- In your login flow ---
 
 const onLoginSuccess = async (player: Player) => {
-  // 5. Set real identity after login — merges with any stored FCM token
-  await WyntaSDK.setIdentity({
+  await SignalSDK.setIdentity({
     user_id: player.id,
     traits: {
       email: player.email,
@@ -435,64 +425,55 @@ const onLoginSuccess = async (player: Player) => {
     },
   });
 
-  // 6. Events from here are attributed to the real player ID
-  await WyntaSDK.sendEvent('login_success', { method: 'email' });
+  await SignalSDK.sendEvent('login_success', { method: 'email' });
 };
 
 
 // --- When KYC is approved ---
 
 const onKycApproved = async () => {
-  await WyntaSDK.setIdentity({
-    traits: { kyc_status: 'approved' },
-  });
-  await WyntaSDK.sendEvent('kyc_approved', {});
+  await SignalSDK.setIdentity({ traits: { kyc_status: 'approved' } });
+  await SignalSDK.sendEvent('kyc_approved', {});
 };
 
 
 // --- In your logout flow ---
 
 const onLogout = async () => {
-  await WyntaSDK.sendEvent('logout', {});
-
-  // 7. Clear real identity — FCM token is kept
-  WyntaSDK.clearIdentity();
-
-  // 8. Set a fresh anonymous ID for continued tracking
-  await WyntaSDK.setIdentity({
-    user_id: 'anon-' + generateUUID(),
-  });
+  await SignalSDK.sendEvent('logout', {});
+  SignalSDK.clearIdentity();
+  await SignalSDK.setIdentity({ user_id: 'anon-' + generateUUID() });
 };
 ```
 
 ---
 
-## 7. API Reference
+## 8. API Reference
 
-### `WyntaSDK.initSDK(config)`
+### `SignalSDK.initSDK(config)`
 
-| Parameter       | Type   | Required | Description                          |
-|-----------------|--------|----------|--------------------------------------|
-| `clientId`      | string | Yes      | Your Wynta client ID                |
-| `clientSecret`  | string | Yes      | Your Wynta client secret            |
-| `identity`      | string | Yes      | Initial user ID (use anonymous UUID) |
+| Parameter      | Type     | Required | Description                          |
+|----------------|----------|----------|--------------------------------------|
+| `clientId`     | string   | Yes      | Your Signal client ID                |
+| `clientSecret` | string   | Yes      | Your Signal client secret            |
+| `onApiLog`     | function | No       | Callback for API call logging        |
 
 Returns: `Promise<void>`
 
 ---
 
-### `WyntaSDK.setIdentity(payload)`
+### `SignalSDK.setIdentity(payload)`
 
-All fields are optional individually, but at least a `user_id` must be available either in the payload or already stored from a previous call.
+All fields are optional individually, but a `user_id` must be available either in the payload or already stored from a previous call.
 
-| Parameter      | Type          | Description                                                               |
-|----------------|---------------|---------------------------------------------------------------------------|
-| `user_id`      | string        | Player ID or anonymous UUID                                               |
-| `anonymous_id` | string        | Pre-login anonymous ID (used to stitch pre/post-login behaviour)          |
-| `fcm_token`    | string        | Firebase Cloud Messaging token — stored and forwarded to backend          |
-| `traits`       | PlayerTraits  | Player attributes to set or update (see traits table below)               |
-| `unset_traits` | string[]      | List of trait field names to explicitly remove from the player profile    |
-| `timestamp`    | string        | ISO 8601 datetime — defaults to `now` if omitted                         |
+| Parameter      | Type         | Description                                                            |
+|----------------|--------------|------------------------------------------------------------------------|
+| `user_id`      | string       | Player ID or anonymous UUID                                            |
+| `anonymous_id` | string       | Pre-login anonymous ID (used to stitch pre/post-login behaviour)       |
+| `fcm_token`    | string       | Firebase Cloud Messaging token — stored and forwarded to backend       |
+| `traits`       | PlayerTraits | Player attributes to set or update                                     |
+| `unset_traits` | string[]     | List of trait field names to explicitly remove from the player profile |
+| `timestamp`    | string       | ISO 8601 datetime — defaults to `now` if omitted                       |
 
 Returns: `Promise<SDKResponse>`
 
@@ -513,12 +494,11 @@ Returns: `Promise<SDKResponse>`
 | `account_status`    | string | `active`, `suspended`, `self_excluded`, `closed` |
 | `registration_date` | string | ISO 8601 datetime                                |
 | `brand_id`          | string | Brand/operator identifier in multi-brand setups  |
-| `fcm_token`         | string | Set automatically when passed at top level       |
 | *(any key)*         | any    | Custom fields are forwarded as-is                |
 
 ---
 
-### `WyntaSDK.clearIdentity()`
+### `SignalSDK.clearIdentity()`
 
 Clears the active `user_id`. The FCM token is kept.
 
@@ -526,14 +506,27 @@ Returns: `void`
 
 ---
 
-### `WyntaSDK.sendEvent(eventName, properties?)`
+### `SignalSDK.sendEvent(eventName, properties?)`
 
-| Parameter    | Type                      | Required | Description                         |
-|--------------|---------------------------|----------|-------------------------------------|
-| `eventName`  | string                    | Yes      | Name of the event                   |
-| `properties` | Record\<string, unknown\> | No       | Key-value data for the event        |
+| Parameter    | Type                      | Required | Description                  |
+|--------------|---------------------------|----------|------------------------------|
+| `eventName`  | string                    | Yes      | Name of the event            |
+| `properties` | Record\<string, unknown\> | No       | Key-value data for the event |
 
 Returns: `Promise<SDKResponse>`
+
+---
+
+### `SignalSDK.handleBackgroundMessage`
+
+Arrow function to pass directly to Firebase's `setBackgroundMessageHandler`. Handles data-only FCM messages when the app is killed or in the background.
+
+```javascript
+// index.js
+messaging().setBackgroundMessageHandler(SignalSDK.handleBackgroundMessage);
+```
+
+Returns: `Promise<void>`
 
 ---
 
@@ -550,7 +543,7 @@ Returns: `Promise<SDKResponse>`
 
 ---
 
-## 8. TypeScript Types
+## 9. TypeScript Types
 
 ```typescript
 import type {
@@ -563,7 +556,7 @@ import type {
   IdentifyResponse,
   DeviceInfo,
   APIResponse,
-} from 'wynta-react-native-sdk';
+} from 'signal-react-native-sdk';
 ```
 
 ---
@@ -571,7 +564,9 @@ import type {
 ## Notes
 
 - **`initSDK` must always be called first** and awaited before any other SDK method.
-- **Events do not require the user to be logged in.** They only require that `initSDK` has been called (which sets an initial identity automatically).
+- **`setIdentity` must be called after `initSDK`** to set the initial user ID before tracking events.
+- **Events do not require the user to be logged in** — they only require `initSDK` + `setIdentity` (anonymous is fine).
 - **`setIdentity` is additive by default** — only the fields you pass are updated; everything else stays as-is.
 - **The FCM token survives logout** — you do not need to re-register it after a user logs back in.
-- **All `sendEvent` and `setIdentity` calls are fire-and-forget safe** — they return a `SDKResponse` you can check but do not need to block on.
+- **FCM token refresh is automatic** — the SDK sets up the listener internally; no `onTokenRefresh` wiring needed in your app.
+- **QA routing is automatic** — prefix your `clientId` with `QA_` to route to the QA backend; the SDK strips the prefix before sending requests.
