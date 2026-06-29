@@ -37,6 +37,7 @@ import type {
   BudgetPeriod,
   Segment,
   OwnerEntry,
+  SpendPeriod,
 } from "../types";
 
 const delay = (ms = 180): Promise<void> =>
@@ -174,6 +175,14 @@ export const api = {
       headers: authHeaders(),
     });
     if (!res.ok) throw new Error("Failed to fetch bonus summary");
+    return res.json();
+  },
+  async fetchBonusSpend(entityType: string, entityId: number): Promise<SpendPeriod[]> {
+    const res = await fetch(
+      `${BONUS_API}/bonus-spend?entity_type=${entityType}&entity_id=${entityId}`,
+      { headers: authHeaders() },
+    );
+    if (!res.ok) throw new Error("Failed to fetch bonus spend");
     return res.json();
   },
   async fetchHeads(siteId: string | number) {

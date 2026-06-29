@@ -1,12 +1,15 @@
+import calendar
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import aiomysql
 import structlog
 from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
+from shared.services.client import get_site_config
 from shared.services.user import get_or_create_pam_user, get_pam_user_id
 from app.bonus_event_processor.grant_writer import check_applicability
 from app.bonus_event_processor.eligibility_checker import check_eligibility
@@ -256,6 +259,33 @@ _UPDATE_CHUNK_CONSUME_STATUS_SQL = """
     WHERE id = %s
 """
 
+_FETCH_GRANT_HIERARCHY_SQL = """
+    SELECT id, configure_id, subhead_id, head_id
+    FROM bonus_grant
+    WHERE id IN ({placeholders})
+"""
+
+_UPSERT_SPEND_SQL = """
+    INSERT INTO bonus_spend
+        (entity_type, entity_id, site_id, period_type,
+         period_start, period_end, consume_count, total_amount)
+    VALUES (%s, %s, %s, %s, %s, %s, 1, %s)
+    ON DUPLICATE KEY UPDATE
+        consume_count = consume_count + 1,
+        total_amount  = total_amount  + VALUES(total_amount)
+"""
+
+
+def _period_bounds(local_date: date, period: str) -> tuple[date, date]:
+    if period == "DAILY":
+        return local_date, local_date
+    if period == "WEEKLY":
+        start = local_date - timedelta(days=local_date.weekday())
+        return start, start + timedelta(days=6)
+    start = local_date.replace(day=1)
+    end = local_date.replace(day=calendar.monthrange(local_date.year, local_date.month)[1])
+    return start, end
+
 
 
 async def consume_bonus(
@@ -284,6 +314,7 @@ async def consume_bonus(
 
                 remaining_to_consume = float(data.bonus_amount)
                 total_consumed = 0.0
+                grant_consumed: dict[int, float] = {}
 
                 for chunk_row in chunk_rows:
                     if remaining_to_consume <= 0:
@@ -297,6 +328,7 @@ async def consume_bonus(
                     portion = min(remaining_to_consume, available)
                     remaining_to_consume -= portion
                     total_consumed += portion
+                    grant_consumed[bonus_grant_id] = grant_consumed.get(bonus_grant_id, 0.0) + portion
 
                     await cur.execute(_UPDATE_GRANT_CONSUMED_SQL, (portion, bonus_grant_id))
                     await cur.execute(_UPDATE_CHUNK_CONSUME_AMOUNT_SQL, (portion, chunk_id))
@@ -339,6 +371,34 @@ async def consume_bonus(
                     )
 
                 last_id = bonus_consumed_id
+
+                if grant_consumed:
+                    site_cfg = await get_site_config(site_id, redis)
+                    tz_name = (
+                        site_cfg.configuration.get("timezone", "Asia/Kolkata")
+                        if site_cfg else "Asia/Kolkata"
+                    )
+                    local_date = datetime.now(tz=ZoneInfo(tz_name)).date()
+                    placeholders = ",".join(["%s"] * len(grant_consumed))
+                    await cur.execute(
+                        _FETCH_GRANT_HIERARCHY_SQL.format(placeholders=placeholders),
+                        list(grant_consumed.keys()),
+                    )
+                    hierarchy_rows = await cur.fetchall()
+                    for g_id, configure_id, subhead_id, head_id in hierarchy_rows:
+                        amount = Decimal(str(round(grant_consumed[g_id], 4)))
+                        for entity_type, entity_id in [
+                            ("CONFIGURE", configure_id),
+                            ("SUBHEAD",   subhead_id),
+                            ("HEAD",      head_id),
+                        ]:
+                            for period in ["DAILY", "WEEKLY", "MONTHLY"]:
+                                p_start, p_end = _period_bounds(local_date, period)
+                                await cur.execute(
+                                    _UPSERT_SPEND_SQL,
+                                    (entity_type, entity_id, site_id, period, p_start, p_end, amount),
+                                )
+
                 await conn.commit()
 
         return PlayerBonusConsumedResponse(
