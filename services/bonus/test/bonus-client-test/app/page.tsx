@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -351,6 +352,20 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
           >
             Continue →
           </button>
+          <div style={{ textAlign: "center", marginTop: 18 }}>
+            <Link
+              href="/sign"
+              style={{
+                fontSize: "0.72rem",
+                color: "#475569",
+                textDecoration: "none",
+                borderBottom: "1px solid #334155",
+                paddingBottom: 1,
+              }}
+            >
+              🔑 S2S Signature Explorer
+            </Link>
+          </div>
         </form>
       </div>
     </div>
