@@ -1,6 +1,6 @@
 {
   "name": "signal-react-native-sdk",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "Official React Native SDK for Signal",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",

@@ -9,13 +9,13 @@ import Toggle from 'wynta-react-common/components/Toggle';
 import ActionBar from 'wynta-react-common/components/ActionBar';
 import BudgetGrid from '../../components/primitives/BudgetGrid';
 import ValidityBar from 'wynta-react-common/components/ValidityBar';
-import UsageBreakdown from '../../components/primitives/UsageBreakdown';
+import SpendPanel from '../../components/primitives/SpendPanel';
 import PlayerSegmentPicker from 'wynta-react-common/components/segments/PlayerSegmentPicker';
 import PromoCodeRow from './PromoCodeRow';
+import { selectEntitySpend } from '../../store/slices/spendSlice';
 import {
   formatINRCompact,
   formatDateShort,
-  getUsage,
   formatRelative,
 } from '../../services/mocks/utils';
 
@@ -191,6 +191,7 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
   const dispatch = useAppDispatch();
   const selectedBrand = useAppSelector(s => s.ui.selectedBrand);
   const bridgeData = useAppSelector(s => s.users.bridgeData);
+  const spendRows = useAppSelector(selectEntitySpend('CONFIGURE', cfg.id));
   const currentUser: string = (bridgeData?.user as { username?: string } | null)?.username ?? 'system';
 
   const handleSegmentSelect = async (segmentId: string | number | null) => {
@@ -276,7 +277,7 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
         <div className="section-label">Usage Breakdown</div>
         <div className="right">PENDING → RELEASED → CONSUMED · or EXPIRED · or FORFEITED</div>
       </div>
-      <div className="mb-6"><UsageBreakdown usage={getUsage('configure', cfg.id)} /></div>
+      <div className="mb-6"><SpendPanel spendRows={spendRows} /></div>
 
       <div className="section-row">
         <div className="section-label">Bonus Mechanics</div>

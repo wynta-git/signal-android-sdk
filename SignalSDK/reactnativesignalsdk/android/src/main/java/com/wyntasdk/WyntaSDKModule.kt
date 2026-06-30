@@ -15,6 +15,11 @@ import androidx.core.app.NotificationCompat
 class WyntaSDKModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext), ActivityEventListener {
 
+    companion object {
+        // Must match the default_notification_channel_id declared in the host app's AndroidManifest.xml
+        const val CHANNEL_ID = "signal_default"
+    }
+
     private var coldStartNotification: WritableMap? = null
 
     init {
@@ -27,9 +32,28 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
 
     override fun initialize() {
         super.initialize()
+        createDefaultChannel()
         val activity = reactApplicationContext.currentActivity
         if (activity != null) {
             handleIntent(activity.intent, isColdStart = true)
+        }
+    }
+
+    private fun createDefaultChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = reactApplicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (nm.getNotificationChannel(CHANNEL_ID) == null) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Signal Notifications",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Push notifications from Signal"
+                    enableLights(true)
+                    enableVibration(true)
+                }
+                nm.createNotificationChannel(channel)
+            }
         }
     }
 
@@ -151,72 +175,53 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
     fun showNotification(title: String, body: String, data: ReadableMap) {
         val context = reactApplicationContext
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "wynta_default"
         val packageName = context.packageName
 
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
-        if (launchIntent != null) {
-            val campaignId = getSafeString(data, "campaign_id") ?: getSafeString(data, "wynta_campaign_id")
-            if (campaignId != null) {
-                launchIntent.putExtra("campaign_id", campaignId)
-                launchIntent.putExtra("wynta_campaign_id", campaignId)
-                launchIntent.putExtra("campaign_name", getSafeString(data, "campaign_name"))
-                launchIntent.putExtra("notification_type", getSafeString(data, "notification_type") ?: "promotional")
-                launchIntent.putExtra("channel", "push")
-                launchIntent.putExtra("template_id", getSafeString(data, "template_id"))
-                launchIntent.putExtra("action_id", getSafeString(data, "action_id"))
-                launchIntent.putExtra("deep_link", getSafeString(data, "deep_link"))
+        // Ensure channel exists — belt-and-suspenders in case initialize() hasn't run yet
+        // (e.g. headless background task on first launch)
+        createDefaultChannel()
+
+        // Build optional tap intent — notification is shown regardless
+        val launchIntent = try {
+            context.packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                val campaignId = getSafeString(data, "campaign_id") ?: getSafeString(data, "wynta_campaign_id")
+                if (campaignId != null) {
+                    putExtra("campaign_id",       campaignId)
+                    putExtra("wynta_campaign_id",  campaignId)
+                    putExtra("campaign_name",      getSafeString(data, "campaign_name"))
+                    putExtra("notification_type",  getSafeString(data, "notification_type") ?: "promotional")
+                    putExtra("channel",            "push")
+                    putExtra("template_id",        getSafeString(data, "template_id"))
+                    putExtra("action_id",          getSafeString(data, "action_id"))
+                    putExtra("deep_link",          getSafeString(data, "deep_link"))
+                }
             }
+        } catch (e: Exception) { null }
 
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-
-            val pendingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        val pendingIntent = launchIntent?.let {
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            } else {
+            else
                 PendingIntent.FLAG_UPDATE_CURRENT
-            }
-
-            val pendingIntent = PendingIntent.getActivity(
-                context,
-                System.currentTimeMillis().toInt(),
-                launchIntent,
-                pendingFlags
-            )
-
-            var smallIcon = android.R.drawable.ic_dialog_info
-            try {
-                val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
-                if (appInfo.icon != 0) {
-                    smallIcon = appInfo.icon
-                }
-            } catch (e: Exception) {
-                // Fallback to default
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val channel = NotificationChannel(
-                    channelId,
-                    "Wynta Notifications",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "Push notifications from Wynta"
-                    enableLights(true)
-                    enableVibration(true)
-                }
-                notificationManager.createNotificationChannel(channel)
-            }
-
-            val builder = NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(smallIcon)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setDefaults(NotificationCompat.DEFAULT_ALL)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
-
-            notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
+            PendingIntent.getActivity(context, System.currentTimeMillis().toInt(), it, flags)
         }
+
+        val smallIcon = try {
+            val info = context.packageManager.getApplicationInfo(packageName, 0)
+            if (info.icon != 0) info.icon else android.R.drawable.ic_dialog_info
+        } catch (e: Exception) { android.R.drawable.ic_dialog_info }
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(smallIcon)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setAutoCancel(true)
+            .apply { pendingIntent?.let { setContentIntent(it) } }
+
+        notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
     }
 
     private fun sendEvent(eventName: String, params: WritableMap?) {

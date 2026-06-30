@@ -16,6 +16,7 @@ import segmentsReducer, {
   fetchSegments,
 } from "wynta-react-common/store/slices/segmentsSlice";
 import kpiReducer, { fetchKpiSnapshot } from "./slices/kpiSlice";
+import spendReducer from "./slices/spendSlice";
 import usersReducer, {
   authenticateWithBridgeToken,
 } from "wynta-react-common/store/slices/usersSlice";
@@ -49,6 +50,7 @@ export const store = configureStore({
     history: historyReducer,
     segments: segmentsReducer,
     kpi: kpiReducer,
+    spend: spendReducer,
     users: usersReducer,
   },
   middleware: (getDefaultMiddleware) =>

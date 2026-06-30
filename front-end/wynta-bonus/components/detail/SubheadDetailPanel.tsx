@@ -2,11 +2,12 @@
 import React, { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { fetchConfiguresBySubhead, selectConfiguresBySubhead } from '../../store/slices/configuresSlice';
-import { getUsage, formatINRCompact, formatRelative } from '../../services/mocks/utils';
+import { selectEntitySpend } from '../../store/slices/spendSlice';
+import { formatINRCompact, formatRelative } from '../../services/mocks/utils';
 import Badge from 'wynta-react-common/components/Badge';
 import Icon from 'wynta-react-common/components/Icon';
 import BudgetGrid from '../../components/primitives/BudgetGrid';
-import UsageBreakdown from '../../components/primitives/UsageBreakdown';
+import SpendPanel from '../../components/primitives/SpendPanel';
 import OwnerPill from '../../components/primitives/OwnerPill';
 import ActionBar from 'wynta-react-common/components/ActionBar';
 import Toggle from 'wynta-react-common/components/Toggle';
@@ -20,6 +21,7 @@ interface SubheadDetailPanelProps {
 
 export default function SubheadDetailPanel({ subhead, onSelect, onAction }: SubheadDetailPanelProps) {
   const dispatch = useAppDispatch();
+  const spendRows = useAppSelector(selectEntitySpend('SUBHEAD', subhead.id));
 
   useEffect(() => {
     dispatch(fetchConfiguresBySubhead(subhead.id));
@@ -68,7 +70,7 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
         <div className="section-label">Usage Breakdown</div>
         <div className="right">Across all configures in this subhead</div>
       </div>
-      <UsageBreakdown usage={getUsage('subhead', subhead.id)} />
+      <SpendPanel spendRows={spendRows} />
 
       <div className="section-label" style={{ marginTop: 28 }}>
         Configures · {configures.length}

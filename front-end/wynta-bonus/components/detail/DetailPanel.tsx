@@ -4,6 +4,7 @@ import { useAppSelector, useAppDispatch } from '../../store/hooks';
 import { fetchHead, selectHeadsStatus } from '../../store/slices/headsSlice';
 import { fetchSubhead } from '../../store/slices/subheadsSlice';
 import { fetchConfigure, selectConfigureById } from '../../store/slices/configuresSlice';
+import { fetchEntitySpend } from '../../store/slices/spendSlice';
 import { openDrawer, openHistoryDrawer } from '../../store/slices/uiSlice';
 import HeadDetailPanel from '../../components/detail/HeadDetailPanel';
 import SubheadDetailPanel from '../../components/detail/SubheadDetailPanel';
@@ -31,11 +32,20 @@ export default function DetailPanel({ onAction }: DetailPanelProps) {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Fetch full detail whenever selection changes
+  // Fetch full detail and spend data whenever selection changes
   useEffect(() => {
-    if (selectedNode?.type === 'head') dispatch(fetchHead(selectedNode.id));
-    if (selectedNode?.type === 'subhead') dispatch(fetchSubhead(selectedNode.id));
-    if (selectedNode?.type === 'configure') dispatch(fetchConfigure(selectedNode.id));
+    if (selectedNode?.type === 'head') {
+      dispatch(fetchHead(selectedNode.id));
+      dispatch(fetchEntitySpend({ entityType: 'HEAD', entityId: selectedNode.id }));
+    }
+    if (selectedNode?.type === 'subhead') {
+      dispatch(fetchSubhead(selectedNode.id));
+      dispatch(fetchEntitySpend({ entityType: 'SUBHEAD', entityId: selectedNode.id }));
+    }
+    if (selectedNode?.type === 'configure') {
+      dispatch(fetchConfigure(selectedNode.id));
+      dispatch(fetchEntitySpend({ entityType: 'CONFIGURE', entityId: selectedNode.id }));
+    }
   }, [selectedNode, dispatch]);
 
   const head        = useAppSelector(s => selectedNode?.type === 'head'    ? s.heads.entities[selectedNode.id]    : null);

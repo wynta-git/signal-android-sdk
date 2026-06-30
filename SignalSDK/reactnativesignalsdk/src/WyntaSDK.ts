@@ -100,27 +100,29 @@ class WyntaSDKClass {
         await this.setIdentity({ fcm_token: newToken });
       });
 
-      // Foreground message listener (Android only - iOS is handled by swizzling delegates natively)
+      // Foreground message listener (Android only - iOS handled natively)
+      // Firebase does NOT auto-display notifications when app is in foreground;
+      // we must post them manually via the native module.
       messaging().onMessage(async (remoteMessage: any) => {
         logger.log('[WyntaSDK] Foreground push message received:', remoteMessage);
 
-        if (Platform.OS === 'android' && remoteMessage.notification) {
-          const { title, body } = remoteMessage.notification;
-          const data = remoteMessage.data || {};
+        if (Platform.OS !== 'android') return;
 
-          if (WyntaSDKModule && WyntaSDKModule.showNotification) {
-            WyntaSDKModule.showNotification(
-              title || '',
-              body || '',
-              {
-                ...data,
-                campaign_id: data.campaign_id || null,
-                campaign_name: data.campaign_name || null,
-                notification_type: data.notification_type || 'promotional',
-                template_id: data.template_id || null,
-              }
-            );
-          }
+        const data = remoteMessage.data || {};
+        // Prefer notification block fields; fall back to data payload fields
+        const title = remoteMessage.notification?.title ?? data.title ?? '';
+        const body  = remoteMessage.notification?.body  ?? data.body  ?? '';
+
+        if (!title && !body) return; // nothing to display
+
+        if (WyntaSDKModule && WyntaSDKModule.showNotification) {
+          WyntaSDKModule.showNotification(title, body, {
+            ...data,
+            campaign_id:       data.campaign_id       || null,
+            campaign_name:     data.campaign_name     || null,
+            notification_type: data.notification_type || 'promotional',
+            template_id:       data.template_id       || null,
+          });
         }
       });
     } catch {

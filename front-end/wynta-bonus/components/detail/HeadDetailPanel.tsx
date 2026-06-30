@@ -1,12 +1,13 @@
 'use client';
 import React, { useState } from 'react';
-import { useAppDispatch } from '../../store/hooks';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { selectNode } from '../../store/slices/treeSlice';
-import { getUsage, formatRelative } from '../../services/mocks/utils';
+import { selectEntitySpend } from '../../store/slices/spendSlice';
+import { formatRelative } from '../../services/mocks/utils';
 import Badge from 'wynta-react-common/components/Badge';
 import Icon from 'wynta-react-common/components/Icon';
 import BudgetGrid from '../../components/primitives/BudgetGrid';
-import UsageBreakdown from '../../components/primitives/UsageBreakdown';
+import SpendPanel from '../../components/primitives/SpendPanel';
 import OwnerPill from '../../components/primitives/OwnerPill';
 import ActionBar from 'wynta-react-common/components/ActionBar';
 import Toggle from 'wynta-react-common/components/Toggle';
@@ -19,6 +20,7 @@ interface HeadDetailPanelProps {
 
 export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps) {
   const dispatch = useAppDispatch();
+  const spendRows = useAppSelector(selectEntitySpend('HEAD', head.id));
   const [openSubheads, setOpenSubheads] = useState<Set<number>>(() => new Set());
   const toggleSub = (id: number) => {
     setOpenSubheads(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -68,7 +70,7 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
         <div className="section-label">Usage Breakdown</div>
         <div className="right">Across all configures in this head</div>
       </div>
-      <UsageBreakdown usage={getUsage('head', head.id)} />
+      <SpendPanel spendRows={spendRows} />
 
       <div className="section-label" style={{ marginTop: 28 }}>
         Subheads · {head.subheads.length}
