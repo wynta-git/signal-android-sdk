@@ -7,6 +7,7 @@ import type { WyntaBridge } from '../types';
 declare global {
   interface Window {
     __WYNTA_BRIDGE__?: WyntaBridge;
+    __fireBrandChange__?: (brandId: number) => void;
   }
 }
 
@@ -27,6 +28,7 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
       if (onBrandChange) onBrandChange(brandId);
       window.dispatchEvent(new CustomEvent('wynta:brand-changed', { detail: { brandId } }));
     }
+    window.__fireBrandChange__ = fireBrandChange;
 
     function dispatchToken(token: string) {
       const bridge: WyntaBridge = { token };
