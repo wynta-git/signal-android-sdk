@@ -23,14 +23,11 @@ DbDep = Annotated[AsyncIOMotorDatabase, Depends(get_db)]
 
 @router.put("/fcm")
 async def update_fcm_settings(
-    project_id: str,
     body: FcmSettingsRequest,
     ctx: PortalAuthDep,
     db: DbDep,
 ) -> dict[str, Any]:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail="project_id mismatch")
-
+    project_id = ctx.project_id
     found = await admin_update_project_settings(db, project_id, {
         "fcm_server_key": body.server_key,
         "fcm_sender_id": body.sender_id,
@@ -45,13 +42,10 @@ async def update_fcm_settings(
 
 @router.get("/fcm")
 async def get_fcm_settings(
-    project_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
 ) -> dict[str, Any]:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail="project_id mismatch")
-
+    project_id = ctx.project_id
     project = await admin_get_project(db, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="project not found")
@@ -76,15 +70,12 @@ async def get_fcm_settings(
 
 @router.put("/fcm/brands/{brand_id}")
 async def update_brand_fcm_settings(
-    project_id: str,
     brand_id: str,
     body: BrandFcmSettingsRequest,
     ctx: PortalAuthDep,
     db: DbDep,
 ) -> dict[str, Any]:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail="project_id mismatch")
-
+    project_id = ctx.project_id
     await upsert_brand_fcm_credential(
         db,
         project_id=project_id,
@@ -98,14 +89,11 @@ async def update_brand_fcm_settings(
 
 @router.get("/fcm/brands/{brand_id}")
 async def get_brand_fcm_settings_route(
-    project_id: str,
     brand_id: str,
     ctx: PortalAuthDep,
     db: DbDep,
 ) -> dict[str, Any]:
-    if ctx.project_id != project_id:
-        raise HTTPException(status_code=403, detail="project_id mismatch")
-
+    project_id = ctx.project_id
     doc = await get_brand_fcm_settings(db, project_id, brand_id)
     if not doc:
         raise HTTPException(status_code=404, detail="brand FCM settings not found")
