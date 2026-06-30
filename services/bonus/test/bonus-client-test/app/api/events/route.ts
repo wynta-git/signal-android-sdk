@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 import { randomUUID } from "node:crypto";
+import { logApiCall, sanitizeHeaders } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -64,16 +65,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   };
 
   const upstream = `${process.env.API_SERVICE_URL}/api/v1/events/track`;
+  const upstreamHeaders = {
+    "Content-Type": "application/json",
+    "X-Client-Id": clientId,
+    "X-Client-Secret": "[REDACTED]",
+  };
   const res = await fetch(upstream, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Client-Id": clientId,
-      "X-Client-Secret": secret,
-    },
+    headers: { ...upstreamHeaders, "X-Client-Secret": secret },
     body: JSON.stringify({ events: [event] }),
   });
 
   const data: unknown = await res.json();
+  logApiCall({
+    ts: new Date().toISOString(),
+    route: '/api/events',
+    method: 'POST',
+    client_id: clientId,
+    upstream,
+    request_headers: sanitizeHeaders(request.headers),
+    upstream_headers: upstreamHeaders,
+    request_body: event,
+    response_status: res.status,
+    response_body: data,
+  });
   return NextResponse.json(data, { status: res.status });
 }
