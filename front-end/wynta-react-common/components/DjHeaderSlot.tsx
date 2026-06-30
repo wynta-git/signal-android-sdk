@@ -18,6 +18,8 @@ interface Props {
 export default function DjHeaderSlot({ onBrandChange }: Props) {
   const dispatch = useDispatch<any>();
   const didInit  = useRef(false);
+  const onBrandChangeRef = useRef(onBrandChange);
+  onBrandChangeRef.current = onBrandChange;
 
   useEffect(() => {
     if (didInit.current) return;
@@ -25,7 +27,7 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
 
     function fireBrandChange(brandId: number) {
       console.log('[DjHeaderSlot] brand changed:', brandId);
-      if (onBrandChange) onBrandChange(brandId);
+      if (onBrandChangeRef.current) onBrandChangeRef.current(brandId);
       window.dispatchEvent(new CustomEvent('wynta:brand-changed', { detail: { brandId } }));
     }
     window.__fireBrandChange__ = fireBrandChange;
@@ -86,7 +88,7 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
         console.error('[DjHeaderSlot] Failed to load header fragment:', err);
         promptForToken();
       });
-  }, [dispatch, onBrandChange]);
+  }, [dispatch]);
 
   return <div id="dj-header-placeholder" suppressHydrationWarning />;
 }
