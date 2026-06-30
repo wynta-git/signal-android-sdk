@@ -64,6 +64,11 @@ KAFKA_SASL_USER="${KAFKA_SASL_USER:-}"   # leave empty for no-auth (PLAINTEXT)
 KAFKA_SASL_PASS="${KAFKA_SASL_PASS:-}"
 CH_HTTP_PORT="${CH_HTTP_PORT:-8123}"
 CH_NATIVE_PORT="${CH_NATIVE_PORT:-9000}"
+BONUS_DB_USER="${BONUS_DB_USER:-wynta_bonus}"
+BONUS_DB_PASS="${BONUS_DB_PASS:-}"
+BONUS_DB_NAME="${BONUS_DB_NAME:-wynta_bonus}"
+BONUS_S2S_CLIENTS="${BONUS_S2S_CLIENTS:-{}}"
+BONUS_PORT="${BONUS_PORT:-8007}"
 
 VENV="$REPO/.venv"
 
@@ -102,7 +107,7 @@ echo "======================================================"
 section "1. Checking prerequisites"
 
 for svc in api-service auth-service event-processor segmentation-engine \
-           campaign-engine notifications-engine scheduler-service; do
+           campaign-engine notifications-engine scheduler-service bonus; do
     [ -d "$REPO/services/$svc" ] || die "Missing service directory: $REPO/services/$svc"
 done
 [ -d "$REPO/shared" ] || die "Shared package not found at $REPO/shared"
@@ -186,12 +191,17 @@ as_user "$UV" pip install --python "$VENV/bin/python" \
     "requests>=2.31.0" \
     "aioboto3>=12.0.0" \
     "python-multipart>=0.0.9" \
+    "aiomysql>=0.2.0" \
     --quiet
 ok "All Python packages installed"
 
 info "Installing pam-shared (editable)..."
 as_user "$UV" pip install --python "$VENV/bin/python" -e "$REPO/shared" --quiet
 ok "pam-shared installed"
+
+info "Installing bonus service (editable)..."
+as_user "$UV" pip install --python "$VENV/bin/python" -e "$REPO/services/bonus" --quiet
+ok "bonus installed"
 
 # ── 5. .env files ─────────────────────────────────────────────────────────────
 section "5. Writing .env files"
@@ -361,6 +371,34 @@ chmod 644 "$REPO/services/scheduler-service/.env"
 chown "$APP_USER:$APP_USER" "$REPO/services/scheduler-service/.env"
 ok "scheduler-service/.env"
 
+# bonus — port 8007 (HTTP API) + background consumer
+cat > "$REPO/services/bonus/.env" <<EOF
+BONUS_DB_HOST=$INSTANCE1_IP
+BONUS_DB_PORT=$MYSQL_PORT
+BONUS_DB_USER=$BONUS_DB_USER
+BONUS_DB_PASSWORD=$BONUS_DB_PASS
+BONUS_DB_NAME=$BONUS_DB_NAME
+BONUS_COMMON_DB_HOST=$MYSQL_HOST
+BONUS_COMMON_DB_PORT=$MYSQL_PORT
+BONUS_COMMON_DB_USER=$MYSQL_USER
+BONUS_COMMON_DB_PASSWORD=$MYSQL_PASS
+BONUS_COMMON_DB_NAME=$MYSQL_DB
+BONUS_KAFKA_BOOTSTRAP_SERVERS=$INSTANCE1_IP:$KAFKA_PORT
+BONUS_KAFKA_TOPIC=pam.bonus.raw.v1
+BONUS_KAFKA_GROUP_ID=pam-bonus-consumer
+BONUS_KAFKA_SECURITY_PROTOCOL=SASL_PLAINTEXT
+BONUS_KAFKA_SASL_MECHANISM=SCRAM-SHA-256
+BONUS_KAFKA_SASL_USERNAME=$KAFKA_SASL_USER
+BONUS_KAFKA_SASL_PASSWORD=$KAFKA_SASL_PASS
+BONUS_KAFKA_DLQ_TOPIC=pam.bonus.invalid.v1
+BONUS_REDIS_URL=redis://:$REDIS_PASS_ENC@$INSTANCE1_IP:$REDIS_PORT
+BONUS_PORTAL_JWT_PUBLIC_KEY="$PUBKEY_ESCAPED"
+BONUS_S2S_CLIENTS=$BONUS_S2S_CLIENTS
+EOF
+chmod 600 "$REPO/services/bonus/.env"
+chown "$APP_USER:$APP_USER" "$REPO/services/bonus/.env"
+ok "bonus/.env  (mode 600)"
+
 # ── 6. ClickHouse — create database ──────────────────────────────────────────
 section "6. ClickHouse — create pam database"
 
@@ -444,25 +482,25 @@ EOF
 write_unit "pam-api" \
     "PAM API Service" \
     "$REPO/services/api-service" \
-    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001" \
+    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001 --proxy-headers --forwarded-allow-ips='*'" \
     "$REPO/services/api-service:$REPO"
 
 write_unit "pam-auth" \
     "PAM Auth Service" \
     "$REPO/services/auth-service" \
-    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8002" \
+    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8002 --proxy-headers --forwarded-allow-ips='*'" \
     "$REPO/services/auth-service:$REPO"
 
 write_unit "pam-segmentation" \
     "PAM Segmentation Engine" \
     "$REPO/services/segmentation-engine" \
-    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8003" \
+    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8003 --proxy-headers --forwarded-allow-ips='*'" \
     "$REPO/services/segmentation-engine:$REPO"
 
 write_unit "pam-campaign" \
     "PAM Campaign Engine" \
     "$REPO/services/campaign-engine" \
-    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8004" \
+    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port 8004 --proxy-headers --forwarded-allow-ips='*'" \
     "$REPO/services/campaign-engine:$REPO"
 
 write_unit "pam-notif" \
@@ -483,14 +521,26 @@ write_unit "pam-processor" \
     "$VENV/bin/python -m app.main" \
     "$REPO/services/event-processor:$REPO"
 
+write_unit "pam-bonus-api" \
+    "PAM Bonus API" \
+    "$REPO/services/bonus" \
+    "$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port $BONUS_PORT --proxy-headers --forwarded-allow-ips='*'" \
+    "$REPO/services/bonus:$REPO"
+
+write_unit "pam-bonus-consumer" \
+    "PAM Bonus Event Processor" \
+    "$REPO/services/bonus" \
+    "$VENV/bin/python -m app.bonus_event_processor.main" \
+    "$REPO/services/bonus:$REPO"
+
 systemctl daemon-reload
-systemctl enable pam-api pam-auth pam-segmentation pam-campaign pam-notif pam-scheduler pam-processor
+systemctl enable pam-api pam-auth pam-segmentation pam-campaign pam-notif pam-scheduler pam-processor pam-bonus-api pam-bonus-consumer
 ok "All units enabled at boot"
 
 # ── 10. start services ────────────────────────────────────────────────────────
 section "10. Starting services"
 
-for unit in pam-api pam-auth pam-segmentation pam-campaign pam-notif pam-scheduler pam-processor; do
+for unit in pam-api pam-auth pam-segmentation pam-campaign pam-notif pam-scheduler pam-processor pam-bonus-api pam-bonus-consumer; do
     systemctl restart "$unit"
     ok "$unit started"
 done
@@ -515,18 +565,21 @@ check_http() {
 }
 
 check_http "pam-api"          8001 "/api/v1/events/health"
-check_http "pam-auth"         8002 "/v1/health"
+check_http "pam-auth"         8002 "/api/v1/system/health"
 check_http "pam-segmentation" 8003 "/health"
 check_http "pam-campaign"     8004 "/health"
 check_http "pam-notif"        8005 "/health"
 check_http "pam-scheduler"    8006 "/health"
+check_http "pam-bonus-api"   $BONUS_PORT "/health"
 
-# pam-processor has no HTTP endpoint
-if systemctl is-active --quiet pam-processor; then
-    ok "pam-processor is running"
-else
-    warn "pam-processor is not active — check: journalctl -u pam-processor -n 40 --no-pager"
-fi
+# background workers — no HTTP endpoint
+for worker in pam-processor pam-bonus-consumer; do
+    if systemctl is-active --quiet "$worker"; then
+        ok "$worker is running"
+    else
+        warn "$worker is not active — check: journalctl -u $worker -n 40 --no-pager"
+    fi
+done
 
 # ── done ──────────────────────────────────────────────────────────────────────
 TOKEN_DISPLAY="${API_TOKEN:-$(cat "$REPO/.api_token" 2>/dev/null || echo '<retrieve from MongoDB>')}"
