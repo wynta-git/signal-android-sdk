@@ -60,7 +60,7 @@ html, body {
 }
 
 /* ============================================================
-   CRM Shell — full-screen layout (no topbar)
+   CRM Shell — full-screen layout
    ============================================================ */
 .crm-shell {
   display: flex;
@@ -260,10 +260,20 @@ html, body {
   min-height: 100vh;
   overflow: hidden;
 }
+.crm-topbar {
+  margin-top: 42px; /* account for fixed Django header */
+  height: 56px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--crm-border);
+  background: var(--crm-white);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+}
 .crm-content {
   flex: 1;
   overflow-y: auto;
-  padding-top: 42px;
 }
 
 /* ============================================================

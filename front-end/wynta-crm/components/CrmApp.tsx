@@ -1,10 +1,13 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Provider, useSelector }  from 'react-redux';
+import { Provider, useSelector, useDispatch } from 'react-redux';
 import dynamic       from 'next/dynamic';
 import { store }     from '../store';
 import { getToken }  from 'wynta-react-common/services/tokenRegistry';
 import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
+import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
+import { setSelectedBrand } from '../store/slices/uiSlice';
+import BrandSwitcher from 'wynta-react-common/components/BrandSwitcher';
 import CrmSidebar    from './CrmSidebar';
 import { listReports, createReport as createReportApi } from '../services/reportsApi';
 import type { ReportFilters, CustomReport } from '../services/reportsApi';
@@ -75,29 +78,18 @@ export default function CrmApp() {
 }
 
 function CrmShell() {
-  const projectId = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
+  const dispatch = useDispatch<any>();
+  const projectId    = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
+  const selectedBrand = useSelector((s: any) => s.ui?.selectedBrand as number | null);
   const [activeNav,       setActiveNav]       = useState('dashboard');
   const [campaignAutoAdd, setCampaignAutoAdd] = useState(false);
   const [customReports,   setCustomReports]   = useState<CustomReport[]>([]);
   const [creating,        setCreating]        = useState(false);
   const [createError,     setCreateError]     = useState<string | null>(null);
-  const [brandId,         setBrandId]         = useState<number | undefined>(() => {
-    if (typeof document === 'undefined') return undefined;
-    const el = document.querySelector<HTMLElement>('.brand-switch-item.active');
-    return el?.dataset.siteId ? Number(el.dataset.siteId) : undefined;
-  });
 
-  useEffect(() => { refreshCustomReports(); }, []);
+  useEffect(() => { dispatch(fetchBrands()); }, [dispatch]);
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const id = (e as CustomEvent<{ brandId: number }>).detail?.brandId;
-      refreshCustomReports();
-      if (id) setBrandId(id);
-    };
-    window.addEventListener('wynta:brand-changed', handler);
-    return () => window.removeEventListener('wynta:brand-changed', handler);
-  }, []);
+  useEffect(() => { refreshCustomReports(); }, [selectedBrand]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function refreshCustomReports() {
     try {
@@ -133,6 +125,8 @@ function CrmShell() {
 
   const reportId = activeNav.startsWith('reports:cr:') ? activeNav.slice('reports:cr:'.length) : null;
 
+  const brandId = selectedBrand ?? undefined;
+
   return (
     <div className="crm-shell">
       <CrmSidebar
@@ -142,6 +136,16 @@ function CrmShell() {
       />
 
       <main className="crm-main">
+        <div className="crm-topbar">
+          <BrandSwitcher
+            value={selectedBrand}
+            onChange={(id) => {
+              dispatch(setSelectedBrand(id));
+              window.__fireBrandChange__?.(id);
+            }}
+            compact
+          />
+        </div>
         <div className="crm-content">
           {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} brandId={brandId} /> :
            activeNav === 'segments'         ? <SegmentsPage brandId={brandId} /> :
