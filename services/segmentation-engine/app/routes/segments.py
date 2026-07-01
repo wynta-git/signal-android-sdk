@@ -90,8 +90,10 @@ async def list_segments(ctx: PortalAuthDep, db=Depends(_db), brand_id: str | Non
 
 
 @router.get("/stats")
-async def get_segment_stats(ctx: PortalAuthDep, db=Depends(_db), redis=Depends(_redis)) -> dict[str, Any]:
-    return await storage.get_segment_stats(db, ctx.project_id, redis)
+async def get_segment_stats(
+    ctx: PortalAuthDep, db=Depends(_db), redis=Depends(_redis), brand_id: str | None = Query(default=None)
+) -> dict[str, Any]:
+    return await storage.get_segment_stats(db, ctx.project_id, redis, brand_id=brand_id)
 
 
 @router.get("/{segment_id}")
