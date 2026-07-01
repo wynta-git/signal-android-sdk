@@ -1,3 +1,5 @@
+import asyncio
+import concurrent.futures
 import json
 from datetime import datetime, timezone
 from typing import Annotated, Any
@@ -13,6 +15,10 @@ from shared.clients.mongo import (
     admin_update_project_settings,
     get_brand_fcm_settings,
     upsert_brand_fcm_credential,
+)
+
+_fcm_verify_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=2, thread_name_prefix="fcm-verify"
 )
 
 log = structlog.get_logger()
@@ -108,3 +114,45 @@ async def get_brand_fcm_settings_route(
             pass
 
     return {"brand_id": brand_id, "service_account_json": sa_json}
+
+
+@router.post("/fcm/verify")
+async def verify_fcm_credentials(
+    body: BrandFcmSettingsRequest,
+    ctx: PortalAuthDep,
+) -> dict[str, Any]:
+    """Test FCM service-account JSON by obtaining an OAuth2 token from Google."""
+    from google.auth.transport.requests import Request as GoogleRequest  # noqa: PLC0415
+    from google.oauth2 import service_account  # noqa: PLC0415
+
+    credential_json = json.dumps(body.service_account_json)
+    firebase_project_id = body.service_account_json.get("project_id", "unknown")
+
+    def _refresh() -> None:
+        cred_dict = json.loads(credential_json)
+        creds = service_account.Credentials.from_service_account_info(
+            cred_dict,
+            scopes=["https://www.googleapis.com/auth/firebase.messaging"],
+        )
+        creds.refresh(GoogleRequest())
+
+    try:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(_fcm_verify_executor, _refresh)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    log.info("fcm_credentials.verified", project_id=ctx.project_id, firebase_project=firebase_project_id)
+    return {"ok": True, "message": f"Connected to Firebase project '{firebase_project_id}'"}
+
+
+@router.delete("/fcm/brands/{brand_id}")
+async def delete_brand_fcm_settings(
+    brand_id: str,
+    ctx: PortalAuthDep,
+    db: DbDep,
+) -> dict[str, Any]:
+    project_id = ctx.project_id
+    await db["brand_settings"].delete_one({"project_id": project_id, "brand_id": brand_id})
+    log.info("brand_fcm_settings.deleted", project_id=project_id, brand_id=brand_id)
+    return {"ok": True}

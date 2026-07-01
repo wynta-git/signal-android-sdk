@@ -2,14 +2,31 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Icon from '../../components/Icon';
 import { DEFAULT_CONNECTORS } from '../constants';
+import { getToken } from '../../services/tokenRegistry';
 import type { Connector } from '../types';
 
+// ── Email connector API (NEXT_PUBLIC_WYNTA_API_URL) ───────────────────────────
 const API_BASE = process.env.NEXT_PUBLIC_WYNTA_API_URL ?? '';
 const AUTH_HEADERS: Record<string, string> = process.env.NEXT_PUBLIC_WYNTA_API_TOKEN
   ? { Authorization: process.env.NEXT_PUBLIC_WYNTA_API_TOKEN }
   : {};
 
-// Maps API current_provider value → connector id in DEFAULT_CONNECTORS
+// ── Campaign-engine API (NEXT_PUBLIC_CAMPAIGN_API_URL) ────────────────────────
+const CAMPAIGN_API_BASE = process.env.NEXT_PUBLIC_CAMPAIGN_API_URL ?? '';
+const PROJECT_ID        = process.env.NEXT_PUBLIC_PROJECT_ID ?? '';
+
+function campaignHeaders(): Record<string, string> {
+  const t = getToken();
+  return t
+    ? { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' };
+}
+function campaignGetHeaders(): Record<string, string> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+// Maps API current_provider → connector id
 const PROVIDER_TO_ID: Record<string, string> = {
   gsuite:   'google-smtp',
   mailgun:  'mailgun',
@@ -17,11 +34,13 @@ const PROVIDER_TO_ID: Record<string, string> = {
   exchange: 'ms-exchange',
 };
 
+const FCM_BRAND_KEY = 'pam_fcm_brand_id';
+
 type FilterType = 'all' | 'connected' | 'disconnected';
 
-const CATEGORIES = ['Email'] as const;
+const CATEGORIES = ['Email', 'Push'] as const;
 
-/* Brand icon boxes for known connectors */
+/* ── Brand icons ─────────────────────────────────────────────────────────────── */
 function ConnectorIcon({ connector }: { connector: Connector }) {
   const base: React.CSSProperties = {
     width: 40, height: 40, borderRadius: 8, flexShrink: 0,
@@ -78,6 +97,17 @@ function ConnectorIcon({ connector }: { connector: Connector }) {
     );
   }
 
+  if (connector.id === 'fcm') {
+    return (
+      <div style={{ ...base, background: '#fff8e1', border: '1px solid #fde68a' }}>
+        {/* Firebase flame */}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M13.5 2C13.5 2 14.5 5.5 12.5 8C10.7 10.2 8 10 8 10C8 10 9 7.5 7.5 5C6.2 2.8 4 2 4 2C4 2 4.5 6.5 6 9C7.3 11.2 9 12 9 12C9 12 6 12.5 4.5 15C3 17.5 3.5 20 3.5 20C3.5 20 5.5 17 8 16.5C9.5 16.2 11 17 11 17C11 17 9.5 13.5 12 11.5C13.8 10 16 10 16 10C16 10 14 12 14.5 15C15 17.5 17 19 17 19C17 19 17.5 16 19 14C20.3 12.3 22 12 22 12C22 12 20 11 18.5 8.5C17 6 17.5 3 17.5 3C17.5 3 15.5 5.5 15.5 8C15.5 9.5 16 11 16 11C16 11 14.5 9 13.5 7C12.7 5.4 13.5 2 13.5 2Z" fill="#f59e0b" stroke="#d97706" strokeWidth="0.5"/>
+        </svg>
+      </div>
+    );
+  }
+
   return (
     <div style={{ ...base, background: connector.iconBg ?? '#f3f4f6', border: '1px solid #e5e7eb' }}>
       <Icon name={connector.icon} size={18} strokeWidth={1.7} color="#374151" />
@@ -90,34 +120,39 @@ export default function ConnectorSettings() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
   const [connectModal, setConnectModal] = useState<string | null>(null);
-  // Google fields
-  const [modalEmail, setModalEmail]     = useState('');
+
+  // ── Email state ───────────────────────────────────────────────────────────────
+  const [modalEmail, setModalEmail]       = useState('');
   const [modalPassword, setModalPassword] = useState('');
-  // Mailgun fields
-  const [mgDomain, setMgDomain]   = useState('');
-  const [mgApiKey, setMgApiKey]   = useState('');
-  const [mgRegion, setMgRegion]   = useState('');
-  // MS Exchange fields
-  const [exEmail, setExEmail]     = useState('');
-  const [exPassword, setExPassword] = useState('');
-  // SendGrid fields
-  const [sgEmail, setSgEmail]     = useState('');
-  const [sgApiKey, setSgApiKey]   = useState('');
-  // Verify state
+  const [mgDomain, setMgDomain]           = useState('');
+  const [mgApiKey, setMgApiKey]           = useState('');
+  const [mgRegion, setMgRegion]           = useState('');
+  const [exEmail, setExEmail]             = useState('');
+  const [exPassword, setExPassword]       = useState('');
+  const [sgEmail, setSgEmail]             = useState('');
+  const [sgApiKey, setSgApiKey]           = useState('');
+
+  // ── FCM / Push state ──────────────────────────────────────────────────────────
+  const [fcmBrandId, setFcmBrandId]               = useState('');
+  const [fcmFile, setFcmFile]                     = useState<File | null>(null);
+  const [fcmJson, setFcmJson]                     = useState<Record<string, unknown> | null>(null);
+  const [fcmParseError, setFcmParseError]         = useState('');
+  const [fcmConnectedBrandId, setFcmConnectedBrandId] = useState<string | null>(null);
+  const [fcmApiData, setFcmApiData]               = useState<Record<string, unknown> | null>(null);
+
+  // ── Shared modal state ────────────────────────────────────────────────────────
   const [verifying, setVerifying]       = useState(false);
   const [verifyResult, setVerifyResult] = useState<'success' | 'error' | null>(null);
   const [verifyMsg, setVerifyMsg]       = useState('');
-  // Save state
-  const [saving, setSaving]         = useState(false);
-  const [saveError, setSaveError]   = useState('');
-  // Manage mode (opened from a connected connector)
-  const [isManage, setIsManage]     = useState(false);
-  // Saved non-sensitive fields per connector id
-  const [savedFields, setSavedFields] = useState<Record<string, Record<string, string>>>({});
-  // Raw data from the connectors API (for pre-filling Manage modal)
+  const [saving, setSaving]             = useState(false);
+  const [saveError, setSaveError]       = useState('');
+  const [isManage, setIsManage]         = useState(false);
+  const [savedFields, setSavedFields]   = useState<Record<string, Record<string, string>>>({});
   const [connectorApiData, setConnectorApiData] = useState<Record<string, unknown> | null>(null);
   const fetchedRef = useRef(false);
+  const fcmFileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Load email connector status ───────────────────────────────────────────────
   function loadConnectors() {
     fetch(`${API_BASE}/api/v1/workspace/settings/connectors/`, { headers: AUTH_HEADERS })
       .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
@@ -135,16 +170,41 @@ export default function ConnectorSettings() {
       .catch(() => {});
   }
 
+  // ── Load FCM status for a given brand ────────────────────────────────────────
+  function loadFcmStatus(brandId: string) {
+    if (!brandId || !PROJECT_ID) return;
+    fetch(
+      `${CAMPAIGN_API_BASE}/api/v1/campaign/projects/${PROJECT_ID}/settings/fcm/brands/${encodeURIComponent(brandId)}`,
+      { headers: campaignGetHeaders() },
+    )
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+      .then(data => {
+        setFcmApiData(data);
+        setFcmConnectedBrandId(brandId);
+        setConnectors(cs => cs.map(c => c.id === 'fcm' ? { ...c, status: 'connected' } : c));
+        try { localStorage.setItem(FCM_BRAND_KEY, brandId); } catch { /* ignore */ }
+      })
+      .catch(() => {
+        setConnectors(cs => cs.map(c => c.id === 'fcm' ? { ...c, status: 'disconnected' } : c));
+        try { localStorage.removeItem(FCM_BRAND_KEY); } catch { /* ignore */ }
+      });
+  }
+
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
     loadConnectors();
+    try {
+      const stored = localStorage.getItem(FCM_BRAND_KEY);
+      if (stored) loadFcmStatus(stored);
+    } catch { /* ignore */ }
   }, []);
 
+  // ── Filtered + searched list ──────────────────────────────────────────────────
   const visible = useMemo(() => {
     return connectors.filter(c => {
-      if (filter === 'connected'    && c.status !== 'connected')    return false;
-      if (filter === 'disconnected' && c.status === 'connected')    return false;
+      if (filter === 'connected'    && c.status !== 'connected')  return false;
+      if (filter === 'disconnected' && c.status === 'connected')  return false;
       if (search) {
         const q = search.toLowerCase();
         if (!c.name.toLowerCase().includes(q) && !c.description.toLowerCase().includes(q)) return false;
@@ -153,20 +213,14 @@ export default function ConnectorSettings() {
     });
   }, [connectors, filter, search]);
 
-  function toggle(id: string) {
-    setConnectors(cs => cs.map(c =>
-      c.id === id
-        ? { ...c, status: c.status === 'connected' ? 'disconnected' : 'connected' }
-        : c
-    ));
-  }
-
+  // ── Modal helpers ─────────────────────────────────────────────────────────────
   function openConnect(id: string) {
     setIsManage(false);
     setModalEmail(''); setModalPassword('');
     setMgDomain(''); setMgApiKey(''); setMgRegion('');
     setExEmail(''); setExPassword('');
     setSgEmail(''); setSgApiKey('');
+    setFcmBrandId(''); setFcmFile(null); setFcmJson(null); setFcmParseError('');
     setVerifyResult(null); setVerifyMsg('');
     setSaveError('');
     setConnectModal(id);
@@ -176,7 +230,6 @@ export default function ConnectorSettings() {
     setIsManage(true);
     const api = connectorApiData ?? {};
     const f   = savedFields[id] ?? {};
-    // API fields take precedence over locally-cached savedFields
     const emailVal  = ((api.emailaddress as string) || (api.username as string) || f.email || '');
     const domainVal = ((api.domain as string) || f.domain || '');
     const regionVal = api.region != null ? String(api.region as number) : (f.region ?? '');
@@ -184,6 +237,9 @@ export default function ConnectorSettings() {
     setMgDomain(domainVal); setMgApiKey(''); setMgRegion(regionVal);
     setExEmail(emailVal); setExPassword('');
     setSgEmail(emailVal); setSgApiKey('');
+    // FCM manage: pre-fill brand from stored state
+    setFcmBrandId(fcmConnectedBrandId ?? '');
+    setFcmFile(null); setFcmJson(null); setFcmParseError('');
     setVerifyResult(null); setVerifyMsg('');
     setSaveError('');
     setConnectModal(id);
@@ -194,8 +250,10 @@ export default function ConnectorSettings() {
     setIsManage(false);
     setVerifyResult(null); setVerifyMsg('');
     setSaveError('');
+    setFcmFile(null); setFcmJson(null); setFcmParseError('');
   }
 
+  // ── Email verify / save / disconnect ─────────────────────────────────────────
   function verifyCredentials(payload: Record<string, unknown>) {
     setVerifying(true);
     setVerifyResult(null);
@@ -257,6 +315,105 @@ export default function ConnectorSettings() {
     disconnectConnector(id);
   }
 
+  // ── FCM verify / save / disconnect ────────────────────────────────────────────
+  function verifyFcmCredentials() {
+    if (!fcmJson) return;
+    setVerifying(true);
+    setVerifyResult(null);
+    setVerifyMsg('');
+    fetch(
+      `${CAMPAIGN_API_BASE}/api/v1/campaign/projects/${PROJECT_ID}/settings/fcm/verify`,
+      {
+        method: 'POST',
+        headers: campaignHeaders(),
+        body: JSON.stringify({ service_account_json: fcmJson }),
+      },
+    )
+      .then(res => res.json().then(d => ({ ok: res.ok, d })))
+      .then(({ ok, d }) => {
+        if (ok) {
+          setVerifyResult('success');
+          setVerifyMsg(d?.message ?? 'Firebase connection verified.');
+        } else {
+          setVerifyResult('error');
+          setVerifyMsg(d?.detail ?? d?.message ?? 'Verification failed.');
+        }
+      })
+      .catch(() => { setVerifyResult('error'); setVerifyMsg('Network error.'); })
+      .finally(() => setVerifying(false));
+  }
+
+  function saveFcmConnection() {
+    if (!fcmJson || !fcmBrandId.trim()) return;
+    setSaving(true);
+    setSaveError('');
+    fetch(
+      `${CAMPAIGN_API_BASE}/api/v1/campaign/projects/${PROJECT_ID}/settings/fcm/brands/${encodeURIComponent(fcmBrandId.trim())}`,
+      {
+        method: 'PUT',
+        headers: campaignHeaders(),
+        body: JSON.stringify({ service_account_json: fcmJson }),
+      },
+    )
+      .then(res => res.json().then(d => ({ ok: res.ok, d })))
+      .then(({ ok, d }) => {
+        if (ok) {
+          closeModal();
+          loadFcmStatus(fcmBrandId.trim());
+        } else {
+          setSaveError(d?.detail ?? d?.message ?? 'Failed to save FCM settings.');
+        }
+      })
+      .catch(() => setSaveError('Network error.'))
+      .finally(() => setSaving(false));
+  }
+
+  function disconnectFcm() {
+    if (!fcmConnectedBrandId) return;
+    const brandId = fcmConnectedBrandId;
+    closeModal();
+    fetch(
+      `${CAMPAIGN_API_BASE}/api/v1/campaign/projects/${PROJECT_ID}/settings/fcm/brands/${encodeURIComponent(brandId)}`,
+      { method: 'DELETE', headers: campaignGetHeaders() },
+    )
+      .then(() => {
+        setFcmConnectedBrandId(null);
+        setFcmApiData(null);
+        setConnectors(cs => cs.map(c => c.id === 'fcm' ? { ...c, status: 'disconnected' } : c));
+        try { localStorage.removeItem(FCM_BRAND_KEY); } catch { /* ignore */ }
+      })
+      .catch(() => {
+        // reload status to get real state
+        if (fcmConnectedBrandId) loadFcmStatus(fcmConnectedBrandId);
+      });
+  }
+
+  // ── FCM JSON file handling ────────────────────────────────────────────────────
+  function handleFcmFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setFcmFile(file);
+    setFcmJson(null);
+    setFcmParseError('');
+    setVerifyResult(null);
+    setVerifyMsg('');
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string);
+        if (parsed.type !== 'service_account') {
+          setFcmParseError('This does not look like a Firebase service account JSON (missing type: service_account).');
+          return;
+        }
+        setFcmJson(parsed);
+      } catch {
+        setFcmParseError('Could not parse JSON file.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ── Shared styles ─────────────────────────────────────────────────────────────
   const chipStyle = (active: boolean): React.CSSProperties => ({
     padding: '5px 16px', borderRadius: 20, fontSize: 12, fontWeight: 500,
     cursor: 'pointer',
@@ -265,6 +422,27 @@ export default function ConnectorSettings() {
     color: active ? '#fff' : '#374151',
   });
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box',
+    border: '1px solid #d1d5db', borderRadius: 6,
+    fontSize: 13, color: '#374151', outline: 'none',
+  };
+
+  const disconnectBtnStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 6,
+    height: 40, padding: '0 16px', border: 'none', borderRadius: 20,
+    background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', flexShrink: 0,
+  };
+
+  const disconnectIcon = (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+    </svg>
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div style={{ paddingTop: 24 }}>
       {CATEGORIES.map((category, ci) => {
@@ -372,7 +550,155 @@ export default function ConnectorSettings() {
         );
       })}
 
-      {/* ── MS Exchange modal ── */}
+      {/* ══ FCM modal ══════════════════════════════════════════════════════════ */}
+      {connectModal === 'fcm' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 400, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 6, background: '#fff8e1', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M13.5 2C13.5 2 14.5 5.5 12.5 8C10.7 10.2 8 10 8 10C8 10 9 7.5 7.5 5C6.2 2.8 4 2 4 2C4 2 4.5 6.5 6 9C7.3 11.2 9 12 9 12C9 12 6 12.5 4.5 15C3 17.5 3.5 20 3.5 20C3.5 20 5.5 17 8 16.5C9.5 16.2 11 17 11 17C11 17 9.5 13.5 12 11.5C13.8 10 16 10 16 10C16 10 14 12 14.5 15C15 17.5 17 19 17 19C17 19 17.5 16 19 14C20.3 12.3 22 12 22 12C22 12 20 11 18.5 8.5C17 6 17.5 3 17.5 3C17.5 3 15.5 5.5 15.5 8C15.5 9.5 16 11 16 11C16 11 14.5 9 13.5 7C12.7 5.4 13.5 2 13.5 2Z" fill="#f59e0b" stroke="#d97706" strokeWidth="0.5"/>
+                  </svg>
+                </div>
+                <span style={{ fontSize: 15, fontWeight: 600, color: '#111827' }}>
+                  {isManage ? 'Manage Firebase FCM' : 'Connect Firebase FCM'}
+                </span>
+              </div>
+              <button type="button" onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', lineHeight: 1, padding: 2 }}>×</button>
+            </div>
+
+            {/* Manage: show current connection info */}
+            {isManage && fcmApiData && !fcmJson && (
+              <div style={{ marginBottom: 16, padding: '10px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#16a34a', marginBottom: 4 }}>Currently connected</div>
+                {fcmConnectedBrandId && (
+                  <div style={{ fontSize: 12, color: '#374151' }}>Brand: <strong>{fcmConnectedBrandId}</strong></div>
+                )}
+                {(() => {
+                  const sa = (fcmApiData as { service_account_json?: Record<string, unknown> })?.service_account_json;
+                  return sa ? (
+                    <>
+                      <div style={{ fontSize: 12, color: '#374151', marginTop: 2 }}>Project: <strong>{sa.project_id as string}</strong></div>
+                      <div style={{ fontSize: 12, color: '#374151', marginTop: 2 }}>Account: <strong>{sa.client_email as string}</strong></div>
+                    </>
+                  ) : null;
+                })()}
+              </div>
+            )}
+
+            {/* Brand ID */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Brand ID</label>
+              <input
+                type="text"
+                value={fcmBrandId}
+                onChange={e => setFcmBrandId(e.target.value)}
+                placeholder="e.g. brand_01"
+                readOnly={isManage && !!fcmConnectedBrandId && !fcmJson}
+                style={{ ...inputStyle, background: isManage && !!fcmConnectedBrandId && !fcmJson ? '#f9fafb' : '#fff', color: '#374151' }}
+              />
+            </div>
+
+            {/* JSON file upload */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>
+                {isManage ? 'Upload new service account JSON (optional)' : 'Firebase service account JSON'}
+              </label>
+
+              <input
+                ref={fcmFileInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleFcmFileChange}
+                style={{ display: 'none' }}
+              />
+
+              <button
+                type="button"
+                onClick={() => fcmFileInputRef.current?.click()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: '100%', height: 40, padding: '0 14px',
+                  border: fcmJson ? '1px solid #bbf7d0' : '1px dashed #d1d5db',
+                  borderRadius: 6, background: fcmJson ? '#f0fdf4' : '#fafafa',
+                  fontSize: 12, color: fcmJson ? '#16a34a' : '#6b7280',
+                  cursor: 'pointer', textAlign: 'left', boxSizing: 'border-box',
+                }}
+              >
+                <Icon name={fcmJson ? 'check-circle' : 'upload'} size={14} color={fcmJson ? '#16a34a' : '#9ca3af'} />
+                {fcmJson
+                  ? (fcmFile?.name ?? 'File loaded')
+                  : (fcmFile ? fcmFile.name : 'Choose JSON file…')}
+              </button>
+
+              {fcmParseError && (
+                <div style={{ marginTop: 6, fontSize: 12, color: '#ef4444' }}>{fcmParseError}</div>
+              )}
+
+              {/* Preview parsed info */}
+              {fcmJson && (
+                <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12, color: '#374151' }}>
+                  <div>Project: <strong>{fcmJson.project_id as string}</strong></div>
+                  <div style={{ marginTop: 2 }}>Account: <strong>{fcmJson.client_email as string}</strong></div>
+                </div>
+              )}
+            </div>
+
+            {/* Verify / save feedback */}
+            {verifyMsg && (
+              <div style={{ marginBottom: 10, fontSize: 12, color: verifyResult === 'success' ? '#10b981' : '#ef4444' }}>
+                {verifyMsg}
+              </div>
+            )}
+            {saveError && (
+              <div style={{ marginBottom: 10, fontSize: 12, color: '#ef4444' }}>{saveError}</div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {isManage && (
+                <button type="button" onClick={disconnectFcm} style={disconnectBtnStyle}>
+                  {disconnectIcon}
+                  Disconnect
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={verifying || !fcmJson}
+                onClick={verifyFcmCredentials}
+                style={{
+                  flex: 1, height: 40, border: '1px solid #d1d5db', borderRadius: 20,
+                  background: '#fff', fontSize: 13, color: '#374151',
+                  cursor: !fcmJson || verifying ? 'not-allowed' : 'pointer',
+                  fontWeight: 500, opacity: !fcmJson || verifying ? 0.6 : 1,
+                }}
+              >
+                {verifying ? 'Testing…' : 'Test'}
+              </button>
+
+              <button
+                type="button"
+                disabled={saving || !fcmJson || !fcmBrandId.trim()}
+                onClick={saveFcmConnection}
+                style={{
+                  flex: 1, height: 40, border: 'none', borderRadius: 20,
+                  background: '#0091E0', color: '#fff', fontSize: 13, fontWeight: 600,
+                  cursor: saving || !fcmJson || !fcmBrandId.trim() ? 'not-allowed' : 'pointer',
+                  opacity: saving || !fcmJson || !fcmBrandId.trim() ? 0.65 : 1,
+                }}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ MS Exchange modal ═══════════════════════════════════════════════════ */}
       {connectModal === 'ms-exchange' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
@@ -382,22 +708,18 @@ export default function ConnectorSettings() {
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Email Address</label>
-              <input type="email" value={exEmail} onChange={e => setExEmail(e.target.value)} placeholder="you@company.com"
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+              <input type="email" value={exEmail} onChange={e => setExEmail(e.target.value)} placeholder="you@company.com" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Password</label>
-              <input type="password" value={exPassword} onChange={e => setExPassword(e.target.value)} placeholder="Exchange password"
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+              <input type="password" value={exPassword} onChange={e => setExPassword(e.target.value)} placeholder="Exchange password" style={inputStyle} />
             </div>
             {verifyMsg && <div style={{ marginBottom: 8, fontSize: 12, color: verifyResult === 'success' ? '#10b981' : '#ef4444' }}>{verifyMsg}</div>}
             {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               {isManage && (
-                <button type="button" onClick={() => handleDisconnectFromModal('ms-exchange')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 16px', border: 'none', borderRadius: 20, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  Disconnect
+                <button type="button" onClick={() => handleDisconnectFromModal('ms-exchange')} style={disconnectBtnStyle}>
+                  {disconnectIcon} Disconnect
                 </button>
               )}
               <button type="button" disabled={verifying}
@@ -415,7 +737,7 @@ export default function ConnectorSettings() {
         </div>
       )}
 
-      {/* ── SendGrid modal ── */}
+      {/* ══ SendGrid modal ══════════════════════════════════════════════════════ */}
       {connectModal === 'sendgrid-em' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
@@ -425,22 +747,18 @@ export default function ConnectorSettings() {
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>From Email Address</label>
-              <input type="email" value={sgEmail} onChange={e => setSgEmail(e.target.value)} placeholder="noreply@yourdomain.com"
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+              <input type="email" value={sgEmail} onChange={e => setSgEmail(e.target.value)} placeholder="noreply@yourdomain.com" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>API Key</label>
-              <input type="password" value={sgApiKey} onChange={e => setSgApiKey(e.target.value)} placeholder="SG.xxxxxxxxxxxxxxxx"
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+              <input type="password" value={sgApiKey} onChange={e => setSgApiKey(e.target.value)} placeholder="SG.xxxxxxxxxxxxxxxx" style={inputStyle} />
             </div>
             {verifyMsg && <div style={{ marginBottom: 8, fontSize: 12, color: verifyResult === 'success' ? '#10b981' : '#ef4444' }}>{verifyMsg}</div>}
             {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               {isManage && (
-                <button type="button" onClick={() => handleDisconnectFromModal('sendgrid-em')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 16px', border: 'none', borderRadius: 20, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  Disconnect
+                <button type="button" onClick={() => handleDisconnectFromModal('sendgrid-em')} style={disconnectBtnStyle}>
+                  {disconnectIcon} Disconnect
                 </button>
               )}
               <button type="button" disabled={verifying}
@@ -458,7 +776,7 @@ export default function ConnectorSettings() {
         </div>
       )}
 
-      {/* ── Mailgun modal ── */}
+      {/* ══ Mailgun modal ═══════════════════════════════════════════════════════ */}
       {connectModal === 'mailgun' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
@@ -468,18 +786,16 @@ export default function ConnectorSettings() {
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Domain</label>
-              <input type="text" value={mgDomain} onChange={e => setMgDomain(e.target.value)} placeholder="mg.yourdomain.com"
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+              <input type="text" value={mgDomain} onChange={e => setMgDomain(e.target.value)} placeholder="mg.yourdomain.com" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>API Key</label>
-              <input type="password" value={mgApiKey} onChange={e => setMgApiKey(e.target.value)} placeholder="key-xxxxxxxxxxxxxxxx"
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+              <input type="password" value={mgApiKey} onChange={e => setMgApiKey(e.target.value)} placeholder="key-xxxxxxxxxxxxxxxx" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Region</label>
               <select value={mgRegion} onChange={e => setMgRegion(e.target.value)}
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none', background: '#fff', appearance: 'auto' }}>
+                style={{ ...inputStyle, background: '#fff', appearance: 'auto' }}>
                 <option value="">Select region</option>
                 <option value="2">US</option>
                 <option value="1">EU</option>
@@ -489,10 +805,8 @@ export default function ConnectorSettings() {
             {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               {isManage && (
-                <button type="button" onClick={() => handleDisconnectFromModal('mailgun')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 16px', border: 'none', borderRadius: 20, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  Disconnect
+                <button type="button" onClick={() => handleDisconnectFromModal('mailgun')} style={disconnectBtnStyle}>
+                  {disconnectIcon} Disconnect
                 </button>
               )}
               <button type="button" disabled={verifying}
@@ -510,7 +824,7 @@ export default function ConnectorSettings() {
         </div>
       )}
 
-      {/* ── Google modal ── */}
+      {/* ══ Google SMTP modal ═══════════════════════════════════════════════════ */}
       {connectModal === 'google-smtp' && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: '28px 32px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
@@ -520,22 +834,18 @@ export default function ConnectorSettings() {
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Email Address</label>
-              <input type="email" value={modalEmail} onChange={e => setModalEmail(e.target.value)} placeholder="you@gmail.com"
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+              <input type="email" value={modalEmail} onChange={e => setModalEmail(e.target.value)} placeholder="you@gmail.com" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>App Password</label>
-              <input type="password" value={modalPassword} onChange={e => setModalPassword(e.target.value)} placeholder="Google app password"
-                style={{ width: '100%', height: 40, padding: '0 12px', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, color: '#374151', outline: 'none' }} />
+              <input type="password" value={modalPassword} onChange={e => setModalPassword(e.target.value)} placeholder="Google app password" style={inputStyle} />
             </div>
             {verifyMsg && <div style={{ marginBottom: 8, fontSize: 12, color: verifyResult === 'success' ? '#10b981' : '#ef4444' }}>{verifyMsg}</div>}
             {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               {isManage && (
-                <button type="button" onClick={() => handleDisconnectFromModal('google-smtp')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 40, padding: '0 16px', border: 'none', borderRadius: 20, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  Disconnect
+                <button type="button" onClick={() => handleDisconnectFromModal('google-smtp')} style={disconnectBtnStyle}>
+                  {disconnectIcon} Disconnect
                 </button>
               )}
               <button type="button" disabled={verifying}
