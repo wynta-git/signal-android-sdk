@@ -16,6 +16,7 @@ class InvalidSystemTokenError(Exception):
 @dataclass(frozen=True)
 class SystemTokenContext:
     service: str
+    project_id: str
     scope: list[str]
 
     def has_scope(self, required: str) -> bool:
@@ -36,10 +37,11 @@ def validate_system_jwt(token: str, public_key: str) -> SystemTokenContext:
 
     sub = payload.get("sub")
     scope = payload.get("scope", [])
+    project_key = payload.get("project_key")
 
     if not isinstance(sub, str) or not sub:
         raise InvalidSystemTokenError()
     if not isinstance(scope, list):
         raise InvalidSystemTokenError()
 
-    return SystemTokenContext(service=sub, scope=scope)
+    return SystemTokenContext(service=sub, project_id=project_key, scope=scope)
