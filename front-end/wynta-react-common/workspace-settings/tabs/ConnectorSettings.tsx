@@ -12,8 +12,8 @@ const AUTH_HEADERS: Record<string, string> = process.env.NEXT_PUBLIC_WYNTA_API_T
   : {};
 
 // ── Campaign-engine API (NEXT_PUBLIC_CAMPAIGN_API_URL) ────────────────────────
-const CAMPAIGN_API_BASE = process.env.NEXT_PUBLIC_CAMPAIGN_API_URL ?? '';
-const PROJECT_ID        = process.env.NEXT_PUBLIC_PROJECT_ID ?? '';
+const CAMPAIGN_API_BASE = process.env.NEXT_PUBLIC_CAMPAIGN_API_URL || 'http://3.7.48.14:8004';
+const PROJECT_ID        = process.env.NEXT_PUBLIC_PROJECT_ID || 'proj_demo';
 
 function campaignHeaders(): Record<string, string> {
   const t = getToken();
