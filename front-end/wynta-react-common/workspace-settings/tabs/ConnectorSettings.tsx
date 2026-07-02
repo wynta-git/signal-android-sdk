@@ -414,6 +414,8 @@ export default function ConnectorSettings() {
   }
 
   // ── Shared styles ─────────────────────────────────────────────────────────────
+  const [activeCategory, setActiveCategory] = useState<typeof CATEGORIES[number]>('Email');
+
   const chipStyle = (active: boolean): React.CSSProperties => ({
     padding: '5px 16px', borderRadius: 20, fontSize: 12, fontWeight: 500,
     cursor: 'pointer',
@@ -443,112 +445,127 @@ export default function ConnectorSettings() {
   );
 
   // ── Render ────────────────────────────────────────────────────────────────────
+  const categoryItems = visible.filter(c => c.category === activeCategory);
+  const catDesc = DEFAULT_CONNECTORS.find(c => c.category === activeCategory)?.categoryDescription ?? '';
+
   return (
-    <div style={{ paddingTop: 24 }}>
-      {CATEGORIES.map((category, ci) => {
-        const items = visible.filter(c => c.category === category);
-        const firstInCat = DEFAULT_CONNECTORS.find(c => c.category === category);
-        const catDesc = firstInCat?.categoryDescription ?? '';
+    <div style={{ paddingTop: 16 }}>
 
-        return (
-          <div key={category} style={{ marginBottom: ci < CATEGORIES.length - 1 ? 32 : 0 }}>
-            {/* Category header */}
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{category}</div>
-              {catDesc && (
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>{catDesc}</div>
-              )}
-            </div>
+      {/* Category tabs */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', marginBottom: 20 }}>
+        {CATEGORIES.map(cat => {
+          const isActive = activeCategory === cat;
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setActiveCategory(cat)}
+              style={{
+                padding: '10px 18px', fontSize: 13.5, fontWeight: 500,
+                color: isActive ? '#0091E0' : '#6b7280',
+                borderBottom: isActive ? '2px solid #0091E0' : '2px solid transparent',
+                marginBottom: -1, background: 'none',
+                border: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              {cat}
+            </button>
+          );
+        })}
+      </div>
 
-            {/* Filter chips + Search */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['all', 'connected', 'disconnected'] as FilterType[]).map(f => (
-                  <button key={f} type="button" style={chipStyle(filter === f)} onClick={() => setFilter(f)}>
-                    {f === 'all' ? 'All' : f === 'connected' ? 'Connected' : 'Not connected'}
-                  </button>
-                ))}
-              </div>
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search"
-                style={{
-                  height: 32, padding: '0 12px', width: 200,
-                  border: '1px solid #d1d5db', borderRadius: 4,
-                  fontSize: 12, color: '#374151', outline: 'none', background: '#fff',
-                }}
-              />
-            </div>
+      {/* Category description */}
+      {catDesc && (
+        <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 14 }}>{catDesc}</div>
+      )}
 
-            {/* Connector rows */}
-            <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
-              {items.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '28px 0', color: '#9ca3af', fontSize: 13 }}>
-                  No connectors available.
-                </div>
-              )}
-              {items.map((connector, i) => {
-                const isConnected = connector.status === 'connected';
-                const isError     = connector.status === 'error';
-                return (
-                  <div
-                    key={connector.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '16px 18px',
-                      borderBottom: i < items.length - 1 ? '1px solid #f3f4f6' : 'none',
-                    }}
-                  >
-                    <ConnectorIcon connector={connector} />
+      {/* Filter chips + Search */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {(['all', 'connected', 'disconnected'] as FilterType[]).map(f => (
+            <button key={f} type="button" style={chipStyle(filter === f)} onClick={() => setFilter(f)}>
+              {f === 'all' ? 'All' : f === 'connected' ? 'Connected' : 'Not connected'}
+            </button>
+          ))}
+        </div>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search"
+          style={{
+            height: 32, padding: '0 12px', width: 200,
+            border: '1px solid #d1d5db', borderRadius: 4,
+            fontSize: 12, color: '#374151', outline: 'none', background: '#fff',
+          }}
+        />
+      </div>
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{connector.name}</div>
-                      <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{connector.description}</div>
-                    </div>
-
-                    {isConnected ? (
-                      <span style={{
-                        display: 'flex', alignItems: 'center', gap: 5,
-                        fontSize: 12, fontWeight: 500, color: '#16a34a',
-                        background: '#f0fdf4', border: '1px solid #bbf7d0',
-                        borderRadius: 20, padding: '3px 10px', flexShrink: 0,
-                      }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', flexShrink: 0 }} />
-                        Connected
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: 12, color: '#9ca3af', marginRight: 4, flexShrink: 0 }}>
-                        {isError ? 'Error' : 'Not Connected'}
-                      </span>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => isConnected ? openManage(connector.id) : openConnect(connector.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6,
-                        padding: '6px 16px', borderRadius: 6, flexShrink: 0,
-                        border: isConnected ? '1px solid #d1d5db' : 'none',
-                        background: isConnected ? '#fff' : '#0091E0',
-                        color: isConnected ? '#374151' : '#fff',
-                        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                      }}
-                    >
-                      <Icon
-                        name={isConnected ? 'settings' : isError ? 'refresh-cw' : 'link'}
-                        size={13}
-                        color={isConnected ? '#374151' : '#fff'}
-                      />
-                      {isConnected ? 'Manage' : isError ? 'Reconnect' : 'Connect'}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+      {/* Connector rows */}
+      <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
+        {categoryItems.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '28px 0', color: '#9ca3af', fontSize: 13 }}>
+            No connectors available.
           </div>
-        );
-      })}
+        )}
+        {categoryItems.map((connector, i) => {
+          const isConnected = connector.status === 'connected';
+          const isError     = connector.status === 'error';
+          return (
+            <div
+              key={connector.id}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '16px 18px',
+                borderBottom: i < categoryItems.length - 1 ? '1px solid #f3f4f6' : 'none',
+              }}
+            >
+              <ConnectorIcon connector={connector} />
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{connector.name}</div>
+                <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{connector.description}</div>
+              </div>
+
+              {isConnected ? (
+                <span style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: 12, fontWeight: 500, color: '#16a34a',
+                  background: '#f0fdf4', border: '1px solid #bbf7d0',
+                  borderRadius: 20, padding: '3px 10px', flexShrink: 0,
+                }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#16a34a', flexShrink: 0 }} />
+                  Connected
+                </span>
+              ) : (
+                <span style={{ fontSize: 12, color: '#9ca3af', marginRight: 4, flexShrink: 0 }}>
+                  {isError ? 'Error' : 'Not Connected'}
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => isConnected ? openManage(connector.id) : openConnect(connector.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '6px 16px', borderRadius: 6, flexShrink: 0,
+                  border: isConnected ? '1px solid #d1d5db' : 'none',
+                  background: isConnected ? '#fff' : '#0091E0',
+                  color: isConnected ? '#374151' : '#fff',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                <Icon
+                  name={isConnected ? 'settings' : isError ? 'refresh-cw' : 'link'}
+                  size={13}
+                  color={isConnected ? '#374151' : '#fff'}
+                />
+                {isConnected ? 'Manage' : isError ? 'Reconnect' : 'Connect'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
 
       {/* ══ FCM modal ══════════════════════════════════════════════════════════ */}
       {connectModal === 'fcm' && (
