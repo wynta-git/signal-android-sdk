@@ -95,7 +95,7 @@ async def list_applicable_codes(
                     if pam_user_id is not None:
                         if not await check_applicability(cur, pam_user_id, configure_id, row[17]):
                             continue
-                        if redis and not await check_eligibility(redis, configure_id, {}):
+                        if redis and not await check_eligibility(redis, configure_id, {"site_id": site_id, "user_id": user_id}):
                             continue
 
                     results.append(ApplicableCodeResponse(

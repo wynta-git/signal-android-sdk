@@ -83,6 +83,9 @@ async def process_bonus_event(redis: Redis, event: dict[str, Any]) -> None:
         return
 
     props: dict[str, Any] = event.get("properties") or {}
+    props.setdefault("site_id", site_id)
+    props.setdefault("user_id", player_user_id)
+    props.setdefault("project_id", project_id)
 
     log.info(
         "bonus_event_received",
