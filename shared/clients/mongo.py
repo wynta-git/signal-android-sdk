@@ -950,10 +950,11 @@ async def get_daily_boosts_range(
     project_id: str,
     since: datetime,
     until: datetime,
+    brand_id: str | None = None,
 ) -> dict[str, dict]:
     """Return {date_str: day_data} for daily_boosts entries within [since.date, until.date]."""
     doc = await db["dashboard_boosts"].find_one(
-        {"project_id": project_id}, {"_id": 0, "daily_boosts": 1}
+        {"project_id": project_id, "brand_id": brand_id}, {"_id": 0, "daily_boosts": 1}
     )
     all_daily: dict = (doc or {}).get("daily_boosts", {})
     since_date = since.date()
