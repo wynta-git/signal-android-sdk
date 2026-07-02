@@ -204,11 +204,28 @@ async def dashboard_summary(
     end_date:      str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_start: str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_end:   str | None = Query(default=None, description="YYYY-MM-DD"),
+    brand_id:      str | None = None,
 ) -> dict:
     project_id = ctx.project_id
     since, now, window_days = _resolve_window(start_date, end_date, window_days)
     prev_since = since - timedelta(days=window_days)
     comp_since, comp_until = _parse_compare_window(compare_start, compare_end, prev_since, since)
+
+    user_base: dict = {"project_id": project_id}
+    campaign_base: dict = {"project_id": project_id, "status": {"$in": ["running", "scheduled"]}}
+    segment_base: dict = {"project_id": project_id}
+    if brand_id:
+        user_base["brand_id"] = brand_id
+        campaign_base["brand_id"] = brand_id
+        segment_base["brand_id"] = brand_id
+
+    reachable_filter = {
+        **user_base,
+        "$or": [
+            {"traits.email_hash": {"$exists": True, "$ne": None}},
+            {"traits.phone_hash": {"$exists": True, "$ne": None}},
+        ],
+    }
 
     (
         curr_raw,
@@ -226,35 +243,17 @@ async def dashboard_summary(
         daily_range,
         prev_daily_range,
     ) = await asyncio.gather(
-        get_dashboard_delivery_stats(db, project_id, since, now),
-        get_dashboard_delivery_stats(db, project_id, comp_since, comp_until),
-        get_dashboard_user_health(db, project_id),
-        get_dashboard_channel_optin(db, project_id),
-        db["campaigns"].count_documents(
-            {"project_id": project_id, "status": {"$in": ["running", "scheduled"]}}
-        ),
-        db["segments"].count_documents({"project_id": project_id}),
-        db["users"].count_documents(
-            {"project_id": project_id, "last_seen_at": {"$gte": since}}
-        ),
-        db["users"].count_documents(
-            {"project_id": project_id, "last_seen_at": {"$gte": comp_since, "$lt": comp_until}}
-        ),
-        db["users"].count_documents({"project_id": project_id}),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "$or": [
-                {"traits.email_hash": {"$exists": True, "$ne": None}},
-                {"traits.phone_hash": {"$exists": True, "$ne": None}},
-            ],
-        }),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "$or": [
-                {"traits.email_hash": {"$exists": True, "$ne": None}},
-                {"traits.phone_hash": {"$exists": True, "$ne": None}},
-            ],
-        }),
+        get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
+        get_dashboard_delivery_stats(db, project_id, comp_since, comp_until, brand_id),
+        get_dashboard_user_health(db, project_id, brand_id),
+        get_dashboard_channel_optin(db, project_id, brand_id),
+        db["campaigns"].count_documents(campaign_base),
+        db["segments"].count_documents(segment_base),
+        db["users"].count_documents({**user_base, "last_seen_at": {"$gte": since}}),
+        db["users"].count_documents({**user_base, "last_seen_at": {"$gte": comp_since, "$lt": comp_until}}),
+        db["users"].count_documents(user_base),
+        db["users"].count_documents(reachable_filter),
+        db["users"].count_documents(reachable_filter),
         _fetch_boosts(db, project_id),
         get_daily_boosts_range(db, project_id, since, now),
         get_daily_boosts_range(db, project_id, comp_since, comp_until),
@@ -438,12 +437,13 @@ async def dashboard_channels(
     window_days: int = Query(default=7, ge=1, le=90),
     start_date:  str | None = Query(default=None, description="YYYY-MM-DD"),
     end_date:    str | None = Query(default=None, description="YYYY-MM-DD"),
+    brand_id:    str | None = None,
 ) -> dict:
     project_id = ctx.project_id
     since, now, window_days = _resolve_window(start_date, end_date, window_days)
 
     raw, daily_range = await asyncio.gather(
-        get_dashboard_delivery_stats(db, project_id, since, now),
+        get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
         get_daily_boosts_range(db, project_id, since, now),
     )
     buckets = _crunch_deliveries(raw)
@@ -686,6 +686,7 @@ async def dashboard_analytics(
     end_date:      str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_start: str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_end:   str | None = Query(default=None, description="YYYY-MM-DD"),
+    brand_id:      str | None = None,
 ) -> dict:
     project_id = ctx.project_id
     since, now, window_days = _resolve_window(start_date, end_date, window_days)
@@ -706,17 +707,17 @@ async def dashboard_analytics(
 
     if use_window_as_mtd:
         raw, comp_raw, daily_range = await asyncio.gather(
-            get_dashboard_delivery_stats(db, project_id, since, now),
-            get_dashboard_delivery_stats(db, project_id, comp_since, comp_until),
+            get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
+            get_dashboard_delivery_stats(db, project_id, comp_since, comp_until, brand_id),
             get_daily_boosts_range(db, project_id, since, now),
         )
         mtd_raw = raw
         prev_mtd_raw = comp_raw
     else:
         raw, mtd_raw, prev_mtd_raw, daily_range = await asyncio.gather(
-            get_dashboard_delivery_stats(db, project_id, since, now),
-            get_dashboard_delivery_stats(db, project_id, month_start, now),
-            get_dashboard_delivery_stats(db, project_id, prev_month_start, month_start),
+            get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
+            get_dashboard_delivery_stats(db, project_id, month_start, now, brand_id),
+            get_dashboard_delivery_stats(db, project_id, prev_month_start, month_start, brand_id),
             get_daily_boosts_range(db, project_id, since, now),
         )
 
