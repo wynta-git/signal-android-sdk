@@ -484,7 +484,7 @@ _BONUS_BALANCE_BY_CHIP_SQL = """
 """
 
 _PENDING_BONUS_BY_CHIP_SQL = """
-    SELECT pbg.wager_chip_type, COALESCE(SUM(bc.chunk_amount), 0)
+    SELECT pbg.wager_chip_type, COALESCE(SUM(bc.chunk_amount - bc.release_amount), 0)
     FROM bonus_chunk bc
     JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
     WHERE pbg.pam_user_id = %s AND bc.release_status = 'PENDING'
