@@ -52,6 +52,7 @@ async def create_client_endpoint(body: CreateClientRequest, ctx: PortalAuthDep) 
         description=body.description,
         client_type=body.client_type,
         created_by=ctx.user_id or ctx.service,
+        redis=get_redis(),
     )
     return CreateClientResponse(
         client_id=record["client_id"],

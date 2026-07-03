@@ -35,6 +35,7 @@ async def create_client(
     client_type: str,
     created_by: str,
     client_id: str | None = None,
+    redis: Redis | None = None,
 ) -> tuple[str, dict]:
     client_id = client_id or f"cid_{secrets.token_urlsafe(16)}"
     raw_secret = secrets.token_urlsafe(32)
@@ -56,6 +57,9 @@ async def create_client(
                 ),
             )
         await conn.commit()
+
+    if redis:
+        await redis.delete(f"auth:clients:site:{site_id}")
 
     return raw_secret, {
         "client_id": client_id,
