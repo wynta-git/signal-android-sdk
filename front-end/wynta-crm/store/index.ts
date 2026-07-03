@@ -6,6 +6,7 @@ import campaignsReducer from './slices/campaignsSlice';
 import dashboardReducer from './slices/dashboardSlice';
 import eventsReducer    from './slices/eventsSlice';
 import reportsReducer   from './slices/reportsSlice';
+import uiReducer        from './slices/uiSlice';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     dashboard: dashboardReducer,
     events:    eventsReducer,
     reports:   reportsReducer,
+    ui:        uiReducer,
   },
 });
 

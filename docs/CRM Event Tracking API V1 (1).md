@@ -11,13 +11,14 @@ The Event Tracking Service provides two core endpoints for capturing player beha
 
 **Base URL**
 
-http://<host>:8001
+https://api.wynta.com
 
 
 **Authentication**
 
-All endpoints require a Bearer token passed in the Authorization header. Tokens are scoped per environment (live / staging) and are issued via the Admin API.
-Authorization: Bearer <your_token>
+All endpoints require a Client ID and Client Secret passed as request headers. Credentials are issued per environment (live / staging) via the Admin console.
+X-Client-Id: <your_client_id>
+X-Client-Secret: <your_client_secret>
 
 
 ### Request Headers
@@ -26,9 +27,9 @@ The following headers apply to all API endpoints.
 
 | Header | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| Authorization | String | Yes | N/A | Bearer <token> — a secret token issued per client. All endpoints require this. |
 | Content-Type | String | Yes | N/A | Must be application/json for all POST request bodies. |
-| X-Client-Id | String | No | — | SDK or client identifier. Bound to structured logs for traceability. |
+| X-Client-Id | String | Yes | N/A | Client identifier issued per environment. Required for authentication. |
+| X-Client-Secret | String | Yes | N/A | Client secret issued per environment. Required for authentication. |
 | X-Idempotency-Key | String | No | — | UUID v4 — enables deduplication and caching. Recommended for retry logic. |
 
 
@@ -38,9 +39,9 @@ The following errors are returned when authentication or authorisation fails.
 
 | Status | Code | Message | Trigger |
 | --- | --- | --- | --- |
-| 401 | invalid_token | Missing or malformed Authorization header | No Authorization header present, or not using Bearer scheme. |
-| 401 | invalid_token | Invalid or expired token | Token not found in DB, has been revoked, or has expired. |
-| 403 | forbidden | Token scope insufficient | Token exists but lacks the required scope (e.g. events:write). |
+| 401 | invalid_credentials | Missing X-Client-Id or X-Client-Secret header | One or both required authentication headers are absent. |
+| 401 | invalid_credentials | Invalid client credentials | X-Client-Id or X-Client-Secret do not match a valid credential pair. |
+| 403 | forbidden | Client not authorised for this project | Credentials are valid but lack permission to write events for this project. |
 
 
 ## Endpoints at a Glance
@@ -48,8 +49,8 @@ The following errors are returned when authentication or authorisation fails.
 
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
-| POST | /v1/events/track | Track one or more behavioural events for a player (e.g. login, deposit, bet placed). |
-| POST | /v1/events/identify | Create or update a player profile with traits (e.g. country, VIP level, account status). |
+| POST | /api/v1/events/track | Track one or more behavioural events for a player (e.g. login, deposit, bet placed). |
+| POST | /api/v1/events/identify | Create or update a player profile with traits (e.g. country, VIP level, account status). |
 
 |  |
 | --- |
@@ -58,7 +59,7 @@ The following errors are returned when authentication or authorisation fails.
 ## 1.  Track Events
 
 
-**POST   /v1/events/track**
+**POST   /api/v1/events/track**
 
 
 Accepts a batch of one or more event objects and routes them to the configured downstream destinations (e.g. CRM, data warehouse, message broker). The API validates each event individually — valid events are accepted and invalid ones are rejected with per-event error details. The response is returned with HTTP 202 Accepted, indicating the events have been queued for processing.
@@ -90,9 +91,10 @@ Each item in the events array represents a single player action. The fields belo
 
 **Example Request**
 
-POST /v1/events/track
-Authorization: Bearer <token>
+POST /api/v1/events/track
 Content-Type: application/json
+X-Client-Id: <your_client_id>
+X-Client-Secret: <your_client_secret>
 
 {
 "events": [
@@ -192,7 +194,7 @@ Content-Type: application/json
 ## 2.  Identify Player
 
 
-**POST   /v1/events/identify**
+**POST   /api/v1/events/identify**
 
 
 Creates or updates the profile (traits) for a known player. Use this endpoint whenever player attributes change — such as on registration, KYC approval, VIP tier change, or preference update. Traits are merged into the player's profile by default; use unset_traits to explicitly remove fields. The response is returned with HTTP 202 Accepted.
@@ -232,9 +234,10 @@ While traits is a free-form object, the following fields are commonly used acros
 
 **Example Request — new registration**
 
-POST /v1/events/identify
-Authorization: Bearer <token>
+POST /api/v1/events/identify
 Content-Type: application/json
+X-Client-Id: <your_client_id>
+X-Client-Secret: <your_client_secret>
 
 {
 "user_id": "ply_776192",
@@ -333,7 +336,7 @@ Content-Type: application/json
 
 **Batching Events**
 
-The /v1/events/track endpoint accepts multiple events in a single request. Batch events where possible to reduce HTTP overhead — especially for high-frequency events such as slot spins or heartbeats. A sensible batch size is 10–50 events per request.
+The /api/v1/events/track endpoint accepts multiple events in a single request. Batch events where possible to reduce HTTP overhead — especially for high-frequency events such as slot spins or heartbeats. A sensible batch size is 10–50 events per request.
 
 **Event Ordering**
 
@@ -345,9 +348,9 @@ Providing a unique event_id on each event enables the service to deduplicate ret
 
 **Identify Before Track**
 
-Call /v1/events/identify at registration and whenever key player traits change. This ensures the CRM and downstream systems always have an up-to-date player profile when events arrive.
+Call /api/v1/events/identify at registration and whenever key player traits change. This ensures the CRM and downstream systems always have an up-to-date player profile when events arrive.
 
-| ⚠ Note:  The /v1/events/track response of 202 Accepted does not guarantee downstream delivery. Monitor the rejected count and errors array in every response and implement retry logic for failed events. |
+| ⚠ Note:  The /api/v1/events/track response of 202 Accepted does not guarantee downstream delivery. Monitor the rejected count and errors array in every response and implement retry logic for failed events. |
 | --- |
 
 |  |
@@ -358,16 +361,17 @@ Call /v1/events/identify at registration and whenever key player traits change. 
 
 
 
-### POST /v1/events/track  —  Track Events
+### POST /api/v1/events/track  —  Track Events
 
 
 
 **cURL**
 
 ```
-curl -X POST "http://<host>:8001/v1/events/track" \
--H "Authorization: Bearer <your_token>" \
+curl -X POST "http://<host>:8001/api/v1/events/track" \
 -H "Content-Type: application/json" \
+-H "X-Client-Id: <your_client_id>" \
+-H "X-Client-Secret: <your_client_secret>" \
 -d '{
 "events": [
 {
@@ -393,11 +397,12 @@ curl -X POST "http://<host>:8001/v1/events/track" \
 **JavaScript (fetch)**
 
 ```
-const response = await fetch("http://<host>:8001/v1/events/track", {
+const response = await fetch("http://<host>:8001/api/v1/events/track", {
 method: "POST",
 headers: {
-"Authorization": "Bearer <your_token>",
 "Content-Type": "application/json",
+"X-Client-Id": "<your_client_id>",
+"X-Client-Secret": "<your_client_secret>",
 },
 body: JSON.stringify({
 events: [
@@ -436,10 +441,11 @@ console.error(`Event[${err.index}] failed: ${err.code} - ${err.message}`);
 ```
 import requests
 
-url = "http://<host>:8001/v1/events/track"
+url = "http://<host>:8001/api/v1/events/track"
 headers = {
-"Authorization": "Bearer <your_token>",
 "Content-Type": "application/json",
+"X-Client-Id": "<your_client_id>",
+"X-Client-Secret": "<your_client_secret>",
 }
 payload = {
 "events": [
@@ -477,11 +483,14 @@ const axios = require("axios");   // npm install axios
 
 const client = axios.create({
 baseURL: "http://<host>:8001",
-headers: { Authorization: "Bearer <your_token>" },
+headers: {
+"X-Client-Id": "<your_client_id>",
+"X-Client-Secret": "<your_client_secret>",
+},
 });
 
 async function trackEvents(events) {
-const { data } = await client.post("/v1/events/track", { events });
+const { data } = await client.post("/api/v1/events/track", { events });
 console.log(`Accepted: ${data.accepted}, Rejected: ${data.rejected}`);
 if (data.errors.length > 0) {
 data.errors.forEach(err =>
@@ -512,16 +521,17 @@ properties: { amount: 100, currency: "EUR", payment_method: "visa" },
 | --- |
 
 
-### POST /v1/events/identify  —  Identify Player
+### POST /api/v1/events/identify  —  Identify Player
 
 
 
 **cURL**
 
 ```
-curl -X POST "http://<host>:8001/v1/events/identify" \
--H "Authorization: Bearer <your_token>" \
+curl -X POST "http://<host>:8001/api/v1/events/identify" \
 -H "Content-Type: application/json" \
+-H "X-Client-Id: <your_client_id>" \
+-H "X-Client-Secret: <your_client_secret>" \
 -d '{
 "user_id": "ply_776192",
 "timestamp": "2026-05-18T14:38:00.000Z",
@@ -542,11 +552,12 @@ curl -X POST "http://<host>:8001/v1/events/identify" \
 **JavaScript (fetch)**
 
 ```
-const response = await fetch("http://<host>:8001/v1/events/identify", {
+const response = await fetch("http://<host>:8001/api/v1/events/identify", {
 method: "POST",
 headers: {
-"Authorization": "Bearer <your_token>",
 "Content-Type": "application/json",
+"X-Client-Id": "<your_client_id>",
+"X-Client-Secret": "<your_client_secret>",
 },
 body: JSON.stringify({
 user_id: "ply_776192",
@@ -574,10 +585,11 @@ console.log("Profile updated for:", data.user_id);
 ```
 import requests
 
-url = "http://<host>:8001/v1/events/identify"
+url = "http://<host>:8001/api/v1/events/identify"
 headers = {
-"Authorization": "Bearer <your_token>",
 "Content-Type": "application/json",
+"X-Client-Id": "<your_client_id>",
+"X-Client-Secret": "<your_client_secret>",
 }
 payload = {
 "user_id": "ply_776192",
@@ -607,11 +619,14 @@ const axios = require("axios");   // npm install axios
 
 const client = axios.create({
 baseURL: "http://<host>:8001",
-headers: { Authorization: "Bearer <your_token>" },
+headers: {
+"X-Client-Id": "<your_client_id>",
+"X-Client-Secret": "<your_client_secret>",
+},
 });
 
 async function identifyPlayer(userId, traits) {
-const { data } = await client.post("/v1/events/identify", {
+const { data } = await client.post("/api/v1/events/identify", {
 user_id: userId,
 timestamp: new Date().toISOString(),
 traits,

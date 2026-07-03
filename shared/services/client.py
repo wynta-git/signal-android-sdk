@@ -17,7 +17,9 @@ _SQL_CLIENT = """
            s.name        AS site_name,
            p.id          AS project_id,
            p.name        AS project_name,
-           p.project_key AS project_key
+           p.project_key AS project_key,
+           sc.created_by,
+           sc.created_at
     FROM site_client sc
     JOIN site s ON s.id = sc.site_id
     LEFT JOIN project p ON p.id = s.program_id
@@ -30,12 +32,13 @@ _SQL_CLIENTS_BY_SITE = """
            s.name        AS site_name,
            p.id          AS project_id,
            p.name        AS project_name,
-           p.project_key AS project_key
+           p.project_key AS project_key,
+           sc.created_by,
+           sc.created_at
     FROM site_client sc
     JOIN site s ON s.id = sc.site_id
     LEFT JOIN project p ON p.id = s.program_id
     WHERE sc.site_id = %s
-      AND sc.active = 1
     ORDER BY sc.id
 """
 
@@ -100,12 +103,15 @@ class ClientResponse(BaseModel):
     name: str
     description: str | None
     client_type: str
+    active: int
     allowed_hosts: list[str]
     configuration: dict[str, str]
     site_name: str | None
     project_id: int | None
     project_name: str | None
     project_key: str | None
+    created_by: str | None = None
+    created_at: str | None = None
 
 
 class ClientValidationResult(BaseModel):
@@ -173,12 +179,15 @@ async def get_client_details(client_id: str, redis: Redis, ttl: int) -> ClientRe
         name=row[3],
         description=row[4],
         client_type=row[5],
+        active=row[6],
         allowed_hosts=[h[0] for h in host_rows],
         configuration={r[0]: r[1] for r in config_rows},
         site_name=row[7],
         project_id=row[8],
         project_name=row[9],
         project_key=row[10],
+        created_by=row[11],
+        created_at=str(row[12]) if row[12] is not None else None,
     )
 
     await set_with_ttl(redis, key, client.model_dump_json(), ttl)
@@ -265,12 +274,15 @@ async def get_clients_by_site(site_id: int, redis: Redis, ttl: int) -> list[Clie
                     name=row[3],
                     description=row[4],
                     client_type=row[5],
+                    active=row[6],
                     allowed_hosts=[h[0] for h in host_rows],
                     configuration={r[0]: r[1] for r in config_rows},
                     site_name=row[7],
                     project_id=row[8],
                     project_name=row[9],
                     project_key=row[10],
+                    created_by=row[11],
+                    created_at=str(row[12]) if row[12] is not None else None,
                 ))
 
     await set_with_ttl(redis, key, json.dumps([c.model_dump() for c in clients]), ttl)

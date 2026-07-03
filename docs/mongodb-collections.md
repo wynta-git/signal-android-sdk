@@ -19,7 +19,7 @@ Database: `pam`
 | `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook templates. |
 | `notification_deliveries` | notifications-engine | analytics | Per-user, per-campaign delivery status. |
 | `device_tokens` | api-service | notifications-engine | Push device tokens (FCM/APNs) per user. |
-| `dashboard_boosts` | campaign-engine admin API | campaign-engine | Per-project additive offsets applied to dashboard summary counts. |
+| `dashboard_boosts` | campaign-engine admin API | campaign-engine | Per-project (or per-brand) additive offsets applied to dashboard summary counts. |
 
 ## Schemas
 
@@ -264,6 +264,7 @@ Database: `pam`
 {
   _id: ObjectId,
   project_id: "proj_abc123",
+  brand_id: "brand_1" | null,    // null = project-wide; brand-specific docs override per brand
   boosts: {
     "quick_stats.reachable_players": 1000,   // additive offset; omit field to apply no boost
     "quick_stats.messages_sent": 5000,
@@ -272,11 +273,23 @@ Database: `pam`
     //   active_segments,messages_sent}, player_health.{total_users,new,healthy,at_risk,churned},
     //   channel_optin.{push,email,sms}
   },
+  analytics: {
+    daily_avg_sent: 5000,        // synthetic daily message volume overlay
+    avg_open_rate: 0.24,
+    avg_ctr: 0.038,
+  },
+  daily_boosts: {
+    "2026-07-01": { messages_sent: 6200, new_users: 80, opt_outs: 5,
+                    channel: { push: { sent: 3000, delivered: 2900, failed: 100 } },
+                    snapshot: { reachable_players: 45000, optin_push: 12000 } }
+  },
   updated_at: ISODate
 }
-// Indexes: { project_id: 1 } unique
+// Indexes: { project_id: 1, brand_id: 1 } unique
 // Owner: campaign-engine admin API (PUT /dashboard/boosts). Read by: campaign-engine (GET /summary).
 // delivery_rate is intentionally excluded — it's a ratio; boosting numerator alone would distort it.
+// Pass ?brand_id= on all boost endpoints to read/write brand-specific boosts.
+// No fallback: if no brand-specific doc exists, boosts return empty (zero additive offset).
 ```
 
 ## Conventions

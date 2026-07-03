@@ -85,3 +85,10 @@ services/**/TODO.md
 gen_portal_token.py
 *.pem
 Archive/
+# Gradle
+.gradle/
+**/.gradle/
+
+# Eclipse / Buildship settings
+.settings/
+**/.settings/

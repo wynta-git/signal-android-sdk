@@ -328,6 +328,16 @@ export interface SystemUser {
   user_type: UserType;
 }
 
+// ── Bonus spend analytics ─────────────────────────────────────────────────────
+
+export interface SpendPeriod {
+  period_type:   'DAILY' | 'WEEKLY' | 'MONTHLY';
+  period_start:  string;  // ISO date YYYY-MM-DD
+  period_end:    string;  // ISO date YYYY-MM-DD
+  consume_count: number;
+  total_amount:  string;  // Decimal from API
+}
+
 // ── Redux store shape ─────────────────────────────────────────────────────────
 
 export type AsyncStatus = 'idle' | 'loading' | 'succeeded' | 'failed';

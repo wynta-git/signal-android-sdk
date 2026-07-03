@@ -1,0 +1,16 @@
+# Android build artifacts — never ship these in the npm tarball
+android/.gradle/
+android/build/
+android/.settings/
+
+# iOS build artifacts
+ios/build/
+ios/DerivedData/
+
+# Source files (dist/ is what consumers need)
+src/
+
+# Dev / CI tooling
+.github/
+*.sh
+tsconfig.json
