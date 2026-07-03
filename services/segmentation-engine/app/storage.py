@@ -80,8 +80,9 @@ async def list_segments(
 
 
 async def get_segment_stats(
-    db: AsyncIOMotorDatabase, project_id: str, redis: Redis
+    db: AsyncIOMotorDatabase, project_id: str, redis: Redis, brand_id: str | None = None
 ) -> dict[str, Any]:
+    brand_filter: dict[str, Any] = {"brand_id": brand_id} if brand_id is not None else {}
     (
         total_segments,
         active_campaigns_using,
@@ -90,25 +91,27 @@ async def get_segment_stats(
         push_agg,
         segment_ids,
     ) = await asyncio.gather(
-        db[SEGMENTS_COL].count_documents({"project_id": project_id}),
+        db[SEGMENTS_COL].count_documents({"project_id": project_id, **brand_filter}),
         db["campaigns"].count_documents({
             "project_id": project_id,
             "audience.segment_id": {"$exists": True, "$ne": None},
+            **brand_filter,
         }),
         db["users"].count_documents({
             "project_id": project_id,
+            **brand_filter,
             "$or": [
                 {"traits.email_hash": {"$exists": True, "$ne": None}},
                 {"traits.phone_hash": {"$exists": True, "$ne": None}},
             ],
         }),
-        db["users"].count_documents({"project_id": project_id}),
+        db["users"].count_documents({"project_id": project_id, **brand_filter}),
         db["device_tokens"].aggregate([
-            {"$match": {"project_id": project_id}},
+            {"$match": {"project_id": project_id, **brand_filter}},
             {"$group": {"_id": "$user_id"}},
             {"$count": "count"},
         ]).to_list(length=1),
-        db[SEGMENTS_COL].distinct("segment_id", {"project_id": project_id}),
+        db[SEGMENTS_COL].distinct("segment_id", {"project_id": project_id, **brand_filter}),
     )
     push_count = push_agg[0]["count"] if push_agg else 0
     estimated_reach = min(reachable_count + push_count, total_users)

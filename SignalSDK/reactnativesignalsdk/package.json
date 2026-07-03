@@ -1,0 +1,51 @@
+{
+  "name": "signal-react-native-sdk",
+  "version": "1.0.4",
+  "description": "Official React Native SDK for Signal",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "android",
+    "ios",
+    "SignalSDK.podspec"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "build:watch": "tsc --project tsconfig.json --watch",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "prepare": "npm run build",
+    "type-check": "tsc --noEmit",
+    "release": "./publish.sh"
+  },
+  "keywords": [
+    "signal",
+    "react-native",
+    "sdk"
+  ],
+  "author": "Signal",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": ">=17.0.0",
+    "react-native": ">=0.68.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": false
+    },
+    "react-native": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.12.0"
+  }
+}

@@ -1,7 +1,8 @@
+from dataclasses import dataclass
 from typing import Annotated
 
 import structlog
-from fastapi import Depends, HTTPException, Request, Security
+from fastapi import Depends, HTTPException, Query, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from shared.auth.portal_token import InvalidPortalTokenError, PortalTokenContext, validate_portal_token
@@ -118,3 +119,49 @@ def get_portal_token_context(
 
 
 PortalAuthDep = Annotated[PortalTokenContext, Depends(get_portal_token_context)]
+
+
+@dataclass
+class ProjectContext:
+    project_id: str
+
+
+async def get_project_context(
+    credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
+    project_id: str | None = Query(default=None),
+) -> ProjectContext:
+    from app.config import settings
+
+    if not credentials:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_token", "message": "Missing or malformed Authorization header"},
+        )
+
+    # Try portal token first — project_id is embedded in the token.
+    try:
+        ctx = validate_portal_token(credentials.credentials, settings.portal_jwt_public_key)
+        project_id = ctx.project_id
+        return ProjectContext(project_id=project_id)
+    except Exception:
+        pass
+
+    # Fall back to system token — project_id must be supplied as a query param.
+    try:
+        ctx = validate_system_jwt(credentials.credentials, settings.system_jwt_public_key)
+        project_id = ctx.project_id
+    except InvalidSystemTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "invalid_token", "message": "Invalid or expired token"},
+        )
+
+    if not project_id:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "missing_project_id", "message": "`project_id` query parameter required for system tokens"},
+        )
+    return ProjectContext(project_id=project_id)
+
+
+DualAuthDep = Annotated[ProjectContext, Depends(get_project_context)]

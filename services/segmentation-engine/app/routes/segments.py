@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from app import storage
 from app.config import settings
-from app.dependencies import PortalAuthDep
+from app.dependencies import DualAuthDep, PortalAuthDep
 from app.dsl.validator import SegmentRule
 from app.refresh import scheduled
 from app.refresh.engine import evaluate_segment
@@ -90,8 +90,10 @@ async def list_segments(ctx: PortalAuthDep, db=Depends(_db), brand_id: str | Non
 
 
 @router.get("/stats")
-async def get_segment_stats(ctx: PortalAuthDep, db=Depends(_db), redis=Depends(_redis)) -> dict[str, Any]:
-    return await storage.get_segment_stats(db, ctx.project_id, redis)
+async def get_segment_stats(
+    ctx: PortalAuthDep, db=Depends(_db), redis=Depends(_redis), brand_id: str | None = Query(default=None)
+) -> dict[str, Any]:
+    return await storage.get_segment_stats(db, ctx.project_id, redis, brand_id=brand_id)
 
 
 @router.get("/{segment_id}")
@@ -181,7 +183,7 @@ async def list_segment_members(
 
 @router.get("/{segment_id}/members/{user_id}")
 async def check_membership(
-    ctx: PortalAuthDep,
+    ctx: DualAuthDep,
     segment_id: str,
     user_id: str,
     db=Depends(_db),
