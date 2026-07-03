@@ -33,6 +33,7 @@ export default function WorkspaceSettingsTabs({ tabs, activeTab, onTabChange }: 
               borderLeft: 'none',
               borderRight: 'none',
               whiteSpace: 'nowrap',
+              outline: 'none',
             }}
           >
             {tab.label}
