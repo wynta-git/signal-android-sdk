@@ -38,7 +38,7 @@ async def create_client(
     redis: Redis | None = None,
 ) -> tuple[str, dict]:
     client_id = client_id or f"cid_{secrets.token_urlsafe(16)}"
-    raw_secret = secrets.token_urlsafe(32)
+    raw_secret = secrets.token_urlsafe(16)
 
     async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
