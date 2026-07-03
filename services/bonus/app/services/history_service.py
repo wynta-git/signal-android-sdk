@@ -148,7 +148,7 @@ def _row_to_entries(row: tuple) -> list[dict]:
 
         changes = []
         for field in ("max_amount", "valid_from", "valid_to", "display_on",
-                      "auto_apply", "display_order", "min_display_amount",
+                      "auto_apply", "system_auto_apply", "display_order", "min_display_amount",
                       "display_title", "display_description"):
             if field in old_vals:
                 changes.append({

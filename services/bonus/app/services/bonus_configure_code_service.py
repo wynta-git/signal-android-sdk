@@ -6,7 +6,7 @@ import structlog
 from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_BONUS, get_connection
-from app.services.bonus_cache import bust_code_cache
+from app.services.bonus_cache import bust_auto_apply_code_cache, bust_code_cache
 
 from app.exceptions import DatabaseError
 from app.models.bonus_configure_code import (
@@ -19,19 +19,30 @@ from app.services.bonus_head_service import _as_dt
 
 log = structlog.get_logger(__name__)
 
+
+def code_validity_sql(alias: str = "") -> str:
+    """SQL fragment: is this bonus_configure_code row active and within its validity window."""
+    p = f"{alias}." if alias else ""
+    return (
+        f"{p}active = 1 "
+        f"AND ({p}valid_from IS NULL OR {p}valid_from <= NOW()) "
+        f"AND ({p}valid_to   IS NULL OR {p}valid_to   >= NOW())"
+    )
+
+
 _INSERT_SQL = """
     INSERT INTO bonus_configure_code
         (configure_id, site_id, code, max_amount, valid_from, valid_to,
          display_title, display_description, terms_url, banner_image_url,
-         badge_text, cta_text, auto_apply, display_order, display_on,
+         badge_text, cta_text, auto_apply, system_auto_apply, display_order, display_on,
          min_display_amount, active, created_by, updated_by, row_hash)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_SQL = """
     SELECT id, configure_id, site_id, code, max_amount, valid_from, valid_to,
            display_title, display_description, terms_url, banner_image_url,
-           badge_text, cta_text, auto_apply, display_order, display_on,
+           badge_text, cta_text, auto_apply, system_auto_apply, display_order, display_on,
            min_display_amount, active, created_by, updated_by, created_at, updated_at
     FROM bonus_configure_code
     WHERE id = %s
@@ -48,8 +59,8 @@ _FIELD_IDX: dict[str, int] = {
     "code": 3, "max_amount": 4, "valid_from": 5, "valid_to": 6,
     "display_title": 7, "display_description": 8, "terms_url": 9,
     "banner_image_url": 10, "badge_text": 11, "cta_text": 12,
-    "auto_apply": 13, "display_order": 14, "display_on": 15,
-    "min_display_amount": 16, "active": 17,
+    "auto_apply": 13, "system_auto_apply": 14, "display_order": 15, "display_on": 16,
+    "min_display_amount": 17, "active": 18,
 }
 
 _EXISTS_CONFIGURE_SQL = "SELECT site_id FROM bonus_configure WHERE id = %s"
@@ -69,10 +80,12 @@ def _row_to_response(row: tuple) -> BonusConfigureCodeResponse:
         display_title=row[7], display_description=row[8],
         terms_url=row[9], banner_image_url=row[10],
         badge_text=row[11], cta_text=row[12],
-        auto_apply=bool(row[13]), display_order=row[14], display_on=row[15],
-        min_display_amount=row[16],
-        active=bool(row[17]), created_by=row[18], updated_by=row[19],
-        created_at=_as_dt(row[20]), updated_at=_as_dt(row[21]),
+        auto_apply=bool(row[13]),
+        system_auto_apply=bool(row[14]) if row[14] is not None else None,
+        display_order=row[15], display_on=row[16],
+        min_display_amount=row[17],
+        active=bool(row[18]), created_by=row[19], updated_by=row[20],
+        created_at=_as_dt(row[21]), updated_at=_as_dt(row[22]),
     )
 
 
@@ -86,7 +99,9 @@ async def get_bonus_configure_code(code_id: int) -> BonusConfigureCodeResponse:
     return _row_to_response(row)
 
 
-async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfigureCodeResponse:
+async def add_bonus_configure_code(
+    data: BonusConfigureCodeCreate, redis: Redis | None = None
+) -> BonusConfigureCodeResponse:
     """
     Create a custom promo code entry for an existing configure.
 
@@ -122,7 +137,9 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
                         data.display_title, data.display_description,
                         data.terms_url, data.banner_image_url,
                         data.badge_text, data.cta_text,
-                        int(data.auto_apply), data.display_order, data.display_on,
+                        int(data.auto_apply),
+                        int(data.system_auto_apply) if data.system_auto_apply is not None else None,
+                        data.display_order, data.display_on,
                         data.min_display_amount, int(data.active),
                         data.created_by, data.created_by, row_hash,
                     ),
@@ -160,6 +177,8 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
         raise DatabaseError("Insert succeeded but row could not be retrieved")
 
     response = _row_to_response(row)
+    if redis:
+        await bust_auto_apply_code_cache(redis, response.configure_id)
     log.info("add_bonus_configure_code.created", code_id=response.id, configure_id=response.configure_id)
     return response
 
@@ -167,7 +186,7 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
 _UPDATABLE = {
     "code", "max_amount", "valid_from", "valid_to",
     "display_title", "display_description", "terms_url", "banner_image_url",
-    "badge_text", "cta_text", "auto_apply", "display_order", "display_on",
+    "badge_text", "cta_text", "auto_apply", "system_auto_apply", "display_order", "display_on",
     "min_display_amount", "active",
 }
 
@@ -222,7 +241,10 @@ async def update_bonus_configure_code(
 
                 await cur.execute(update_sql, values)
 
-                # Write changelog — only include fields that actually changed
+                # Write changelog — only include fields that actually changed.
+                # Nullable-boolean columns (e.g. system_auto_apply) store NULL and 0
+                # as the same "off" state, so compare them as normalized bools —
+                # otherwise every edit of an untouched NULL field logs a false change.
                 old_vals: dict = {}
                 new_vals: dict = {}
                 for f in fields:
@@ -231,7 +253,11 @@ async def update_bonus_configure_code(
                         continue
                     old_v = old_row[idx]
                     new_v = getattr(data, f)
-                    if old_v != new_v:
+                    if f == "system_auto_apply":
+                        changed = bool(old_v) != bool(new_v)
+                    else:
+                        changed = old_v != new_v
+                    if changed:
                         old_vals[f] = str(old_v) if old_v is not None else None
                         new_vals[f] = str(new_v) if new_v is not None else None
                 if old_vals:
@@ -262,11 +288,13 @@ async def update_bonus_configure_code(
     if not row:
         raise DatabaseError(f"bonus_configure_code {code_id} not found")
 
-    if redis and chip_type_str:
-        bust_codes = list({old_code})  # type: ignore[possibly-undefined]
-        if "code" in fields and data.code is not None:  # type: ignore[possibly-undefined]
-            bust_codes.append(data.code)
-        await bust_code_cache(redis, bust_codes, [chip_type_str])
+    if redis:
+        if chip_type_str:
+            bust_codes = list({old_code})  # type: ignore[possibly-undefined]
+            if "code" in fields and data.code is not None:  # type: ignore[possibly-undefined]
+                bust_codes.append(data.code)
+            await bust_code_cache(redis, bust_codes, [chip_type_str])
+        await bust_auto_apply_code_cache(redis, configure_id)  # type: ignore[possibly-undefined]
 
     response = _row_to_response(row)
     log.info("update_bonus_configure_code.updated", code_id=response.id)

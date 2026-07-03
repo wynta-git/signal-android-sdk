@@ -64,6 +64,7 @@ export interface PromoCode {
   badge_text?: string | null;
   cta_text?: string | null;
   auto_apply?: boolean;
+  system_auto_apply?: boolean | null;
   display_order?: number;
   display_on?: string;
   min_display_amount?: string | number | null;

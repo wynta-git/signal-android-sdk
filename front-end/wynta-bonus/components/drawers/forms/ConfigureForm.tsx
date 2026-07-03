@@ -326,6 +326,7 @@ export default function ConfigureForm({
   const [promoCode, setPromoCode] = useState("");
   const [codeDisplayOn, setCodeDisplayOn] = useState("DEPOSIT");
   const [codeAutoApply, setCodeAutoApply] = useState(false);
+  const [codeSystemAutoApply, setCodeSystemAutoApply] = useState(false);
 
   const toNum = (v: string) => (v.trim() !== "" ? Number(v) : null);
   const freqMeta = FREQUENCIES.find((f) => f.value === freq);
@@ -389,6 +390,7 @@ export default function ConfigureForm({
             code: promoCode,
             display_on: codeDisplayOn,
             auto_apply: codeAutoApply,
+            system_auto_apply: codeSystemAutoApply,
             active: true,
           }
         : null,
@@ -1094,6 +1096,20 @@ export default function ConfigureForm({
                 {codeAutoApply
                   ? "Applied automatically — no entry needed."
                   : "Player must enter the code manually."}
+              </span>
+            </div>
+          </div>
+
+          <div className="field-group">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Toggle
+                on={codeSystemAutoApply}
+                onChange={setCodeSystemAutoApply}
+                label={codeSystemAutoApply ? "System auto-apply: On" : "System auto-apply: Off"}
+              />
+              <span className="helper" style={{ margin: 0 }}>
+                When on, the system automatically applies this code to eligible players on a
+                bonus release event — independent of the front-end auto-apply hint above.
               </span>
             </div>
           </div>

@@ -22,6 +22,7 @@ interface ManualPromoCode {
   valid_from?: string;
   valid_to?: string;
   auto_apply?: boolean;
+  system_auto_apply?: boolean | null;
   display_order?: number;
   active?: boolean;
   issued_by?: string;
@@ -119,6 +120,10 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
           <div className="kv">
             <span className="k">Auto-apply</span>
             <span className="v">{code.auto_apply ? 'Yes' : 'No'}</span>
+          </div>
+          <div className="kv">
+            <span className="k">System auto-apply</span>
+            <span className="v">{code.system_auto_apply ? 'Yes' : 'No'}</span>
           </div>
           <div className="kv">
             <span className="k">Order</span>

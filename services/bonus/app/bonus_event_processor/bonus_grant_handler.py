@@ -10,6 +10,7 @@ When a trigger with grant_type=BONUS_grant fires:
 """
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from typing import Any
 
@@ -26,9 +27,54 @@ from app.bonus_event_processor.grant_writer import (
     write_cashback_grant,
     write_grant,
 )
+from app.config import settings
 from app.models.bonus_release_trigger import TriggerWithConfigResponse
+from app.services.bonus_configure_code_service import code_validity_sql
 
 log = structlog.get_logger(__name__)
+
+_AUTO_APPLY_CODE_SQL = f"""
+    SELECT id, code, max_amount
+    FROM bonus_configure_code
+    WHERE configure_id = %s
+      AND system_auto_apply = 1
+      AND {code_validity_sql()}
+    ORDER BY display_order ASC, id ASC
+    LIMIT 1
+"""
+
+_AUTO_APPLY_CACHE_KEY = "pam:bonus:auto_apply_code:{configure_id}"
+
+
+async def _get_auto_apply_code(
+    redis: Redis, conn: aiomysql.Connection, configure_id: int
+) -> tuple[int, str, Decimal | None] | None:
+    """Cache-aside lookup of the best system_auto_apply code for a configure."""
+    cache_key = _AUTO_APPLY_CACHE_KEY.format(configure_id=configure_id)
+    cached = await redis.get(cache_key)
+    if cached is not None:
+        parsed = json.loads(cached)
+        if parsed is None:
+            return None
+        return parsed["id"], parsed["code"], (
+            Decimal(parsed["max_amount"]) if parsed["max_amount"] is not None else None
+        )
+
+    async with conn.cursor() as cur:
+        await cur.execute(_AUTO_APPLY_CODE_SQL, (configure_id,))
+        row = await cur.fetchone()
+
+    if row is None:
+        await redis.set(cache_key, "null", ex=settings.trigger_cache_ttl)
+        return None
+
+    code_id, code, raw_max = row
+    await redis.set(
+        cache_key,
+        json.dumps({"id": code_id, "code": code, "max_amount": str(raw_max) if raw_max is not None else None}),
+        ex=settings.trigger_cache_ttl,
+    )
+    return code_id, code, Decimal(str(raw_max)) if raw_max is not None else None
 
 
 async def handle_bonus_grant(
@@ -108,7 +154,8 @@ async def handle_bonus_grant(
         async with conn.cursor() as cur:
             await cur.execute(
                 "SELECT id, max_amount FROM bonus_configure_code "
-                "WHERE configure_id = %s AND code = %s AND active = 1 LIMIT 1",
+                "WHERE configure_id = %s AND code = %s AND active = 1 "
+                "AND (system_auto_apply IS NULL OR system_auto_apply = 0) LIMIT 1",
                 (cfg.id, promo_code),
             )
             code_row = await cur.fetchone()
@@ -158,6 +205,19 @@ async def handle_bonus_grant(
             pam_user_id=pam_user_id,
         )
         return
+
+    # ── System auto-apply (fallback when the event carries no explicit code) ──
+    if promo_code is None:
+        auto_result = await _get_auto_apply_code(redis, conn, cfg.id)
+        if auto_result is not None:
+            code_id, promo_code, code_max_amount = auto_result
+            log.info(
+                "bonus_grant_auto_applied_code",
+                trigger_id=trigger.id,
+                configure_id=cfg.id,
+                pam_user_id=pam_user_id,
+                code=promo_code,
+            )
 
     # ── Compute amount ────────────────────────────────────────────────────────
     cfg_dict = cfg.model_dump()

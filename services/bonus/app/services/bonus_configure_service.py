@@ -86,7 +86,8 @@ _EXISTS_CONFIGURE_SQL = (
 )
 
 _SELECT_CODES_SQL = """
-    SELECT id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active
+    SELECT id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active,
+           system_auto_apply
     FROM bonus_configure_code
     WHERE configure_id = %s
     ORDER BY display_order
@@ -380,6 +381,7 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
                 id=r[0], code=r[1], max_amount=r[2],
                 valid_from=r[3], valid_to=r[4],
                 auto_apply=bool(r[5]), display_order=r[6], active=bool(r[7]),
+                system_auto_apply=bool(r[8]) if r[8] is not None else None,
             )
             for r in code_rows
         ],

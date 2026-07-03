@@ -62,6 +62,7 @@ _CODE_ROW = (
     "Welcome Bonus", "Get 50% up to ₹500", None, None, "Hot", "Claim Now",
     True, 1, "DEPOSIT", Decimal("100.00"),
     Decimal("2.00"), 3, "ONCE",
+    10, 0,
 )
 
 
