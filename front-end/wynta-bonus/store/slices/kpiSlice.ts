@@ -3,7 +3,7 @@ import { api } from '../../services/api';
 import type { KpiSnapshot, AsyncStatus } from '../../types';
 import { createHead, updateHead } from './headsSlice';
 import { createSubhead, updateSubhead } from './subheadsSlice';
-import { createConfigure, updateConfigure } from './configuresSlice';
+import { createConfigure, updateConfigure, createPromoCode, updatePromoCode } from './configuresSlice';
 
 type KpiState = KpiSnapshot & { status: AsyncStatus };
 
@@ -17,6 +17,7 @@ const initialState: KpiState = {
   monthly_consumed:  0,
   monthly_pending:   0,
   monthly_forfeit:   0,
+  monthly_expiring:  0,
   monthly_limit:     0,
   monthly_pct:       0,
   status: 'idle',
@@ -43,6 +44,7 @@ const kpiSlice = createSlice({
           createHead.fulfilled.type, updateHead.fulfilled.type,
           createSubhead.fulfilled.type, updateSubhead.fulfilled.type,
           createConfigure.fulfilled.type, updateConfigure.fulfilled.type,
+          createPromoCode.fulfilled.type, updatePromoCode.fulfilled.type,
         ].includes(action.type),
         (state) => { state.status = 'idle'; }
       );

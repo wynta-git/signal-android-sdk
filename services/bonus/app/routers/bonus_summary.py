@@ -54,7 +54,14 @@ SELECT
         JOIN   bonus_grant bg ON bg.id = bf.bonus_grant_id
         WHERE  bg.site_id = %s
           AND  YEAR(bf.forfeited_at) = YEAR(NOW()) AND MONTH(bf.forfeited_at) = MONTH(NOW())
-    ), 0) AS monthly_forfeit
+    ), 0) AS monthly_forfeit,
+    COALESCE((
+        SELECT SUM(bce.amount)
+        FROM   bonus_chunk_expiry bce
+        JOIN   bonus_chunk bc ON bc.id = bce.chunk_id
+        WHERE  bc.site_id = %s
+          AND  YEAR(bce.expired_at) = YEAR(NOW()) AND MONTH(bce.expired_at) = MONTH(NOW())
+    ), 0) AS monthly_expiring
 """
 
 
@@ -65,19 +72,20 @@ async def get_bonus_summary(site_id: int) -> BonusSummary:
     try:
         async with get_connection(POOL_BONUS) as conn:
             async with conn.cursor() as cur:
-                await cur.execute(_SUMMARY_SQL, (site_id,) * 10)
+                await cur.execute(_SUMMARY_SQL, (site_id,) * 11)
                 row = await cur.fetchone()
     except Exception as exc:
         log.error("get_bonus_summary.db_error", error=str(exc))
         raise DatabaseError(str(exc)) from exc
 
-    granted  = Decimal(str(row[4]))
-    limit    = Decimal(str(row[5]))
-    released = Decimal(str(row[6]))
-    consumed = Decimal(str(row[7]))
-    pending  = Decimal(str(row[8]))
-    forfeit  = Decimal(str(row[9]))
-    pct      = float(min(Decimal("100"), released / limit * 100)) if limit > 0 else 0.0
+    granted   = Decimal(str(row[4]))
+    limit     = Decimal(str(row[5]))
+    released  = Decimal(str(row[6]))
+    consumed  = Decimal(str(row[7]))
+    pending   = Decimal(str(row[8]))
+    forfeit   = Decimal(str(row[9]))
+    expiring  = Decimal(str(row[10]))
+    pct       = float(min(Decimal("100"), released / limit * 100)) if limit > 0 else 0.0
 
     return BonusSummary(
         active_heads=int(row[0]),
@@ -91,4 +99,5 @@ async def get_bonus_summary(site_id: int) -> BonusSummary:
         monthly_consumed=consumed,
         monthly_pending=pending,
         monthly_forfeit=forfeit,
+        monthly_expiring=expiring,
     )

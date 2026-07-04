@@ -615,17 +615,17 @@ _UPSERT_CONFIGURE_LIMIT_SQL = """
 
 _SELECT_CONFIGURE_BUDGET_SQL = """
     SELECT
-        bu.period_type,
+        bl.period_type,
         bl.budget_limit,
-        bu.budget_used,
+        COALESCE(bu.budget_used, 0),
         bu.reset_at
-    FROM bonus_budget_usage bu
-    LEFT JOIN bonus_budget_limit bl
-        ON  bl.entity_type = bu.entity_type
-        AND bl.entity_id   = bu.entity_id
-        AND bl.period_type = bu.period_type
-    WHERE bu.entity_type = 'CONFIGURE' AND bu.entity_id = %s
-    ORDER BY CASE bu.period_type
+    FROM bonus_budget_limit bl
+    LEFT JOIN bonus_budget_usage bu
+        ON  bu.entity_type = bl.entity_type
+        AND bu.entity_id   = bl.entity_id
+        AND bu.period_type = bl.period_type
+    WHERE bl.entity_type = 'CONFIGURE' AND bl.entity_id = %s
+    ORDER BY CASE bl.period_type
         WHEN 'DAILY'   THEN 1
         WHEN 'WEEKLY'  THEN 2
         WHEN 'MONTHLY' THEN 3

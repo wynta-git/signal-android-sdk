@@ -29,6 +29,8 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
 
   const configures = useAppSelector(selectConfiguresBySubhead(subhead.id));
 
+  const activeStakeholders = (subhead.owners ?? []).filter(o => o.active);
+
   return (
     <React.Fragment key={`sub-${subhead.id}`}>
     <div className="detail-content">
@@ -47,7 +49,13 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
                 </span>
               )}
               {subhead.parent_head_id && onSelect && <span className="dot"/>}
-              <span><Icon name="user" size={11}/> {subhead.owner}</span>
+              <span
+                style={{ cursor: 'pointer' }}
+                title="Edit main owner"
+                onClick={() => onAction({ type: 'EDIT_OWNER', scope: 'subhead', id: subhead.id })}
+              >
+                <Icon name="user" size={11}/> Owner: {subhead.owner} <Icon name="pencil" size={10} color="var(--g400)"/>
+              </span>
               <span className="dot"/>
               <span><Icon name="clock" size={11}/> Updated {formatRelative(subhead.updated_at ?? '')}</span>
             </div>
@@ -108,7 +116,7 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
 
       <div className="section-row" style={{ marginTop: 28 }}>
         <div className="section-label">
-          Owners · {(subhead.owners ?? []).filter(o => o.active).length}
+          Owners · {activeStakeholders.length + (subhead.owner ? 1 : 0)}
         </div>
         <div className="right">
           <button
@@ -120,10 +128,13 @@ export default function SubheadDetailPanel({ subhead, onSelect, onAction }: Subh
         </div>
       </div>
       <div className="owners-list">
-        {(subhead.owners ?? []).filter(o => o.active).length === 0 && (
+        {!subhead.owner && activeStakeholders.length === 0 && (
           <span style={{ fontSize: 12, color: 'var(--g400)', fontStyle: 'italic' }}>No owners assigned.</span>
         )}
-        {(subhead.owners ?? []).filter(o => o.active).map((o, i) => <OwnerPill key={i} owner={o}/>)}
+        {subhead.owner && (
+          <OwnerPill owner={{ username: subhead.owner, role: 'Main Owner', active: true }} isMain/>
+        )}
+        {activeStakeholders.map((o, i) => <OwnerPill key={i} owner={o}/>)}
       </div>
 
     </div>

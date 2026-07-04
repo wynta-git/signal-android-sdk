@@ -159,6 +159,7 @@ export interface KpiSnapshot {
   monthly_consumed: number;
   monthly_pending: number;
   monthly_forfeit: number;
+  monthly_expiring: number;
   monthly_limit: number;
   monthly_pct: number;
 }
@@ -283,6 +284,7 @@ export type DrawerType =
   | 'EDIT_CHUNKS'
   | 'EDIT_BUDGET'
   | 'EDIT_OWNERS'
+  | 'EDIT_OWNER'
   | 'NEW_MANUAL_BONUS'
   | 'ISSUE_CODE_BONUS';
 

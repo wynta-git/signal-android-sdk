@@ -14,6 +14,7 @@ export default function KpiStrip() {
   const consumed     = Number(kpi.monthly_consumed);
   const pending      = Number(kpi.monthly_pending);
   const forfeit      = Number(kpi.monthly_forfeit);
+  const expiring     = Number(kpi.monthly_expiring);
 
   return (
     <div className="kpi-strip">
@@ -27,10 +28,6 @@ export default function KpiStrip() {
             <div className="kpi-codes-number">
               <CountUp value={kpi.active_codes} format={(n) => Math.round(n).toLocaleString('en-IN')}/>
             </div>
-            <span className="kpi-codes-delta">
-              <Icon name="trending-up" size={11} strokeWidth={2.5}/>
-              +12 this week
-            </span>
           </div>
           <div className="kpi-codes-pills">
             <span className="kpi-pill" title="Active Bonus Heads">
@@ -84,6 +81,11 @@ export default function KpiStrip() {
               <div className="kpi-stat-top"><span className="kpi-stat-dot"/>Forfeit</div>
               <div className="kpi-stat-value">{formatINRCompact(forfeit)}</div>
               <div className="kpi-stat-sub">{released > 0 ? Math.round((forfeit / released) * 100) : 0}%</div>
+            </div>
+            <div className="kpi-stat expiring">
+              <div className="kpi-stat-top"><span className="kpi-stat-dot"/>Expiring</div>
+              <div className="kpi-stat-value">{formatINRCompact(expiring)}</div>
+              <div className="kpi-stat-sub">{released > 0 ? Math.round((expiring / released) * 100) : 0}%</div>
             </div>
           </div>
         </div>

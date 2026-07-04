@@ -8,6 +8,7 @@ import TriggerForm from './forms/TriggerForm';
 import ChunkForm from './forms/ChunkForm';
 import BudgetForm from './forms/BudgetForm';
 import OwnersForm from './forms/OwnersForm';
+import OwnerForm from './forms/OwnerForm';
 import ManualBonusForm from './forms/ManualBonusForm';
 import IssueCodeBonusForm from './forms/IssueCodeBonusForm';
 import type { DrawerState } from '../../types';
@@ -36,6 +37,7 @@ export default function DrawerForm({ state, submitting, onCancel, onSubmit }: Dr
     case 'EDIT_CHUNKS':      return <ChunkForm      state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_BUDGET':      return <BudgetForm     state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_OWNERS':      return <OwnersForm     state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
+    case 'EDIT_OWNER':       return <OwnerForm      state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'NEW_MANUAL_BONUS': return <ManualBonusForm state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'ISSUE_CODE_BONUS': return <IssueCodeBonusForm state={state as unknown as { type: string; code: Parameters<typeof IssueCodeBonusForm>[0]['state']['code'] }} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     default: return null;
