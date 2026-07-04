@@ -3,7 +3,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import SearchResultRow, { type SearchResultItem } from './SearchResultRow';
 import PlayerProfileModal from 'wynta-react-common/components/segments/PlayerProfileModal';
-import SegmentPlayersModal from 'wynta-react-common/components/segments/SegmentPlayersModal';
+import SegmentUsersModal from 'wynta-react-common/components/segments/SegmentUsersModal';
 import { MOCK_HEADS } from '../../services/mocks/heads';
 import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
 import { MOCK_CONFIGURES } from '../../services/mocks/configures';
@@ -208,7 +208,7 @@ export default function GlobalSearch({ onSelectNode }: GlobalSearchProps) {
         />
       )}
       {viewSegment && (
-        <SegmentPlayersModal
+        <SegmentUsersModal
           segment={viewSegment}
           onClose={() => setViewSegment(null)}
         />

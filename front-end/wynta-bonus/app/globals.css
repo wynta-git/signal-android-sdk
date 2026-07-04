@@ -2213,51 +2213,61 @@ a { color: inherit; text-decoration: none; }
   font-variant-numeric: tabular-nums; flex-shrink: 0;
 }
 
-.seg-players-thead, .seg-players-row {
-  display: grid;
-  grid-template-columns: 1fr 160px;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
+.seg-players-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
-.seg-players-thead {
+.seg-players-table th:nth-child(1), .seg-players-table td:nth-child(1) { width: 44px; }
+.seg-players-table th:nth-child(2), .seg-players-table td:nth-child(2) { width: auto; }
+.seg-players-table th:nth-child(3), .seg-players-table td:nth-child(3) { width: 110px; }
+.seg-players-table th:nth-child(4), .seg-players-table td:nth-child(4) { width: 110px; }
+.seg-players-table th:nth-child(5), .seg-players-table td:nth-child(5) { width: 36px; }
+.seg-players-table thead tr {
   background: var(--g50);
   border-bottom: 1px solid var(--g150);
+}
+.seg-players-table th {
+  padding: 10px 12px;
+  text-align: left;
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--g500);
 }
-.seg-players-row {
+.seg-players-table tbody tr {
   border-bottom: 1px solid var(--g100);
   cursor: pointer;
   font-size: 12.5px;
   color: var(--g700);
   transition: background 0.1s;
 }
-.seg-players-row:hover { background: var(--bp); }
-.seg-players-row:last-child { border-bottom: 0; }
-.seg-players-row .avatar {
+.seg-players-table td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  overflow: hidden;
+}
+.seg-players-table tbody tr:hover { background: var(--bp); }
+.seg-players-table tbody tr:last-child { border-bottom: 0; }
+.seg-players-table .avatar {
   width: 28px; height: 28px; border-radius: 50%;
   background: linear-gradient(135deg, var(--blue), var(--bm));
   color: #fff; font-weight: 700; font-size: 11px;
   display: flex; align-items: center; justify-content: center;
 }
-.seg-players-row .ident { min-width: 0; }
-.seg-players-row .ident .name {
+.seg-players-table .ident { min-width: 0; }
+.seg-players-table .ident .name {
   font-size: 13px; font-weight: 600; color: var(--g900);
   font-family: monospace;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.seg-players-row .ident .email {
+.seg-players-table .ident .email {
   font-size: 11px; color: var(--g500);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.seg-players-row .pid {
+.seg-players-table .pid {
   font-family: var(--mono); color: var(--blue); font-weight: 500;
   font-size: 12px;
 }
-.seg-players-row .num { font-variant-numeric: tabular-nums; }
-.seg-players-row .state { font-size: 12px; color: var(--g700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.seg-players-row .last-login { font-size: 11.5px; color: var(--g500); font-variant-numeric: tabular-nums; }
+.seg-players-table td.last-login { font-size: 11.5px; color: var(--g500); font-variant-numeric: tabular-nums; }
 
 .tier-badge, .kyc-badge {
   font-size: 10px; font-weight: 700; letter-spacing: 0.04em;

@@ -2,16 +2,23 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../Icon';
-import SegmentPlayersList from './SegmentPlayersList';
+import SegmentUsersList from './SegmentUsersList';
+import UserProfileModal from './UserProfileModal';
 import type { Segment } from '../../types';
 
-interface SegmentPlayersModalProps {
+interface SegmentUsersModalProps {
   segment: Segment;
   onClose: () => void;
 }
 
-export default function SegmentPlayersModal({ segment, onClose }: SegmentPlayersModalProps) {
+export default function SegmentUsersModal({ segment, onClose }: SegmentUsersModalProps) {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
+
+  const pickPlayer = (userId: string, brandId: string | null) => {
+    setSelectedUserId(userId);
+    setSelectedBrandId(brandId);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -37,7 +44,7 @@ export default function SegmentPlayersModal({ segment, onClose }: SegmentPlayers
           <div className="modal-title-block">
             <span className="modal-title">{segment.label}</span>
             <span className="modal-subtitle">
-              {segment.count.toLocaleString('en-IN')} players
+              {segment.count.toLocaleString('en-IN')} users
               {segment.hint ? ` · ${segment.hint}` : ''}
             </span>
           </div>
@@ -46,9 +53,15 @@ export default function SegmentPlayersModal({ segment, onClose }: SegmentPlayers
           </button>
         </div>
         <div className="modal-body" style={{ padding: 16 }}>
-          <SegmentPlayersList segment={segment} onPickPlayer={setSelectedUserId}/>
+          <SegmentUsersList segment={segment} onPickPlayer={pickPlayer}/>
         </div>
       </div>
+      <UserProfileModal
+        userId={selectedUserId}
+        brandId={selectedBrandId}
+        segment={segment}
+        onClose={() => setSelectedUserId(null)}
+      />
     </div>,
     document.body
   );
