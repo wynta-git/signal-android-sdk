@@ -63,6 +63,7 @@ _APPLICABLE_CODES_SQL = f"""
     WHERE {code_validity_sql("bcc")}
       AND bcc.site_id = %s
       AND bc.wager_chip_type = %s
+      AND bcc.system_auto_apply = 0
       AND bc.start_date <= NOW()
       AND bc.end_date   >= NOW()
     ORDER BY bcc.display_order ASC

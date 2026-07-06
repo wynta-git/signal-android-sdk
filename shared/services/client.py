@@ -285,7 +285,8 @@ async def get_clients_by_site(site_id: int, redis: Redis, ttl: int) -> list[Clie
                     created_at=str(row[12]) if row[12] is not None else None,
                 ))
 
-    await set_with_ttl(redis, key, json.dumps([c.model_dump() for c in clients]), ttl)
+    if clients:
+        await set_with_ttl(redis, key, json.dumps([c.model_dump() for c in clients]), ttl)
     return clients
 
 
