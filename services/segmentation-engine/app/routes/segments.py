@@ -209,6 +209,7 @@ async def upload_custom_audience(
     redis=Depends(_redis),
     name: str = Form(...),
     file: UploadFile = File(...),
+    brand_id: str | None = Form(default=None),
 ) -> dict[str, Any]:
     project_id = ctx.project_id
 
@@ -284,6 +285,7 @@ async def upload_custom_audience(
         "s3_url": s3_url,
         "members_count": len(user_ids),
         "last_refresh_time": now,
+        "brand_id": brand_id,
     }
     await storage.create_segment(db, doc)
     await storage.bulk_upsert_memberships(redis, project_id, segment_id, set(user_ids))
