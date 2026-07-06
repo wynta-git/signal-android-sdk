@@ -516,7 +516,13 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                 type="file"
                 accept=".csv,text/csv"
                 style={{ display: 'none' }}
-                onChange={e => setCsvFile(e.target.files?.[0] ?? null)}
+                onChange={e => {
+                const f = e.target.files?.[0] ?? null;
+                setCsvFile(f);
+                if (f && !name.trim()) {
+                  setName(f.name.replace(/\.csv$/i, '').replace(/[_-]+/g, ' ').trim());
+                }
+              }}
               />
               {csvFile && (
                 <button
