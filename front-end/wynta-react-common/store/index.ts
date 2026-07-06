@@ -1,7 +1,10 @@
 import { configureStore } from '@reduxjs/toolkit';
+import copilotReducer from './slices/copilotSlice';
 
 export const store = configureStore({
-  reducer: {},
+  reducer: {
+    copilot: copilotReducer,
+  },
 });
 
 export type RootState = ReturnType<typeof store.getState>;

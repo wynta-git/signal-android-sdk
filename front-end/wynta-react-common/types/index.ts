@@ -36,6 +36,17 @@ export interface AuthResponse {
   };
 }
 
+// ── AI Co-pilot ───────────────────────────────────────────────────────────────
+
+export interface CopilotMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  ts: number;
+}
+
+export type CopilotTab = 'thread' | 'copilot';
+
 // ── Segments & Players ────────────────────────────────────────────────────────
 
 export interface Segment {

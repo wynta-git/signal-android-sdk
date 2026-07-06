@@ -20,6 +20,7 @@ import spendReducer from "./slices/spendSlice";
 import usersReducer, {
   authenticateWithBridgeToken,
 } from "wynta-react-common/store/slices/usersSlice";
+import copilotReducer from "wynta-react-common/store/slices/copilotSlice";
 import type { SelectedNode } from "../types";
 
 
@@ -52,6 +53,7 @@ export const store = configureStore({
     kpi: kpiReducer,
     spend: spendReducer,
     users: usersReducer,
+    copilot: copilotReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(initOnAuthMiddleware),

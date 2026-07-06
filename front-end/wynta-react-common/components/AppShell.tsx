@@ -4,7 +4,9 @@ import { useDispatch } from "react-redux";
 import Icon from "./Icon";
 import BrandSwitcher from "./BrandSwitcher";
 import DjSidebarSlot from "./DjSidebarSlot";
+import CopilotPanel from "./copilot/CopilotPanel";
 import { fetchBrands } from "../store/slices/brandsSlice";
+import { toggleCopilot } from "../store/slices/copilotSlice";
 
 export interface NavItem {
   id: string;
@@ -63,6 +65,13 @@ export default function AppShell({
           {topbarCenter}
           <div className="spacer" />
           {topbarActions}
+          <button
+            className="icon-btn"
+            title="AI Co-pilot"
+            onClick={() => dispatch(toggleCopilot())}
+          >
+            <Icon name="sparkles" size={15} />
+          </button>
           <button className="icon-btn" title="Notifications">
             <Icon name="bell" size={15} />
           </button>
@@ -72,6 +81,7 @@ export default function AppShell({
         </div>
         {children}
       </main>
+      <CopilotPanel />
       {overlays}
     </div>
   );
