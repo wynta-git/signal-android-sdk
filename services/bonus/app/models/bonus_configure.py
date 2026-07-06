@@ -127,14 +127,15 @@ class BonusConfigureResponse(BaseModel):
 class BonusCodeSummary(BaseModel):
     """Embedded code entry returned inside BonusConfigureDetail."""
 
-    id:            int
-    code:          str
-    max_amount:    Decimal | None
-    valid_from:    datetime | None
-    valid_to:      datetime | None
-    auto_apply:    bool
-    display_order: int
-    active:        bool
+    id:                int
+    code:              str
+    max_amount:        Decimal | None
+    valid_from:        datetime | None
+    valid_to:          datetime | None
+    auto_apply:        bool
+    system_auto_apply: bool | None
+    display_order:     int
+    active:            bool
 
 
 class BonusConfigureDetail(BonusConfigureResponse):

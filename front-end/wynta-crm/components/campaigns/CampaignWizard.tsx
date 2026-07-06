@@ -457,6 +457,14 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     }
   }
 
+  /* ── Per-step required-field gating for the Next button ── */
+  const step1Valid = s1.name.trim() !== '' && s1.platforms.length > 0 && s1.segment_id.trim() !== '';
+  const step2Valid = channel !== 'push' || (s2.push_title.trim() !== '' && s2.push_content.trim() !== '');
+  const nextDisabled = !viewMode && (
+    (step === 1 && !step1Valid) ||
+    (step === 2 && !step2Valid)
+  );
+
   /* Rendered inline inside .crm-content — no portal, sidebar stays visible */
   return (
     <div className="cwiz-page">
@@ -531,7 +539,13 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
 
           {/* Next / Publish Campaign */}
           {step < 3 ? (
-            <button type="button" className="asm-btn asm-btn--primary" onClick={() => setStep(s => s + 1)}>
+            <button
+              type="button"
+              className="asm-btn asm-btn--primary"
+              onClick={() => setStep(s => s + 1)}
+              disabled={nextDisabled}
+              title={nextDisabled ? 'Fill in all required fields to continue.' : undefined}
+            >
               Next ›
             </button>
           ) : viewMode ? (

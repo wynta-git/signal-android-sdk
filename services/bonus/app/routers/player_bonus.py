@@ -48,12 +48,15 @@ async def get_applicable_codes(
     request: Request,
     user_id: str = Query(..., min_length=1, max_length=50),
     chip_type: str = Query(..., pattern=r'^(cash|in_app_purchase)$'),
+    display_on: str = Query("DEPOSIT", min_length=1, max_length=100),
     x_client_id: str = Header(..., alias="x-client-id"),
 ) -> list[ApplicableCodeResponse]:
     site_id = await get_client_site_id(x_client_id, request.app.state.redis)
     if site_id is None:
         raise HTTPException(status_code=401, detail="Unknown client")
-    return await list_applicable_codes(user_id, chip_type, request.app.state.redis, site_id)
+    return await list_applicable_codes(
+        user_id, chip_type, request.app.state.redis, site_id, display_on=display_on
+    )
 
 
 @router.post("/validate-code", response_model=ValidateCodeResponse)

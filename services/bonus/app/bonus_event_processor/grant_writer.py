@@ -200,7 +200,7 @@ async def write_grant(
         await conn.commit()
 
     if Decimal(str(wager_multiplier)) == Decimal("0"):
-        await release_all_chunks(conn, grant_id, site_id, event_id)
+        await release_all_chunks(conn, grant_id, site_id, event_id, pam_user_id)
 
     log.info(
         "bonus_grant_written",
@@ -275,7 +275,7 @@ async def write_cashback_grant(
 
             await conn.commit()
 
-        await release_all_chunks(conn, grant_id, site_id, event_id)
+        await release_all_chunks(conn, grant_id, site_id, event_id, pam_user_id)
 
         log.info(
             "cashback_grant_written",

@@ -4,9 +4,8 @@ SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE `bonus_change_log`;
 
 -- 4. Reporting
-TRUNCATE TABLE `bonus_spend_monthly`;
-TRUNCATE TABLE `bonus_spend_weekly`;
-TRUNCATE TABLE `bonus_spend_daily`;
+
+TRUNCATE TABLE `bonus_spend`;
 
 -- 3. Budget
 TRUNCATE TABLE `bonus_code_usage`;
@@ -22,7 +21,7 @@ TRUNCATE TABLE `bonus_forfeit`;
 TRUNCATE TABLE `bonus_consumed`;
 TRUNCATE TABLE `bonus_chunk_expiry`;
 TRUNCATE TABLE `bonus_chunk_release`;
-TRUNCATE TABLE `bonus_chunk_consume`;
+TRUNCATE TABLE `bonus_chunk_consumed`;
 TRUNCATE TABLE `bonus_chunk`;
 TRUNCATE TABLE `bonus_grant`;
 

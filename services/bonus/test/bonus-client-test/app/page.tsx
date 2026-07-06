@@ -290,6 +290,13 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
   const [clientId, setClientId] = useState("bonus-test-v1");
   const [secret, setSecret] = useState("abc@123456");
 
+  const [regUserId, setRegUserId] = useState(() => `ply_${Date.now()}`);
+  const [regMethod, setRegMethod] = useState("email");
+  const [regPromo, setRegPromo] = useState("");
+  const [regCurrency, setRegCurrency] = useState("INR");
+  const [regStatus, setRegStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  const [regMessage, setRegMessage] = useState<string | null>(null);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!userId.trim() || !clientId.trim() || !secret.trim()) return;
@@ -298,6 +305,51 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
       clientId: clientId.trim(),
       secret: secret.trim(),
     });
+  }
+
+  async function handleSimulateRegistration(e: React.FormEvent) {
+    e.preventDefault();
+    if (regStatus === "sending" || !clientId.trim() || !secret.trim() || !regUserId.trim()) return;
+    setRegStatus("sending");
+    setRegMessage(null);
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...s2sHeaders({ userId: regUserId, clientId, secret }),
+        },
+        body: JSON.stringify({
+          user_id: regUserId.trim(),
+          event_name: "REGISTRATION",
+          registration_method: regMethod,
+          currency: regCurrency,
+          ...(regPromo.trim() ? { promo_code: regPromo.trim() } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (res.status === 202) {
+        setRegStatus("success");
+        onLogin({
+          userId: regUserId.trim(),
+          clientId: clientId.trim(),
+          secret: secret.trim(),
+        });
+      } else {
+        setRegStatus("error");
+        const detail = data?.detail;
+        setRegMessage(
+          typeof detail === "string"
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d: { msg?: string }) => d.msg).join(", ")
+              : "Failed to send event",
+        );
+      }
+    } catch {
+      setRegStatus("error");
+      setRegMessage("Network error");
+    }
   }
 
   return (
@@ -366,6 +418,81 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
               🔑 S2S Signature Explorer
             </Link>
           </div>
+        </form>
+
+        <form onSubmit={handleSimulateRegistration} style={{ marginTop: 28 }}>
+          <div className="section-label">Simulate Registration Event</div>
+          <div className="input-row">
+            <div className="input-group" style={{ flex: 2 }}>
+              <label>New Player ID</label>
+              <input
+                value={regUserId}
+                onChange={(e) => setRegUserId(e.target.value)}
+                placeholder="ply_1720000000000"
+                autoCapitalize="none"
+                required
+              />
+            </div>
+            <div className="input-group" style={{ flex: 1, justifyContent: "flex-end" }}>
+              <label>&nbsp;</label>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ marginTop: 0, minHeight: 44, padding: "0 14px" }}
+                onClick={() => setRegUserId(`ply_${Date.now()}`)}
+              >
+                New ID
+              </button>
+            </div>
+          </div>
+
+          <div className="input-row">
+            <div className="input-group" style={{ flex: 1.4 }}>
+              <label>Registration Method</label>
+              <select value={regMethod} onChange={(e) => setRegMethod(e.target.value)}>
+                <option value="email">Email</option>
+                <option value="google">Google</option>
+                <option value="facebook">Facebook</option>
+                <option value="guest">Guest</option>
+              </select>
+            </div>
+            <div className="input-group" style={{ flex: 1 }}>
+              <label>Currency</label>
+              <select value={regCurrency} onChange={(e) => setRegCurrency(e.target.value)}>
+                <option value="INR">INR</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label>Promo Code (optional)</label>
+            <input
+              value={regPromo}
+              onChange={(e) => setRegPromo(e.target.value)}
+              placeholder="e.g. WELCOME100"
+              autoCapitalize="none"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{ marginTop: 12 }}
+            disabled={regStatus === "sending"}
+          >
+            {regStatus === "sending" ? "Sending…" : "Send REGISTRATION Event"}
+          </button>
+
+          {regMessage && (
+            <div
+              className={regStatus === "error" ? "error-toast" : "success-toast"}
+              style={{ marginTop: 16, marginBottom: 0 }}
+            >
+              {regMessage}
+            </div>
+          )}
         </form>
       </div>
     </div>

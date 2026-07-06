@@ -256,7 +256,7 @@ export async function createSegment(payload: {
     if (payload.brandId)           form.append("brand_id", String(payload.brandId));
     form.append("file", payload.csvFile);
 
-    const res = await fetch(`${SEG_API}/segments`, {
+    const res = await fetch(`${SEG_API}/segments/upload`, {
       method: "POST",
       // Do NOT set Content-Type — browser sets it automatically with boundary
       headers: { Authorization: `Bearer ${getToken()}` },
