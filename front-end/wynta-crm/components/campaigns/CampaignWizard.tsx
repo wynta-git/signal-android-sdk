@@ -205,6 +205,11 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
   const [activeCampaignId, setActiveCampaignId] = useState<string | null>(campaign?.id ?? null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [fieldErrors, setFieldErrors] = useState<Set<string>>(new Set());
+  /* Bumped only on a failed Next/Submit attempt — the step components use this
+     (not `fieldErrors` itself) to trigger the scroll/focus jump, so clearing
+     an error as the user types doesn't yank focus to the next error field. */
+  const [errorTick, setErrorTick] = useState(0);
 
   /* Init from existing campaign — edit/view: use only API data, no fallbacks */
   const [s1, setS1] = useState<Step1State>(() => campaign ? {
@@ -354,36 +359,63 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     };
   }
 
-  /* ── Validation (publish only) ── */
-  function validateForPublish(): string[] {
-    const errs: string[] = [];
-    if (!s1.name.trim())         errs.push('Campaign name is required.');
-    if (!s1.segment_id.trim())   errs.push('Target segment is required.');
+  /* ── Per-step required-field validation ── */
+  type FieldError = { key: string; message: string };
 
-    const isPush = channel === 'push';
-    if (isPush) {
-      if (!s2.push_title.trim())   errs.push('Push title is required.');
-      if (!s2.push_content.trim()) errs.push('Push content is required.');
+  function getStep1Errors(): FieldError[] {
+    const errs: FieldError[] = [];
+    if (!s1.name.trim())           errs.push({ key: 'name',      message: 'Campaign name is required.' });
+    if (s1.platforms.length === 0) errs.push({ key: 'platforms', message: 'Select at least one target platform.' });
+    if (!s1.segment_id.trim())     errs.push({ key: 'segment',   message: 'Target segment is required.' });
+    return errs;
+  }
+
+  function getStep2Errors(): FieldError[] {
+    const errs: FieldError[] = [];
+    if (channel === 'push') {
+      if (!s2.push_title.trim())   errs.push({ key: 'push_title',   message: 'Push title is required.' });
+      if (!s2.push_content.trim()) errs.push({ key: 'push_content', message: 'Push content is required.' });
     }
+    return errs;
+  }
 
+  function getStep3Errors(): FieldError[] {
+    const errs: FieldError[] = [];
     if (s3.schedule_type === 'one_time' && s3.one_time_type === 'specific_datetime') {
-      if (!s3.datetime) errs.push('Send date & time is required.');
-      if (!s3.timezone) errs.push('Timezone is required.');
+      if (!s3.datetime) errs.push({ key: 'datetime', message: 'Send date & time is required.' });
+      if (!s3.timezone) errs.push({ key: 'timezone', message: 'Timezone is required.' });
     }
     if (s3.schedule_type === 'periodic') {
-      if (!s3.start_date)    errs.push('Start date is required.');
-      if (!s3.trigger_time)  errs.push('Trigger time is required.');
-      if (!s3.timezone)      errs.push('Timezone is required.');
+      if (!s3.start_date)    errs.push({ key: 'start_date',   message: 'Start date is required.' });
+      if (!s3.trigger_time)  errs.push({ key: 'trigger_time', message: 'Trigger time is required.' });
+      if (!s3.timezone)      errs.push({ key: 'timezone',     message: 'Timezone is required.' });
       if (s3.frequency === 'weekly' && s3.days.length === 0)
-        errs.push('Select at least one day of the week.');
+        errs.push({ key: 'days', message: 'Select at least one day of the week.' });
       if (s3.frequency === 'monthly') {
         const { valid, error } = parseDates(s3.dates_input);
-        if (error)          errs.push(error);
-        if (valid.length === 0) errs.push('At least one valid date of month is required.');
+        if (error)               errs.push({ key: 'dates', message: error });
+        if (valid.length === 0)  errs.push({ key: 'dates', message: 'At least one valid date of month is required.' });
       }
     }
     return errs;
   }
+
+  function validateForPublish(): FieldError[] {
+    return [...getStep1Errors(), ...getStep2Errors(), ...getStep3Errors()];
+  }
+
+  /* Drop a field's error the moment its value becomes valid, so the red
+     highlight disappears as soon as the user fixes it — no need to hit
+     Next/Submit again to clear it. */
+  useEffect(() => {
+    if (fieldErrors.size === 0) return;
+    const stillInvalid = new Set(validateForPublish().map(e => e.key));
+    setFieldErrors(prev => {
+      const next = new Set([...prev].filter(k => stillInvalid.has(k)));
+      return next.size === prev.size ? prev : next;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s1, s2, s3]);
 
   function showNotif(type: 'success' | 'error', msg: string) {
     setNotification({ type, msg });
@@ -393,9 +425,13 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
   /* ── Save as Draft — POST (new) or PATCH (existing), no activate ── */
   async function handleSaveAsDraft() {
     if (!s1.name.trim()) {
+      setFieldErrors(new Set(['name']));
+      setErrorTick(t => t + 1);
+      setStep(1);
       showNotif('error', 'Campaign name is required before saving.');
       return;
     }
+    setFieldErrors(new Set());
     setValidationErrors([]);
     setSaving(true);
     try {
@@ -425,9 +461,16 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
   async function handlePublish() {
     const errs = validateForPublish();
     if (errs.length > 0) {
-      setValidationErrors(errs);
+      const keys = new Set(errs.map(e => e.key));
+      setFieldErrors(keys);
+      setErrorTick(t => t + 1);
+      setValidationErrors(errs.map(e => e.message));
+      /* Jump back to the earliest step that has a missing field */
+      if (keys.has('name') || keys.has('platforms') || keys.has('segment')) setStep(1);
+      else if (keys.has('push_title') || keys.has('push_content')) setStep(2);
       return;
     }
+    setFieldErrors(new Set());
     setValidationErrors([]);
     setSaving(true);
     try {
@@ -457,13 +500,18 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     }
   }
 
-  /* ── Per-step required-field gating for the Next button ── */
-  const step1Valid = s1.name.trim() !== '' && s1.platforms.length > 0 && s1.segment_id.trim() !== '';
-  const step2Valid = channel !== 'push' || (s2.push_title.trim() !== '' && s2.push_content.trim() !== '');
-  const nextDisabled = !viewMode && (
-    (step === 1 && !step1Valid) ||
-    (step === 2 && !step2Valid)
-  );
+  /* ── Next button — always clickable; validates the current step on click
+     and highlights/focuses the first missing field instead of blocking ── */
+  function handleNext() {
+    const errs = step === 1 ? getStep1Errors() : getStep2Errors();
+    if (errs.length > 0) {
+      setFieldErrors(new Set(errs.map(e => e.key)));
+      setErrorTick(t => t + 1);
+      return;
+    }
+    setFieldErrors(new Set());
+    setStep(s => s + 1);
+  }
 
   /* Rendered inline inside .crm-content — no portal, sidebar stays visible */
   return (
@@ -512,9 +560,9 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
 
       {/* ── Scrollable step content ── */}
       <div className="cwiz-body">
-        {step === 1 && <Step1 s={s1} onChange={setS1} channel={channel} />}
-        {step === 2 && <Step2 s={s2} onChange={setS2} channel={channel} />}
-        {step === 3 && <Step3 s={s3} onChange={setS3} channel={channel} />}
+        {step === 1 && <Step1 s={s1} onChange={setS1} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
+        {step === 2 && <Step2 s={s2} onChange={setS2} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
+        {step === 3 && <Step3 s={s3} onChange={setS3} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
       </div>
 
       {/* ── Footer — width matches step-body content ── */}
@@ -522,7 +570,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
         <div className="cwiz-footer-inner">
         <div className="cwiz-footer-left">
           {step > 1 && (
-            <button type="button" className="cwiz-btn-back" onClick={() => setStep(s => s - 1)}>
+            <button type="button" className="cwiz-btn-back" onClick={() => { setFieldErrors(new Set()); setStep(s => s - 1); }}>
               ‹ Back
             </button>
           )}
@@ -532,7 +580,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
 
           {/* Save as Draft — hidden in view mode */}
           {!viewMode && (
-            <button type="button" className="asm-btn asm-btn--secondary" onClick={handleSaveAsDraft} disabled={!s1.name.trim() || saving}>
+            <button type="button" className="asm-btn asm-btn--secondary" onClick={handleSaveAsDraft} disabled={saving}>
               Save as draft
             </button>
           )}
@@ -542,9 +590,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
             <button
               type="button"
               className="asm-btn asm-btn--primary"
-              onClick={() => setStep(s => s + 1)}
-              disabled={nextDisabled}
-              title={nextDisabled ? 'Fill in all required fields to continue.' : undefined}
+              onClick={() => (viewMode ? setStep(s => s + 1) : handleNext())}
             >
               Next ›
             </button>
@@ -552,7 +598,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
             /* View mode last step — only Close */
             null
           ) : (
-            <button type="button" className="asm-btn asm-btn--primary" onClick={handlePublish} disabled={!s1.name.trim() || saving}
+            <button type="button" className="asm-btn asm-btn--primary" onClick={handlePublish} disabled={saving}
               style={{ letterSpacing: 0.5, fontWeight: 700, gap: 6, paddingRight: 14 }}
             >
               {saving ? 'SUBMITTING…' : 'SUBMIT'}
@@ -717,15 +763,35 @@ function SegmentPicker({ selectedId, selectedName, onSelect }: SegmentPickerProp
 /* ================================================================== */
 /* STEP 1 — Target Segment                                             */
 /* ================================================================== */
-interface Step1Props { s: Step1State; onChange: (s: Step1State) => void; channel: string; }
+interface Step1Props { s: Step1State; onChange: (s: Step1State) => void; channel: string; errors?: Set<string>; errorTick?: number; }
 
-function Step1({ s, onChange, channel }: Step1Props) {
+function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
   const dispatch = useDispatch<any>();
   const set      = (patch: Partial<Step1State>) => onChange({ ...s, ...patch });
   const isPush   = channel === 'push';
 
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewing, setPreviewing]     = useState(false);
+
+  const nameRef      = useRef<HTMLInputElement>(null);
+  const platformsRef = useRef<HTMLDivElement>(null);
+  const segmentRef   = useRef<HTMLDivElement>(null);
+
+  /* Jump the user to (and highlight) the first missing required field. */
+  useEffect(() => {
+    if (!errors || errors.size === 0) return;
+    const order: Array<[string, { current: HTMLElement | null }]> = [
+      ['name', nameRef], ['platforms', platformsRef], ['segment', segmentRef],
+    ];
+    for (const [key, ref] of order) {
+      if (errors.has(key) && ref.current) {
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        ref.current.focus?.();
+        break;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [errorTick]);
 
   /* Bonus heads — read from shared Redux store (loaded by bonus app), fall back to direct fetch */
 
@@ -765,11 +831,13 @@ function Step1({ s, onChange, channel }: Step1Props) {
           <div className="cwiz-field">
             <label className="cwiz-label">Campaign name <span className="cwiz-req">*</span></label>
             <input
-              className="cwiz-input"
+              ref={nameRef}
+              className={'cwiz-input' + (errors?.has('name') ? ' cwiz-input--error' : '')}
               placeholder="e.g. VIP Reactivation — June 2025"
               value={s.name}
               onChange={e => set({ name: e.target.value })}
             />
+            {errors?.has('name') && <span className="cwiz-field-error">Campaign name is required.</span>}
           </div>
           <div className="cwiz-field">
             <label className="cwiz-label">Campaign tags</label>
@@ -796,7 +864,12 @@ function Step1({ s, onChange, channel }: Step1Props) {
       </div>
 
       {/* Target platforms */}
-      <div className="cwiz-card">
+      <div
+        className="cwiz-card"
+        ref={platformsRef}
+        tabIndex={-1}
+        style={errors?.has('platforms') ? { outline: '1px solid var(--crm-negative, #D64545)', borderRadius: 'var(--rl)' } : undefined}
+      >
         <div className="cwiz-card-title">Target platforms <span className="cwiz-req">*</span></div>
         <div className="cwiz-checkboxes">
           {PLATFORMS.map(p => (
@@ -814,6 +887,7 @@ function Step1({ s, onChange, channel }: Step1Props) {
             </label>
           ))}
         </div>
+        {errors?.has('platforms') && <span className="cwiz-field-error">Select at least one target platform.</span>}
       </div>
 
       {/* Trigger criteria — hidden for Push */}
@@ -836,13 +910,19 @@ function Step1({ s, onChange, channel }: Step1Props) {
       </div>}
 
       {/* Target segment */}
-      <div className="cwiz-card">
+      <div
+        className="cwiz-card"
+        ref={segmentRef}
+        tabIndex={-1}
+        style={errors?.has('segment') ? { outline: '1px solid var(--crm-negative, #D64545)', borderRadius: 'var(--rl)' } : undefined}
+      >
         <div className="cwiz-card-title">Target segment <span className="cwiz-req">*</span></div>
         <SegmentPicker
           selectedId={s.segment_id}
           selectedName={s.segment_name}
           onSelect={(id, name) => { set({ segment_id: id, segment_name: name }); setPreviewCount(null); }}
         />
+        {errors?.has('segment') && <span className="cwiz-field-error">Target segment is required.</span>}
 
         {/* Estimated count — shown only after a segment is selected */}
         {s.segment_id && <div className="builder-preview" style={{ marginTop: 14 }}>
@@ -968,7 +1048,7 @@ function Step1({ s, onChange, channel }: Step1Props) {
 /* ================================================================== */
 /* STEP 2 — Content (simplified message builder)                       */
 /* ================================================================== */
-interface Step2Props { s: Step2State; onChange: (s: Step2State) => void; channel: string; }
+interface Step2Props { s: Step2State; onChange: (s: Step2State) => void; channel: string; errors?: Set<string>; errorTick?: number; }
 
 const BLOCK_TYPES: { type: ContentBlock['type']; label: string; category: string; ai?: boolean }[] = [
   { type: 'heading',    label: 'Heading',     category: 'CONTENT'          },
@@ -1069,13 +1149,29 @@ function BlockEditor({ block, onUpdate, onRemove }: {
 
 // const PLACEHOLDERS = ['{{first_name}}', '{{last_name}}', '{{username}}'] as const;
 
-function Step2({ s, onChange, channel }: Step2Props) {
+function Step2({ s, onChange, channel, errors, errorTick }: Step2Props) {
   const isPush = channel === 'push';
   const set    = (patch: Partial<Step2State>) => onChange({ ...s, ...patch });
 
-  /* Refs kept for future placeholder re-enable */
+  /* Refs kept for future placeholder re-enable, also used to jump to the
+     first missing required field when the user clicks Next with errors. */
   const titleRef   = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!errors || errors.size === 0) return;
+    const order: Array<[string, { current: HTMLElement | null }]> = [
+      ['push_title', titleRef], ['push_content', contentRef],
+    ];
+    for (const [key, ref] of order) {
+      if (errors.has(key) && ref.current) {
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        ref.current.focus();
+        break;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [errorTick]);
 
   /* insertPlaceholder — disabled while placeholder chips are commented out
   const insertPlaceholder = (placeholder: string) => {
@@ -1122,12 +1218,13 @@ function Step2({ s, onChange, channel }: Step2Props) {
             </label>
             <input
               ref={titleRef}
-              className="cwiz-input"
+              className={'cwiz-input' + (errors?.has('push_title') ? ' cwiz-input--error' : '')}
               type="text"
               placeholder="e.g. Your exclusive offer is waiting 🎁"
               value={s.push_title}
               onChange={e => set({ push_title: e.target.value })}
             />
+            {errors?.has('push_title') && <span className="cwiz-field-error">Push title is required.</span>}
           </div>
 
           <div className="cwiz-field" style={{ marginBottom: 14 }}>
@@ -1136,12 +1233,13 @@ function Step2({ s, onChange, channel }: Step2Props) {
             </label>
             <textarea
               ref={contentRef}
-              className="cwiz-textarea"
+              className={'cwiz-textarea' + (errors?.has('push_content') ? ' cwiz-input--error' : '')}
               rows={4}
               placeholder="Enter the push notification message body…"
               value={s.push_content}
               onChange={e => set({ push_content: e.target.value })}
             />
+            {errors?.has('push_content') && <span className="cwiz-field-error">Push content is required.</span>}
           </div>
 
           <div className="cwiz-field">
@@ -1226,11 +1324,35 @@ function parseDates(raw: string): { valid: number[]; error: string } {
   return { valid: unique, error: '' };
 }
 
-interface Step3Props { s: Step3State; onChange: (s: Step3State) => void; channel: string; }
+interface Step3Props { s: Step3State; onChange: (s: Step3State) => void; channel: string; errors?: Set<string>; errorTick?: number; }
 
-function Step3({ s, onChange, channel }: Step3Props) {
+function Step3({ s, onChange, channel, errors, errorTick }: Step3Props) {
   const set    = (patch: Partial<Step3State>) => onChange({ ...s, ...patch });
   const isPush = channel === 'push';
+
+  const datetimeRef    = useRef<HTMLInputElement>(null);
+  const timezoneRef    = useRef<HTMLSelectElement>(null);
+  const startDateRef   = useRef<HTMLInputElement>(null);
+  const triggerTimeRef = useRef<HTMLInputElement>(null);
+  const daysRef        = useRef<HTMLDivElement>(null);
+  const datesRef       = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!errors || errors.size === 0) return;
+    const order: Array<[string, { current: HTMLElement | null }]> = [
+      ['datetime', datetimeRef], ['start_date', startDateRef],
+      ['trigger_time', triggerTimeRef], ['timezone', timezoneRef],
+      ['days', daysRef], ['dates', datesRef],
+    ];
+    for (const [key, ref] of order) {
+      if (errors.has(key) && ref.current) {
+        ref.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        ref.current.focus();
+        break;
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [errorTick]);
 
   return (
     <div className="cwiz-step-body">
@@ -1276,14 +1398,16 @@ function Step3({ s, onChange, channel }: Step3Props) {
               <div className="cwiz-form-grid" style={{ marginTop: 14 }}>
                 <div className="cwiz-field">
                   <label className="cwiz-label">Date &amp; Time <span className="cwiz-req">*</span></label>
-                  <input className="cwiz-input" type="datetime-local"
+                  <input ref={datetimeRef} className={'cwiz-input' + (errors?.has('datetime') ? ' cwiz-input--error' : '')} type="datetime-local"
                     value={s.datetime} onChange={e => set({ datetime: e.target.value })} />
+                  {errors?.has('datetime') && <span className="cwiz-field-error">Send date &amp; time is required.</span>}
                 </div>
                 <div className="cwiz-field">
                   <label className="cwiz-label">Timezone <span className="cwiz-req">*</span></label>
-                  <select className="cwiz-select" value={s.timezone} onChange={e => set({ timezone: e.target.value })}>
+                  <select ref={timezoneRef} className={'cwiz-select' + (errors?.has('timezone') ? ' cwiz-input--error' : '')} value={s.timezone} onChange={e => set({ timezone: e.target.value })}>
                     {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
                   </select>
+                  {errors?.has('timezone') && <span className="cwiz-field-error">Timezone is required.</span>}
                 </div>
               </div>
             )}
@@ -1309,8 +1433,9 @@ function Step3({ s, onChange, channel }: Step3Props) {
             <div className="cwiz-form-grid" style={{ marginTop: 14 }}>
               <div className="cwiz-field">
                 <label className="cwiz-label">Start Date <span className="cwiz-req">*</span></label>
-                <input className="cwiz-input" type="date"
+                <input ref={startDateRef} className={'cwiz-input' + (errors?.has('start_date') ? ' cwiz-input--error' : '')} type="date"
                   value={s.start_date} onChange={e => set({ start_date: e.target.value })} />
+                {errors?.has('start_date') && <span className="cwiz-field-error">Start date is required.</span>}
               </div>
               <div className="cwiz-field">
                 <label className="cwiz-label">End Date</label>
@@ -1319,20 +1444,22 @@ function Step3({ s, onChange, channel }: Step3Props) {
               </div>
               <div className="cwiz-field">
                 <label className="cwiz-label">Trigger Time (24h) <span className="cwiz-req">*</span></label>
-                <input className="cwiz-input" type="time"
+                <input ref={triggerTimeRef} className={'cwiz-input' + (errors?.has('trigger_time') ? ' cwiz-input--error' : '')} type="time"
                   value={s.trigger_time} onChange={e => set({ trigger_time: e.target.value })} />
+                {errors?.has('trigger_time') && <span className="cwiz-field-error">Trigger time is required.</span>}
               </div>
               <div className="cwiz-field">
                 <label className="cwiz-label">Timezone <span className="cwiz-req">*</span></label>
-                <select className="cwiz-select" value={s.timezone} onChange={e => set({ timezone: e.target.value })}>
+                <select ref={timezoneRef} className={'cwiz-select' + (errors?.has('timezone') ? ' cwiz-input--error' : '')} value={s.timezone} onChange={e => set({ timezone: e.target.value })}>
                   {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
                 </select>
+                {errors?.has('timezone') && <span className="cwiz-field-error">Timezone is required.</span>}
               </div>
             </div>
 
             {/* Weekly — days of week */}
             {s.frequency === 'weekly' && (
-              <div className="cwiz-field" style={{ marginTop: 14 }}>
+              <div className="cwiz-field" style={{ marginTop: 14 }} ref={daysRef}>
                 <label className="cwiz-label">Days of Week <span className="cwiz-req">*</span></label>
                 <div className="cwiz-day-row">
                   {WEEK_DAYS.map(d => {
@@ -1362,6 +1489,7 @@ function Step3({ s, onChange, channel }: Step3Props) {
               <div className="cwiz-field" style={{ marginTop: 14 }}>
                 <label className="cwiz-label">Dates of Month <span className="cwiz-req">*</span></label>
                 <input
+                  ref={datesRef}
                   className={'cwiz-input' + (s.dates_error ? ' cwiz-input--error' : '')}
                   type="text"
                   placeholder="e.g. 5,10,15,25"
