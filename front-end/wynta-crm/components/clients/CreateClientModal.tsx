@@ -65,21 +65,18 @@ export default function CreateClientModal({ siteId, onClose, onCreated }: Props)
                 className="cl-form-input"
                 placeholder="e.g. 1"
                 value={siteIdVal}
-                onChange={e => setSiteIdVal(e.target.value)}
-                required
-                autoFocus
+                readOnly
+                style={{ opacity: 0.5, cursor: 'not-allowed', backgroundColor: 'var(--crm-bg2, #f0f0f0)' }}
               />
             </div>
 
             <div className="cl-form-field" style={{ marginBottom: 0 }}>
-              <label className="cl-form-label" htmlFor="cl-client-id">
-                Client ID <span style={{ color: 'var(--crm-fg4)', fontWeight: 400 }}>(optional)</span>
-              </label>
+              <label className="cl-form-label" htmlFor="cl-client-id">Client ID</label>
               <input
                 id="cl-client-id"
                 type="text"
                 className="cl-form-input"
-                placeholder="Auto-generated if empty"
+                placeholder=""
                 value={clientId}
                 onChange={e => setClientId(e.target.value)}
               />

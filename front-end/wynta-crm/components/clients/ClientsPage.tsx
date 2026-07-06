@@ -122,7 +122,6 @@ export default function ClientsPage({ brandId }: Props) {
                     <th>Description</th>
                     <th>Active</th>
                     <th>Type</th>
-                    <th>Created By</th>
                     <th>Created At</th>
                     <th>Action</th>
                   </tr>
@@ -144,9 +143,6 @@ export default function ClientsPage({ brandId }: Props) {
                       </td>
                       <td>
                         <span className={typeBadgeClass(c.client_type)}>{c.client_type}</span>
-                      </td>
-                      <td style={{ color: 'var(--crm-fg3)', fontSize: 12 }}>
-                        {c.created_by || '—'}
                       </td>
                       <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--crm-fg3)' }}>
                         {formatDate(c.created_at)}
