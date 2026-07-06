@@ -105,6 +105,12 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
   const behaviourPickerRef = useRef<HTMLButtonElement>(null);
   const pickerRef          = useRef<HTMLDivElement>(null);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const [nameError, setNameError]   = useState(false);
+  const [rulesError, setRulesError] = useState(false);
+  const [csvError, setCsvError]     = useState(false);
+  const nameInputRef   = useRef<HTMLInputElement>(null);
+  const filterSectionsRef = useRef<HTMLDivElement>(null);
+  const csvUploadRef   = useRef<HTMLDivElement>(null);
   const dispatch      = useDispatch();
   const projectId     = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const metaTraits    = useCommonSelector(selectMetaTraits);
@@ -279,8 +285,11 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
     return Math.max(12, base);
   }, [allRules, combinator]);
 
-  const canSave = name.trim().length >= 2 &&
-    (segmentMode === 'custom' ? csvFile !== null : allRules.length > 0);
+  // Clear each error as soon as its own condition is satisfied, so it doesn't
+  // linger after the user fixes it but before they hit Submit again.
+  useEffect(() => { if (name.trim().length >= 2) setNameError(false); }, [name]);
+  useEffect(() => { if (allRules.length > 0) setRulesError(false); }, [allRules.length]);
+  useEffect(() => { if (csvFile !== null) setCsvError(false); }, [csvFile]);
 
   const handlePreview = async () => {
     setPreviewing(true);
@@ -310,7 +319,30 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
   }, [mode, segmentId]);
 
   const handleSave = () => {
-    if (!canSave) return;
+    const nameInvalid  = name.trim().length < 2;
+    const rulesInvalid = segmentMode === 'filter' && allRules.length === 0;
+    const csvInvalid   = segmentMode === 'custom' && csvFile === null;
+
+    setNameError(nameInvalid);
+    setRulesError(rulesInvalid);
+    setCsvError(csvInvalid);
+
+    if (nameInvalid) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (rulesInvalid) {
+      setBehaviourExpanded(true);
+      setPropertyExpanded(true);
+      filterSectionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (csvInvalid) {
+      csvUploadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     onSave({
       name, description, combinator,
       rules:        segmentMode === 'filter' ? allRules : [],
@@ -404,19 +436,17 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
     <>
       <div className="modal-body seg-builder-body">
 
-        {/* Info banner */}
-        <div className="asm-banner">
-          <Icon name="refresh-cw" size={13} color="#0073B2" />
-          <span>
-            This segment re-evaluates its conditions each time the campaign runs,
-            rather than locking in a fixed list of players.
-          </span>
-        </div>
-
         {/* Segment name */}
-        <div className="field-group">
+        <div className="field-group seg-name-field">
           <label>Segment name <span className="cwiz-req">*</span></label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
+          <input
+            ref={nameInputRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. High LTV — no recent bonus"
+            style={nameError ? { borderColor: 'var(--crm-negative, #D64545)', boxShadow: '0 0 0 1px var(--crm-negative, #D64545)' } : undefined}
+          />
+          {nameError && <span className="cwiz-field-error">Segment name must be at least 2 characters.</span>}
         </div>
 
         {/* Segment type toggle — only for create mode */}
@@ -425,14 +455,14 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
             <button
               type="button"
               className={'seg-type-btn' + (segmentMode === 'filter' ? ' active' : '')}
-              onClick={() => { setSegmentMode('filter'); setCsvFile(null); }}
+              onClick={() => { setSegmentMode('filter'); setCsvFile(null); setCsvError(false); }}
             >
               <Icon name="filter" size={13} /> Filters
             </button>
             <button
               type="button"
               className={'seg-type-btn' + (segmentMode === 'custom' ? ' active' : '')}
-              onClick={() => setSegmentMode('custom')}
+              onClick={() => { setSegmentMode('custom'); setRulesError(false); }}
             >
               <Icon name="upload" size={13} /> CSV Import
             </button>
@@ -465,7 +495,11 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
               </button>
             </div>
 
-            <div className="seg-csv-upload">
+            <div
+              className="seg-csv-upload"
+              ref={csvUploadRef}
+              style={csvError ? { borderColor: 'var(--crm-negative, #D64545)' } : undefined}
+            >
               <label className="seg-csv-label" htmlFor="seg-csv-input">
                 <Icon name="file-text" size={28} color="var(--g400)" />
                 <span className="seg-csv-hint">
@@ -495,12 +529,17 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                 </button>
               )}
             </div>
+            {csvError && <span className="cwiz-field-error">Select a CSV file before submitting.</span>}
           </>
         )}
 
         {/* Filter sections — hidden when CSV Import is selected */}
         {segmentMode === 'filter' && <div className="builder-section">
-            <div className="builder-filter-sections">
+            <div
+              className="builder-filter-sections"
+              ref={filterSectionsRef}
+              style={rulesError ? { outline: '1px solid var(--crm-negative, #D64545)', borderRadius: 'var(--rl)' } : undefined}
+            >
 
               {/* User Behaviour */}
               <div className={'builder-filter-section' + (!behaviourExpanded ? ' collapsed' : '')}>
@@ -593,6 +632,7 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
               </div>
 
             </div>
+            {rulesError && <span className="cwiz-field-error">Add at least one condition before submitting.</span>}
           </div>}
 
         {/* Estimated count — visible in edit mode only */}
@@ -627,6 +667,15 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
           </div>
         )}
 
+        {/* Info banner */}
+        <div className="asm-banner">
+          <Icon name="refresh-cw" size={13} color="#0073B2" />
+          <span>
+            This segment re-evaluates its conditions each time the campaign runs,
+            rather than locking in a fixed list of players.
+          </span>
+        </div>
+
       </div>
 
       <div className="modal-footer-row builder-footer">
@@ -640,7 +689,6 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
         <button
           className="btn btn-primary btn-sm"
           type="button"
-          disabled={!canSave}
           onClick={handleSave}
           style={{ letterSpacing: 0.5, fontWeight: 700, gap: 6, paddingRight: 14 }}
         >
