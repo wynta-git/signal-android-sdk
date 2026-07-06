@@ -38,16 +38,19 @@ The following endpoints do **not** require `X-Client-Id`:
 
 Returns all active bonus codes available to a user on a given site. Codes are ordered by `display_order` ascending and can be used to render a bonus selection UI before a wager.
 
+Codes flagged `system_auto_apply` are never returned here — those are applied automatically by the backend when a `BONUS_RELEASE` event fires and are not meant for manual selection.
+
 ```
 GET /api/v1/user-bonuses/applicable-codes
 ```
 
 **Query Parameters**
 
-| Parameter   | Type   | Required | Description                                             |
-| ----------- | ------ | -------- | ------------------------------------------------------- |
-| `user_id`   | string | Yes      | Platform user identifier (max 50 chars)                 |
-| `chip_type` | string | Yes      | Filter codes by chip type — `cash` or `in_app_purchase` |
+| Parameter     | Type   | Required | Default   | Description                                                                                                     |
+| ------------- | ------ | -------- | --------- | ----------------------------------------------------------------------------------------------------------------- |
+| `user_id`     | string | Yes      | —         | Platform user identifier (max 50 chars)                                                                          |
+| `chip_type`   | string | Yes      | —         | Filter codes by chip type — `cash` or `in_app_purchase`                                                          |
+| `display_on`  | string | No       | `DEPOSIT` | Filter codes by display flow (e.g. `DEPOSIT`, `REGISTRATION`). A code matches if this value appears anywhere in its comma-separated `display_on` list. |
 
 **Response `200 OK`**
 

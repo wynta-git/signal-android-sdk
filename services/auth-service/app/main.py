@@ -14,6 +14,7 @@ from fastapi import Depends
 from app.routes.brands import router as brands_router
 from app.routes.client import router as client_router
 from app.routes.exchange_token import router as exchange_token_router
+from app.routes.pam_users import router as pam_users_router
 from app.routes.portal_token import router as portal_token_router
 from app.routes.ready import router as ready_router
 from app.routes.token import router as token_router
@@ -94,6 +95,7 @@ _portal = [Depends(get_portal_token_context)]
 app.include_router(users_router, prefix=route_prefix, dependencies=_portal)
 app.include_router(brands_router, prefix=route_prefix, dependencies=_portal)
 app.include_router(client_router, prefix=route_prefix, dependencies=_portal)
+app.include_router(pam_users_router, prefix=route_prefix, dependencies=_portal)
 
 
 @app.get(route_prefix+"/health", include_in_schema=False)

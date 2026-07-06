@@ -70,33 +70,31 @@ def _row_to_entries(row: tuple) -> list[dict]:
                 }
             ]
 
-        entries: list[dict] = []
+        changes = [
+            {"field": field, "old": str(old_vals[field]), "new": str(new_vals.get(field, ""))}
+            for field in ("name", "description", "owner")
+            if field in old_vals
+        ]
+
         if "active" in old_vals:
             prev = int(old_vals["active"])
             if prev == 0:
-                entries.append(
-                    {"kind": "ACTIVATED", "actor": changed_by, "at": at,
-                     "summary": f"Activated {entity_label}"}
-                )
+                entry = {"kind": "ACTIVATED", "actor": changed_by, "at": at,
+                         "summary": f"Activated {entity_label}"}
             else:
-                entries.append(
-                    {"kind": "DEACTIVATED", "actor": changed_by, "at": at,
-                     "summary": f"Paused {entity_label}"}
-                )
-        for field in ("name", "description", "owner"):
-            if field in old_vals:
-                entries.append(
-                    {
-                        "kind": "UPDATED",
-                        "actor": changed_by,
-                        "at": at,
-                        "summary": f"Updated {field}",
-                        "field": field,
-                        "old": str(old_vals[field]),
-                        "new": str(new_vals.get(field, "")),
-                    }
-                )
-        return entries or [
+                entry = {"kind": "DEACTIVATED", "actor": changed_by, "at": at,
+                         "summary": f"Paused {entity_label}"}
+            if changes:
+                entry["changes"] = changes
+            return [entry]
+
+        if changes:
+            return [
+                {"kind": "UPDATED", "actor": changed_by, "at": at,
+                 "summary": f"Updated {entity_label}", "changes": changes}
+            ]
+
+        return [
             {"kind": "UPDATED", "actor": changed_by, "at": at, "summary": f"Updated {entity_label}"}
         ]
 
@@ -148,7 +146,7 @@ def _row_to_entries(row: tuple) -> list[dict]:
 
         changes = []
         for field in ("max_amount", "valid_from", "valid_to", "display_on",
-                      "auto_apply", "display_order", "min_display_amount",
+                      "auto_apply", "system_auto_apply", "display_order", "min_display_amount",
                       "display_title", "display_description"):
             if field in old_vals:
                 changes.append({
@@ -177,30 +175,31 @@ def _row_to_entries(row: tuple) -> list[dict]:
                  "newValue": str(new_role or "")}
             ]
 
-        entries = []
         old_active = old_vals.get("active")
         new_active = new_vals.get("active")
+        old_role = old_vals.get("role")
+        role_changed = old_role is not None and new_role is not None and old_role != new_role
+
         if old_active is not None and new_active is not None and int(old_active) != int(new_active):
             if int(new_active) == 0:
-                entries.append(
-                    {"kind": "OWNER_REMOVED", "actor": changed_by, "at": at,
-                     "summary": f"Removed owner {username}"}
-                )
+                entry = {"kind": "OWNER_REMOVED", "actor": changed_by, "at": at,
+                         "summary": f"Removed owner {username}"}
             else:
-                entries.append(
-                    {"kind": "OWNER_ADDED", "actor": changed_by, "at": at,
-                     "summary": f"Re-added owner {username}",
-                     "newValue": str(new_role or "")}
-                )
-        old_role = old_vals.get("role")
-        if old_role is not None and new_role is not None and old_role != new_role:
-            entries.append(
+                entry = {"kind": "OWNER_ADDED", "actor": changed_by, "at": at,
+                         "summary": f"Re-added owner {username}",
+                         "newValue": str(new_role or "")}
+            if role_changed:
+                entry["changes"] = [{"field": "role", "old": str(old_role), "new": str(new_role)}]
+            return [entry]
+
+        if role_changed:
+            return [
                 {"kind": "OWNER_UPDATED", "actor": changed_by, "at": at,
                  "summary": f"Changed role for {username}",
-                 "field": f"owner.{username}.role",
-                 "old": str(old_role), "new": str(new_role)}
-            )
-        return entries or [
+                 "changes": [{"field": "role", "old": str(old_role), "new": str(new_role)}]}
+            ]
+
+        return [
             {"kind": "OWNER_UPDATED", "actor": changed_by, "at": at,
              "summary": f"Updated owner {username}"}
         ]

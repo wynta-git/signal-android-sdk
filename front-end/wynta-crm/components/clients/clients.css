@@ -1,0 +1,365 @@
+/* ============================================================
+   Clients Page
+   ============================================================ */
+.cl-page {
+  padding: 20px 24px 48px;
+  min-height: 100%;
+  background: var(--crm-bg);
+}
+
+.cl-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.cl-page-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--crm-fg1);
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+
+.cl-page-subtitle {
+  font-size: 13px;
+  color: var(--crm-fg3);
+}
+
+/* Table section */
+.cl-table-section {
+  background: var(--crm-white);
+  border: 1px solid var(--crm-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.cl-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.cl-table-toolbar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--crm-fg1);
+}
+
+.cl-table-scroll {
+  overflow-x: auto;
+}
+
+.cl-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1000px;
+}
+
+.cl-table thead tr {
+  background: #F7F8FA;
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.cl-table th {
+  padding: 9px 14px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--crm-fg4);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cl-table td {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--crm-fg2);
+  border-bottom: 1px solid #F1F2F4;
+  vertical-align: middle;
+}
+
+.cl-table tbody tr:last-child td { border-bottom: none; }
+.cl-table tbody tr:hover { background: #F7F8FA; }
+
+.cl-row-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--crm-fg1);
+}
+
+.cl-client-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--crm-fg2);
+}
+
+.cl-secret-mask {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--crm-fg4);
+  letter-spacing: 2px;
+}
+
+/* Type badge */
+.cl-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cl-badge--apk  { background: #FFF0D6; color: #9B6000; }
+.cl-badge--ios  { background: #EDE9FF; color: #5B3FBF; }
+.cl-badge--web  { background: #E6F4FF; color: #0068A8; }
+.cl-badge--s2s  { background: #E6F6EC; color: #0D7A4E; }
+
+/* Active badge */
+.cl-active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--crm-positive);
+}
+
+.cl-active-badge::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--crm-positive);
+}
+
+/* Delete button */
+.cl-btn-delete {
+  height: 30px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--crm-negative);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.cl-btn-delete:hover {
+  background: var(--crm-negative-bg);
+  border-color: var(--crm-negative);
+}
+
+/* Empty state */
+.cl-empty {
+  padding: 56px 24px;
+  text-align: center;
+  color: var(--crm-fg4);
+  font-size: 13px;
+}
+
+/* Loading state */
+.cl-loading {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--crm-fg4);
+  font-size: 13px;
+}
+
+/* ============================================================
+   Create Client Modal
+   ============================================================ */
+.cl-modal {
+  background: var(--crm-white);
+  border-radius: 8px;
+  box-shadow: var(--shm);
+  width: 480px;
+  max-width: calc(100vw - 48px);
+  padding: 28px 28px 24px;
+}
+
+.cl-modal__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--crm-fg1);
+  margin-bottom: 20px;
+}
+
+.cl-form-field {
+  margin-bottom: 16px;
+}
+
+.cl-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--crm-fg2);
+  margin-bottom: 6px;
+}
+
+.cl-form-input,
+.cl-form-select,
+.cl-form-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--crm-border-md);
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--crm-fg1);
+  background: var(--crm-white);
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.cl-form-input:focus,
+.cl-form-select:focus,
+.cl-form-textarea:focus {
+  border-color: var(--crm-blue);
+}
+
+.cl-form-input::placeholder,
+.cl-form-textarea::placeholder {
+  color: var(--crm-fg4);
+}
+
+.cl-form-textarea {
+  height: 72px;
+  resize: vertical;
+}
+
+.cl-form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239AA0A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+}
+
+.cl-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.cl-modal__error {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--crm-negative-bg);
+  color: var(--crm-negative);
+  border-radius: 4px;
+  font-size: 12.5px;
+}
+
+/* ============================================================
+   Secret Reveal Modal
+   ============================================================ */
+.cl-secret-modal {
+  background: var(--crm-white);
+  border-radius: 8px;
+  box-shadow: var(--shm);
+  width: 520px;
+  max-width: calc(100vw - 48px);
+  padding: 28px 28px 24px;
+}
+
+.cl-secret-modal__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--crm-fg1);
+  margin-bottom: 8px;
+}
+
+.cl-secret-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #FFF8E1;
+  border: 1px solid #F5C842;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 20px;
+  color: #7A5A00;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.cl-secret-field {
+  margin-bottom: 16px;
+}
+
+.cl-secret-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--crm-fg4);
+  margin-bottom: 6px;
+}
+
+.cl-secret-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--crm-bg);
+  border: 1px solid var(--crm-border-md);
+  border-radius: 4px;
+}
+
+.cl-secret-value code {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--crm-fg1);
+  word-break: break-all;
+}
+
+.cl-copy-btn {
+  flex-shrink: 0;
+  height: 28px;
+  padding: 0 10px;
+  background: var(--crm-white);
+  color: var(--crm-fg2);
+  border: 1px solid var(--crm-border-md);
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.cl-copy-btn:hover {
+  background: var(--crm-bg);
+  border-color: var(--crm-border-str);
+}
+
+.cl-copy-btn.copied {
+  color: var(--crm-positive);
+  border-color: var(--crm-positive);
+}
+
+.cl-secret-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}

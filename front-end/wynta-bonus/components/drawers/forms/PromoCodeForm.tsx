@@ -17,6 +17,7 @@ interface PromoCodeFormProps {
 
 const DISPLAY_ON_OPTIONS = [
   { value: 'DEPOSIT',         label: 'Deposit' },
+  { value: 'WITHDRAWAL',      label: 'Withdrawal' },
   { value: 'REGISTRATION',    label: 'Registration' },
   { value: 'IN_APP_PURCHASE', label: 'In-app purchase' },
 ];
@@ -40,6 +41,7 @@ function initState(existing: PromoCode | null, cfg?: BonusConfigure) {
       badgeText:          existing.badge_text          ?? '',
       ctaText:            existing.cta_text            ?? '',
       autoApply:          existing.auto_apply          ?? false,
+      systemAutoApply:    existing.system_auto_apply   ?? false,
       displayOrder:       existing.display_order       ?? 0,
       displayOn:          existing.display_on          ?? 'DEPOSIT',
       minDisplayAmount:   String(existing.min_display_amount ?? ''),
@@ -59,6 +61,7 @@ function initState(existing: PromoCode | null, cfg?: BonusConfigure) {
     badgeText:          '',
     ctaText:            '',
     autoApply:          false,
+    systemAutoApply:    false,
     displayOrder:       0,
     displayOn:          'DEPOSIT',
     minDisplayAmount:   '',
@@ -90,6 +93,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
   const [badgeText,          setBadgeText]          = useState(init.badgeText);
   const [ctaText,            setCtaText]            = useState(init.ctaText);
   const [autoApply,          setAutoApply]          = useState(init.autoApply);
+  const [systemAutoApply,    setSystemAutoApply]    = useState(init.systemAutoApply);
   const [displayOrder,       setDisplayOrder]       = useState(init.displayOrder);
   const [displayOn,          setDisplayOn]          = useState(init.displayOn);
   const [minDisplayAmount,   setMinDisplayAmount]   = useState(init.minDisplayAmount);
@@ -113,6 +117,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
         setBadgeText(s.badgeText);
         setCtaText(s.ctaText);
         setAutoApply(s.autoApply);
+        setSystemAutoApply(s.systemAutoApply);
         setDisplayOrder(s.displayOrder);
         setDisplayOn(s.displayOn);
         setMinDisplayAmount(s.minDisplayAmount);
@@ -135,6 +140,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
       badge_text:          badgeText          || null,
       cta_text:            ctaText            || null,
       auto_apply:          autoApply,
+      system_auto_apply:   systemAutoApply,
       display_order:       displayOrder,
       display_on:          displayOn,
       min_display_amount:  minDisplayAmount   || null,
@@ -260,6 +266,17 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
                 <Toggle on={active} onChange={setActive} label={active ? 'Active' : 'Inactive'}/>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="field-group">
+          <label>System auto-apply</label>
+          <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
+            <Toggle on={systemAutoApply} onChange={setSystemAutoApply} label={systemAutoApply ? 'On' : 'Off'}/>
+          </div>
+          <div className="helper">
+            When on, the system automatically applies this code to an eligible player's bonus when a
+            release event fires — no code entry needed. Independent of the front-end "Auto-apply" hint above.
           </div>
         </div>
       </div>

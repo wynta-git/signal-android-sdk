@@ -5,12 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── API endpoint configuration ────────────────────────────────────────────────
 # Bonus runs locally; all other services point at the QA environment.
-#QA_BASE="https://qa-app.fozilpartners.com"
-QA_BASE="https://api.wynta.com"
+QA_BASE="https://qa-app.fozilpartners.com"
+#QA_BASE="https://api.wynta.com"
+#QA_BASE="http://127.0.0.1:8002"
 
 
 export NEXT_PUBLIC_BONUS_API_URL="http://localhost:8010"
-export NEXT_PUBLIC_AUTH_API_URL="${QA_BASE}"
+export NEXT_PUBLIC_AUTH_API_URL="http://127.0.0.1:8002"
 export NEXT_PUBLIC_SEG_API_URL="${QA_BASE}"
 export NEXT_PUBLIC_CAMPAIGN_API_URL="${QA_BASE}"
 # ─────────────────────────────────────────────────────────────────────────────

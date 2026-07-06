@@ -253,6 +253,7 @@ async def release_all_chunks(
     bonus_grant_id: int,
     site_id: int,
     event_id: str,
+    pam_user_id: int,
 ) -> None:
     """Release all PENDING chunks for a grant in one pass.
 
@@ -270,9 +271,22 @@ async def release_all_chunks(
     total: float = sum(float(row[1]) for row in chunks)
 
     async with conn.cursor() as cur:
+        await cur.execute(
+            _INSERT_BONUS_RELEASE_SQL,
+            (
+                site_id, str(pam_user_id), event_id, "SYSTEM",
+                None, None, None, None,
+                0.00, total,
+            ),
+        )
+        bonus_release_id = cur.lastrowid
+
         await cur.executemany(
             _INSERT_CHUNK_RELEASE_SQL,
-            [(row[0], site_id, event_id, "SYSTEM", 0.00, row[1]) for row in chunks],
+            [
+                (row[0], site_id, event_id, "SYSTEM", 0.00, row[1], bonus_release_id)
+                for row in chunks
+            ],
         )
         await cur.execute(_RELEASE_ALL_PENDING_CHUNKS_SQL, (bonus_grant_id,))
         await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (total, bonus_grant_id))
