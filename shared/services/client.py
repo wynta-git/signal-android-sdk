@@ -21,7 +21,7 @@ _SQL_CLIENT = """
            sc.created_by,
            sc.created_at
     FROM site_client sc
-    JOIN site s ON s.id = sc.site_id
+    LEFT JOIN site s ON s.id = sc.site_id
     LEFT JOIN project p ON p.id = s.program_id
     WHERE sc.client_id = %s
       AND sc.active = 1
@@ -36,7 +36,7 @@ _SQL_CLIENTS_BY_SITE = """
            sc.created_by,
            sc.created_at
     FROM site_client sc
-    JOIN site s ON s.id = sc.site_id
+    LEFT JOIN site s ON s.id = sc.site_id
     LEFT JOIN project p ON p.id = s.program_id
     WHERE sc.site_id = %s
     ORDER BY sc.id
