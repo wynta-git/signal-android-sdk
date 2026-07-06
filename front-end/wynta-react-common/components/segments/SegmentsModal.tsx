@@ -22,7 +22,7 @@ interface SegmentsModalProps {
   initialMode: ModalMode;
   onClose: () => void;
   onOpenSegment?: (s: Segment) => void;
-  onCreateSegment?: (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) => void;
+  onCreateSegment?: (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[]; segmentType?: 'filter' | 'custom'; csvFile?: File }) => void;
 }
 
 export default function SegmentsModal({ initialMode, onClose, onOpenSegment, onCreateSegment }: SegmentsModalProps) {
@@ -60,7 +60,7 @@ export default function SegmentsModal({ initialMode, onClose, onOpenSegment, onC
     return list;
   }, [search, sortBy, segs]);
 
-  const handleSave = (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[] }) => {
+  const handleSave = (data: { name: string; description: string; combinator: 'AND' | 'OR'; rules: SegmentRule[]; segmentType?: 'filter' | 'custom'; csvFile?: File }) => {
     dispatch(createSegment(data) as any).then((action: any) => {
       if (action.payload?.id) {
         dispatch(evaluateSegment(String(action.payload.id)) as any);
