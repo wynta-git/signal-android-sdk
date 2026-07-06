@@ -5,7 +5,7 @@ bonus_configure_code columns:
   id, configure_id, site_id, code, max_amount,
   valid_from, valid_to, display_title, display_description,
   terms_url, banner_image_url, badge_text, cta_text,
-  auto_apply, display_order, display_on, min_display_amount,
+  auto_apply, system_auto_apply, display_order, display_on, min_display_amount,
   active, created_by, updated_by, created_at, updated_at
 """
 
@@ -31,6 +31,7 @@ class BonusConfigureCodeCreate(BaseModel):
     badge_text:          str | None    = Field(None, max_length=100)
     cta_text:            str | None    = Field(None, max_length=100)
     auto_apply:          bool          = False
+    system_auto_apply:   bool | None   = None
     display_order:       int           = Field(0, ge=0)
     display_on:          str           = Field("DEPOSIT", max_length=100)
     min_display_amount:  Decimal | None = None
@@ -52,6 +53,7 @@ class BonusConfigureCodeUpdate(BaseModel):
     badge_text:          str | None    = Field(None, max_length=100)
     cta_text:            str | None    = Field(None, max_length=100)
     auto_apply:          bool | None   = None
+    system_auto_apply:   bool | None   = None
     display_order:       int | None    = Field(None, ge=0)
     display_on:          str | None    = Field(None, max_length=100)
     min_display_amount:  Decimal | None = None
@@ -76,6 +78,7 @@ class BonusConfigureCodeResponse(BaseModel):
     badge_text:          str | None
     cta_text:            str | None
     auto_apply:          bool
+    system_auto_apply:   bool | None
     display_order:       int
     display_on:          str
     min_display_amount:  Decimal | None

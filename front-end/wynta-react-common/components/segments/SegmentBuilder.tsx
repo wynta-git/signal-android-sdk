@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch } from 'react-redux';
 import Icon from '../Icon';
@@ -17,6 +17,20 @@ import type { SegmentRule, SegmentField, MetaEventItem } from '../../types';
 
 function toLabel(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const PICKER_MARGIN = 6;
+
+/** Open the picker below its trigger, unless there isn't room — then flip it above. */
+function computePickerPos(r: DOMRect, pickerHeight: number): { top: number; left: number } {
+  const spaceBelow = window.innerHeight - r.bottom;
+  const spaceAbove = r.top;
+  const fitsBelow  = spaceBelow >= pickerHeight + PICKER_MARGIN;
+  const openAbove  = !fitsBelow && spaceAbove > spaceBelow;
+  const top = openAbove
+    ? Math.max(PICKER_MARGIN, r.top - pickerHeight - PICKER_MARGIN)
+    : r.bottom + PICKER_MARGIN;
+  return { top, left: r.left };
 }
 
 function buildSplitFields(
@@ -117,6 +131,44 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
+  }, [activePicker]);
+
+  // The picker is portaled to <body> with position:fixed, computed once from the
+  // trigger button's rect at open time. If the page (or any scrollable ancestor)
+  // scrolls afterward, the button moves but the portal doesn't — they visually
+  // separate. Re-track the button on scroll/resize so the picker stays glued to
+  // it. Scrolls that originate inside the picker's own item list are ignored so
+  // browsing the list doesn't fight with this.
+  useEffect(() => {
+    if (!activePicker) return;
+    const btnRef = activePicker === 'property' ? propertyPickerRef : behaviourPickerRef;
+    const reposition = (e: Event) => {
+      if (pickerRef.current && e.target instanceof Node && pickerRef.current.contains(e.target as Node)) return;
+      if (!btnRef.current) return;
+      const r = btnRef.current.getBoundingClientRect();
+      const height = pickerRef.current?.getBoundingClientRect().height ?? 0;
+      setPickerPos(computePickerPos(r, height));
+    };
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [activePicker]);
+
+  // The initial position (set in togglePicker) always opens below, since the
+  // picker's real height isn't known until it has actually rendered — its
+  // content varies (empty state vs a long list). Once mounted, measure it and
+  // flip above the trigger if there isn't room below, for both pickers.
+  useLayoutEffect(() => {
+    if (!activePicker || !pickerRef.current) return;
+    const btnRef = activePicker === 'property' ? propertyPickerRef : behaviourPickerRef;
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const height = pickerRef.current.getBoundingClientRect().height;
+    const next = computePickerPos(r, height);
+    setPickerPos(prev => (prev && prev.top === next.top && prev.left === next.left) ? prev : next);
   }, [activePicker]);
 
   const { traitFields, eventFields } = useMemo(() => {
@@ -363,7 +415,7 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
 
         {/* Segment name */}
         <div className="field-group">
-          <label>Segment name</label>
+          <label>Segment name <span className="cwiz-req">*</span></label>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
         </div>
 
@@ -430,7 +482,13 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                 type="file"
                 accept=".csv,text/csv"
                 style={{ display: 'none' }}
-                onChange={e => setCsvFile(e.target.files?.[0] ?? null)}
+                onChange={e => {
+                const f = e.target.files?.[0] ?? null;
+                setCsvFile(f);
+                if (f && !name.trim()) {
+                  setName(f.name.replace(/\.csv$/i, '').replace(/[_-]+/g, ' ').trim());
+                }
+              }}
               />
               {csvFile && (
                 <button

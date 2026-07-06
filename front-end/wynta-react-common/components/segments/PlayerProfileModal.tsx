@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../Icon';
 import { formatINRCompact } from '../../utils';
-import { _initials, _tierClass, _kycClass } from './SegmentPlayersList';
+import { _initials, _tierClass, _kycClass } from './SegmentUsersList';
 import type { Player, Segment } from '../../types';
 
 function _strHash(s: string): number {

@@ -13,5 +13,6 @@ class BonusSummary(BaseModel):
     monthly_consumed:  Decimal
     monthly_pending:   Decimal
     monthly_forfeit:   Decimal
+    monthly_expiring:  Decimal
     monthly_limit:     Decimal
     monthly_pct:       float

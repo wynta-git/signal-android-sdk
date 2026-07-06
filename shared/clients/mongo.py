@@ -591,12 +591,38 @@ async def admin_delete_user(
 
 
 async def get_user(
-    db: AsyncIOMotorDatabase, project_id: str, user_id: str
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    brand_id: str | None = None,
 ) -> dict[str, Any] | None:
-    return await db["users"].find_one(
-        {"project_id": project_id, "user_id": user_id},
+    try:
+        query: dict[str, Any] = {"project_id": project_id, "user_id": user_id}
+        if brand_id is not None:
+            try:
+                query["brand_id"] = int(brand_id)
+            except (TypeError, ValueError):
+                log.debug("get_user.non_numeric_brand_id", brand_id=brand_id)
+        log.info("Query",query)
+        return await db["users"].find_one(query, {"_id": 0})
+    except  Exception as ex:
+        log.debug("get_user.non_numeric_brand_id", ex)
+
+
+
+async def get_users_batch(
+    db: AsyncIOMotorDatabase, project_id: str, user_ids: list[str]
+) -> dict[str, dict[str, Any]]:
+    """Batch-fetch user profile docs, keyed by user_id. Missing user_ids are
+    simply absent from the returned dict."""
+    if not user_ids:
+        return {}
+    cursor = db["users"].find(
+        {"project_id": project_id, "user_id": {"$in": user_ids}},
         {"_id": 0},
     )
+    docs = await cursor.to_list(length=len(user_ids))
+    return {doc["user_id"]: doc for doc in docs}
 
 
 async def get_user_device_tokens(

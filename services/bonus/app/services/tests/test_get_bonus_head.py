@@ -42,9 +42,10 @@ def patch_conn(cur: AsyncMock) -> MagicMock:
 
     conn = MagicMock()
     conn.cursor.return_value = cursor_ctx
+    conn.commit = AsyncMock()
 
     @asynccontextmanager
-    async def _fake_get_connection():
+    async def _fake_get_connection(*_args, **_kwargs):
         yield conn
 
     with patch("app.services.bonus_head_service.get_connection", _fake_get_connection):
@@ -99,13 +100,31 @@ async def test_no_owners_or_subheads(cur: AsyncMock, patch_conn: MagicMock) -> N
     assert len(result.budget) == 3
 
 
-async def test_no_budget_rows(cur: AsyncMock, patch_conn: MagicMock) -> None:
+async def test_no_budget_limits_configured(cur: AsyncMock, patch_conn: MagicMock) -> None:
+    """No rows in bonus_budget_limit for this head → empty budget list."""
     cur.fetchone.return_value = _HEAD_ROW
     cur.fetchall.side_effect = [_OWNER_ROWS, _SUBHEAD_ROWS, ()]
 
     result = await get_bonus_head(1)
 
     assert result.budget == []
+
+
+async def test_budget_limit_configured_without_usage(cur: AsyncMock, patch_conn: MagicMock) -> None:
+    """A configured limit with no matching bonus_budget_usage row still shows
+    up (driven from bonus_budget_limit), with used defaulted to 0 instead of
+    being silently dropped."""
+    cur.fetchone.return_value = _HEAD_ROW
+    unused_budget_rows = (("MONTHLY", Decimal("2000000.00"), Decimal("0"), None),)
+    cur.fetchall.side_effect = [_OWNER_ROWS, _SUBHEAD_ROWS, unused_budget_rows]
+
+    result = await get_bonus_head(1)
+
+    assert len(result.budget) == 1
+    assert result.budget[0].period_type == "MONTHLY"
+    assert result.budget[0].limit == Decimal("2000000.00")
+    assert result.budget[0].used == Decimal("0")
+    assert result.budget[0].reset_at is None
 
 
 # ---------------------------------------------------------------------------

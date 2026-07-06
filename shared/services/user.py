@@ -59,6 +59,28 @@ async def get_pam_user_id(
     return pam_id
 
 
+async def resolve_pam_id_from_brand(
+    redis: Redis,
+    brand_id: str | None,
+    user_id: str,
+) -> int | None:
+    """Resolve pam_id given the `brand_id` stored on a Mongo user profile doc.
+
+    `brand_id` is written by api-service as the string form of the MySQL
+    site_id (see services/api-service/app/routes/identify.py). Returns None
+    if brand_id is missing/non-numeric, or if no mapping exists yet — never
+    raises, since callers use this for best-effort enrichment.
+    """
+    if not brand_id:
+        return None
+    try:
+        site_id = int(brand_id)
+    except (TypeError, ValueError):
+        log.debug("resolve_pam_id_from_brand.non_numeric_brand_id", brand_id=brand_id)
+        return None
+    return await get_pam_user_id(redis, site_id, user_id)
+
+
 async def get_or_create_pam_user(
     redis: Redis,
     site_id: int,

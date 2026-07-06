@@ -111,7 +111,7 @@ async def handle_send_job(
     # 2. Template + user (run concurrently)
     template_doc, user_doc = await asyncio.gather(
         _get_cached_template(db, job.project_id, job.template_id),
-        get_user(db, job.project_id, job.user_id),
+        get_user(db, job.project_id, job.user_id, job.brand_id),
     )
 
     if not template_doc:

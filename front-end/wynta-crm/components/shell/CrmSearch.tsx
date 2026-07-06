@@ -2,7 +2,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import PlayerProfileModal from 'wynta-react-common/components/segments/PlayerProfileModal';
-import SegmentPlayersModal from 'wynta-react-common/components/segments/SegmentPlayersModal';
+import SegmentUsersModal from 'wynta-react-common/components/segments/SegmentUsersModal';
 import { MANUAL_SEGMENTS, makePlayerById, getGlobalPlayerPool } from 'wynta-react-common/services/mocks/segments';
 import type { Player, ManualSegment } from 'wynta-react-common/types';
 
@@ -170,7 +170,7 @@ export default function CrmSearch() {
         <PlayerProfileModal player={profilePlayer} segment={null} onClose={() => setProfilePlayer(null)} />
       )}
       {viewSegment && (
-        <SegmentPlayersModal segment={viewSegment} onClose={() => setViewSegment(null)} />
+        <SegmentUsersModal segment={viewSegment} onClose={() => setViewSegment(null)} />
       )}
     </div>
   );

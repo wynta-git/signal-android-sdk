@@ -27,9 +27,10 @@ async def get_bonus_configure_code_route(
 async def create_bonus_configure_code(
     payload: BonusConfigureCodeCreate,
     ctx: PortalAuthDep,
+    request: Request,
 ) -> BonusConfigureCodeResponse:
     payload.created_by = ctx.user_id
-    return await add_bonus_configure_code(payload)
+    return await add_bonus_configure_code(payload, request.app.state.redis)
 
 
 @router.patch("/{code_id}", response_model=BonusConfigureCodeResponse)

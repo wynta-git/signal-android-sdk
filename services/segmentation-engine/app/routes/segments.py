@@ -5,6 +5,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import aioboto3
+import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,7 @@ from app.refresh import scheduled
 from app.refresh.engine import evaluate_segment
 
 router = APIRouter(prefix="/segments", tags=["segments"])
+log = structlog.get_logger()
 
 
 def _db(request: Request):
@@ -207,6 +209,7 @@ async def upload_custom_audience(
     redis=Depends(_redis),
     name: str = Form(...),
     file: UploadFile = File(...),
+    brand_id: str | None = Form(default=None),
 ) -> dict[str, Any]:
     project_id = ctx.project_id
 
@@ -245,21 +248,29 @@ async def upload_custom_audience(
         raise HTTPException(status_code=400, detail="No valid user IDs found in CSV")
 
     segment_id = f"seg_{uuid4().hex[:12]}"
-    s3_key = f"{project_id}/{segment_id}.csv"
-    s3_url = f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{s3_key}"
+    s3_key: str | None = None
+    s3_url: str | None = None
 
-    session = aioboto3.Session()
-    async with session.client(
-        "s3",
-        region_name=settings.s3_region,
-        aws_access_key_id=settings.s3_access_key_id or None,
-        aws_secret_access_key=settings.s3_secret_access_key or None,
-        endpoint_url=settings.s3_endpoint_url or None,
-    ) as s3:
-        try:
-            await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"Failed to upload to S3: {exc}") from exc
+    s3_configured = bool(settings.s3_access_key_id or settings.s3_endpoint_url)
+    if s3_configured:
+        s3_key = f"{project_id}/{segment_id}.csv"
+        s3_url = f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{s3_key}"
+        session = aioboto3.Session()
+        async with session.client(
+            "s3",
+            region_name=settings.s3_region,
+            aws_access_key_id=settings.s3_access_key_id or None,
+            aws_secret_access_key=settings.s3_secret_access_key or None,
+            endpoint_url=settings.s3_endpoint_url or None,
+        ) as s3:
+            try:
+                await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
+            except Exception as exc:
+                log.warning("s3_upload_failed", segment_id=segment_id, error=str(exc))
+                s3_key = None
+                s3_url = None
+    else:
+        log.info("s3_not_configured_skipping", segment_id=segment_id)
 
     now = datetime.now(tz=timezone.utc)
     doc: dict[str, Any] = {
@@ -274,6 +285,7 @@ async def upload_custom_audience(
         "s3_url": s3_url,
         "members_count": len(user_ids),
         "last_refresh_time": now,
+        "brand_id": brand_id,
     }
     await storage.create_segment(db, doc)
     await storage.bulk_upsert_memberships(redis, project_id, segment_id, set(user_ids))

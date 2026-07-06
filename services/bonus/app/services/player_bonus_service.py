@@ -13,6 +13,7 @@ from shared.services.client import get_site_config
 from shared.services.user import get_or_create_pam_user, get_pam_user_id
 from app.bonus_event_processor.grant_writer import check_applicability
 from app.bonus_event_processor.eligibility_checker import check_eligibility
+from app.services.bonus_configure_code_service import code_validity_sql
 from app.exceptions import (
     DatabaseError,
     PlayerBonusAlreadyRevertedError,
@@ -49,25 +50,29 @@ _UTC = timezone.utc
 
 # ── 1. Applicable codes ───────────────────────────────────────────────────────
 
-_APPLICABLE_CODES_SQL = """
+_APPLICABLE_CODES_SQL = f"""
     SELECT
         bcc.id, bcc.code, bcc.max_amount,
         bcc.valid_from, bcc.valid_to, bcc.display_title, bcc.display_description,
         bcc.terms_url, bcc.banner_image_url, bcc.badge_text, bcc.cta_text,
         bcc.auto_apply, bcc.display_order, bcc.display_on, bcc.min_display_amount,
         bc.wager_multiplier, bc.no_of_chunks, bc.applicability_frequency,
-        bc.id AS configure_id
+        bc.id AS configure_id, bcc.system_auto_apply
     FROM bonus_configure_code bcc
     JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
-    WHERE bcc.active = 1
+    WHERE {code_validity_sql("bcc")}
       AND bcc.site_id = %s
       AND bc.wager_chip_type = %s
-      AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
-      AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
       AND bc.start_date <= NOW()
       AND bc.end_date   >= NOW()
     ORDER BY bcc.display_order ASC
 """
+
+
+def _matches_display_on(raw: str | None, requested: str) -> bool:
+    """True if `requested` is one of the comma-separated flows in `raw`."""
+    flows = {tok.strip().upper() for tok in (raw or "DEPOSIT").split(",") if tok.strip()}
+    return requested.strip().upper() in flows
 
 
 async def list_applicable_codes(
@@ -75,8 +80,9 @@ async def list_applicable_codes(
     chip_type: str,
     redis: Redis | None = None,
     site_id: int | None = None,
+    display_on: str = "DEPOSIT",
 ) -> list[ApplicableCodeResponse]:
-    log.info("player_bonus.list_applicable_codes", user_id=user_id, chip_type=chip_type)
+    log.info("player_bonus.list_applicable_codes", user_id=user_id, chip_type=chip_type, display_on=display_on)
 
     pam_user_id: int | None = None
     if redis and site_id:
@@ -91,6 +97,13 @@ async def list_applicable_codes(
                 results: list[ApplicableCodeResponse] = []
                 for row in rows:
                     configure_id: int = row[18]
+
+                    # System-auto-apply codes are never manually selectable.
+                    if row[19]:
+                        continue
+
+                    if not _matches_display_on(row[13], display_on):
+                        continue
 
                     if pam_user_id is not None:
                         if not await check_applicability(cur, pam_user_id, configure_id, row[17]):
@@ -113,7 +126,7 @@ async def list_applicable_codes(
         raise DatabaseError(str(exc)) from exc
 
 
-_VALIDATE_CODE_SQL = """
+_VALIDATE_CODE_SQL = f"""
     SELECT
         bcc.id, bcc.code, bcc.display_title,
         bc.wager_multiplier, bc.no_of_chunks,
@@ -121,13 +134,12 @@ _VALIDATE_CODE_SQL = """
         bc.id AS configure_id
     FROM bonus_configure_code bcc
     JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
-    WHERE bcc.active = 1
+    WHERE {code_validity_sql("bcc")}
       AND bcc.code = %s
       AND bc.wager_chip_type = %s
-      AND (bcc.valid_from IS NULL OR bcc.valid_from <= NOW())
-      AND (bcc.valid_to   IS NULL OR bcc.valid_to   >= NOW())
       AND (bc.start_date  IS NULL OR bc.start_date  <= NOW())
       AND (bc.end_date    IS NULL OR bc.end_date    >= NOW())
+      AND (bcc.system_auto_apply IS NULL OR bcc.system_auto_apply = 0)
     LIMIT 1
 """
 

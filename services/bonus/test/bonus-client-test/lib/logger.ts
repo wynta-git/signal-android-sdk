@@ -25,6 +25,14 @@ export function sanitizeHeaders(headers: Headers): Record<string, string> {
 }
 
 export function logApiCall(entry: ApiLogEntry): void {
+  const ok = entry.response_status >= 200 && entry.response_status < 300;
+  const tag = ok ? 'OK' : 'ERR';
+  console.log(
+    `[api] ${entry.method} ${entry.route} -> ${entry.upstream} [${entry.response_status} ${tag}]`,
+  );
+  console.log('[api]   request: ', entry.request_body);
+  console.log('[api]   response:', entry.response_body);
+
   try {
     mkdirSync(dirname(LOG_PATH), { recursive: true });
     appendFileSync(LOG_PATH, JSON.stringify(entry) + '\n');

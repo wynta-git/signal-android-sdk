@@ -86,7 +86,8 @@ _EXISTS_CONFIGURE_SQL = (
 )
 
 _SELECT_CODES_SQL = """
-    SELECT id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active
+    SELECT id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active,
+           system_auto_apply
     FROM bonus_configure_code
     WHERE configure_id = %s
     ORDER BY display_order
@@ -380,6 +381,7 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
                 id=r[0], code=r[1], max_amount=r[2],
                 valid_from=r[3], valid_to=r[4],
                 auto_apply=bool(r[5]), display_order=r[6], active=bool(r[7]),
+                system_auto_apply=bool(r[8]) if r[8] is not None else None,
             )
             for r in code_rows
         ],
@@ -613,17 +615,17 @@ _UPSERT_CONFIGURE_LIMIT_SQL = """
 
 _SELECT_CONFIGURE_BUDGET_SQL = """
     SELECT
-        bu.period_type,
+        bl.period_type,
         bl.budget_limit,
-        bu.budget_used,
+        COALESCE(bu.budget_used, 0),
         bu.reset_at
-    FROM bonus_budget_usage bu
-    LEFT JOIN bonus_budget_limit bl
-        ON  bl.entity_type = bu.entity_type
-        AND bl.entity_id   = bu.entity_id
-        AND bl.period_type = bu.period_type
-    WHERE bu.entity_type = 'CONFIGURE' AND bu.entity_id = %s
-    ORDER BY CASE bu.period_type
+    FROM bonus_budget_limit bl
+    LEFT JOIN bonus_budget_usage bu
+        ON  bu.entity_type = bl.entity_type
+        AND bu.entity_id   = bl.entity_id
+        AND bu.period_type = bl.period_type
+    WHERE bl.entity_type = 'CONFIGURE' AND bl.entity_id = %s
+    ORDER BY CASE bl.period_type
         WHEN 'DAILY'   THEN 1
         WHEN 'WEEKLY'  THEN 2
         WHEN 'MONTHLY' THEN 3

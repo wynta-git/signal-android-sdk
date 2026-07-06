@@ -24,10 +24,10 @@ _CONFIGURE_ROW = (
     0, 1, "admin", "admin", _NOW, _NOW,
 )
 
-# (id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active)
+# (id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active, system_auto_apply)
 _CODE_ROWS = (
-    (1, "AUTO-1",    None, None, None, 0, 0, 1),
-    (2, "WELCOME100", None, datetime(2026, 1, 1), datetime(2026, 12, 31), 0, 1, 1),
+    (1, "AUTO-1",    None, None, None, 0, 0, 1, None),
+    (2, "WELCOME100", None, datetime(2026, 1, 1), datetime(2026, 12, 31), 0, 1, 1, 0),
 )
 
 

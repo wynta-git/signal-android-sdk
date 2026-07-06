@@ -39,6 +39,10 @@
 --                     (e.g. "Apply Code", "Claim Bonus"). NULL = use site default.
 -- auto_apply          1 = front-end pre-fills/applies the code silently when
 --                     eligible; 0 = player must enter manually.
+-- system_auto_apply   1 = backend automatically attaches this code to a
+--                     qualifying player's grant on a BONUS_RELEASE trigger,
+--                     with no code entry at all; NULL/0 = off. Independent of
+--                     auto_apply, which only affects front-end behavior.
 -- display_order       Ascending sort order when listing multiple codes. Lower = first.
 -- display_on          Comma-separated list of payment flows where this code is shown
 --                     (DEPOSIT | WITHDRAWAL | REGISTRATION). NULL = DEPOSIT only.
@@ -79,6 +83,8 @@ CREATE TABLE `bonus_configure_code` (
     -- apply/redeem button label; NULL = site default
     `auto_apply`          TINYINT(1)     NOT NULL DEFAULT 0,
     -- 1 = pre-fill/apply silently when eligible; 0 = manual entry
+    `system_auto_apply`   TINYINT(1)     DEFAULT NULL,
+    -- 1 = backend auto-applies this code to an eligible player on release; NULL/0 = off
     `display_order`       INT            NOT NULL DEFAULT 0,
     -- ascending sort order when listing codes; lower = first
     `display_on`          VARCHAR(100)   DEFAULT 'DEPOSIT',
@@ -110,7 +116,7 @@ INSERT INTO `bonus_configure_code`
      `valid_from`, `valid_to`,
      `display_title`, `display_description`,
      `terms_url`, `banner_image_url`, `badge_text`, `cta_text`,
-     `auto_apply`, `display_order`, `display_on`, `min_display_amount`,
+     `auto_apply`, `system_auto_apply`, `display_order`, `display_on`, `min_display_amount`,
      `active`, `created_by`, `updated_by`, `created_at`, `updated_at`)
 VALUES
     -- WELCOME100: standard first-deposit code, auto-suggested at ₹500+
@@ -119,7 +125,7 @@ VALUES
      'Get 100% on Your First Deposit!',
      'Use code WELCOME100 and get a 100% match bonus up to ₹5,000 on your first deposit.',
      '/terms/welcome100', '/cdn/banners/welcome100.png', 'Popular', 'Apply & Claim',
-     0, 1, 'DEPOSIT', 500.00,
+     0, NULL, 1, 'DEPOSIT', 500.00,
      1, 'admin', 'admin', '2026-01-01 09:00:00', '2026-01-01 09:00:00'),
 
     -- INFLUENCER50: limited-window influencer code, capped at ₹2,500
@@ -128,16 +134,17 @@ VALUES
      'Exclusive Influencer Offer',
      'Special 100% match up to ₹2,500 — exclusively for referred players.',
      '/terms/influencer50', '/cdn/banners/influencer50.png', 'Exclusive', 'Redeem Now',
-     0, 2, 'DEPOSIT', NULL,
+     0, NULL, 2, 'DEPOSIT', NULL,
      1, 'ops.team', 'ops.team', '2026-03-25 11:00:00', '2026-03-25 11:00:00'),
 
-    -- VIP2026: VIP desk code, auto-applied when player is VIP-tagged
+    -- VIP2026: VIP desk code, auto-applied when player is VIP-tagged, and
+    -- also system-auto-applied so no code entry is required at all
     (3, 2, 1, 'VIP2026', 20000.00,
      '2026-01-01 00:00:00', NULL,
      'VIP Welcome Bonus — Up to ₹20,000',
      'Your exclusive VIP bonus. A 100% match up to ₹20,000 with priority support.',
      '/terms/vip2026', '/cdn/banners/vip2026.png', 'VIP Only', 'Claim VIP Bonus',
-     1, 1, 'DEPOSIT', 5000.00,
+     1, 1, 1, 'DEPOSIT', 5000.00,
      1, 'admin', 'ops.team', '2026-01-01 09:00:00', '2026-04-20 09:00:00'),
 
     -- WEEKEND500: weekend reload code, shown on deposit flow Sat/Sun
@@ -146,5 +153,5 @@ VALUES
      'Weekend Reload — Free ₹500 Bonus',
      'Deposit this weekend and get a flat ₹500 bonus credited instantly. No wagering!',
      '/terms/weekend500', '/cdn/banners/weekend500.png', 'Limited Time', 'Get Weekend Bonus',
-     0, 1, 'DEPOSIT', 200.00,
+     0, NULL, 1, 'DEPOSIT', 200.00,
      1, 'ops.team', 'ops.team', '2026-02-01 09:00:00', '2026-02-01 09:00:00');
