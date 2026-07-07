@@ -583,7 +583,7 @@ async def get_player_bonus_summary(pam_user_id: int) -> list[PlayerBonusSummaryR
 _TRANSACTIONS_SQL = """
     SELECT txn_id, bonus_code, amount, type, created_at,
            release_amount, consumed_amount, expiry_amount, forfeit_amount,
-           grant_txn_id, player_bonus_id
+           grant_txn_id
     FROM (
         SELECT pbg.id                AS txn_id,
                pbg.bonus_code        AS bonus_code,
@@ -594,8 +594,7 @@ _TRANSACTIONS_SQL = """
                pbg.consume_amount    AS consumed_amount,
                COALESCE((SELECT SUM(bce2.amount) FROM bonus_chunk_expiry bce2 WHERE bce2.bonus_grant_id = pbg.id), 0) AS expiry_amount,
                COALESCE((SELECT SUM(bf2.amount)  FROM bonus_forfeit bf2        WHERE bf2.bonus_grant_id  = pbg.id), 0) AS forfeit_amount,
-               NULL                  AS grant_txn_id,
-               pbg.player_bonus_id   AS player_bonus_id
+               NULL                  AS grant_txn_id
         FROM bonus_grant pbg
         WHERE pbg.pam_user_id = %s AND pbg.wager_chip_type = %s
 
@@ -607,8 +606,7 @@ _TRANSACTIONS_SQL = """
                'released'               AS type,
                MIN(bcr.created_at)      AS created_at,
                NULL, NULL, NULL, NULL,
-               pbg.id                   AS grant_txn_id,
-               NULL                     AS player_bonus_id
+               pbg.id                   AS grant_txn_id
         FROM bonus_chunk_release bcr
         JOIN bonus_chunk bc  ON bc.id  = bcr.chunk_id
         JOIN bonus_grant pbg ON pbg.id = bc.bonus_grant_id
@@ -623,8 +621,7 @@ _TRANSACTIONS_SQL = """
                'consumed'               AS type,
                bcon.created_at,
                NULL, NULL, NULL, NULL,
-               MIN(bcc.bonus_grant_id)  AS grant_txn_id,
-               NULL                     AS player_bonus_id
+               MIN(bcc.bonus_grant_id)  AS grant_txn_id
         FROM bonus_consumed bcon
         JOIN bonus_chunk_consumed bcc ON bcc.bonus_consumed_id = bcon.id
         JOIN bonus_grant pbg ON pbg.id = bcc.bonus_grant_id
@@ -674,7 +671,7 @@ async def list_player_transactions(
                 type=row[3], created_at=row[4],
                 release_amount=row[5], consumed_amount=row[6],
                 expiry_amount=row[7], forfeit_amount=row[8],
-                grant_txn_id=row[9], player_bonus_id=row[10],
+                grant_txn_id=row[9],
             )
             for row in rows
         ]

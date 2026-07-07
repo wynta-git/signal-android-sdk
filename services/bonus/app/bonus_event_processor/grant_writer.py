@@ -22,12 +22,12 @@ _APPLICABILITY_COUNT_SQL = """
 
 _INSERT_GRANT_SQL = """
     INSERT INTO bonus_grant
-        (player_bonus_id, configure_id, subhead_id, head_id, site_id, pam_user_id,
+        (configure_id, subhead_id, head_id, site_id, pam_user_id,
          event_id, product, wager_multiplier, no_of_chunks,
          chunk_expiry_days, bonus_expiry_days,
          wager_chip_type, credit_chip_type, grant_amount,
          bonus_code, release_amount, bonus_grant_type)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 # product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
 
@@ -137,7 +137,6 @@ async def write_grant(
     pam_user_id: int,
     site_id: int,
     grant_amount: Decimal,
-    player_bonus_id: int,
     event_id: str,
     bonus_code: str | None = None,
     bonus_code_id: int | None = None,
@@ -155,7 +154,6 @@ async def write_grant(
         await cur.execute(
             _INSERT_GRANT_SQL,
             (
-                player_bonus_id,
                 configure["id"],
                 configure["subhead_id"],
                 configure["head_id"],
@@ -221,7 +219,6 @@ async def write_cashback_grant(
     pam_user_id: int,
     site_id: int,
     cashback_amount: Decimal,
-    player_bonus_id: int,
     event_id: str,
     bonus_code: str | None = None,
     bonus_code_id: int | None = None,
@@ -232,7 +229,6 @@ async def write_cashback_grant(
             await cur.execute(
                 _INSERT_GRANT_SQL,
                 (
-                    player_bonus_id,
                     configure["id"],
                     configure["subhead_id"],
                     configure["head_id"],

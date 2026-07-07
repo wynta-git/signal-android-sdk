@@ -358,8 +358,6 @@ CREATE TABLE `bonus_manual_bulk_pending` (
 -- bonus_grant
 CREATE TABLE `bonus_grant` (
     `id`                 BIGINT        NOT NULL AUTO_INCREMENT,
-    `player_bonus_id`    BIGINT        NOT NULL,
-    -- references userapp_player_bonus.id; unique — one log entry per grant
     `configure_id`       INT           NOT NULL,
     -- references bonus_configure.id
     `subhead_id`         INT           NOT NULL,
@@ -406,7 +404,6 @@ CREATE TABLE `bonus_grant` (
     `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_grant_player_bonus_id`  (`player_bonus_id`),
     KEY `idx_bonus_grant_configure_id`           (`configure_id`),
     KEY `idx_bonus_grant_subhead_id`             (`subhead_id`),
     KEY `idx_bonus_grant_head_id`                (`head_id`),

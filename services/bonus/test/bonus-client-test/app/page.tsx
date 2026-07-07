@@ -56,7 +56,6 @@ interface Transaction {
   expiry_amount?: string;
   forfeit_amount?: string;
   grant_txn_id?: number;
-  player_bonus_id?: number;
 }
 
 interface ChunkReleaseEvent {
@@ -1046,19 +1045,6 @@ function TransactionsScreen({
                     <span className="txn-arrow">›</span>
                   </div>
                 </div>
-                {t.player_bonus_id && (
-                  <div
-                    style={{
-                      fontSize: "0.62rem",
-                      color: "#475569",
-                      marginBottom: 8,
-                      fontFamily: "monospace",
-                      letterSpacing: "0.03em",
-                    }}
-                  >
-                    ID: {String(t.player_bonus_id)}
-                  </div>
-                )}
                 <div
                   style={{
                     display: "grid",
