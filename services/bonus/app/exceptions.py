@@ -149,15 +149,15 @@ class DatabaseError(BonusServiceError):
     """Raised when a database operation fails unexpectedly."""
 
 
-class PlayerBonusNotFoundError(BonusServiceError):
+class PAMUserBonusNotFoundError(BonusServiceError):
     """Raised when a user_bonus_grant or bonus_consumed row cannot be found."""
 
     def __init__(self, ref: int | str) -> None:
         self.ref = ref
-        super().__init__(f"Player bonus record {ref!r} not found")
+        super().__init__(f"PAM user bonus record {ref!r} not found")
 
 
-class PlayerBonusConsumedError(BonusServiceError):
+class PAMUserBonusConsumedError(BonusServiceError):
     """Raised when a consumption is duplicated or the chunk is not in RELEASE status."""
 
     def __init__(self, chunk_id: int, consume_ref: str) -> None:
@@ -169,7 +169,7 @@ class PlayerBonusConsumedError(BonusServiceError):
         )
 
 
-class PlayerBonusAlreadyRevertedError(BonusServiceError):
+class PAMUserBonusAlreadyRevertedError(BonusServiceError):
     """Raised when attempting to revert a consumption that has already been reverted."""
 
     def __init__(self, consumed_id: int) -> None:

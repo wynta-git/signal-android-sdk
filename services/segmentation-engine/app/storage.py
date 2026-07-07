@@ -214,6 +214,20 @@ async def remove_membership(
         await pipe.execute()
 
 
+async def append_upload_history(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    segment_id: str,
+    entry: dict[str, Any],
+    updates: dict[str, Any],
+) -> bool:
+    result = await db[SEGMENTS_COL].update_one(
+        {"project_id": project_id, "segment_id": segment_id},
+        {"$set": updates, "$push": {"upload_history": entry}},
+    )
+    return result.matched_count > 0
+
+
 async def delete_memberships(
     redis: Redis, project_id: str, segment_id: str
 ) -> None:

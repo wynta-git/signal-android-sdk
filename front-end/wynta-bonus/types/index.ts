@@ -178,7 +178,7 @@ export interface Segment {
   owner?: string;
 }
 
-export interface Player {
+export interface PAMUser {
   id: number;
   name: string;
   email: string;
@@ -197,8 +197,8 @@ export interface Player {
   product: string;
 }
 
-export interface PlayerPage {
-  players: Player[];
+export interface PAMUserPage {
+  players: PAMUser[];
   page: number;
   pageTotal: number;
   total: number;

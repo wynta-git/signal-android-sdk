@@ -56,7 +56,6 @@ interface Transaction {
   expiry_amount?: string;
   forfeit_amount?: string;
   grant_txn_id?: number;
-  player_bonus_id?: number;
 }
 
 interface ChunkReleaseEvent {
@@ -1046,19 +1045,6 @@ function TransactionsScreen({
                     <span className="txn-arrow">›</span>
                   </div>
                 </div>
-                {t.player_bonus_id && (
-                  <div
-                    style={{
-                      fontSize: "0.62rem",
-                      color: "#475569",
-                      marginBottom: 8,
-                      fontFamily: "monospace",
-                      letterSpacing: "0.03em",
-                    }}
-                  >
-                    ID: {String(t.player_bonus_id)}
-                  </div>
-                )}
                 <div
                   style={{
                     display: "grid",
@@ -1895,12 +1881,46 @@ function ConsumeScreen({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ConsumeResult | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusResult, setStatusResult] = useState<ConsumeResult | null>(null);
+
+  async function handleCheckStatus() {
+    if (!result || statusLoading) return;
+    setError(null);
+    setStatusResult(null);
+    setStatusLoading(true);
+    try {
+      const res = await fetch(`/api/consume/${result.consume_txn_id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...s2sHeaders(creds) },
+      });
+      const data = (await res.json()) as ConsumeResult & {
+        detail?: string | Array<{ msg: string; loc?: unknown[] }>;
+      };
+      if (res.ok) {
+        setStatusResult(data);
+      } else {
+        const detail = data.detail;
+        if (Array.isArray(detail)) {
+          setError(
+            detail.map((e) => e.msg).join("; ") || `Error ${res.status}`,
+          );
+        } else {
+          setError(detail ?? `Error ${res.status}`);
+        }
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Network error");
+    }
+    setStatusLoading(false);
+  }
 
   async function handleConsume(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (loading) return;
     setError(null);
     setResult(null);
+    setStatusResult(null);
     setLoading(true);
     try {
       const ts = Date.now();
@@ -1967,10 +1987,46 @@ function ConsumeScreen({
                 <div className="amount-label">Txn ID</div>
               </div>
             </div>
+            {statusResult && (
+              <div style={{ marginTop: 16 }}>
+                <div className="card-title" style={{ fontSize: 13 }}>
+                  Status — Consumed
+                </div>
+                <div className="amounts-grid" style={{ marginTop: 8 }}>
+                  <div className="amount-cell">
+                    <div className="amount-val">
+                      ₹{fmt(statusResult.consumed_amount)}
+                    </div>
+                    <div className="amount-label">Consumed</div>
+                  </div>
+                  <div className="amount-cell">
+                    <div className="amount-val">
+                      ₹{fmt(statusResult.bonus_amount)}
+                    </div>
+                    <div className="amount-label">Bonus Used</div>
+                  </div>
+                  <div className="amount-cell">
+                    <div className="amount-val">#{statusResult.txn_id}</div>
+                    <div className="amount-label">Txn ID</div>
+                  </div>
+                </div>
+              </div>
+            )}
             <button
               className="btn-primary"
               style={{ marginTop: 16 }}
-              onClick={() => setResult(null)}
+              onClick={handleCheckStatus}
+              disabled={statusLoading}
+            >
+              {statusLoading ? "Checking…" : "Check Status"}
+            </button>
+            <button
+              className="btn-primary"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                setResult(null);
+                setStatusResult(null);
+              }}
             >
               Consume Again
             </button>

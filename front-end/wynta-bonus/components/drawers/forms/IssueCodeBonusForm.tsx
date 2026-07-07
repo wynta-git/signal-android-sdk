@@ -35,8 +35,8 @@ export default function IssueCodeBonusForm({ state, submitting, onCancel, onSubm
   const [autoApply, setAutoApply] = useState(!!code.auto_apply);
   const [note, setNote] = useState('');
 
-  const perPlayer = parseFloat(amount) || 0;
-  const totalCost = reach * perPlayer;
+  const perPAMUser = parseFloat(amount) || 0;
+  const totalCost = reach * perPAMUser;
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +98,7 @@ export default function IssueCodeBonusForm({ state, submitting, onCancel, onSubm
           </div>
           <div className="mb-summary-row">
             <span className="k">Per player</span>
-            <span className="v">{perPlayer ? formatINRCompact(perPlayer) : '—'}</span>
+            <span className="v">{perPAMUser ? formatINRCompact(perPAMUser) : '—'}</span>
           </div>
           <div className="mb-summary-row total">
             <span className="k">Total cost</span>

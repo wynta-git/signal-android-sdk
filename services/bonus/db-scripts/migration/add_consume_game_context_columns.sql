@@ -1,6 +1,6 @@
 -- Adds game-context and transaction-ID columns to bonus_consumed.
 -- Also widens wager_ref to 100 chars and makes it nullable to match
--- the optional wager_tnx_id field in PlayerBonusConsumeCreate.
+-- the optional wager_tnx_id field in PAMUserBonusConsumeCreate.
 
 ALTER TABLE `bonus_consumed`
     MODIFY COLUMN `wager_ref`               VARCHAR(100)  DEFAULT NULL,

@@ -311,7 +311,7 @@ export default function ConfigureForm({
   }>({});
 
   // ── Step 3: Segments ──────────────────────────────────────────────────────
-  const [allPlayers, setAllPlayers] = useState(true);
+  const [allPAMUsers, setAllPlayers] = useState(true);
   const [segmentId, setSegmentId] = useState("");
 
   // ── Step 2 (trigger part) ─────────────────────────────────────────────────
@@ -369,7 +369,7 @@ export default function ConfigureForm({
         hard_limit: isHardLimit,
       },
     ].filter((p) => p.budget_limit != null),
-    _segment_id: !allPlayers && segmentId ? segmentId : null,
+    _segment_id: !allPAMUsers && segmentId ? segmentId : null,
     _trigger: triggerEnabled
       ? {
           trigger_type: triggerType,
@@ -986,7 +986,7 @@ export default function ConfigureForm({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: !allPlayers ? 16 : 0,
+          marginBottom: !allPAMUsers ? 16 : 0,
         }}
       >
         <div>
@@ -998,13 +998,13 @@ export default function ConfigureForm({
           </div>
         </div>
         <Toggle
-          on={allPlayers}
+          on={allPAMUsers}
           onChange={setAllPlayers}
-          label={allPlayers ? "All players" : "Segment only"}
+          label={allPAMUsers ? "All players" : "Segment only"}
         />
       </div>
 
-      {!allPlayers && (
+      {!allPAMUsers && (
         <div className="field-group" style={{ marginTop: 16 }}>
           <label>Segment</label>
           <select
@@ -1190,7 +1190,7 @@ export default function ConfigureForm({
           <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--g700)" }}>Segments & Promo</div>
           <SummaryRow
             label="Audience"
-            value={allPlayers ? "All players" : selectedSegment ? (selectedSegment.name ?? selectedSegment.label ?? segmentId) : segmentId || "—"}
+            value={allPAMUsers ? "All players" : selectedSegment ? (selectedSegment.name ?? selectedSegment.label ?? segmentId) : segmentId || "—"}
           />
           <SummaryRow
             label="Promo code"
@@ -1291,7 +1291,7 @@ export default function ConfigureForm({
 
     if (step === 4) {
       const errors: typeof step4Errors = {};
-      if (!allPlayers && !segmentId) {
+      if (!allPAMUsers && !segmentId) {
         errors.segment = "Select a segment or switch back to all players.";
       }
       if (codeEnabled && !promoCode.trim()) {
