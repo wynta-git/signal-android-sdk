@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     kafka_manual_bonus_topic: str = "pam.bonus.manual.v1"
     kafka_manual_bonus_group_id: str = "pam-bonus-manual-consumer"
 
-    redis_url: str = "redis://:glgpam2026@43.204.90.164:6379/0"
+    redis_url: str = "redis://localhost:6379/0"
     trigger_cache_ttl: int = 300  # seconds
     dedup_event_ttl: int = 604800  # 7 days
 
