@@ -5,6 +5,7 @@ import aioboto3
 import aiomysql
 import structlog
 from aiokafka import AIOKafkaProducer
+from botocore.exceptions import ClientError
 from redis.asyncio import Redis
 from starlette.datastructures import UploadFile
 
@@ -101,8 +102,32 @@ def _row_to_response(row: tuple) -> BonusConfigureCodeResponse:
     )
 
 
+async def _create_bucket_if_missing(s3, exc: ClientError) -> bool:
+    """Returns True if exc was NoSuchBucket and the bucket was created (or already existed)."""
+    if exc.response.get("Error", {}).get("Code") != "NoSuchBucket":
+        return False
+
+    create_kwargs: dict[str, object] = {"Bucket": settings.s3_bucket}
+    if settings.s3_region and settings.s3_region != "us-east-1":
+        create_kwargs["CreateBucketConfiguration"] = {"LocationConstraint": settings.s3_region}
+
+    try:
+        await s3.create_bucket(**create_kwargs)
+        log.info("s3_bucket_created", bucket=settings.s3_bucket, region=settings.s3_region)
+    except ClientError as create_exc:
+        # Someone else (or a concurrent request) already created it — fine, proceed.
+        if create_exc.response.get("Error", {}).get("Code") == "BucketAlreadyOwnedByYou":
+            return True
+        log.warning("s3_bucket_create_failed", bucket=settings.s3_bucket, error=str(create_exc))
+        return False
+    return True
+
+
 async def _upload_manual_bonus_csv(csv_file: UploadFile, code: str) -> tuple[str | None, str | None, int]:
-    """Uploads a manual-bonus CSV to S3 (if configured). Returns (bucket, key, size)."""
+    """Uploads a manual-bonus CSV to S3 (if configured), creating the bucket if it doesn't exist yet.
+
+    Returns (bucket, key, size).
+    """
     raw = await csv_file.read()
     size = len(raw)
 
@@ -122,6 +147,15 @@ async def _upload_manual_bonus_csv(csv_file: UploadFile, code: str) -> tuple[str
     ) as s3:
         try:
             await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
+        except ClientError as exc:
+            if not await _create_bucket_if_missing(s3, exc):
+                log.warning("s3_upload_failed", code=code, error=str(exc))
+                return None, None, size
+            try:
+                await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
+            except Exception as retry_exc:
+                log.warning("s3_upload_failed", code=code, error=str(retry_exc))
+                return None, None, size
         except Exception as exc:
             log.warning("s3_upload_failed", code=code, error=str(exc))
             return None, None, size
