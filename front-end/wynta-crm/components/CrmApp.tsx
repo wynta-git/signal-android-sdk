@@ -7,7 +7,10 @@ import { getToken }  from 'wynta-react-common/services/tokenRegistry';
 import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
 import { setSelectedBrand } from '../store/slices/uiSlice';
+import { toggleCopilot } from 'wynta-react-common/store/slices/copilotSlice';
 import BrandSwitcher from 'wynta-react-common/components/BrandSwitcher';
+import Icon          from 'wynta-react-common/components/Icon';
+import CopilotPanel  from 'wynta-react-common/components/copilot/CopilotPanel';
 import CrmSidebar    from './CrmSidebar';
 import { listReports, createReport as createReportApi } from '../services/reportsApi';
 import type { ReportFilters, CustomReport } from '../services/reportsApi';
@@ -146,6 +149,14 @@ function CrmShell() {
             }}
             compact
           />
+          <div style={{ flex: 1 }} />
+          <button
+            className="copilot-open-btn"
+            title="AI Co-pilot"
+            onClick={() => dispatch(toggleCopilot())}
+          >
+            <Icon name="sparkles" size={15} />
+          </button>
         </div>
         <div className="crm-content">
           {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} brandId={brandId} /> :
@@ -182,6 +193,7 @@ function CrmShell() {
           )}
         </div>
       </main>
+      <CopilotPanel />
     </div>
   );
 }
