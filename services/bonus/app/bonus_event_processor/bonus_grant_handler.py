@@ -240,12 +240,6 @@ async def handle_bonus_grant(
     if code_max_amount is not None:
         grant_amount = min(grant_amount, code_max_amount)
 
-    # ── Generate shared player_bonus_id for all grants in this event ─────────
-    async with conn.cursor() as cur:
-        await cur.execute("SELECT UUID_SHORT()")
-        row = await cur.fetchone()
-    player_bonus_id: int = row[0]
-
     # ── Write main grant ──────────────────────────────────────────────────────
     if grant_amount > 0:
         grant_id = await write_grant(
@@ -255,7 +249,6 @@ async def handle_bonus_grant(
             pam_user_id,
             site_id,
             grant_amount,
-            player_bonus_id,
             event_id,
             bonus_code=promo_code,
             bonus_code_id=code_id,
@@ -263,7 +256,6 @@ async def handle_bonus_grant(
         log.info(
             "bonus_grant_written",
             grant_id=grant_id,
-            player_bonus_id=player_bonus_id,
             trigger_id=trigger.id,
             configure_id=cfg.id,
             pam_user_id=pam_user_id,
@@ -277,7 +269,7 @@ async def handle_bonus_grant(
             cashback_amount = min(cashback_amount, code_max_amount)
 
         cashback_grant_id = await write_cashback_grant(
-            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, player_bonus_id, event_id,
+            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, event_id,
             bonus_code=promo_code, bonus_code_id=code_id,
         )
         log.info(

@@ -259,6 +259,5 @@ export const DEFAULT_TABS: WorkspaceSettingsTab[] = [
   { id: 'general',    label: 'General',    icon: 'settings' },
   { id: 'products',   label: 'Products',   icon: 'box'      },
   { id: 'users',      label: 'Users',      icon: 'users'    },
-  { id: 'connectors', label: 'Connectors', icon: 'plug'     },
   { id: 'ai-model',   label: 'AI Model',        icon: 'sparkles'     },
 ];

@@ -63,3 +63,45 @@ body {
 .app-card:hover {
   box-shadow: var(--shm);
 }
+
+/* ── Upload History modal ── */
+.seg-history-modal { width: 700px; max-width: 94vw; }
+.seg-history-segment-name {
+  font-size: 13px; font-weight: 400; color: #6B7280;
+  margin-left: 8px; padding-left: 10px; border-left: 1px solid #E9EBEE;
+}
+.seg-history-error {
+  display: flex; align-items: center; gap: 8px; margin: 12px 20px 0;
+  padding: 10px 14px; background: #FCE8E8; border: 1px solid #F0B8B8;
+  border-radius: 6px; font-size: 12.5px; color: #D64545;
+}
+.seg-history-body { padding: 0; overflow-x: auto; }
+.seg-history-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.seg-history-table thead tr { border-bottom: 1px solid #E9EBEE; }
+.seg-history-table th {
+  padding: 12px 20px; font-size: 11px; font-weight: 600;
+  color: #9AA0A6; text-transform: uppercase; letter-spacing: 0.05em;
+  text-align: left; white-space: nowrap; background: #FAFBFC;
+}
+.seg-history-table td {
+  padding: 14px 20px; color: #3F4652; border-bottom: 1px solid #F1F2F4;
+  vertical-align: middle; white-space: nowrap;
+}
+.seg-history-table tbody tr:last-child td { border-bottom: none; }
+.seg-history-table tbody tr:hover td { background: #F7F8FA; }
+.seg-history-row--latest td { background: #F0F9FF; }
+.seg-history-row--latest td:first-child { border-left: 3px solid #0091E0; padding-left: 17px; }
+.seg-history-filename { display: flex; align-items: center; gap: 8px; }
+.seg-history-filename span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px; }
+.seg-history-badge {
+  flex-shrink: 0; display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 999px;
+  background: #DBEAFE; color: #1D4ED8;
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em;
+}
+.seg-history-download {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 5px; color: #9AA0A6;
+  transition: background 0.12s, color 0.12s;
+}
+.seg-history-download:hover { background: #E9EBEE; color: #1F2430; }

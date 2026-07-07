@@ -6,7 +6,13 @@ import { store }     from '../store';
 import { getToken }  from 'wynta-react-common/services/tokenRegistry';
 import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
-import { setSelectedBrand } from '../store/slices/uiSlice';
+import { setSelectedBrand, setHeaderFragmentFound } from '../store/slices/uiSlice';
+
+declare global {
+  interface Window {
+    __WYNTA_HEADER_FRAGMENT_FOUND__?: boolean;
+  }
+}
 import BrandSwitcher from 'wynta-react-common/components/BrandSwitcher';
 import CrmSidebar    from './CrmSidebar';
 import { listReports, createReport as createReportApi } from '../services/reportsApi';
@@ -82,6 +88,7 @@ function CrmShell() {
   const dispatch = useDispatch<any>();
   const projectId    = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const selectedBrand = useSelector((s: any) => s.ui?.selectedBrand as number | null);
+  const headerFragmentFound = useSelector((s: any) => s.ui?.headerFragmentFound as boolean | null);
   const [activeNav,       setActiveNav]       = useState('dashboard');
   const [campaignAutoAdd, setCampaignAutoAdd] = useState(false);
   const [customReports,   setCustomReports]   = useState<CustomReport[]>([]);
@@ -89,6 +96,22 @@ function CrmShell() {
   const [createError,     setCreateError]     = useState<string | null>(null);
 
   useEffect(() => { dispatch(fetchBrands()); }, [dispatch]);
+
+  useEffect(() => {
+    // DjHeaderSlot may be rendered by a host layout (e.g. wynta-web's root
+    // layout) that has no knowledge of this app's Redux store, so it reports
+    // the header-fragment fetch outcome via a window global + CustomEvent
+    // rather than a prop/dispatch — pick that signal up here instead.
+    if (typeof window.__WYNTA_HEADER_FRAGMENT_FOUND__ === 'boolean') {
+      dispatch(setHeaderFragmentFound(window.__WYNTA_HEADER_FRAGMENT_FOUND__));
+    }
+    function onStatus(e: Event) {
+      const found = (e as CustomEvent<{ found: boolean }>).detail?.found;
+      if (typeof found === 'boolean') dispatch(setHeaderFragmentFound(found));
+    }
+    window.addEventListener('wynta:header-fragment-status', onStatus);
+    return () => window.removeEventListener('wynta:header-fragment-status', onStatus);
+  }, [dispatch]);
 
   useEffect(() => { refreshCustomReports(); }, [selectedBrand]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -137,16 +160,18 @@ function CrmShell() {
       />
 
       <main className="crm-main">
-        <div className="crm-topbar">
-          <BrandSwitcher
-            value={selectedBrand}
-            onChange={(id) => {
-              dispatch(setSelectedBrand(id));
-              window.__fireBrandChange__?.(id);
-            }}
-            compact
-          />
-        </div>
+        {headerFragmentFound === false && (
+          <div className="crm-topbar">
+            <BrandSwitcher
+              value={selectedBrand}
+              onChange={(id) => {
+                dispatch(setSelectedBrand(id));
+                window.__fireBrandChange__?.(id);
+              }}
+              compact
+            />
+          </div>
+        )}
         <div className="crm-content">
           {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} brandId={brandId} /> :
            activeNav === 'segments'         ? <SegmentsPage brandId={brandId} /> :

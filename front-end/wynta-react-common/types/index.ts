@@ -38,6 +38,14 @@ export interface AuthResponse {
 
 // ── Segments & Players ────────────────────────────────────────────────────────
 
+export interface UploadHistoryEntry {
+  filename: string;
+  s3_url: string | null;
+  uploaded_by: string;
+  uploaded_at: string;
+  members_count: number;
+}
+
 export interface Segment {
   id: string | number;
   label?: string;
@@ -53,6 +61,10 @@ export interface Segment {
   refresh_strategy?: string;
   scheduled_cron?: string;
   used_by_campaigns?: string[];
+  segment_type?: string;
+  original_filename?: string;
+  uploaded_by?: string;
+  upload_history?: UploadHistoryEntry[];
 }
 
 export interface Player {

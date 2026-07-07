@@ -20,29 +20,31 @@ _SQL = """
 """
 
 
-class UserResponse(BaseModel):
+class SystemUserResponse(BaseModel):
     id: int
     display_name: str
     role: str
 
 
 def _cache_key(site_id: int) -> str:
-    return f"auth:users:site:{site_id}"
+    return f"auth:system_users:site:{site_id}"
 
 
-async def get_users_by_site(site_id: int) -> list[UserResponse]:
+async def get_system_users_by_site(site_id: int) -> list[SystemUserResponse]:
     redis = get_redis()
     key = _cache_key(site_id)
 
     cached = await get_str(redis, key)
     if cached:
-        return [UserResponse.model_validate(row) for row in json.loads(cached)]
+        return [SystemUserResponse.model_validate(row) for row in json.loads(cached)]
 
     async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_SQL, (site_id,))
             rows = await cur.fetchall()
 
-    users = [UserResponse(id=r[0], display_name=r[1], role=r[2]) for r in rows]
-    await set_with_ttl(redis, key, json.dumps([u.model_dump() for u in users]), settings.redis_cache_ttl)
-    return users
+    system_users = [SystemUserResponse(id=r[0], display_name=r[1], role=r[2]) for r in rows]
+    await set_with_ttl(
+        redis, key, json.dumps([su.model_dump() for su in system_users]), settings.redis_cache_ttl
+    )
+    return system_users
