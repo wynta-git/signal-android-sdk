@@ -361,6 +361,20 @@ export async function checkMembership(
   return res.json();
 }
 
+// ── Re-upload custom audience ─────────────────────────────────────────────────
+
+export async function reuploadCustomAudience(segmentId: string, file: File): Promise<Segment> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${SEG_API}/segments/${segmentId}/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`reuploadCustomAudience failed: ${res.status}`);
+  return toSegment(await res.json());
+}
+
 // ── Evaluate ──────────────────────────────────────────────────────────────────
 
 export async function evaluateSegment(segmentId: string): Promise<EvaluateResult> {
