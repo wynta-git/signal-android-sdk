@@ -63,6 +63,10 @@ const SegmentsPage = dynamic(
   () => import("wynta-react-common/components/segments/SegmentsPage"),
   { ssr: false },
 );
+const EventsPage = dynamic(
+  () => import("wynta-react-common/components/events/EventsPage"),
+  { ssr: false },
+);
 
 interface ContextItem {
   icon?: string;
@@ -413,6 +417,8 @@ export default function BonusAdminApp() {
         <BillingPricingPage />
       ) : sidebarActive === "segments" ? (
         <SegmentsPage brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "events" ? (
+        <EventsPage brandId={selectedBrand ?? undefined} />
       ) : sidebarActive === "logs" ? (
         <div
           style={{
