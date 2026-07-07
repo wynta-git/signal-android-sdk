@@ -58,6 +58,10 @@ function toSegment(s: {
   refresh_strategy?: string;
   scheduled_cron?: string | null;
   used_by_campaigns?: string[];
+  type?: string;
+  original_filename?: string | null;
+  uploaded_by?: string | null;
+  upload_history?: unknown[];
 }): Segment {
   return {
     id:                 s.segment_id,
@@ -69,6 +73,10 @@ function toSegment(s: {
     refresh_strategy:   s.refresh_strategy,
     scheduled_cron:     s.scheduled_cron ?? undefined,
     used_by_campaigns:  s.used_by_campaigns ?? [],
+    segment_type:       s.type ?? undefined,
+    original_filename:  s.original_filename ?? undefined,
+    uploaded_by:        s.uploaded_by ?? undefined,
+    upload_history:     s.upload_history as any ?? undefined,
   };
 }
 
