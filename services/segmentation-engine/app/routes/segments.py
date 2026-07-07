@@ -251,9 +251,11 @@ async def upload_custom_audience(
     s3_key: str | None = None
     s3_url: str | None = None
 
+    original_filename = (file.filename or "upload.csv").strip() or "upload.csv"
+
     s3_configured = bool(settings.s3_access_key_id or settings.s3_endpoint_url)
     if s3_configured:
-        s3_key = f"{project_id}/{segment_id}.csv"
+        s3_key = f"{project_id}/{segment_id}/{original_filename}"
         s3_url = f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{s3_key}"
         session = aioboto3.Session()
         async with session.client(
@@ -273,6 +275,14 @@ async def upload_custom_audience(
         log.info("s3_not_configured_skipping", segment_id=segment_id)
 
     now = datetime.now(tz=timezone.utc)
+    upload_entry: dict[str, Any] = {
+        "filename": original_filename,
+        "s3_key": s3_key,
+        "s3_url": s3_url,
+        "uploaded_by": ctx.user_id,
+        "uploaded_at": now,
+        "members_count": len(user_ids),
+    }
     doc: dict[str, Any] = {
         "project_id": project_id,
         "segment_id": segment_id,
@@ -283,9 +293,12 @@ async def upload_custom_audience(
         "scheduled_cron": None,
         "s3_key": s3_key,
         "s3_url": s3_url,
+        "original_filename": original_filename,
+        "uploaded_by": ctx.user_id,
         "members_count": len(user_ids),
         "last_refresh_time": now,
         "brand_id": brand_id,
+        "upload_history": [upload_entry],
     }
     await storage.create_segment(db, doc)
     await storage.bulk_upsert_memberships(redis, project_id, segment_id, set(user_ids))
@@ -293,8 +306,13 @@ async def upload_custom_audience(
     return {
         "segment_id": segment_id,
         "name": name,
+        "type": "custom_audience",
         "members_count": len(user_ids),
+        "original_filename": original_filename,
+        "uploaded_by": ctx.user_id,
+        "last_refresh_time": now,
         "s3_url": s3_url,
+        "upload_history": [upload_entry],
     }
 
 
