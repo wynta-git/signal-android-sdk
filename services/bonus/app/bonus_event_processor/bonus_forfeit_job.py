@@ -53,7 +53,7 @@ _RELEASED_UNCONSUMED_CHUNKS_SQL = """
 
 _FORFEIT_CHUNK_SQL = """
     UPDATE bonus_chunk
-    SET forfeited_amount = forfeited_amount + %s, updated_at = NOW()
+    SET forfeited_amount = forfeited_amount + %s, updated_at = NOW(), consume_status='FORFEITED'
     WHERE id = %s
 """
 

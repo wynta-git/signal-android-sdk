@@ -132,7 +132,7 @@ a { color: inherit; text-decoration: none; }
   overflow-y: auto;
 }
 .main-topbar {
-  height: 56px;
+  height: 50px;
   border-bottom: 1px solid var(--g200);
   background: #fff;
   display: flex;

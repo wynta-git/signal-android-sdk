@@ -8,7 +8,19 @@ declare global {
   interface Window {
     __WYNTA_BRIDGE__?: WyntaBridge;
     __fireBrandChange__?: (brandId: number) => void;
+    __WYNTA_HEADER_FRAGMENT_FOUND__?: boolean;
   }
+}
+
+// Cross-app-boundary signal: DjHeaderSlot may be rendered by a host layout
+// (e.g. wynta-web's root layout) that doesn't know about consumer-specific
+// props, so — like __fireBrandChange__/wynta:brand-changed — we report the
+// header-fragment fetch outcome via a window global + CustomEvent instead of
+// a prop callback, so any embedded app can pick it up regardless of who
+// actually rendered this component.
+function reportFragmentStatus(found: boolean) {
+  window.__WYNTA_HEADER_FRAGMENT_FOUND__ = found;
+  window.dispatchEvent(new CustomEvent('wynta:header-fragment-status', { detail: { found } }));
 }
 
 interface Props {
@@ -46,6 +58,8 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
 
     fetch('/admin/header-fragment/', { credentials: 'include' })
       .then(response => {
+        reportFragmentStatus(response.ok);
+
         const bridge: WyntaBridge = JSON.parse(response.headers.get('X-Wynta-Bridge') || '{}');
         window.__WYNTA_BRIDGE__ = bridge;
         dispatch(setBridgeData(bridge));
@@ -56,7 +70,7 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
           promptForToken();
         }
         return "";
-        
+
       })
       .then(html => {
         const frag = document.createRange().createContextualFragment(html);
@@ -86,6 +100,7 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
       })
       .catch(err => {
         console.error('[DjHeaderSlot] Failed to load header fragment:', err);
+        reportFragmentStatus(false);
         promptForToken();
       });
   }, [dispatch]);

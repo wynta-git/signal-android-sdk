@@ -21,7 +21,7 @@ _SQL_CLIENT = """
            sc.created_by,
            sc.created_at
     FROM site_client sc
-    JOIN site s ON s.id = sc.site_id
+    LEFT JOIN site s ON s.id = sc.site_id
     LEFT JOIN project p ON p.id = s.program_id
     WHERE sc.client_id = %s
       AND sc.active = 1
@@ -36,7 +36,7 @@ _SQL_CLIENTS_BY_SITE = """
            sc.created_by,
            sc.created_at
     FROM site_client sc
-    JOIN site s ON s.id = sc.site_id
+    LEFT JOIN site s ON s.id = sc.site_id
     LEFT JOIN project p ON p.id = s.program_id
     WHERE sc.site_id = %s
     ORDER BY sc.id
@@ -250,7 +250,9 @@ async def get_clients_by_site(site_id: int, redis: Redis, ttl: int) -> list[Clie
 
     cached = await get_str(redis, key)
     if cached:
-        return [ClientResponse.model_validate(row) for row in json.loads(cached)]
+        rows = json.loads(cached)
+        if len(rows) > 0:
+            return [ClientResponse.model_validate(row) for row in rows]
 
     async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
@@ -285,7 +287,8 @@ async def get_clients_by_site(site_id: int, redis: Redis, ttl: int) -> list[Clie
                     created_at=str(row[12]) if row[12] is not None else None,
                 ))
 
-    await set_with_ttl(redis, key, json.dumps([c.model_dump() for c in clients]), ttl)
+    if len(clients) > 0:
+        await set_with_ttl(redis, key, json.dumps([c.model_dump() for c in clients]), ttl)
     return clients
 
 

@@ -4,7 +4,6 @@ import WorkspaceSettingsTabs from './WorkspaceSettingsTabs';
 import GeneralSettings    from './tabs/GeneralSettings';
 import ProductSettings    from './tabs/ProductSettings';
 import UserSettings       from './tabs/UserSettings';
-import ConnectorSettings  from './tabs/ConnectorSettings';
 import AIModelSettings    from './tabs/AIModelSettings';
 import { DEFAULT_TABS }   from './constants';
 import type { WorkspaceSettingsTab } from './types';
@@ -18,7 +17,6 @@ const TAB_COMPONENTS: Record<string, React.ComponentType> = {
   general:    GeneralSettings,
   products:   ProductSettings,
   users:      UserSettings,
-  connectors: ConnectorSettings,
   'ai-model': AIModelSettings,
 };
 
