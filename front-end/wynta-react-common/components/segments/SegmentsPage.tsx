@@ -36,6 +36,8 @@ interface SegmentRow {
   created: string;
   createdBy: string;
   usedIn: string[];
+  csvFilename?: string;
+  csvUploadedBy?: string;
 }
 
 function toRow(s: Segment): SegmentRow {
@@ -54,6 +56,8 @@ function toRow(s: Segment): SegmentRow {
     created: formatRelative(s.last_used_at),
     createdBy: (s as any).owner ?? s.owner ?? "System",
     usedIn: s.used_by_campaigns ?? (s as any).used_in ?? [],
+    csvFilename: s.original_filename ?? undefined,
+    csvUploadedBy: s.uploaded_by ?? undefined,
   };
 }
 
@@ -475,6 +479,13 @@ export default function SegmentsPage({
                   <tr key={row.id}>
                     <td>
                       <div className="seg-row-name">{row.name}</div>
+                      {row.csvFilename && (
+                        <div className="seg-row-csv-meta">
+                          <Icon name="file-text" size={11} color="var(--crm-fg4)" />
+                          <span className="seg-row-csv-filename" title={row.csvFilename}>{row.csvFilename}</span>
+                          {row.csvUploadedBy && <span className="seg-row-csv-by">· {row.csvUploadedBy}</span>}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div className="seg-conditions" title={row.conditions}>
