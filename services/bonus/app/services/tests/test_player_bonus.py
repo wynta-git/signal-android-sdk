@@ -11,6 +11,7 @@ from app.exceptions import DatabaseError, PlayerBonusConsumedError, PlayerBonusN
 from app.models.player_bonus import PlayerBonusConsumeCreate
 from app.services.player_bonus_service import (
     consume_bonus,
+    get_consume_status,
     get_player_bonus_summary,
     get_player_referral_code,
     get_player_transaction_detail,
@@ -105,9 +106,9 @@ async def test_applicable_codes_db_error(cur: AsyncMock, patch_conn: MagicMock) 
 _CONSUME_PAYLOAD = PlayerBonusConsumeCreate(
     user_id="user123",
     consume_txn_id="txn-abc",
-    wager_amount=Decimal("100.00"),
+    transaction_amount=Decimal("100.00"),
     bonus_amount=Decimal("50.00"),
-    chip_type="cash",
+    chip_type="CASH",
     wager_tnx_id="wager-001",
 )
 
@@ -138,13 +139,30 @@ async def test_consume_bonus_duplicate_raises_conflict(cur: AsyncMock, patch_con
     patch_conn.commit.assert_not_awaited()
 
 
-async def test_consume_bonus_no_chunk_raises_not_found(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [None, None]  # no duplicate, but no released chunk
+async def test_consume_bonus_no_grant_records_zero_consumed(
+    cur: AsyncMock, patch_conn: MagicMock
+) -> None:
+    cur.fetchone.return_value = None  # no duplicate consume_txn_id
+    cur.fetchall.return_value = []    # no released chunks for the player
 
-    with pytest.raises(PlayerBonusNotFoundError):
-        await consume_bonus(_CONSUME_PAYLOAD)
+    with patch(
+        "app.services.player_bonus_service.get_or_create_pam_user",
+        AsyncMock(return_value=1),
+    ):
+        result = await consume_bonus(_CONSUME_PAYLOAD, AsyncMock(), site_id=1)
 
-    patch_conn.commit.assert_not_awaited()
+    # the request is still recorded in bonus_consumed for tracking
+    assert result.txn_id == 99
+    assert result.consume_txn_id == "txn-abc"
+    assert result.bonus_amount == Decimal("50.00")
+    assert result.consumed_amount == Decimal("0.00")
+    assert result.chip_type == "CASH"
+    insert_params = [
+        c.args[1] for c in cur.execute.await_args_list if "INSERT INTO bonus_consumed" in c.args[0]
+    ]
+    assert len(insert_params) == 1
+    assert insert_params[0][0] == "txn-abc"  # consume_txn_id persisted on the row
+    patch_conn.commit.assert_awaited_once()
 
 
 async def test_consume_bonus_db_error(cur: AsyncMock, patch_conn: MagicMock) -> None:
@@ -163,6 +181,42 @@ async def test_consume_bonus_idempotency_key_used_in_query(
     # first execute must be the duplicate-check with the consume_txn_id
     first_call_params = cur.execute.await_args_list[0][0][1]
     assert "txn-abc" in first_call_params
+
+
+# ---------------------------------------------------------------------------
+# 2b. get_consume_status
+# ---------------------------------------------------------------------------
+
+# (id, amount, consumed_amount, chip_type)
+_STATUS_ROW = (99, Decimal("50.00"), Decimal("30.00"), "CASH")
+
+
+async def test_consume_status_found(cur: AsyncMock, patch_conn: MagicMock) -> None:
+    cur.fetchone.return_value = _STATUS_ROW
+
+    result = await get_consume_status("txn-abc")
+
+    assert result.txn_id == 99
+    assert result.consume_txn_id == "txn-abc"
+    assert result.bonus_amount == Decimal("50.00")
+    assert result.consumed_amount == Decimal("30.00")
+    assert result.chip_type == "CASH"
+
+
+async def test_consume_status_not_found_raises_404(
+    cur: AsyncMock, patch_conn: MagicMock
+) -> None:
+    cur.fetchone.return_value = None
+
+    with pytest.raises(PlayerBonusNotFoundError):
+        await get_consume_status("txn-unknown")
+
+
+async def test_consume_status_db_error(cur: AsyncMock, patch_conn: MagicMock) -> None:
+    cur.execute.side_effect = RuntimeError("db down")
+
+    with pytest.raises(DatabaseError):
+        await get_consume_status("txn-abc")
 
 
 # ---------------------------------------------------------------------------

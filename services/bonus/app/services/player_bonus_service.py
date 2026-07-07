@@ -233,8 +233,8 @@ _NEXT_RELEASE_CHUNK_SQL = """
 """
 
 _CONSUME_EXISTS_SQL = """
-    SELECT id FROM bonus_chunk_consumed
-    WHERE consumed_ref = %s
+    SELECT id FROM bonus_consumed
+    WHERE wager_ref = %s
     LIMIT 1
 """
 
@@ -322,8 +322,6 @@ async def consume_bonus(
 
                 await cur.execute(_NEXT_RELEASE_CHUNK_SQL, (pam_user_id, site_id))
                 chunk_rows = await cur.fetchall()
-                if not chunk_rows:
-                    raise PlayerBonusNotFoundError(data.user_id)
 
                 remaining_to_consume = float(data.bonus_amount)
                 total_consumed = 0.0
@@ -348,13 +346,10 @@ async def consume_bonus(
                     if portion >= available:
                         await cur.execute(_UPDATE_CHUNK_CONSUME_STATUS_SQL, (chunk_id,))
 
-                if total_consumed == 0:
-                    raise PlayerBonusNotFoundError(data.user_id)
-
                 await cur.execute(
                     _INSERT_CONSUME_SQL,
                     (
-                        data.wager_tnx_id,
+                        data.consume_txn_id,
                         data.bonus_amount, data.transaction_amount, total_consumed,
                         data.chip_type, data.session_key, data.platform_client_id,
                         data.product, data.game_type, data.game_variant,
@@ -429,6 +424,42 @@ async def consume_bonus(
         raise DatabaseError(str(exc)) from exc
     except Exception as exc:
         log.error("player_bonus.consume.error", error=str(exc))
+        raise DatabaseError(str(exc)) from exc
+
+
+# ── 2b. Consume status ────────────────────────────────────────────────────────
+
+_SELECT_CONSUMED_STATUS_SQL = """
+    SELECT id, amount, consumed_amount, chip_type
+    FROM bonus_consumed
+    WHERE wager_ref = %s
+    LIMIT 1
+"""
+
+
+async def get_consume_status(consume_txn_id: str) -> PlayerBonusConsumedResponse:
+    log.info("player_bonus.consume_status", consume_txn_id=consume_txn_id)
+    try:
+        async with get_connection(POOL_BONUS) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(_SELECT_CONSUMED_STATUS_SQL, (consume_txn_id,))
+                row = await cur.fetchone()
+
+        if not row:
+            raise PlayerBonusNotFoundError(consume_txn_id)
+
+        txn_id, bonus_amount, consumed_amount, chip_type = row
+        return PlayerBonusConsumedResponse(
+            txn_id=txn_id,
+            consume_txn_id=consume_txn_id,
+            bonus_amount=bonus_amount,
+            consumed_amount=consumed_amount,
+            chip_type=chip_type,
+        )
+    except PlayerBonusNotFoundError:
+        raise
+    except Exception as exc:
+        log.error("player_bonus.consume_status.error", error=str(exc))
         raise DatabaseError(str(exc)) from exc
 
 

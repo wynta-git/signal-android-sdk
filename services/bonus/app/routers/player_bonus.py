@@ -24,6 +24,7 @@ from app.models.player_bonus import (
 )
 from app.services.player_bonus_service import (
     consume_bonus,
+    get_consume_status,
     get_player_bonus_summary,
     get_player_referral_code,
     get_player_transaction_detail,
@@ -89,6 +90,11 @@ async def create_bonus_consumption(
 @router.post("/consume/{consume_txn_id}/revert", response_model=PlayerBonusRevertResponse)
 async def revert_bonus_consumption(consume_txn_id: str) -> PlayerBonusRevertResponse:
     return await revert_consumption(consume_txn_id)
+
+
+@router.post("/consume/{consume_txn_id}/status", response_model=PlayerBonusConsumedResponse)
+async def check_bonus_consume_status(consume_txn_id: str) -> PlayerBonusConsumedResponse:
+    return await get_consume_status(consume_txn_id)
 
 
 async def _resolve_pam_user(request: Request, x_client_id: str, user_id: str) -> int:
