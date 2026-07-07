@@ -66,10 +66,10 @@ export default function ManualBonusForm({ state, submitting, onCancel, onSubmit 
 
   const seg = (MANUAL_SEGMENTS as Segment[]).find(s => s.id === segmentId);
   const reach = mode === 'SEGMENT' ? (seg?.count || 0) : parsedRows.length;
-  const perPlayer = parseFloat(amount) || 0;
+  const perPAMUser = parseFloat(amount) || 0;
   const totalCost = parsedRows.length && mode === 'UPLOAD' && parsedRows.some(r => r.amt !== null)
-    ? parsedRows.reduce((acc, r) => acc + (r.amt !== null ? r.amt : perPlayer), 0)
-    : reach * perPlayer;
+    ? parsedRows.reduce((acc, r) => acc + (r.amt !== null ? r.amt : perPAMUser), 0)
+    : reach * perPAMUser;
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,7 +203,7 @@ export default function ManualBonusForm({ state, submitting, onCancel, onSubmit 
           </div>
           <div className="mb-summary-row">
             <span className="k">Per player</span>
-            <span className="v">{perPlayer ? formatINRCompact(perPlayer) : '—'}</span>
+            <span className="v">{perPAMUser ? formatINRCompact(perPAMUser) : '—'}</span>
           </div>
           <div className="mb-summary-row total">
             <span className="k">Total cost</span>

@@ -49,20 +49,20 @@ async def process_bonus_event(redis: Redis, event: dict[str, Any]) -> None:
     7. Set the Redis dedup key so replays are skipped.
     """
     event_name: str = (event.get("event_name") or "").upper()
-    player_user_id: str | None = event.get("user_id")
+    external_user_id: str | None = event.get("user_id")
     project_id = event.get("project_id")
     event_id: str = str(event.get("event_id") or "")
     site_id = event.get("site_id")
     if not event_id:
-        log.warning("bonus_event_missing_event_id", event_name=event_name, player_user_id=player_user_id)
+        log.warning("bonus_event_missing_event_id", event_name=event_name, external_user_id=external_user_id)
         return
 
    
-    if not event_name or not player_user_id:
+    if not event_name or not external_user_id:
         log.warning(
             "bonus_event_missing_fields",
             event_name=event_name,
-            player_user_id=player_user_id,
+            external_user_id=external_user_id,
             site_id=site_id,
         )
         return
@@ -72,7 +72,7 @@ async def process_bonus_event(redis: Redis, event: dict[str, Any]) -> None:
         log.info("bonus_event_already_processed", event_id=event_id, site_id=site_id)
         return
 
-    pam_user_id: int = await get_or_create_pam_user(redis, site_id, player_user_id)
+    pam_user_id: int = await get_or_create_pam_user(redis, site_id, external_user_id)
 
     all_triggers = await get_triggers_with_config_by_site(redis, site_id)
 
@@ -84,14 +84,14 @@ async def process_bonus_event(redis: Redis, event: dict[str, Any]) -> None:
 
     props: dict[str, Any] = event.get("properties") or {}
     props.setdefault("site_id", site_id)
-    props.setdefault("user_id", player_user_id)
+    props.setdefault("user_id", external_user_id)
     props.setdefault("project_id", project_id)
 
     log.info(
         "bonus_event_received",
         event_name=event_name,
         event_id=event_id,
-        player_user_id=player_user_id,
+        external_user_id=external_user_id,
         pam_user_id=pam_user_id,
         site_id=site_id,
         matching_triggers=len(matching),
