@@ -3,10 +3,12 @@ import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
 
 interface UiState {
   selectedBrand: number | null;
+  headerFragmentFound: boolean | null;
 }
 
 const initialState: UiState = {
   selectedBrand: null,
+  headerFragmentFound: null,
 };
 
 const uiSlice = createSlice({
@@ -15,6 +17,9 @@ const uiSlice = createSlice({
   reducers: {
     setSelectedBrand(state, action: PayloadAction<number | null>) {
       state.selectedBrand = action.payload;
+    },
+    setHeaderFragmentFound(state, action: PayloadAction<boolean>) {
+      state.headerFragmentFound = action.payload;
     },
   },
   extraReducers(builder) {
@@ -26,5 +31,5 @@ const uiSlice = createSlice({
   },
 });
 
-export const { setSelectedBrand } = uiSlice.actions;
+export const { setSelectedBrand, setHeaderFragmentFound } = uiSlice.actions;
 export default uiSlice.reducer;
