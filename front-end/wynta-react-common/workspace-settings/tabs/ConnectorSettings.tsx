@@ -39,6 +39,8 @@ const FCM_BRAND_KEY = 'pam_fcm_brand_id';
 type FilterType = 'all' | 'connected' | 'disconnected';
 
 const CATEGORIES = ['Email', 'Push'] as const;
+// TODO: Email connector UI is temporarily hidden until it's ready to ship.
+const VISIBLE_CATEGORIES = CATEGORIES.filter(cat => cat !== 'Email');
 
 /* ── Brand icons ─────────────────────────────────────────────────────────────── */
 function ConnectorIcon({ connector }: { connector: Connector }) {
@@ -414,7 +416,7 @@ export default function ConnectorSettings() {
   }
 
   // ── Shared styles ─────────────────────────────────────────────────────────────
-  const [activeCategory, setActiveCategory] = useState<typeof CATEGORIES[number]>('Email');
+  const [activeCategory, setActiveCategory] = useState<typeof CATEGORIES[number]>('Push');
 
   const chipStyle = (active: boolean): React.CSSProperties => ({
     padding: '5px 16px', borderRadius: 20, fontSize: 12, fontWeight: 500,
@@ -447,13 +449,15 @@ export default function ConnectorSettings() {
   // ── Render ────────────────────────────────────────────────────────────────────
   const categoryItems = visible.filter(c => c.category === activeCategory);
   const catDesc = DEFAULT_CONNECTORS.find(c => c.category === activeCategory)?.categoryDescription ?? '';
+  const categoryTotal = connectors.filter(c => c.category === activeCategory).length;
+  const statusFilters: FilterType[] = categoryTotal > 1 ? ['all', 'connected', 'disconnected'] : ['all'];
 
   return (
-    <div style={{ paddingTop: 16 }}>
+    <div>
 
       {/* Category tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', marginBottom: 20 }}>
-        {CATEGORIES.map(cat => {
+        {VISIBLE_CATEGORIES.map(cat => {
           const isActive = activeCategory === cat;
           return (
             <button
@@ -483,7 +487,7 @@ export default function ConnectorSettings() {
       {/* Filter chips + Search */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 8 }}>
-          {(['all', 'connected', 'disconnected'] as FilterType[]).map(f => (
+          {statusFilters.map(f => (
             <button key={f} type="button" style={chipStyle(filter === f)} onClick={() => setFilter(f)}>
               {f === 'all' ? 'All' : f === 'connected' ? 'Connected' : 'Not connected'}
             </button>
