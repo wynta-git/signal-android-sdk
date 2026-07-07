@@ -26,7 +26,7 @@ interface NavSection {
 
 const BONUS_NAV_SECTIONS: NavSection[] = [
   {
-    heading: 'CRM',
+    heading: 'BONUS',
     items: [
       { id: 'dashboard',     label: 'Dashboard',    icon: 'home'         },
       { id: 'wynta-ai',     label: 'Wynta AI',     icon: 'sparkles',    locked: true },

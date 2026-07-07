@@ -1,11 +1,15 @@
 import json
 from datetime import datetime, timezone
 
+import aioboto3
 import aiomysql
 import structlog
+from aiokafka import AIOKafkaProducer
 from redis.asyncio import Redis
+from starlette.datastructures import UploadFile
 
 from shared.clients.mysql import POOL_BONUS, get_connection
+from app.config import settings
 from app.services.bonus_cache import bust_auto_apply_code_cache, bust_code_cache
 
 from app.exceptions import DatabaseError
@@ -35,17 +39,24 @@ _INSERT_SQL = """
         (configure_id, site_id, code, max_amount, valid_from, valid_to,
          display_title, display_description, terms_url, banner_image_url,
          badge_text, cta_text, auto_apply, system_auto_apply, display_order, display_on,
-         min_display_amount, active, created_by, updated_by, row_hash)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         min_display_amount, active, created_by, updated_by, row_hash, is_manual_bonus)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_SQL = """
     SELECT id, configure_id, site_id, code, max_amount, valid_from, valid_to,
            display_title, display_description, terms_url, banner_image_url,
            badge_text, cta_text, auto_apply, system_auto_apply, display_order, display_on,
-           min_display_amount, active, created_by, updated_by, created_at, updated_at
+           min_display_amount, active, created_by, updated_by, created_at, updated_at, is_manual_bonus
     FROM bonus_configure_code
     WHERE id = %s
+"""
+
+_MANUAL_BONUS_FILE_INSERT_SQL = """
+    INSERT INTO bonus_manual_bonus_file
+        (bonus_configure_code_id, original_file_name, s3_bucket, s3_key, file_size,
+         total_players, total_bonus_amount)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
 """
 
 _CHANGELOG_INSERT_SQL = """
@@ -86,7 +97,36 @@ def _row_to_response(row: tuple) -> BonusConfigureCodeResponse:
         min_display_amount=row[17],
         active=bool(row[18]), created_by=row[19], updated_by=row[20],
         created_at=_as_dt(row[21]), updated_at=_as_dt(row[22]),
+        is_manual_bonus=bool(row[23]),
     )
+
+
+async def _upload_manual_bonus_csv(csv_file: UploadFile, code: str) -> tuple[str | None, str | None, int]:
+    """Uploads a manual-bonus CSV to S3 (if configured). Returns (bucket, key, size)."""
+    raw = await csv_file.read()
+    size = len(raw)
+
+    s3_configured = bool(settings.s3_access_key_id or settings.s3_endpoint_url)
+    if not s3_configured:
+        log.info("s3_not_configured_skipping_manual_bonus_upload", code=code)
+        return None, None, size
+
+    s3_key = f"manual-bonus/{code}"
+    session = aioboto3.Session()
+    async with session.client(
+        "s3",
+        region_name=settings.s3_region,
+        aws_access_key_id=settings.s3_access_key_id or None,
+        aws_secret_access_key=settings.s3_secret_access_key or None,
+        endpoint_url=settings.s3_endpoint_url or None,
+    ) as s3:
+        try:
+            await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
+        except Exception as exc:
+            log.warning("s3_upload_failed", code=code, error=str(exc))
+            return None, None, size
+
+    return settings.s3_bucket, s3_key, size
 
 
 async def get_bonus_configure_code(code_id: int) -> BonusConfigureCodeResponse:
@@ -100,10 +140,22 @@ async def get_bonus_configure_code(code_id: int) -> BonusConfigureCodeResponse:
 
 
 async def add_bonus_configure_code(
-    data: BonusConfigureCodeCreate, redis: Redis | None = None
+    data: BonusConfigureCodeCreate,
+    redis: Redis | None = None,
+    csv_file: UploadFile | None = None,
+    total_players: int | None = None,
+    total_bonus_amount: str | None = None,
+    kafka_producer: AIOKafkaProducer | None = None,
 ) -> BonusConfigureCodeResponse:
     """
     Create a custom promo code entry for an existing configure.
+
+    When data.is_manual_bonus is set, csv_file is uploaded to S3 (if configured)
+    and a linked bonus_manual_bonus_file row is written in the same transaction,
+    seeded with total_players/total_bonus_amount parsed from the filename. Once
+    committed, a {"manual_bonus_file_id": <id>} event is published to
+    settings.kafka_manual_bonus_topic (best-effort — a publish failure never
+    fails the request) so bonus_event_processor can grant the CSV's players.
 
     Raises:
         DatabaseError: if configure_id does not exist, code already active for the site,
@@ -115,6 +167,11 @@ async def add_bonus_configure_code(
         data.configure_id, data.site_id, data.code, data.created_by,
         data.max_amount, data.valid_from, data.valid_to,
     )
+
+    s3_bucket = s3_key = None
+    file_size = 0
+    if data.is_manual_bonus and csv_file is not None:
+        s3_bucket, s3_key, file_size = await _upload_manual_bonus_csv(csv_file, data.code)
 
     try:
         async with get_connection(POOL_BONUS) as conn:
@@ -142,9 +199,21 @@ async def add_bonus_configure_code(
                         data.display_order, data.display_on,
                         data.min_display_amount, int(data.active),
                         data.created_by, data.created_by, row_hash,
+                        int(data.is_manual_bonus),
                     ),
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
+
+                manual_bonus_file_id: int | None = None
+                if data.is_manual_bonus and csv_file is not None:
+                    await cur.execute(
+                        _MANUAL_BONUS_FILE_INSERT_SQL,
+                        (
+                            new_id, csv_file.filename, s3_bucket, s3_key, file_size,
+                            total_players or 0, total_bonus_amount or "0",
+                        ),
+                    )
+                    manual_bonus_file_id = cur.lastrowid
 
                 now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
                 new_vals = {
@@ -179,6 +248,21 @@ async def add_bonus_configure_code(
     response = _row_to_response(row)
     if redis:
         await bust_auto_apply_code_cache(redis, response.configure_id)
+
+    if manual_bonus_file_id is not None and kafka_producer is not None:  # type: ignore[possibly-undefined]
+        try:
+            await kafka_producer.send(
+                settings.kafka_manual_bonus_topic,
+                key=str(manual_bonus_file_id).encode(),
+                value=json.dumps({"manual_bonus_file_id": manual_bonus_file_id}).encode(),
+            )
+        except Exception as exc:
+            log.warning(
+                "add_bonus_configure_code.manual_bonus_publish_failed",
+                manual_bonus_file_id=manual_bonus_file_id,
+                error=str(exc),
+            )
+
     log.info("add_bonus_configure_code.created", code_id=response.id, configure_id=response.configure_id)
     return response
 

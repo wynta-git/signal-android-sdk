@@ -15,6 +15,7 @@ from app.db import close_pool, init_pool
 from app.dependencies import get_portal_token_context
 from app.routers.bonus_head import register_exception_handlers
 from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_configure_code, bonus_release_trigger, bonus_eligibility, bonus_summary, bonus_spend, pam_user_bonus
+from shared.clients.kafka import make_kafka_producer
 from shared.clients.redis import make_redis_client
 from shared.cors import CORS_ORIGINS
 
@@ -62,7 +63,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     log.info("bonus_service.db_pool_ready")
     app.state.redis = make_redis_client(settings.redis_url)
     log.info("bonus_service.redis_ready")
+    try:
+        app.state.kafka_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+        log.info("bonus_service.kafka_producer_ready")
+    except Exception as exc:
+        log.warning("bonus_service.kafka_producer_unavailable", error=str(exc))
+        app.state.kafka_producer = None
     yield
+    if app.state.kafka_producer is not None:
+        await app.state.kafka_producer.stop()
     await app.state.redis.aclose()
     await close_pool()
     log.info("bonus_service.stopped")
