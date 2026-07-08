@@ -6,6 +6,7 @@ export NEXT_PUBLIC_BONUS_API_URL="$QA_BASE"
 export NEXT_PUBLIC_AUTH_API_URL="$QA_BASE"
 export NEXT_PUBLIC_SEG_API_URL="$QA_BASE"
 export NEXT_PUBLIC_CAMPAIGN_API_URL="$QA_BASE"
+export NEXT_PUBLIC_COPILOT_API_URL="https://qa-ai-engine.fozilpartners.com"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST_DIR="$SCRIPT_DIR/dist"
