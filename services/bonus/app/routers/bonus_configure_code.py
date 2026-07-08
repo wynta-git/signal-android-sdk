@@ -115,5 +115,9 @@ async def patch_bonus_configure_code(
     ctx: PortalAuthDep,
     request: Request,
 ) -> BonusConfigureCodeResponse:
+    existing = await get_bonus_configure_code(code_id)
+    if existing.is_manual_bonus:
+        raise HTTPException(status_code=422, detail="Manual bonus promo codes cannot be edited.")
+
     payload.updated_by = ctx.user_id
     return await update_bonus_configure_code(code_id, payload, request.app.state.redis)
