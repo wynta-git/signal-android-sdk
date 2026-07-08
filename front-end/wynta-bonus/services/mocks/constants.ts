@@ -2,31 +2,31 @@
 
 import { iso } from './iso';
 
-export const PLAYER_FIRST_NAMES: string[] = [
+export const PAM_USER_FIRST_NAMES: string[] = [
   'Aarav','Vihaan','Aditya','Vivaan','Krishna','Arjun','Reyansh','Ayaan','Atharv','Rohan',
   'Kabir','Ishaan','Pranav','Siddharth','Karan','Rahul','Vikram','Aniket','Manish','Sandeep',
   'Saanvi','Aanya','Aadhya','Ananya','Pari','Anika','Navya','Diya','Kiara','Myra',
   'Sara','Anvi','Riya','Priya','Neha','Pooja','Meera','Kavya','Tanvi','Ishita',
 ];
 
-export const PLAYER_LAST_NAMES: string[] = [
+export const PAM_USER_LAST_NAMES: string[] = [
   'Sharma','Verma','Patel','Kumar','Singh','Gupta','Reddy','Iyer','Rao','Mehta',
   'Joshi','Chopra','Kapoor','Malhotra','Bansal','Agarwal','Nair','Shah','Khan','Desai',
   'Mishra','Trivedi','Bhatt','Pillai','Menon','Saxena','Tiwari','Banerjee','Mukherjee','Sinha',
 ];
 
-export const PLAYER_STATES: string[] = [
+export const PAM_USER_STATES: string[] = [
   'Maharashtra','Karnataka','Gujarat','Tamil Nadu','Delhi','Telangana',
   'West Bengal','Punjab','Rajasthan','Kerala','Uttar Pradesh','Haryana',
   'Madhya Pradesh','Andhra Pradesh',
 ];
 
-export const PLAYER_TIERS: string[] = ['Bronze','Silver','Gold','VIP T1','VIP T2','VIP T3'];
-export const PLAYER_KYC: string[]   = ['VERIFIED','VERIFIED','VERIFIED','VERIFIED','PENDING','REJECTED'];
-export const PLAYER_PRODUCTS: string[] = ['Rummy','Poker','Casino','Sports','Fantasy'];
+export const PAM_USER_TIERS: string[] = ['Bronze','Silver','Gold','VIP T1','VIP T2','VIP T3'];
+export const PAM_USER_KYC: string[]   = ['VERIFIED','VERIFIED','VERIFIED','VERIFIED','PENDING','REJECTED'];
+export const PAM_USER_PRODUCTS: string[] = ['Rummy','Poker','Casino','Sports','Fantasy'];
 
-export const PLAYERS_PAGE_SIZE   = 10;
-export const PLAYERS_SEARCH_CAP  = 1000;
+export const PAM_USERS_PAGE_SIZE   = 10;
+export const PAM_USERS_SEARCH_CAP  = 1000;
 
 export const BRANDS = [
   { id: 'TR', name: 'TR Casino',      site_id: 'tr-casino', color: '#0091e0' },

@@ -12,4 +12,5 @@ CORS_ORIGINS: list[str] = [
     "https://affiliates.fozilpartners.com",
     "http://demo.wynta.com",
     "https://demo.wynta.com",
+    "https://partners.southrummy.com",
 ]

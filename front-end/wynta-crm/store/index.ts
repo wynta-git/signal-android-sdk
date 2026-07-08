@@ -5,7 +5,7 @@ import segmentsReducer  from 'wynta-react-common/store/slices/segmentsSlice';
 import copilotReducer   from 'wynta-react-common/store/slices/copilotSlice';
 import campaignsReducer from './slices/campaignsSlice';
 import dashboardReducer from './slices/dashboardSlice';
-import eventsReducer    from './slices/eventsSlice';
+import eventsReducer    from 'wynta-react-common/store/slices/eventsSlice';
 import reportsReducer   from './slices/reportsSlice';
 import uiReducer        from './slices/uiSlice';
 

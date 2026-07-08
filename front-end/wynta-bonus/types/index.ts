@@ -76,6 +76,14 @@ export interface PromoCode {
   updated_by?: string;
   created_at?: string;
   updated_at?: string;
+  is_manual_bonus?: boolean;
+  manual_bonus_status?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'PARTIAL_SUCCESS' | 'FAILED' | null;
+  manual_bonus_total_players?: number | null;
+  manual_bonus_total_amount?: string | number | null;
+  manual_bonus_success_players?: number | null;
+  manual_bonus_success_amount?: string | number | null;
+  manual_bonus_failed_players?: number | null;
+  manual_bonus_failed_amount?: string | number | null;
 }
 
 export interface Trigger {
@@ -178,7 +186,7 @@ export interface Segment {
   owner?: string;
 }
 
-export interface Player {
+export interface PAMUser {
   id: number;
   name: string;
   email: string;
@@ -197,8 +205,8 @@ export interface Player {
   product: string;
 }
 
-export interface PlayerPage {
-  players: Player[];
+export interface PAMUserPage {
+  players: PAMUser[];
   page: number;
   pageTotal: number;
   total: number;

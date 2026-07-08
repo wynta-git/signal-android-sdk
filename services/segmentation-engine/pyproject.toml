@@ -14,6 +14,7 @@ dependencies = [
     "clickhouse-connect>=0.7.0",
     "apscheduler>=3.10.0",
     "aioboto3>=12.0.0",
+    "python-multipart>=0.0.9",
     "pam-shared",
 ]
 

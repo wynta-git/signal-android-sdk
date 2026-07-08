@@ -12,6 +12,7 @@ import {
 } from "../../store/slices/segmentsSlice";
 import AddSegmentModal from "./AddSegmentModal";
 import DeleteSegmentModal from "./DeleteSegmentModal";
+import SegmentUploadHistory from "./SegmentUploadHistory";
 import SegmentUsersModal from "./SegmentUsersModal";
 import { formatConditions, formatRelative } from "../../utils";
 import { getToken } from "../../services/tokenRegistry";
@@ -36,6 +37,8 @@ interface SegmentRow {
   created: string;
   createdBy: string;
   usedIn: string[];
+  csvFilename?: string;
+  csvUploadedBy?: string;
 }
 
 function toRow(s: Segment): SegmentRow {
@@ -54,6 +57,8 @@ function toRow(s: Segment): SegmentRow {
     created: formatRelative(s.last_used_at),
     createdBy: (s as any).owner ?? s.owner ?? "System",
     usedIn: s.used_by_campaigns ?? (s as any).used_in ?? [],
+    csvFilename: s.original_filename ?? undefined,
+    csvUploadedBy: s.uploaded_by ?? undefined,
   };
 }
 
@@ -269,6 +274,7 @@ export default function SegmentsPage({
     id: string;
     name: string;
   } | null>(null);
+  const [historySegment, setHistorySegment] = useState<Segment | null>(null);
   const [viewUsersRow, setViewUsersRow] = useState<SegmentRow | null>(null);
 
   function handleDeleteClick(id: string, name: string) {
@@ -475,6 +481,28 @@ export default function SegmentsPage({
                   <tr key={row.id}>
                     <td>
                       <div className="seg-row-name">{row.name}</div>
+                      {row.csvFilename && (
+                        <div className="seg-row-csv-meta">
+                          <span
+                            title="View upload history"
+                            role="button"
+                            tabIndex={0}
+                            style={{ fontSize: 12, color: '#0091E0', textDecoration: 'underline', cursor: 'pointer' }}
+                            onClick={() => {
+                              const seg = apiSegments.find(s => String(s.id) === row.id);
+                              if (seg) setHistorySegment(seg);
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                const seg = apiSegments.find(s => String(s.id) === row.id);
+                                if (seg) setHistorySegment(seg);
+                              }
+                            }}
+                          >
+                            {row.csvFilename}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div className="seg-conditions" title={row.conditions}>
@@ -604,6 +632,15 @@ export default function SegmentsPage({
           </div>
         )}
       </div>
+
+      {/* Upload history modal */}
+      {historySegment && (
+        <SegmentUploadHistory
+          segment={historySegment}
+          onClose={() => setHistorySegment(null)}
+          onReuploaded={() => dispatch(fetchSegments(brandId))}
+        />
+      )}
 
       {/* Delete confirmation modal */}
       {deleteTarget && (

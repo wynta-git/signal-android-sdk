@@ -1,4 +1,4 @@
-"""Tests for player_bonus_service — DB layer is mocked, no real MySQL needed."""
+"""Tests for pam_user_bonus_service — DB layer is mocked, no real MySQL needed."""
 
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -7,15 +7,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.exceptions import DatabaseError, PlayerBonusConsumedError, PlayerBonusNotFoundError
-from app.models.player_bonus import PlayerBonusConsumeCreate
-from app.services.player_bonus_service import (
+from app.exceptions import DatabaseError, PAMUserBonusConsumedError, PAMUserBonusNotFoundError
+from app.models.pam_user_bonus import PAMUserBonusConsumeCreate
+from app.services.pam_user_bonus_service import (
     consume_bonus,
-    get_player_bonus_summary,
-    get_player_referral_code,
-    get_player_transaction_detail,
+    get_consume_status,
+    get_pam_user_bonus_summary,
+    get_pam_user_referral_code,
+    get_pam_user_transaction_detail,
     list_applicable_codes,
-    list_player_transactions,
+    list_pam_user_transactions,
     revert_consumption,
 )
 
@@ -48,7 +49,7 @@ def patch_conn(cur: AsyncMock):
     async def _fake_get_connection(pool=None):
         yield conn
 
-    with patch("app.services.player_bonus_service.get_connection", _fake_get_connection):
+    with patch("app.services.pam_user_bonus_service.get_connection", _fake_get_connection):
         yield conn
 
 
@@ -102,12 +103,12 @@ async def test_applicable_codes_db_error(cur: AsyncMock, patch_conn: MagicMock) 
 # 2. consume_bonus
 # ---------------------------------------------------------------------------
 
-_CONSUME_PAYLOAD = PlayerBonusConsumeCreate(
+_CONSUME_PAYLOAD = PAMUserBonusConsumeCreate(
     user_id="user123",
     consume_txn_id="txn-abc",
-    wager_amount=Decimal("100.00"),
+    transaction_amount=Decimal("100.00"),
     bonus_amount=Decimal("50.00"),
-    chip_type="cash",
+    chip_type="CASH",
     wager_tnx_id="wager-001",
 )
 
@@ -132,19 +133,36 @@ async def test_consume_bonus_success(cur: AsyncMock, patch_conn: MagicMock) -> N
 async def test_consume_bonus_duplicate_raises_conflict(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.fetchone.return_value = (99,)  # consume_txn_id already exists
 
-    with pytest.raises(PlayerBonusConsumedError):
+    with pytest.raises(PAMUserBonusConsumedError):
         await consume_bonus(_CONSUME_PAYLOAD)
 
     patch_conn.commit.assert_not_awaited()
 
 
-async def test_consume_bonus_no_chunk_raises_not_found(cur: AsyncMock, patch_conn: MagicMock) -> None:
-    cur.fetchone.side_effect = [None, None]  # no duplicate, but no released chunk
+async def test_consume_bonus_no_grant_records_zero_consumed(
+    cur: AsyncMock, patch_conn: MagicMock
+) -> None:
+    cur.fetchone.return_value = None  # no duplicate consume_txn_id
+    cur.fetchall.return_value = []    # no released chunks for the player
 
-    with pytest.raises(PlayerBonusNotFoundError):
-        await consume_bonus(_CONSUME_PAYLOAD)
+    with patch(
+        "app.services.pam_user_bonus_service.get_or_create_pam_user",
+        AsyncMock(return_value=1),
+    ):
+        result = await consume_bonus(_CONSUME_PAYLOAD, AsyncMock(), site_id=1)
 
-    patch_conn.commit.assert_not_awaited()
+    # the request is still recorded in bonus_consumed for tracking
+    assert result.txn_id == 99
+    assert result.consume_txn_id == "txn-abc"
+    assert result.bonus_amount == Decimal("50.00")
+    assert result.consumed_amount == Decimal("0.00")
+    assert result.chip_type == "CASH"
+    insert_params = [
+        c.args[1] for c in cur.execute.await_args_list if "INSERT INTO bonus_consumed" in c.args[0]
+    ]
+    assert len(insert_params) == 1
+    assert insert_params[0][0] == "txn-abc"  # consume_txn_id persisted on the row
+    patch_conn.commit.assert_awaited_once()
 
 
 async def test_consume_bonus_db_error(cur: AsyncMock, patch_conn: MagicMock) -> None:
@@ -163,6 +181,42 @@ async def test_consume_bonus_idempotency_key_used_in_query(
     # first execute must be the duplicate-check with the consume_txn_id
     first_call_params = cur.execute.await_args_list[0][0][1]
     assert "txn-abc" in first_call_params
+
+
+# ---------------------------------------------------------------------------
+# 2b. get_consume_status
+# ---------------------------------------------------------------------------
+
+# (id, amount, consumed_amount, chip_type)
+_STATUS_ROW = (99, Decimal("50.00"), Decimal("30.00"), "CASH")
+
+
+async def test_consume_status_found(cur: AsyncMock, patch_conn: MagicMock) -> None:
+    cur.fetchone.return_value = _STATUS_ROW
+
+    result = await get_consume_status("txn-abc")
+
+    assert result.txn_id == 99
+    assert result.consume_txn_id == "txn-abc"
+    assert result.bonus_amount == Decimal("50.00")
+    assert result.consumed_amount == Decimal("30.00")
+    assert result.chip_type == "CASH"
+
+
+async def test_consume_status_not_found_raises_404(
+    cur: AsyncMock, patch_conn: MagicMock
+) -> None:
+    cur.fetchone.return_value = None
+
+    with pytest.raises(PAMUserBonusNotFoundError):
+        await get_consume_status("txn-unknown")
+
+
+async def test_consume_status_db_error(cur: AsyncMock, patch_conn: MagicMock) -> None:
+    cur.execute.side_effect = RuntimeError("db down")
+
+    with pytest.raises(DatabaseError):
+        await get_consume_status("txn-abc")
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +242,7 @@ async def test_revert_success(cur: AsyncMock, patch_conn: MagicMock) -> None:
 async def test_revert_not_found(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.fetchone.return_value = None
 
-    with pytest.raises(PlayerBonusNotFoundError):
+    with pytest.raises(PAMUserBonusNotFoundError):
         await revert_consumption("txn-nonexistent")
 
     patch_conn.commit.assert_not_awaited()
@@ -202,7 +256,7 @@ async def test_revert_db_error(cur: AsyncMock, patch_conn: MagicMock) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. get_player_bonus_summary
+# 4. get_pam_user_bonus_summary
 # ---------------------------------------------------------------------------
 
 
@@ -213,7 +267,7 @@ async def test_bonus_summary_single_chip(cur: AsyncMock, patch_conn: MagicMock) 
         [("cash", Decimal("400.00"))],
     ]
 
-    result = await get_player_bonus_summary(42)
+    result = await get_pam_user_bonus_summary(42)
 
     assert len(result) == 1
     r = result[0]
@@ -230,7 +284,7 @@ async def test_bonus_summary_multiple_chip_types(cur: AsyncMock, patch_conn: Mag
         [("in_app_purchase", Decimal("80.00"))],
     ]
 
-    result = await get_player_bonus_summary(42)
+    result = await get_pam_user_bonus_summary(42)
 
     chips = {r.chip_type: r for r in result}
     assert "cash" in chips
@@ -243,7 +297,7 @@ async def test_bonus_summary_multiple_chip_types(cur: AsyncMock, patch_conn: Mag
 async def test_bonus_summary_no_bonuses_returns_empty(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.fetchall.side_effect = [[], [], []]
 
-    result = await get_player_bonus_summary(42)
+    result = await get_pam_user_bonus_summary(42)
 
     assert result == []
 
@@ -252,11 +306,11 @@ async def test_bonus_summary_db_error(cur: AsyncMock, patch_conn: MagicMock) -> 
     cur.execute.side_effect = RuntimeError("db error")
 
     with pytest.raises(DatabaseError):
-        await get_player_bonus_summary(42)
+        await get_pam_user_bonus_summary(42)
 
 
 # ---------------------------------------------------------------------------
-# 5. list_player_transactions
+# 5. list_pam_user_transactions
 # ---------------------------------------------------------------------------
 
 # (txn_id, bonus_code, amount, type, created_at)
@@ -268,7 +322,7 @@ _TXN_CONSUME_ROW = (12, None, Decimal("50.00"), "consumed", _NOW)
 async def test_list_transactions_returns_all_types(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.fetchall.return_value = [_TXN_GRANT_ROW, _TXN_RELEASE_ROW, _TXN_CONSUME_ROW]
 
-    result = await list_player_transactions(42, "cash")
+    result = await list_pam_user_transactions(42, "cash")
 
     assert len(result) == 3
     assert result[0].txn_id == 10
@@ -282,7 +336,7 @@ async def test_list_transactions_returns_all_types(cur: AsyncMock, patch_conn: M
 async def test_list_transactions_empty(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.fetchall.return_value = []
 
-    result = await list_player_transactions(42, "cash")
+    result = await list_pam_user_transactions(42, "cash")
 
     assert result == []
 
@@ -292,7 +346,7 @@ async def test_list_transactions_limit_offset_passed_to_query(
 ) -> None:
     cur.fetchall.return_value = []
 
-    await list_player_transactions(42, "cash", limit=10, offset=20)
+    await list_pam_user_transactions(42, "cash", limit=10, offset=20)
 
     call_params = cur.execute.await_args[0][1]
     assert call_params[-2] == 10   # limit is second-to-last
@@ -303,11 +357,11 @@ async def test_list_transactions_db_error(cur: AsyncMock, patch_conn: MagicMock)
     cur.execute.side_effect = RuntimeError("connection refused")
 
     with pytest.raises(DatabaseError):
-        await list_player_transactions(42, "cash")
+        await list_pam_user_transactions(42, "cash")
 
 
 # ---------------------------------------------------------------------------
-# 6. get_player_transaction_detail
+# 6. get_pam_user_transaction_detail
 # ---------------------------------------------------------------------------
 
 # SELECT id, pam_user_id, bonus_code, wager_multiplier, no_of_chunks,
@@ -339,7 +393,7 @@ async def test_transaction_detail_success(cur: AsyncMock, patch_conn: MagicMock)
     cur.fetchone.side_effect = [_GRANT_ROW, None]          # grant row, no forfeit
     cur.fetchall.side_effect = [[_CHUNK_PENDING, _CHUNK_RELEASE], []]  # chunks, no expiry
 
-    result = await get_player_transaction_detail(42, "user123", 5)
+    result = await get_pam_user_transaction_detail(42, "user123", 5)
 
     assert result.txn_id == 5
     assert result.user_id == "user123"
@@ -355,7 +409,7 @@ async def test_transaction_detail_chunk_fields(cur: AsyncMock, patch_conn: Magic
     cur.fetchone.side_effect = [_GRANT_ROW, None]
     cur.fetchall.side_effect = [[_CHUNK_PENDING], []]
 
-    result = await get_player_transaction_detail(42, "user123", 5)
+    result = await get_pam_user_transaction_detail(42, "user123", 5)
 
     chunk = result.chunks[0]
     assert chunk.id == 1
@@ -369,7 +423,7 @@ async def test_transaction_detail_with_forfeit(cur: AsyncMock, patch_conn: Magic
     cur.fetchone.side_effect = [_GRANT_ROW, _FORFEIT_ROW]
     cur.fetchall.side_effect = [[_CHUNK_RELEASE], []]
 
-    result = await get_player_transaction_detail(42, "user123", 5)
+    result = await get_pam_user_transaction_detail(42, "user123", 5)
 
     assert result.forfeit is not None
     assert result.forfeit.id == 10
@@ -382,7 +436,7 @@ async def test_transaction_detail_with_expiry_events(cur: AsyncMock, patch_conn:
     cur.fetchone.side_effect = [_GRANT_ROW, None]
     cur.fetchall.side_effect = [[_CHUNK_PENDING], [_EXPIRY_ROW]]
 
-    result = await get_player_transaction_detail(42, "user123", 5)
+    result = await get_pam_user_transaction_detail(42, "user123", 5)
 
     assert len(result.expiry_events) == 1
     ev = result.expiry_events[0]
@@ -395,23 +449,23 @@ async def test_transaction_detail_with_expiry_events(cur: AsyncMock, patch_conn:
 async def test_transaction_detail_not_found_raises(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.fetchone.return_value = None
 
-    with pytest.raises(PlayerBonusNotFoundError):
-        await get_player_transaction_detail(42, "user123", 99)
+    with pytest.raises(PAMUserBonusNotFoundError):
+        await get_pam_user_transaction_detail(42, "user123", 99)
 
 
 async def test_transaction_detail_wrong_user_raises(cur: AsyncMock, patch_conn: MagicMock) -> None:
     wrong_user_row = (_GRANT_ROW[0], 99) + _GRANT_ROW[2:]  # 99 != 42
     cur.fetchone.return_value = wrong_user_row
 
-    with pytest.raises(PlayerBonusNotFoundError):
-        await get_player_transaction_detail(42, "user123", 5)
+    with pytest.raises(PAMUserBonusNotFoundError):
+        await get_pam_user_transaction_detail(42, "user123", 5)
 
 
 async def test_transaction_detail_db_error(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.execute.side_effect = RuntimeError("db failure")
 
     with pytest.raises(DatabaseError):
-        await get_player_transaction_detail(42, "user123", 5)
+        await get_pam_user_transaction_detail(42, "user123", 5)
 
 
 async def test_transaction_detail_status_partially_released(
@@ -420,7 +474,7 @@ async def test_transaction_detail_status_partially_released(
     cur.fetchone.side_effect = [_GRANT_ROW, None]
     cur.fetchall.side_effect = [[_CHUNK_PENDING, _CHUNK_RELEASE], []]
 
-    result = await get_player_transaction_detail(42, "user123", 5)
+    result = await get_pam_user_transaction_detail(42, "user123", 5)
 
     assert result.status == "PARTIALLY_RELEASED"
 
@@ -432,7 +486,7 @@ async def test_transaction_detail_status_fully_released(
     cur.fetchone.side_effect = [_GRANT_ROW, None]
     cur.fetchall.side_effect = [[_CHUNK_RELEASE, _CHUNK_RELEASE], []]
 
-    result = await get_player_transaction_detail(42, "user123", 5)
+    result = await get_pam_user_transaction_detail(42, "user123", 5)
 
     assert result.status == "RELEASE"
 
@@ -441,20 +495,20 @@ async def test_transaction_detail_status_pending(cur: AsyncMock, patch_conn: Mag
     cur.fetchone.side_effect = [_GRANT_ROW, None]
     cur.fetchall.side_effect = [[_CHUNK_PENDING], []]
 
-    result = await get_player_transaction_detail(42, "user123", 5)
+    result = await get_pam_user_transaction_detail(42, "user123", 5)
 
     assert result.status == "PENDING"
 
 
 # ---------------------------------------------------------------------------
-# 7. get_player_referral_code
+# 7. get_pam_user_referral_code
 # ---------------------------------------------------------------------------
 
 
 async def test_referral_code_success(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.fetchone.return_value = ("user123", "REF-XYZ999", _NOW)
 
-    result = await get_player_referral_code("user123")
+    result = await get_pam_user_referral_code("user123")
 
     assert result.user_id == "user123"
     assert result.referral_code == "REF-XYZ999"
@@ -464,12 +518,12 @@ async def test_referral_code_success(cur: AsyncMock, patch_conn: MagicMock) -> N
 async def test_referral_code_not_found_raises(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.fetchone.return_value = None
 
-    with pytest.raises(PlayerBonusNotFoundError):
-        await get_player_referral_code("user123")
+    with pytest.raises(PAMUserBonusNotFoundError):
+        await get_pam_user_referral_code("user123")
 
 
 async def test_referral_code_db_error(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.execute.side_effect = RuntimeError("network error")
 
     with pytest.raises(DatabaseError):
-        await get_player_referral_code("user123")
+        await get_pam_user_referral_code("user123")

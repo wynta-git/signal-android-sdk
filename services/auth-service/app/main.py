@@ -18,7 +18,7 @@ from app.routes.pam_users import router as pam_users_router
 from app.routes.portal_token import router as portal_token_router
 from app.routes.ready import router as ready_router
 from app.routes.token import router as token_router
-from app.routes.users import router as users_router
+from app.routes.system_users import router as system_users_router
 from shared.clients.mongo import make_mongo_client
 from shared.cors import CORS_ORIGINS
 from shared.logging_config import configure_logging
@@ -92,7 +92,7 @@ app.include_router(exchange_token_router, prefix=route_prefix)
 app.include_router(ready_router, prefix=route_prefix)
 _portal = [Depends(get_portal_token_context)]
 
-app.include_router(users_router, prefix=route_prefix, dependencies=_portal)
+app.include_router(system_users_router, prefix=route_prefix, dependencies=_portal)
 app.include_router(brands_router, prefix=route_prefix, dependencies=_portal)
 app.include_router(client_router, prefix=route_prefix, dependencies=_portal)
 app.include_router(pam_users_router, prefix=route_prefix, dependencies=_portal)

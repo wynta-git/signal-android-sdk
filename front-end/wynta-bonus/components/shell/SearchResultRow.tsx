@@ -1,6 +1,6 @@
 'use client';
 import Icon from 'wynta-react-common/components/Icon';
-import type { Player, Segment } from '../../types';
+import type { PAMUser, Segment } from '../../types';
 
 interface PromoCodeResult {
   id: string | number;
@@ -13,8 +13,8 @@ interface ConfigResult {
 }
 
 export interface SearchResultItem {
-  kind: 'player' | 'segment' | 'code' | 'head' | 'subhead' | 'configure';
-  payload: Player | Segment | PromoCodeResult | ConfigResult;
+  kind: 'pam_user' | 'segment' | 'code' | 'head' | 'subhead' | 'configure';
+  payload: PAMUser | Segment | PromoCodeResult | ConfigResult;
   parentId?: number;
   parentName?: string;
   crumb?: string;
@@ -34,8 +34,8 @@ function _initials(name: string): string {
 export default function SearchResultRow({ item, active, onHover, onClick }: SearchResultRowProps) {
   const cls = 'gp-pop-item' + (active ? ' active' : '');
 
-  if (item.kind === 'player') {
-    const p = item.payload as Player;
+  if (item.kind === 'pam_user') {
+    const p = item.payload as PAMUser;
     return (
       <div className={cls} onMouseEnter={onHover} onClick={onClick}>
         <span className="avatar">{_initials(p.name)}</span>
