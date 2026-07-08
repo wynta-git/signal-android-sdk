@@ -215,8 +215,6 @@ export default function GlobalSearch({ onSelectNode }: GlobalSearchProps) {
         <SegmentUsersModal
           segment={viewSegment}
           onClose={() => setViewSegment(null)}
-          showBonus
-          siteId={selectedBrand}
         />
       )}
     </div>

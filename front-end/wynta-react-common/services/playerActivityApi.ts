@@ -24,6 +24,8 @@ export interface UserEvent {
   currency: string | null;
   platform: string | null;
   device_type: string | null;
+  /** Remaining raw event fields (dynamic property columns + envelope fields). */
+  properties?: Record<string, unknown> | null;
 }
 
 export interface UserEventsPage {
@@ -34,6 +36,14 @@ export interface UserEventsPage {
 }
 
 // ── Types: bonus transactions (bonus service, portal routes) ─────────────────
+
+export interface BonusSummaryEntry {
+  chip_type: string;
+  bonus_balance: string;
+  pending_bonus: string;
+  wagering_required: string;
+  wagering_done: string;
+}
 
 export interface BonusTxnSummary {
   txn_id: number;
@@ -207,6 +217,20 @@ export async function fetchUserEvents(
     { headers: authHeader() }
   );
   if (!res.ok) throw new Error(`fetchUserEvents failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchPlayerBonusSummary(
+  userId: string,
+  siteId: string | number
+): Promise<BonusSummaryEntry[]> {
+  const params = new URLSearchParams({ site_id: String(siteId) });
+  const res = await fetch(
+    `${BONUS_API}/portal/user-bonuses/${encodeURIComponent(userId)}/summary?${params}`,
+    { headers: authHeader() }
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`fetchPlayerBonusSummary failed: ${res.status}`);
   return res.json();
 }
 

@@ -2,10 +2,12 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from shared.services.user import get_pam_user_id
 
 from app.models.pam_user_bonus import (
+    PAMUserBonusSummaryResponse,
     PAMUserBonusTransactionSummary,
     TxnDetailResponse,
 )
 from app.services.pam_user_bonus_service import (
+    get_pam_user_bonus_summary,
     get_txn_detail_by_type,
     list_pam_user_transactions,
 )
@@ -18,6 +20,16 @@ async def _resolve_pam_user(request: Request, site_id: int, user_id: str) -> int
     if pam_id is None:
         raise HTTPException(status_code=404, detail=f"User {user_id!r} not found")
     return pam_id
+
+
+@router.get("/{user_id}/summary", response_model=list[PAMUserBonusSummaryResponse])
+async def get_summary(
+    user_id: str,
+    request: Request,
+    site_id: int = Query(..., ge=1),
+) -> list[PAMUserBonusSummaryResponse]:
+    pam_id = await _resolve_pam_user(request, site_id, user_id)
+    return await get_pam_user_bonus_summary(pam_id)
 
 
 @router.get("/{user_id}/transactions", response_model=list[PAMUserBonusTransactionSummary])

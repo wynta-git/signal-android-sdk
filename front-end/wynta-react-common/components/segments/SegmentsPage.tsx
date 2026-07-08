@@ -66,8 +66,6 @@ interface SegmentsPageProps {
   /** Called when user clicks Add Segment; if omitted the built-in modal is shown */
   onAddSegment?: () => void;
   brandId?: number;
-  showBonus?: boolean;
-  siteId?: string | number | null;
 }
 
 type SegSortCol =
@@ -104,8 +102,6 @@ function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
 export default function SegmentsPage({
   onAddSegment,
   brandId,
-  showBonus = false,
-  siteId,
 }: SegmentsPageProps) {
   const dispatch = useDispatch<any>();
 
@@ -687,8 +683,6 @@ export default function SegmentsPage({
             count: viewUsersRow.rawCount,
           }}
           onClose={() => setViewUsersRow(null)}
-          showBonus={showBonus}
-          siteId={siteId}
         />
       )}
     </div>

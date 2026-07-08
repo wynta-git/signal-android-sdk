@@ -20,6 +20,17 @@ _EVENT_COLUMNS = (
     "amount", "currency", "platform", "device_type",
 )
 
+# ClickHouse bookkeeping columns never surfaced as raw event data.
+_HIDDEN_COLUMNS = frozenset({"insert_date", "created_at"})
+
+
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat() + "Z"
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
 
 @router.get("/{user_id}/events")
 async def list_user_events(
@@ -51,15 +62,17 @@ async def list_user_events(
         parameters["before"] = cursor.replace(tzinfo=None)
         where.append("timestamp < {before:DateTime64(3)}")
 
+    columns: list[str] = []
     try:
         result = await ch.query(
-            f"SELECT {', '.join(_EVENT_COLUMNS)} FROM {table}"
+            f"SELECT * FROM {table}"
             f" WHERE {' AND '.join(where)}"
             " ORDER BY timestamp DESC"
             " LIMIT {limit:UInt32}",
             parameters=parameters,
         )
         rows = result.result_rows
+        columns = list(result.column_names)
     except Exception as exc:
         log.warning(
             "pam_users.fetch_events_failed",
@@ -72,10 +85,15 @@ async def list_user_events(
 
     events = []
     for row in rows:
-        event = dict(zip(_EVENT_COLUMNS, row, strict=False))
-        event["event_id"] = str(event["event_id"])
-        if isinstance(event["timestamp"], datetime):
-            event["timestamp"] = event["timestamp"].isoformat() + "Z"
+        full = {c: _json_safe(v) for c, v in zip(columns, row, strict=False)}
+        event = {c: full.get(c) for c in _EVENT_COLUMNS}
+        # Everything else (dynamic property columns + remaining envelope fields)
+        # is surfaced as the raw event payload.
+        event["properties"] = {
+            k: v for k, v in full.items()
+            if k not in _EVENT_COLUMNS and k not in _HIDDEN_COLUMNS
+            and v is not None and v != ""
+        }
         events.append(event)
 
     return {
