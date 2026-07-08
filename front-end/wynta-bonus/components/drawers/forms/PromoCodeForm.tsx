@@ -27,6 +27,24 @@ function toDateLocal(val: string | null | undefined): string {
   return val.slice(0, 10);
 }
 
+// Expected: ANYNAME-MONTH-DD-TOTPLAYERSCOUNT-TOTALGRANTAMOUNT.csv
+// e.g. WELCOME-JULY-07-100-50000.csv
+function validateManualBonusFileName(fileName: string): string | null {
+  if (!fileName.toLowerCase().endsWith('.csv')) {
+    return 'File must be a CSV file (.csv).';
+  }
+  const base = fileName.slice(0, fileName.length - 4);
+  const parts = base.split('-');
+  if (parts.length !== 5 || parts.some(p => p.length === 0)) {
+    return 'Filename must follow the format ANYNAME-MONTH-DD-TOTPLAYERSCOUNT-TOTALGRANTAMOUNT.csv';
+  }
+  const [, , , totalPlayersCount, totalGrantAmount] = parts;
+  if (!/^\d+$/.test(totalPlayersCount) || !/^\d+$/.test(totalGrantAmount)) {
+    return 'TOTPLAYERSCOUNT and TOTALGRANTAMOUNT in the filename must be numeric.';
+  }
+  return null;
+}
+
 function initState(existing: PromoCode | null, cfg?: BonusConfigure) {
   if (existing) {
     return {
@@ -99,6 +117,34 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
   const [minDisplayAmount,   setMinDisplayAmount]   = useState(init.minDisplayAmount);
   const [active,             setActive]             = useState(init.active);
 
+  const [isManualBonus, setIsManualBonus] = useState(false);
+  const [csvError,      setCsvError]      = useState<string | null>(null);
+  const [csvFile,       setCsvFile]       = useState<File | null>(null);
+
+  const isNew = !isEdit && !isClone;
+
+  function handleManualBonusToggle(on: boolean) {
+    setIsManualBonus(on);
+    setCode('');
+    setCsvError(null);
+    setCsvFile(null);
+    if (on) {
+      setMaxAmount('');
+      setActive(true);
+      setAutoApply(false);
+      setSystemAutoApply(false);
+    }
+  }
+
+  function handleCsvFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const error = validateManualBonusFileName(file.name);
+    setCsvError(error);
+    setCode(error ? '' : file.name.replace(/\.csv$/i, ''));
+    setCsvFile(error ? null : file);
+  }
+
   useEffect(() => {
     if ((!isEdit && !isClone) || state.id == null) return;
     dispatch(fetchPromoCode(state.id))
@@ -128,6 +174,10 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isManualBonus && (!code || csvError || !maxAmount || !csvFile)) {
+      if (!code || csvError || !csvFile) setCsvError(csvError ?? 'Please upload a valid CSV file.');
+      return;
+    }
     onSubmit({
       code,
       max_amount:          maxAmount          || null,
@@ -145,6 +195,8 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
       display_on:          displayOn,
       min_display_amount:  minDisplayAmount   || null,
       active,
+      is_manual_bonus:     isManualBonus,
+      ...(isManualBonus && csvFile ? { csv_file: csvFile } : {}),
     });
   };
 
@@ -166,29 +218,71 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
           </div>
         )}
 
-        <div className="field-group">
-          <label>Code {!isEdit && <span className="required">*</span>}</label>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder="e.g. WELCOME100"
-            style={{ fontFamily: 'var(--mono)', letterSpacing: '0.04em', fontWeight: 600 }}
-            required={!isEdit}
-            readOnly={isEdit && !isClone}
-          />
-          <div className="helper">Alphanumeric + dashes. Unique per site.</div>
-        </div>
+        {isNew && (
+          <div className="field-group">
+            <label>Is Manual Bonus</label>
+            <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
+              <Toggle on={isManualBonus} onChange={handleManualBonusToggle} label={isManualBonus ? 'On' : 'Off'}/>
+            </div>
+          </div>
+        )}
 
+        {isManualBonus ? (
+          <>
+            <div className="field-group">
+              <label>Upload CSV <span className="required">*</span></label>
+              <div className="mb-upload">
+                <label className="mb-file">
+                  <Icon name="upload" size={13}/>
+                  <span>Browse CSV</span>
+                  <input type="file" accept=".csv,text/csv" onChange={handleCsvFileChange} hidden/>
+                </label>
+              </div>
+              {csvError ? (
+                <div className="helper" style={{ color: 'var(--err)' }}>{csvError}</div>
+              ) : (
+                <div className="helper">Format: ANYNAME-MONTH-DD-TOTPLAYERSCOUNT-TOTALGRANTAMOUNT.csv (e.g. WELCOME-JULY-07-100-50000.csv). The filename becomes the promo code.</div>
+              )}
+            </div>
+            {code && !csvError && (
+              <div className="field-group">
+                <label>Promo code</label>
+                <div className="mb-upload">
+                  <span className="mono">{code}</span>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="field-group">
+            <label>Code {!isEdit && <span className="required">*</span>}</label>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="e.g. WELCOME100"
+              style={{ fontFamily: 'var(--mono)', letterSpacing: '0.04em', fontWeight: 600 }}
+              required={!isEdit}
+              readOnly={isEdit && !isClone}
+            />
+            <div className="helper">Alphanumeric + dashes. Unique per site.</div>
+          </div>
+        )}
+
+        {!isManualBonus && (
         <div className="field-group">
           <label>Display title</label>
           <input value={displayTitle} onChange={(e) => setDisplayTitle(e.target.value)} placeholder="e.g. Welcome Bonus"/>
         </div>
+        )}
 
+        {!isManualBonus && (
         <div className="field-group">
           <label>Display description</label>
           <input value={displayDescription} onChange={(e) => setDisplayDescription(e.target.value)} placeholder="Short description shown to player"/>
         </div>
+        )}
 
+        {!isManualBonus && (
         <div className="field-group">
           <div className="row-2">
             <div>
@@ -201,20 +295,24 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
             </div>
           </div>
         </div>
+        )}
 
         <div className="field-group">
           <div className="row-2">
             <div>
-              <label>Max bonus amount</label>
-              <input type="number" min="0" step="0.01" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} placeholder="No limit"/>
+              <label>Max bonus amount {isManualBonus && <span className="required">*</span>}</label>
+              <input type="number" min="0" step="0.01" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} placeholder="No limit" required={isManualBonus}/>
             </div>
+            {!isManualBonus && (
             <div>
               <label>Min display amount</label>
               <input type="number" min="0" step="0.01" value={minDisplayAmount} onChange={(e) => setMinDisplayAmount(e.target.value)} placeholder="No min"/>
             </div>
+            )}
           </div>
         </div>
 
+        {!isManualBonus && (
         <div className="field-group">
           <div className="row-2">
             <div>
@@ -227,7 +325,9 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
             </div>
           </div>
         </div>
+        )}
 
+        {!isManualBonus && (
         <div className="field-group">
           <label>Display on</label>
           <select value={displayOn} onChange={(e) => setDisplayOn(e.target.value)}>
@@ -236,30 +336,39 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
             ))}
           </select>
         </div>
+        )}
 
+        {!isManualBonus && (
         <div className="field-group">
           <label>Display order</label>
           <input type="number" min="0" value={displayOrder} onChange={(e) => setDisplayOrder(+e.target.value)}/>
         </div>
+        )}
 
+        {!isManualBonus && (
         <div className="field-group">
           <label>Terms URL</label>
           <input value={termsUrl} onChange={(e) => setTermsUrl(e.target.value)} placeholder="https://…" type="text"/>
         </div>
+        )}
 
+        {!isManualBonus && (
         <div className="field-group">
           <label>Banner image URL</label>
           <input value={bannerImageUrl} onChange={(e) => setBannerImageUrl(e.target.value)} placeholder="https://cdn…" type="text"/>
         </div>
+        )}
 
         <div className="field-group">
           <div className="row-2">
+            {!isManualBonus && (
             <div>
               <label>Auto-apply</label>
               <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
                 <Toggle on={autoApply} onChange={setAutoApply} label={autoApply ? 'On' : 'Off'}/>
               </div>
             </div>
+            )}
             <div>
               <label>Status</label>
               <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
@@ -269,6 +378,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
           </div>
         </div>
 
+        {!isManualBonus && (
         <div className="field-group">
           <label>System auto-apply</label>
           <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
@@ -279,6 +389,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
             release event fires — no code entry needed. Independent of the front-end "Auto-apply" hint above.
           </div>
         </div>
+        )}
       </div>
       <DrawerFooter submitting={submitting} onCancel={onCancel} label={isEdit ? 'Save Changes' : 'Create Code'}/>
     </form>

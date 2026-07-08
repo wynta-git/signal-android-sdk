@@ -737,6 +737,7 @@ a { color: inherit; text-decoration: none; }
   transition: background 0.12s;
 }
 .tree-header .ghost-btn:hover { background: var(--bp); }
+.tree-header .ghost-btn.active { background: var(--bp); color: var(--blue); box-shadow: inset 0 0 0 1px var(--bm); }
 
 .tree-body { padding: 6px 6px 24px; }
 

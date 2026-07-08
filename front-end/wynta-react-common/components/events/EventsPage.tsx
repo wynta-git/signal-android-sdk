@@ -1,8 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
-import { useAppSelector } from '../../store/hooks';
-import Icon from 'wynta-react-common/components/Icon';
+import { useDispatch, useSelector as useAppSelector } from 'react-redux';
+import Icon from '../Icon';
 import {
   fetchEvents,
   fetchEventProperties,
