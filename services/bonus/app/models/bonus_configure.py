@@ -136,6 +136,16 @@ class BonusCodeSummary(BaseModel):
     system_auto_apply: bool | None
     display_order:     int
     active:            bool
+    is_manual_bonus:   bool = False
+
+    # Populated from the linked bonus_manual_bonus_file row when is_manual_bonus — None otherwise.
+    manual_bonus_status:          str | None = None
+    manual_bonus_total_players:   int | None = None
+    manual_bonus_total_amount:    Decimal | None = None
+    manual_bonus_success_players: int | None = None
+    manual_bonus_success_amount:  Decimal | None = None
+    manual_bonus_failed_players:  int | None = None
+    manual_bonus_failed_amount:   Decimal | None = None
 
 
 class BonusConfigureDetail(BonusConfigureResponse):
