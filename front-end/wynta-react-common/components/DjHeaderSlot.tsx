@@ -38,7 +38,6 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
     didInit.current = true;
 
     function fireBrandChange(brandId: number) {
-      console.log('[DjHeaderSlot] brand changed:', brandId);
       if (onBrandChangeRef.current) onBrandChangeRef.current(brandId);
       window.dispatchEvent(new CustomEvent('wynta:brand-changed', { detail: { brandId } }));
     }

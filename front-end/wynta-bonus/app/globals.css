@@ -2647,6 +2647,7 @@ a { color: inherit; text-decoration: none; }
 .toggle.on .track { background: var(--blue); }
 .toggle.on .track::after { transform: translateX(14px); }
 .toggle .label { font-size: 13px; color: var(--g700); font-weight: 500; }
+.toggle.disabled { cursor: not-allowed; opacity: 0.55; }
 
 /* segmented for freq */
 .seg {
