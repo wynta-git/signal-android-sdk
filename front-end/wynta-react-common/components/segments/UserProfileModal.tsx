@@ -5,6 +5,7 @@ import Icon from '../Icon';
 import { fetchUserProfile } from '../../services/pamUsersApi';
 import type { PamUserProfile } from '../../services/pamUsersApi';
 import { _initials, _tierClass, _kycClass } from './SegmentUsersList';
+import PlayerActivitySection from './PlayerActivityPanels';
 import type { Segment } from '../../types';
 
 interface UserProfileModalProps {
@@ -12,6 +13,8 @@ interface UserProfileModalProps {
   brandId?: string | null;
   segment: Segment | null;
   onClose: () => void;
+  showBonus?: boolean;
+  siteId?: string | number | null;
 }
 
 function displayName(profile: PamUserProfile): string {
@@ -27,7 +30,7 @@ function formatDate(value: string | null | undefined): string {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export default function UserProfileModal({ userId, brandId, segment, onClose }: UserProfileModalProps) {
+export default function UserProfileModal({ userId, brandId, segment, onClose, showBonus = false, siteId }: UserProfileModalProps) {
   const [profile, setProfile] = useState<PamUserProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
@@ -141,6 +144,13 @@ export default function UserProfileModal({ userId, brandId, segment, onClose }: 
                   ))
                 )}
               </div>
+
+              <PlayerActivitySection
+                userId={profile.user_id}
+                brandId={brandId}
+                showBonus={showBonus}
+                siteId={siteId}
+              />
             </div>
           )}
         </div>

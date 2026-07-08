@@ -1,10 +1,15 @@
 import json
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 import structlog
 from redis.asyncio import Redis
 
 from shared.clients.mysql import POOL_COMMON, get_connection
 from shared.clients.redis import get_str, set_with_ttl
+
+if TYPE_CHECKING:
+    from motor.motor_asyncio import AsyncIOMotorDatabase
 
 log = structlog.get_logger(__name__)
 
@@ -86,10 +91,13 @@ async def get_or_create_pam_user(
     site_id: int,
     user_id: str,
     ttl: int = _PAM_USER_TTL,
+    mongo_db: "AsyncIOMotorDatabase | None" = None,
 ) -> int:
     """Return the pam_user_mapping.id for (site_id, user_id), inserting a new row if absent.
 
     The result is always cached in Redis so subsequent calls are served from cache.
+    When `mongo_db` is given and a new mapping row is inserted, the user's Mongo
+    profile is upserted with brand_id (= site_id) and the new pam_id (best-effort).
     """
     key = _cache_key(site_id, user_id)
 
@@ -98,6 +106,7 @@ async def get_or_create_pam_user(
         log.debug("get_or_create_pam_user.cache_hit", site_id=site_id, user_id=user_id)
         return int(cached)
 
+    created = False
     async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(_SQL_GET, (site_id, user_id))
@@ -110,7 +119,49 @@ async def get_or_create_pam_user(
                 await cur.execute(_SQL_INSERT, (site_id, user_id))
                 pam_id = cur.lastrowid  # type: ignore[assignment]
                 await conn.commit()
+                created = True
                 log.info("get_or_create_pam_user.created", site_id=site_id, user_id=user_id, pam_id=pam_id)
+
+    if created and mongo_db is not None:
+        await _upsert_new_user_profile(redis, mongo_db, site_id, user_id, pam_id)
 
     await set_with_ttl(redis, key, str(pam_id), ttl)
     return pam_id
+
+
+async def _upsert_new_user_profile(
+    redis: Redis,
+    mongo_db: "AsyncIOMotorDatabase",
+    site_id: int,
+    user_id: str,
+    pam_id: int,
+) -> None:
+    """Best-effort Mongo `users` profile upsert for a newly created pam user."""
+    from shared.clients.mongo import upsert_user_profile
+    from shared.services.client import get_site_config
+
+    try:
+        cfg = await get_site_config(site_id, redis)
+        if cfg is None or not cfg.project_key:
+            log.warning(
+                "pam_user.profile_upsert_skipped_no_project_key",
+                site_id=site_id, user_id=user_id,
+            )
+            return
+        await upsert_user_profile(
+            mongo_db,
+            project_id=cfg.project_key,
+            user_id=user_id,
+            traits={},
+            anonymous_id=None,
+            unset_traits=[],
+            now=datetime.now(timezone.utc),
+            brand_id=site_id,  # stored as the numeric site_id (matches api-service identify)
+            pam_id=pam_id,
+        )
+        log.info("pam_user.profile_upserted", site_id=site_id, user_id=user_id, pam_id=pam_id)
+    except Exception as exc:
+        log.warning(
+            "pam_user.profile_upsert_failed",
+            site_id=site_id, user_id=user_id, pam_id=pam_id, error=str(exc),
+        )

@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS {table}
     site_id        LowCardinality(String),
     client_id      LowCardinality(String),
     user_id        String,
+    pam_user_id    Nullable(Int64),
     session_id     String,
     timestamp      DateTime64(3, 'UTC'),
     received_at    DateTime64(3, 'UTC'),
@@ -263,6 +264,13 @@ class SchemaManager:
                 f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS client_id LowCardinality(String) DEFAULT '' AFTER site_id"
             )
             self._update_cache(project_id, "client_id")
+
+        # Backfill pam_user_id on tables created before this column was introduced.
+        if "pam_user_id" not in self._col_cache.get(project_id, set()):
+            await self._ch.command(
+                f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS pam_user_id Nullable(Int64) AFTER user_id"
+            )
+            self._update_cache(project_id, "pam_user_id")
 
     # ------------------------------------------------------------------
     # ensure_columns — public entry point called before every insert

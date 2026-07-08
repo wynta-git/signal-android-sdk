@@ -66,6 +66,8 @@ interface SegmentsPageProps {
   /** Called when user clicks Add Segment; if omitted the built-in modal is shown */
   onAddSegment?: () => void;
   brandId?: number;
+  showBonus?: boolean;
+  siteId?: string | number | null;
 }
 
 type SegSortCol =
@@ -102,6 +104,8 @@ function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
 export default function SegmentsPage({
   onAddSegment,
   brandId,
+  showBonus = false,
+  siteId,
 }: SegmentsPageProps) {
   const dispatch = useDispatch<any>();
 
@@ -487,14 +491,23 @@ export default function SegmentsPage({
                             title="View upload history"
                             role="button"
                             tabIndex={0}
-                            style={{ fontSize: 12, color: '#0091E0', textDecoration: 'underline', cursor: 'pointer' }}
+                            style={{
+                              fontSize: 12,
+                              color: "#0091E0",
+                              textDecoration: "underline",
+                              cursor: "pointer",
+                            }}
                             onClick={() => {
-                              const seg = apiSegments.find(s => String(s.id) === row.id);
+                              const seg = apiSegments.find(
+                                (s) => String(s.id) === row.id,
+                              );
                               if (seg) setHistorySegment(seg);
                             }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                const seg = apiSegments.find(s => String(s.id) === row.id);
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                const seg = apiSegments.find(
+                                  (s) => String(s.id) === row.id,
+                                );
                                 if (seg) setHistorySegment(seg);
                               }
                             }}
@@ -561,7 +574,6 @@ export default function SegmentsPage({
                     <td>
                       <div className="seg-row-actions">
                         <button
-                          style={{ display: "none" }}
                           className="seg-row-btn"
                           type="button"
                           onClick={() => handleViewUsers(row)}
@@ -675,6 +687,8 @@ export default function SegmentsPage({
             count: viewUsersRow.rawCount,
           }}
           onClose={() => setViewUsersRow(null)}
+          showBonus={showBonus}
+          siteId={siteId}
         />
       )}
     </div>

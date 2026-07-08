@@ -9,9 +9,11 @@ import type { Segment } from '../../types';
 interface SegmentUsersModalProps {
   segment: Segment;
   onClose: () => void;
+  showBonus?: boolean;
+  siteId?: string | number | null;
 }
 
-export default function SegmentUsersModal({ segment, onClose }: SegmentUsersModalProps) {
+export default function SegmentUsersModal({ segment, onClose, showBonus = false, siteId }: SegmentUsersModalProps) {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
 
@@ -61,6 +63,8 @@ export default function SegmentUsersModal({ segment, onClose }: SegmentUsersModa
         brandId={selectedBrandId}
         segment={segment}
         onClose={() => setSelectedUserId(null)}
+        showBonus={showBonus}
+        siteId={siteId}
       />
     </div>,
     document.body

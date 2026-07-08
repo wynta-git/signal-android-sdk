@@ -412,7 +412,7 @@ export default function BonusAdminApp() {
       ) : sidebarActive === "billing" ? (
         <BillingPricingPage />
       ) : sidebarActive === "segments" ? (
-        <SegmentsPage brandId={selectedBrand ?? undefined} />
+        <SegmentsPage brandId={selectedBrand ?? undefined} showBonus siteId={selectedBrand} />
       ) : sidebarActive === "logs" ? (
         <div
           style={{

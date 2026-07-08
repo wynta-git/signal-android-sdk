@@ -57,7 +57,7 @@ async def main() -> None:
     schema_mgr = SchemaManager(redis=redis_client, ch_client=ch_client, db=db)
     alias_mgr = AliasManager(db)
     profile_updater = ProfileUpdater(db)
-    writer = ClickHouseWriter(ch_client, schema_mgr, redis=redis_client, alias_mgr=alias_mgr, profile_updater=profile_updater)
+    writer = ClickHouseWriter(ch_client, schema_mgr, redis=redis_client, alias_mgr=alias_mgr, profile_updater=profile_updater, mongo_db=db)
     consumer_task = asyncio.create_task(run_consumer(writer, redis_client))
 
     loop = asyncio.get_running_loop()
