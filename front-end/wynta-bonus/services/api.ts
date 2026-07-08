@@ -362,15 +362,35 @@ export const api = {
     return res.json() as Promise<PromoCode>;
   },
   async createPromoCode(configureId: number, payload: Record<string, unknown>) {
-    const res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ configure_id: configureId, ...payload }),
-    });
+    const { csv_file, ...rest } = payload as Record<string, unknown> & {
+      csv_file?: File | null;
+    };
+    const body = { configure_id: configureId, ...rest };
+
+    let res: Response;
+    if (csv_file instanceof File) {
+      const form = new FormData();
+      Object.entries(body).forEach(([key, value]) => {
+        if (value === null || value === undefined) return;
+        form.append(key, String(value));
+      });
+      form.append("csv_file", csv_file);
+      res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
+        method: "POST",
+        headers: { ...authHeaders() },
+        body: form,
+      });
+    } else {
+      res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(body),
+      });
+    }
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
+      const errBody = await res.json().catch(() => ({}));
       throw new Error(
-        (body as { detail?: string }).detail ?? "Failed to create promo code",
+        (errBody as { detail?: string }).detail ?? "Failed to create promo code",
       );
     }
     return res.json() as Promise<PromoCode>;

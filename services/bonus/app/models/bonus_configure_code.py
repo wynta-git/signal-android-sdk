@@ -6,7 +6,7 @@ bonus_configure_code columns:
   valid_from, valid_to, display_title, display_description,
   terms_url, banner_image_url, badge_text, cta_text,
   auto_apply, system_auto_apply, display_order, display_on, min_display_amount,
-  active, created_by, updated_by, created_at, updated_at
+  active, created_by, updated_by, created_at, updated_at, is_manual_bonus
 """
 
 from datetime import datetime
@@ -36,6 +36,7 @@ class BonusConfigureCodeCreate(BaseModel):
     display_on:          str           = Field("DEPOSIT", max_length=100)
     min_display_amount:  Decimal | None = None
     active:              bool          = True
+    is_manual_bonus:     bool          = False
     created_by:          str           = ""
 
 
@@ -87,5 +88,6 @@ class BonusConfigureCodeResponse(BaseModel):
     updated_by:          str
     created_at:          datetime
     updated_at:          datetime
+    is_manual_bonus:     bool
 
     model_config = {"from_attributes": True}

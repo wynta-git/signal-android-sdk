@@ -20,7 +20,7 @@ import type { ReportFilters, CustomReport } from '../services/reportsApi';
 
 const SegmentsPage       = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
 const CampaignsPage      = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
-const EventsPage         = dynamic(() => import('./events/EventsPage'), { ssr: false });
+const EventsPage         = dynamic(() => import('wynta-react-common/components/events/EventsPage'), { ssr: false });
 const DashboardPage      = dynamic(() => import('./dashboard/DashboardPage'), { ssr: false });
 const IntegrationsPage   = dynamic(() => import('./integrations/IntegrationsPage'), { ssr: false });
 const WorkspaceSettingsPage   = dynamic(() => import('wynta-react-common/workspace-settings/WorkspaceSettingsPage'), { ssr: false });

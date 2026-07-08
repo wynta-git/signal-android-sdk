@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     kafka_batch_size: int = 100
     kafka_batch_timeout_ms: int = 1_000
 
+    kafka_manual_bonus_topic: str = "pam.bonus.manual.v1"
+    kafka_manual_bonus_group_id: str = "pam-bonus-manual-consumer"
+
     redis_url: str = "redis://localhost:6379/0"
     trigger_cache_ttl: int = 300  # seconds
     dedup_event_ttl: int = 604800  # 7 days
@@ -50,6 +53,12 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     model_config = SettingsConfigDict(env_prefix="BONUS_", env_file=".env", extra="ignore")
+
+    s3_bucket: str = "pam-bulk-bonus"
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_region: str = ""
 
     @field_validator("portal_jwt_public_key", mode="before")
     @classmethod

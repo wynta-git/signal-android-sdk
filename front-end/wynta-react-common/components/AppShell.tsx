@@ -18,7 +18,7 @@ export interface NavSection {
 
 interface AppShellProps {
   appLabel: string;
-  navSections: NavSection[];
+  navSections?: NavSection[];
   activeNav: string;
   onNavChange: (id: string) => void;
   selectedBrand: number | null;
@@ -26,6 +26,7 @@ interface AppShellProps {
   topbarCenter?: React.ReactNode;
   topbarActions?: React.ReactNode;
   overlays?: React.ReactNode;
+  sidebar?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -39,6 +40,7 @@ export default function AppShell({
   topbarCenter,
   topbarActions,
   overlays,
+  sidebar,
   children,
 }: AppShellProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,7 +52,7 @@ export default function AppShell({
 
   return (
     <div className="shell">
-      <DjSidebarSlot onNavChange={onNavChange} activeNav={activeNav} />
+      {sidebar ?? <DjSidebarSlot onNavChange={onNavChange} activeNav={activeNav} />}
       <main className="main">
         <div className="main-topbar">
           <div className="tb-brand">
