@@ -152,12 +152,6 @@ function BonusShell() {
   }, [kpiStatus, selectedBrand, dispatch]);
 
   useEffect(() => {
-    console.log(
-      "selectedBrand changed:",
-      selectedBrand,
-      "authStatus:",
-      authStatus,
-    );
     if (!selectedBrand || authStatus !== "succeeded") return;
     const isSwitch =
       prevBrandRef.current !== null && prevBrandRef.current !== selectedBrand;
