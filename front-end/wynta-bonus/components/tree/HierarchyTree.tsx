@@ -1,6 +1,5 @@
 'use client';
 import HeadNode from './HeadNode';
-import PlayerSegmentsPanel from 'wynta-react-common/components/segments/PlayerSegmentsPanel';
 import Icon from 'wynta-react-common/components/Icon';
 import type { BonusHead, SelectedNode, NodeType } from '../../types';
 
@@ -25,6 +24,8 @@ interface HierarchyTreeProps {
   onMenu: (evt: MenuEvent) => void;
   selectedBrand: number | null;
   onBrandChange?: (brand: number) => void;
+  onExpandAll: () => void;
+  onCollapseAll: () => void;
 }
 
 export default function HierarchyTree({
@@ -39,11 +40,23 @@ export default function HierarchyTree({
   onMenu,
   selectedBrand,
   onBrandChange,
+  onExpandAll,
+  onCollapseAll,
 }: HierarchyTreeProps) {
+  const totalSubheads = heads.reduce((acc, h) => acc + h.subheads.length, 0);
+  const isFullyExpanded = heads.length > 0 && expandedHeads.size === heads.length && expandedSubheads.size === totalSubheads;
+  const isFullyCollapsed = expandedHeads.size === 0 && expandedSubheads.size === 0;
+
   return (
     <aside className="tree-panel" role="tree" aria-label="Bonus hierarchy">
       <div className="tree-header">
         <span className="title">Bonus Tree</span>
+        <button className={'ghost-btn icon-btn' + (isFullyExpanded ? ' active' : '')} onClick={onExpandAll} title="Expand all">
+          <Icon name="expand" size={13} strokeWidth={2.2}/>
+        </button>
+        <button className={'ghost-btn icon-btn' + (isFullyCollapsed ? ' active' : '')} onClick={onCollapseAll} title="Collapse all">
+          <Icon name="minimize" size={13} strokeWidth={2.2}/>
+        </button>
         <button className="ghost-btn" onClick={onAddHead}>
           <Icon name="plus" size={12} strokeWidth={2.4}/> Head
         </button>
@@ -68,7 +81,6 @@ export default function HierarchyTree({
           />
         ))}
       </div>
-      <PlayerSegmentsPanel onCreateSegment={() => {}}/>
     </aside>
   );
 }
