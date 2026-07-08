@@ -14,6 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
       <body>
+        <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
         <Providers>
           <DjHeaderSlotWrapper />
           {children}

@@ -29,7 +29,23 @@ interface ManualPromoCode {
   issued_at?: string;
   campaign_note?: string;
   per_player_amount?: string | number;
+  is_manual_bonus?: boolean;
+  manual_bonus_status?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'PARTIAL_SUCCESS' | 'FAILED' | null;
+  manual_bonus_total_players?: number | null;
+  manual_bonus_total_amount?: string | number | null;
+  manual_bonus_success_players?: number | null;
+  manual_bonus_success_amount?: string | number | null;
+  manual_bonus_failed_players?: number | null;
+  manual_bonus_failed_amount?: string | number | null;
 }
+
+const MANUAL_BONUS_STATUS_META: Record<string, { label: string; color: string }> = {
+  PENDING:         { label: 'Pending',         color: 'var(--g500, #6b7280)' },
+  PROCESSING:      { label: 'Processing',      color: 'var(--blue, #0091e0)' },
+  COMPLETED:       { label: 'Completed',       color: 'var(--success, #10b981)' },
+  PARTIAL_SUCCESS: { label: 'Partial success', color: 'var(--warn, #f59e0b)' },
+  FAILED:          { label: 'Failed',          color: 'var(--err, #ef4444)' },
+};
 
 interface PromoCodeRowProps {
   code: ManualPromoCode;
@@ -117,23 +133,27 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
             <span className="k">Valid</span>
             <span className="v">{formatDateShort(code.valid_from ?? '')} → {formatDateShort(code.valid_to ?? '')}</span>
           </div>
-          <div className="kv">
-            <span className="k">Auto-apply</span>
-            <span className="v">{code.auto_apply ? 'Yes' : 'No'}</span>
-          </div>
-          <div className="kv">
-            <span className="k">System auto-apply</span>
-            <span className="v">{code.system_auto_apply ? 'Yes' : 'No'}</span>
-          </div>
-          <div className="kv">
-            <span className="k">Order</span>
-            <span className="v">#{code.display_order}</span>
-          </div>
+          {!code.is_manual_bonus && (
+            <>
+              <div className="kv">
+                <span className="k">Auto-apply</span>
+                <span className="v">{code.auto_apply ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="kv">
+                <span className="k">System auto-apply</span>
+                <span className="v">{code.system_auto_apply ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Order</span>
+                <span className="v">#{code.display_order}</span>
+              </div>
+            </>
+          )}
         </div>
         <div style={{ flex: '0 0 110px', minWidth: 0 }}>
           <LifecycleBar usage={usage} size="sm"/>
           <div style={{ fontSize: 10.5, color: 'var(--g500)', marginTop: 4, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-            {formatINRCompact(usageGranted(usage))} granted
+            {formatINRCompact(code.is_manual_bonus ? Number(code.manual_bonus_success_amount ?? 0) : usageGranted(usage))} granted
           </div>
         </div>
         {code.manual && (
@@ -169,6 +189,19 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
         <Badge active={code.active}/>
         <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} color="var(--g400)"/>
       </div>
+      {code.is_manual_bonus && (
+        <div className="code-manual-row">
+          <span
+            className="audience-chip"
+            title="Manual bonus — created from a CSV upload"
+            style={{ color: MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.color }}
+          >
+            <Icon name="upload" size={11}/>
+            <span className="lbl">Manual</span>
+            <span className="cnt">{MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.label ?? code.manual_bonus_status}</span>
+          </span>
+        </div>
+      )}
       {open && (
         <div className="code-bottom">
           <div className="bcol">
@@ -213,6 +246,33 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
               </div>
             )}
           </div>
+          {code.is_manual_bonus && (
+            <div className="bcol">
+              <div className="label">
+                <Icon name="upload" size={11}/> Manual bonus batch
+                <span
+                  className="audience-chip"
+                  style={{ color: MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.color }}
+                >
+                  {MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.label ?? code.manual_bonus_status}
+                </span>
+              </div>
+              <div className="manual-campaign-meta">
+                <div className="mcm-row">
+                  <Icon name="users" size={11}/>
+                  <span>Total <strong>{code.manual_bonus_total_players ?? 0}</strong> players, {formatINRCompact(Number(code.manual_bonus_total_amount ?? 0))}</span>
+                </div>
+                <div className="mcm-row">
+                  <Icon name="check-circle" size={11} color="var(--success, #10b981)"/>
+                  <span>Success <strong>{code.manual_bonus_success_players ?? 0}</strong> players, {formatINRCompact(Number(code.manual_bonus_success_amount ?? 0))}</span>
+                </div>
+                <div className="mcm-row">
+                  <Icon name="x-circle" size={11} color="var(--err, #ef4444)"/>
+                  <span>Failed <strong>{code.manual_bonus_failed_players ?? 0}</strong> players, {formatINRCompact(Number(code.manual_bonus_failed_amount ?? 0))}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

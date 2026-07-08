@@ -32,8 +32,7 @@ const BONUS_NAV_SECTIONS: NavSection[] = [
       { id: 'wynta-ai',     label: 'Wynta AI',     icon: 'sparkles',    locked: true },
       { id: 'bonus',         label: 'Bonus',        icon: 'gift'         },
       { id: 'segments',      label: 'Segments',     icon: 'users-round'  },
-      { id: 'events',        label: 'Events',       icon: 'zap',         locked: true },
-      { id: 'flows',         label: 'Flows',        icon: 'git-branch',  locked: true },
+      { id: 'events',        label: 'Events',       icon: 'zap'          },
       {
         id: 'reports', label: 'Reports', icon: 'bar-chart-2', locked: true,
         children: [

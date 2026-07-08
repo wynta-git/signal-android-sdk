@@ -86,11 +86,14 @@ _EXISTS_CONFIGURE_SQL = (
 )
 
 _SELECT_CODES_SQL = """
-    SELECT id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active,
-           system_auto_apply
-    FROM bonus_configure_code
-    WHERE configure_id = %s
-    ORDER BY display_order
+    SELECT bcc.id, bcc.code, bcc.max_amount, bcc.valid_from, bcc.valid_to, bcc.auto_apply,
+           bcc.display_order, bcc.active, bcc.system_auto_apply, bcc.is_manual_bonus,
+           bmf.status, bmf.total_players, bmf.total_bonus_amount,
+           bmf.success_players, bmf.success_amount, bmf.failed_players, bmf.failed_amount
+    FROM bonus_configure_code bcc
+    LEFT JOIN bonus_manual_bonus_file bmf ON bmf.bonus_configure_code_id = bcc.id
+    WHERE bcc.configure_id = %s
+    ORDER BY bcc.display_order
 """
 
 _SELECT_TRIGGERS_FOR_IDS_SQL = """
@@ -382,6 +385,14 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
                 valid_from=r[3], valid_to=r[4],
                 auto_apply=bool(r[5]), display_order=r[6], active=bool(r[7]),
                 system_auto_apply=bool(r[8]) if r[8] is not None else None,
+                is_manual_bonus=bool(r[9]),
+                manual_bonus_status=r[10],
+                manual_bonus_total_players=r[11],
+                manual_bonus_total_amount=r[12],
+                manual_bonus_success_players=r[13],
+                manual_bonus_success_amount=r[14],
+                manual_bonus_failed_players=r[15],
+                manual_bonus_failed_amount=r[16],
             )
             for r in code_rows
         ],

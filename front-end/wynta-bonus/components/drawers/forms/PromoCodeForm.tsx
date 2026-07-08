@@ -64,11 +64,13 @@ function initState(existing: PromoCode | null, cfg?: BonusConfigure) {
       displayOn:          existing.display_on          ?? 'DEPOSIT',
       minDisplayAmount:   String(existing.min_display_amount ?? ''),
       active:             existing.active              ?? true,
+      isManualBonus:      existing.is_manual_bonus     ?? false,
     };
   }
   // New promo code — pre-fill limits and dates from parent configure
   return {
     code:               '',
+    isManualBonus:      false,
     maxAmount:          cfg?.bonus_amount_max != null ? String(cfg.bonus_amount_max) : '',
     validFrom:          toDateLocal(cfg?.start_date),
     validTo:            toDateLocal(cfg?.end_date),
@@ -117,11 +119,13 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
   const [minDisplayAmount,   setMinDisplayAmount]   = useState(init.minDisplayAmount);
   const [active,             setActive]             = useState(init.active);
 
-  const [isManualBonus, setIsManualBonus] = useState(false);
+  const [isManualBonus, setIsManualBonus] = useState(isClone ? false : init.isManualBonus);
   const [csvError,      setCsvError]      = useState<string | null>(null);
   const [csvFile,       setCsvFile]       = useState<File | null>(null);
 
   const isNew = !isEdit && !isClone;
+  // Manual bonus codes are created once from a CSV upload and can never be edited afterward.
+  const isLocked = isEdit && isManualBonus;
 
   function handleManualBonusToggle(on: boolean) {
     setIsManualBonus(on);
@@ -168,12 +172,14 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
         setDisplayOn(s.displayOn);
         setMinDisplayAmount(s.minDisplayAmount);
         setActive(s.active);
+        setIsManualBonus(isClone ? false : s.isManualBonus);
       })
       .finally(() => setLoading(false));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) return;
     if (isManualBonus && (!code || csvError || !maxAmount || !csvFile)) {
       if (!code || csvError || !csvFile) setCsvError(csvError ?? 'Please upload a valid CSV file.');
       return;
@@ -218,6 +224,14 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
           </div>
         )}
 
+        {isLocked && (
+          <div className="field-group">
+            <div className="helper" style={{ color: 'var(--err)' }}>
+              This is a manual bonus code created from a CSV upload — it cannot be edited.
+            </div>
+          </div>
+        )}
+
         {isNew && (
           <div className="field-group">
             <label>Is Manual Bonus</label>
@@ -227,7 +241,14 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
           </div>
         )}
 
-        {isManualBonus ? (
+        {isLocked ? (
+          <div className="field-group">
+            <label>Promo code</label>
+            <div className="mb-upload">
+              <span className="mono">{code}</span>
+            </div>
+          </div>
+        ) : isManualBonus ? (
           <>
             <div className="field-group">
               <label>Upload CSV <span className="required">*</span></label>
@@ -301,7 +322,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
           <div className="row-2">
             <div>
               <label>Max bonus amount {isManualBonus && <span className="required">*</span>}</label>
-              <input type="number" min="0" step="0.01" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} placeholder="No limit" required={isManualBonus}/>
+              <input type="number" min="0" step="0.01" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} placeholder="No limit" required={isManualBonus} disabled={isLocked}/>
             </div>
             {!isManualBonus && (
             <div>
@@ -372,7 +393,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
             <div>
               <label>Status</label>
               <div style={{ height: 36, display: 'flex', alignItems: 'center' }}>
-                <Toggle on={active} onChange={setActive} label={active ? 'Active' : 'Inactive'}/>
+                <Toggle on={active} onChange={setActive} label={active ? 'Active' : 'Inactive'} disabled={isLocked}/>
               </div>
             </div>
           </div>
@@ -391,7 +412,7 @@ export default function PromoCodeForm({ state, submitting, onCancel, onSubmit }:
         </div>
         )}
       </div>
-      <DrawerFooter submitting={submitting} onCancel={onCancel} label={isEdit ? 'Save Changes' : 'Create Code'}/>
+      <DrawerFooter submitting={submitting} onCancel={onCancel} label={isEdit ? 'Save Changes' : 'Create Code'} disabled={isLocked}/>
     </form>
   );
 }

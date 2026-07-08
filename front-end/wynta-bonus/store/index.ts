@@ -1,9 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import type { Middleware } from "@reduxjs/toolkit";
 import uiReducer from "./slices/uiSlice";
-import brandsReducer, {
-  fetchBrands,
-} from "wynta-react-common/store/slices/brandsSlice";
+import brandsReducer from "wynta-react-common/store/slices/brandsSlice";
 import treeReducer from "./slices/treeSlice";
 import headsReducer, { fetchHeads } from "./slices/headsSlice";
 import subheadsReducer from "./slices/subheadsSlice";
@@ -20,6 +18,7 @@ import spendReducer from "./slices/spendSlice";
 import usersReducer, {
   authenticateWithBridgeToken,
 } from "wynta-react-common/store/slices/usersSlice";
+import eventsReducer from "wynta-react-common/store/slices/eventsSlice";
 import type { SelectedNode } from "../types";
 
 
@@ -28,7 +27,10 @@ const initOnAuthMiddleware: Middleware = (storeApi) => (next) => (action) => {
 
   const typedAction = action as { type?: string; payload?: { data?: { token?: string } } };
   if (typedAction.type === "users/auth/fulfilled") {
-    storeApi.dispatch(fetchBrands() as never);
+    // Brands are already fetched unconditionally by AppShell's own mount effect
+    // (wynta-react-common/components/AppShell.tsx), which — thanks to
+    // BonusAdminApp's token-ready gate — only mounts after auth succeeds anyway.
+    // Dispatching fetchBrands() here too caused a duplicate GET /system/brands call.
     storeApi.dispatch(fetchSegments() as never);
   }
   return result;
@@ -52,6 +54,7 @@ export const store = configureStore({
     kpi: kpiReducer,
     spend: spendReducer,
     users: usersReducer,
+    events: eventsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(initOnAuthMiddleware),

@@ -116,7 +116,6 @@ export default function SlideDrawer() {
   const onClose = () => dispatch(closeDrawer());
 
   const doSubmit = async (data: Record<string, unknown>) => {
-    console.log("doSubmit", data);
     setSubmitting(true);
     setSubmitError(null);
     // API identifier fields reject '@' — strip email domain for owner/actor values
