@@ -100,6 +100,8 @@ async def get_or_create_pam_user(
     profile is upserted with brand_id (= site_id) and the new pam_id (best-effort).
     """
     key = _cache_key(site_id, user_id)
+    if mongo_db is not None :
+        key = f"profile:{key}"
 
     cached = await get_str(redis, key)
     if cached is not None:
@@ -122,7 +124,7 @@ async def get_or_create_pam_user(
                 created = True
                 log.info("get_or_create_pam_user.created", site_id=site_id, user_id=user_id, pam_id=pam_id)
 
-    if created and mongo_db is not None:
+    if cached is None and mongo_db is not None:
         await _upsert_new_user_profile(redis, mongo_db, site_id, user_id, pam_id)
 
     await set_with_ttl(redis, key, str(pam_id), ttl)
