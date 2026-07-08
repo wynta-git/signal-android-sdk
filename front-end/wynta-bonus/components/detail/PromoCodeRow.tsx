@@ -117,17 +117,6 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
     <div className={'code-card' + (flash ? ' is-highlighted' : '')} ref={cardRef}>
       <div className="code-top" onClick={() => setOpen(o => !o)}>
         <span className="code-string">{code.code}</span>
-        {code.is_manual_bonus && (
-          <span
-            className="audience-chip"
-            title="Manual bonus — created from a CSV upload"
-            style={{ color: MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.color }}
-          >
-            <Icon name="upload" size={11}/>
-            <span className="lbl">Manual</span>
-            <span className="cnt">{MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.label ?? code.manual_bonus_status}</span>
-          </span>
-        )}
         {code.manual && code.audience_label && (
           <span className="audience-chip" title={code.audience_label}>
             <Icon name={code.audience_type === 'UPLOAD' ? 'upload' : 'users'} size={11}/>
@@ -196,6 +185,19 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
         <Badge active={code.active}/>
         <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} color="var(--g400)"/>
       </div>
+      {code.is_manual_bonus && (
+        <div className="code-manual-row">
+          <span
+            className="audience-chip"
+            title="Manual bonus — created from a CSV upload"
+            style={{ color: MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.color }}
+          >
+            <Icon name="upload" size={11}/>
+            <span className="lbl">Manual</span>
+            <span className="cnt">{MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.label ?? code.manual_bonus_status}</span>
+          </span>
+        </div>
+      )}
       {open && (
         <div className="code-bottom">
           <div className="bcol">
