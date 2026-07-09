@@ -9,6 +9,7 @@ export NEXT_PUBLIC_CAMPAIGN_API_URL="$QA_BASE"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST_DIR="$SCRIPT_DIR/dist"
+DEPLOY_DIR="/var/www/wynta-pam-app"
 
 cd "$SCRIPT_DIR"
 
@@ -39,7 +40,19 @@ cp -r out/. "$DIST_DIR/"
 echo ""
 echo "Build complete. Static output written to: $DIST_DIR"
 echo ""
+
+echo "==> Deploying to $DEPLOY_DIR..."
+SUDO=""
+if [ ! -w "$(dirname "$DEPLOY_DIR")" ] && command -v sudo >/dev/null 2>&1; then
+  SUDO="sudo"
+fi
+$SUDO mkdir -p "$DEPLOY_DIR"
+$SUDO rsync -a --delete "$DIST_DIR/" "$DEPLOY_DIR/"
+
+echo ""
+echo "Deploy complete."
+echo ""
 echo "Deployment layout:"
-echo "  dist/          → wynta-web  (served at /)"
-echo "  dist/bonus/    → wynta-bonus (served at /bonus)"
-echo "  dist/crm/      → wynta-crm  (served at /crm)"
+echo "  $DEPLOY_DIR/          → wynta-web  (https://qa-app.fozilpartners.com/)"
+echo "  $DEPLOY_DIR/bonus/    → wynta-bonus (https://qa-app.fozilpartners.com/bonus)"
+echo "  $DEPLOY_DIR/crm/      → wynta-crm  (https://qa-app.fozilpartners.com/crm)"

@@ -487,14 +487,23 @@ export default function SegmentsPage({
                             title="View upload history"
                             role="button"
                             tabIndex={0}
-                            style={{ fontSize: 12, color: '#0091E0', textDecoration: 'underline', cursor: 'pointer' }}
+                            style={{
+                              fontSize: 12,
+                              color: "#0091E0",
+                              textDecoration: "underline",
+                              cursor: "pointer",
+                            }}
                             onClick={() => {
-                              const seg = apiSegments.find(s => String(s.id) === row.id);
+                              const seg = apiSegments.find(
+                                (s) => String(s.id) === row.id,
+                              );
                               if (seg) setHistorySegment(seg);
                             }}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                const seg = apiSegments.find(s => String(s.id) === row.id);
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                const seg = apiSegments.find(
+                                  (s) => String(s.id) === row.id,
+                                );
                                 if (seg) setHistorySegment(seg);
                               }
                             }}
@@ -561,7 +570,6 @@ export default function SegmentsPage({
                     <td>
                       <div className="seg-row-actions">
                         <button
-                          style={{ display: "none" }}
                           className="seg-row-btn"
                           type="button"
                           onClick={() => handleViewUsers(row)}

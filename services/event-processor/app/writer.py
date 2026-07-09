@@ -3,8 +3,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
 from shared.clients.redis import pipeline_set_nx_ex
+from shared.services.user import get_or_create_pam_user
 
 from .alias_manager import AliasManager
 from .profile_updater import ProfileUpdater
@@ -29,6 +31,7 @@ _BASE_COLUMNS = [
     "brand_id",
     "amount",
     "currency",
+    "pam_user_id",
 ]
 
 # Properties keys promoted to typed base columns — excluded from dynamic columns
@@ -76,6 +79,7 @@ def _base_values(event: dict[str, Any]) -> list[Any]:
         str(event.get("brand_id") or ""),
         amount,
         str(currency_raw) if currency_raw is not None else None,
+        event.get("pam_user_id"),
     ]
 
 
@@ -111,12 +115,56 @@ class ClickHouseWriter:
         redis: Redis,
         alias_mgr: AliasManager,
         profile_updater: ProfileUpdater,
+        mongo_db: AsyncIOMotorDatabase | None = None,
     ) -> None:
         self._client = client
         self._schema_mgr = schema_mgr
         self._redis = redis
         self._alias_mgr = alias_mgr
         self._profile_updater = profile_updater
+        self._mongo_db = mongo_db
+
+    async def _resolve_pam_users(self, events: list[dict[str, Any]]) -> None:
+        """Stamp each event with its pam_user_id, creating the mapping if needed.
+
+        Distinct (site_id, user_id) pairs are resolved once per batch;
+        get_or_create_pam_user serves repeat users from its Redis cache, so
+        MySQL is queried (and the Mongo profile upserted) only for users it
+        has never seen. Resolution failures leave pam_user_id as None and
+        never fail the batch.
+        """
+        pairs: set[tuple[int, str]] = set()
+        for e in events:
+            raw_site_id = e.get("site_id")
+            user_id = e.get("user_id")
+            if not raw_site_id or not user_id:
+                continue
+            try:
+                pairs.add((int(raw_site_id), str(user_id)))
+            except (TypeError, ValueError):
+                continue
+
+        pam_ids: dict[tuple[int, str], int | None] = {}
+        for site_id, user_id in pairs:
+            try:
+                pam_ids[(site_id, user_id)] = await get_or_create_pam_user(
+                    self._redis, site_id, user_id, mongo_db=self._mongo_db
+                )
+            except Exception as exc:
+                pam_ids[(site_id, user_id)] = None
+                log.warning(
+                    "pam_user_resolve_failed",
+                    site_id=site_id, user_id=user_id, error=str(exc),
+                )
+
+        for e in events:
+            raw_site_id = e.get("site_id")
+            user_id = e.get("user_id")
+            try:
+                key = (int(raw_site_id), str(user_id)) if raw_site_id and user_id else None
+            except (TypeError, ValueError):
+                key = None
+            e["pam_user_id"] = pam_ids.get(key) if key else None
 
     async def _filter_duplicates(
         self, project_id: str, events: list[dict[str, Any]]
@@ -145,6 +193,9 @@ class ClickHouseWriter:
             renamed = await self._alias_mgr.resolve(project_id, event_name, props)
             resolved.append({**e, "properties": renamed} if renamed is not props else e)
         events = resolved
+
+        # Resolve pam user mappings (creates new users + Mongo profile once).
+        await self._resolve_pam_users(events)
 
         # Ensure the per-client table exists (no-op after first call per instance).
         await self._schema_mgr.bootstrap_table(project_id)

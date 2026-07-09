@@ -9,9 +9,6 @@ import { getUsage, getBudget, getHistory } from "./mocks/utils";
 
 function authHeaders(): HeadersInit {
   const token = getToken();
-
-  console.log("Auth headers, token:", token);
-
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 import {
@@ -168,7 +165,6 @@ const BONUS_API =
   (process.env.NEXT_PUBLIC_BONUS_API_URL || "http://localhost:8010") +
   "/api/v1/bonus";
 
-console.log("BONUS_API", BONUS_API);
 export const api = {
   async fetchKpiSnapshot(siteId: string | number) {
     const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`, {
@@ -186,7 +182,6 @@ export const api = {
     return res.json();
   },
   async fetchHeads(siteId: string | number) {
-    console.log("Fetching heads for siteId:", siteId);
     const res = await fetch(`${BONUS_API}/bonus-heads?site_id=${siteId}`, {
       headers: authHeaders(),
     });
