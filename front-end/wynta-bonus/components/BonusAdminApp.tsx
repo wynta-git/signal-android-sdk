@@ -96,24 +96,38 @@ export default function BonusAdminApp() {
         clearInterval(intervalRef.current!);
       }
     }, 200);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [ready]);
 
   if (!ready) {
     return (
-      <div style={{
-        display: "flex", flexDirection: "column", alignItems: "center",
-        justifyContent: "center", height: "100vh", gap: 16,
-        background: "var(--crm-bg, #f7f8fa)",
-      }}>
-        <span style={{
-          width: 34, height: 34, borderRadius: "50%",
-          border: "3px solid var(--crm-border-md, #e5e7eb)",
-          borderTopColor: "var(--crm-blue, #3b82f6)",
-          animation: "crm-spin 0.75s linear infinite",
-          display: "inline-block",
-        }} />
-        <span style={{ color: "var(--crm-fg4, #9ca3af)", fontSize: 13 }}>Connecting…</span>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          gap: 16,
+          background: "var(--crm-bg, #f7f8fa)",
+        }}
+      >
+        <span
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            border: "3px solid var(--crm-border-md, #e5e7eb)",
+            borderTopColor: "var(--crm-blue, #3b82f6)",
+            animation: "crm-spin 0.75s linear infinite",
+            display: "inline-block",
+          }}
+        />
+        <span style={{ color: "var(--crm-fg4, #9ca3af)", fontSize: 13 }}>
+          Connecting…
+        </span>
       </div>
     );
   }
@@ -169,7 +183,9 @@ function BonusShell() {
         dispatch(
           expandAll({
             headIds: list.map((h) => h.id),
-            subheadIds: detailedHeads.flatMap((h) => h.subheads.map((s) => s.id)),
+            subheadIds: detailedHeads.flatMap((h) =>
+              h.subheads.map((s) => s.id),
+            ),
           }),
         );
         const nodeIsValid =
@@ -483,12 +499,16 @@ function BonusShell() {
               selectedNode={selectedNode}
               onSelectNode={handleSelectNode}
               onToggleHead={(id: number) => dispatch(toggleHead(id))}
-              onToggleSubhead={(id: number) => dispatch(toggleSubheadExpand(id))}
+              onToggleSubhead={(id: number) =>
+                dispatch(toggleSubheadExpand(id))
+              }
               onExpandAll={() =>
                 dispatch(
                   expandAll({
                     headIds: heads.map((h) => h.id),
-                    subheadIds: heads.flatMap((h) => h.subheads.map((s) => s.id)),
+                    subheadIds: heads.flatMap((h) =>
+                      h.subheads.map((s) => s.id),
+                    ),
                   }),
                 )
               }
@@ -500,7 +520,9 @@ function BonusShell() {
                 if (!selectedBrand) return;
                 dispatch(fetchHeads(selectedBrand))
                   .unwrap()
-                  .then((list) => list.forEach((h) => dispatch(fetchHead(h.id))));
+                  .then((list) =>
+                    list.forEach((h) => dispatch(fetchHead(h.id))),
+                  );
               }}
               onMenu={(ctx: ContextMenuState) => dispatch(openContextMenu(ctx))}
               selectedBrand={selectedBrand}

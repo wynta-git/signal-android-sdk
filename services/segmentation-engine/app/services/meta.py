@@ -227,8 +227,8 @@ class MetaService:
 
     _FIXED_COLS = frozenset({
         "event_id", "event_name", "schema_version", "project_id", "user_id",
-        "session_id", "timestamp", "received_at", "sdk_name", "sdk_version",
-        "platform", "os", "insert_date",
+        "pam_user_id", "session_id", "timestamp", "received_at", "sdk_name",
+        "sdk_version", "platform", "os", "insert_date",
     })
 
     async def _fetch_event_properties(

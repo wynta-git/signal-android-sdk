@@ -901,10 +901,13 @@ async def upsert_user_profile(
     anonymous_id: str | None,
     unset_traits: list[str],
     now: datetime,
-    brand_id: str | None = None,
+    brand_id: str | int | None = None,
+    pam_id: int | None = None,
 ) -> None:
     set_fields: dict[str, Any] = {f"traits.{k}": v for k, v in traits.items()}
     set_fields["last_seen_at"] = now
+    if pam_id is not None:
+        set_fields["pam_id"] = pam_id
 
     update: dict[str, Any] = {
         "$set": set_fields,

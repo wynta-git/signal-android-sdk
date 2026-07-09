@@ -9,6 +9,7 @@ import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
 import { MOCK_CONFIGURES } from '../../services/mocks/configures';
 import { MANUAL_SEGMENTS } from '../../services/mocks/constants';
 import { makePAMUserById, getGlobalPAMUserPool } from '../../services/api';
+import { useAppSelector } from '../../store/hooks';
 import type { PAMUser, Segment, SelectedNode } from '../../types';
 
 interface SearchGroup {
@@ -107,6 +108,7 @@ export default function GlobalSearch({ onSelectNode }: GlobalSearchProps) {
   const [activeIdx, setActiveIdx]       = useState(0);
   const [profilePAMUser, setProfilePAMUser] = useState<PAMUser | null>(null);
   const [viewSegment, setViewSegment]   = useState<Segment | null>(null);
+  const selectedBrand = useAppSelector((s) => s.ui.selectedBrand);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -205,6 +207,8 @@ export default function GlobalSearch({ onSelectNode }: GlobalSearchProps) {
           player={profilePAMUser}
           segment={null}
           onClose={() => setProfilePAMUser(null)}
+          showBonus
+          siteId={selectedBrand}
         />
       )}
       {viewSegment && (
