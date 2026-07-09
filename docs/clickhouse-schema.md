@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS pam.events_{project_id}
     site_id        LowCardinality(String),
     client_id      LowCardinality(String),
     user_id        String,
+    pam_user_id    Nullable(Int64),        -- MySQL pam_user_mapping.id, resolved by event-processor
     session_id     String,
     timestamp      DateTime64(3, 'UTC'),
     received_at    DateTime64(3, 'UTC'),
