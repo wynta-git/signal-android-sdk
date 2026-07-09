@@ -278,6 +278,14 @@ Database: `pam`
     avg_open_rate: 0.24,
     avg_ctr: 0.038,
   },
+  channels: {
+    // keyed by channel: email | push | sms | whatsapp | telegram | in_app
+    // all fields optional per channel. reach_pct/status/open_rate/ctr are direct overrides shown
+    // as-is; omit them (or the whole channel) to show null/"—" instead of a fabricated value.
+    // messages_sent is an additive baseline on top of real sends; delivery_rate is only used as
+    // a fallback when the channel has no real send/delivery data yet.
+    "email": { reach_pct: 0.80, status: "live", messages_sent: 1100000, delivery_rate: 0.942, open_rate: 0.243, ctr: 0.038 },
+  },
   daily_boosts: {
     "2026-07-01": { messages_sent: 6200, new_users: 80, opt_outs: 5,
                     channel: { push: { sent: 3000, delivered: 2900, failed: 100 } },
@@ -286,7 +294,7 @@ Database: `pam`
   updated_at: ISODate
 }
 // Indexes: { project_id: 1, brand_id: 1 } unique
-// Owner: campaign-engine admin API (PUT /dashboard/boosts). Read by: campaign-engine (GET /summary).
+// Owner: campaign-engine admin API (PUT /dashboard/boosts). Read by: campaign-engine (GET /summary, GET /channels).
 // delivery_rate is intentionally excluded — it's a ratio; boosting numerator alone would distort it.
 // Pass ?brand_id= on all boost endpoints to read/write brand-specific boosts.
 // No fallback: if no brand-specific doc exists, boosts return empty (zero additive offset).

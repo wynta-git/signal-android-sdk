@@ -117,17 +117,6 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
     <div className={'code-card' + (flash ? ' is-highlighted' : '')} ref={cardRef}>
       <div className="code-top" onClick={() => setOpen(o => !o)}>
         <span className="code-string">{code.code}</span>
-        {code.is_manual_bonus && (
-          <span
-            className="audience-chip"
-            title="Manual bonus — created from a CSV upload"
-            style={{ color: MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.color }}
-          >
-            <Icon name="upload" size={11}/>
-            <span className="lbl">Manual</span>
-            <span className="cnt">{MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.label ?? code.manual_bonus_status}</span>
-          </span>
-        )}
         {code.manual && code.audience_label && (
           <span className="audience-chip" title={code.audience_label}>
             <Icon name={code.audience_type === 'UPLOAD' ? 'upload' : 'users'} size={11}/>
@@ -144,23 +133,27 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
             <span className="k">Valid</span>
             <span className="v">{formatDateShort(code.valid_from ?? '')} → {formatDateShort(code.valid_to ?? '')}</span>
           </div>
-          <div className="kv">
-            <span className="k">Auto-apply</span>
-            <span className="v">{code.auto_apply ? 'Yes' : 'No'}</span>
-          </div>
-          <div className="kv">
-            <span className="k">System auto-apply</span>
-            <span className="v">{code.system_auto_apply ? 'Yes' : 'No'}</span>
-          </div>
-          <div className="kv">
-            <span className="k">Order</span>
-            <span className="v">#{code.display_order}</span>
-          </div>
+          {!code.is_manual_bonus && (
+            <>
+              <div className="kv">
+                <span className="k">Auto-apply</span>
+                <span className="v">{code.auto_apply ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="kv">
+                <span className="k">System auto-apply</span>
+                <span className="v">{code.system_auto_apply ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Order</span>
+                <span className="v">#{code.display_order}</span>
+              </div>
+            </>
+          )}
         </div>
         <div style={{ flex: '0 0 110px', minWidth: 0 }}>
           <LifecycleBar usage={usage} size="sm"/>
           <div style={{ fontSize: 10.5, color: 'var(--g500)', marginTop: 4, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-            {formatINRCompact(usageGranted(usage))} granted
+            {formatINRCompact(code.is_manual_bonus ? Number(code.manual_bonus_success_amount ?? 0) : usageGranted(usage))} granted
           </div>
         </div>
         {code.manual && (
@@ -196,6 +189,19 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
         <Badge active={code.active}/>
         <Icon name={open ? 'chevron-up' : 'chevron-down'} size={14} color="var(--g400)"/>
       </div>
+      {code.is_manual_bonus && (
+        <div className="code-manual-row">
+          <span
+            className="audience-chip"
+            title="Manual bonus — created from a CSV upload"
+            style={{ color: MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.color }}
+          >
+            <Icon name="upload" size={11}/>
+            <span className="lbl">Manual</span>
+            <span className="cnt">{MANUAL_BONUS_STATUS_META[code.manual_bonus_status ?? 'PENDING']?.label ?? code.manual_bonus_status}</span>
+          </span>
+        </div>
+      )}
       {open && (
         <div className="code-bottom">
           <div className="bcol">
