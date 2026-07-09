@@ -6,6 +6,7 @@ export NEXT_PUBLIC_BONUS_API_URL="$QA_BASE"
 export NEXT_PUBLIC_AUTH_API_URL="$QA_BASE"
 export NEXT_PUBLIC_SEG_API_URL="$QA_BASE"
 export NEXT_PUBLIC_CAMPAIGN_API_URL="$QA_BASE"
+export NEXT_PUBLIC_CHAT_URL="https://qa-chat.fozilpartners.com/chat/"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIST_DIR="$SCRIPT_DIR/dist"

@@ -68,6 +68,10 @@ const EventsPage = dynamic(
   () => import("wynta-react-common/components/events/EventsPage"),
   { ssr: false },
 );
+const ChatPage = dynamic(
+  () => import("wynta-react-common/components/chat/ChatPage"),
+  { ssr: false },
+);
 
 interface ContextItem {
   icon?: string;
@@ -475,6 +479,8 @@ function BonusShell() {
         <SegmentsPage brandId={selectedBrand ?? undefined} />
       ) : sidebarActive === "events" ? (
         <EventsPage brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "chat" ? (
+        <ChatPage />
       ) : sidebarActive === "logs" ? (
         <div
           style={{

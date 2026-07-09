@@ -34,6 +34,7 @@ const ChurnRetentionReport    = dynamic(() => import('./reports/ChurnRetentionRe
 const CustomReportBuilder     = dynamic(() => import('./reports/CustomReportBuilder'), { ssr: false });
 const CustomReportView        = dynamic(() => import('./reports/CustomReportView'), { ssr: false });
 const ClientsPage             = dynamic(() => import('./clients/ClientsPage'),      { ssr: false });
+const ChatPage                = dynamic(() => import('wynta-react-common/components/chat/ChatPage'), { ssr: false });
 
 /**
  * CrmApp wraps itself in the wynta-crm store Provider.
@@ -179,6 +180,7 @@ function CrmShell() {
            activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
            activeNav === 'clients'          ? <ClientsPage brandId={brandId} /> :
+           activeNav === 'chat'             ? <ChatPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :
            activeNav === 'reports:campaign' ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :
