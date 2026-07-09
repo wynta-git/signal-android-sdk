@@ -8,6 +8,7 @@ import { selectAllSegments } from "wynta-react-common/store/slices/segmentsSlice
 import Icon from "wynta-react-common/components/Icon";
 import Toggle from "wynta-react-common/components/Toggle";
 import DrawerFooter from "../../../components/drawers/DrawerFooter";
+import { api } from "../../../services/api";
 import type { DrawerState } from "../../../types";
 
 const FREQUENCIES: { value: string; label: string; hint: string }[] = [
@@ -159,6 +160,7 @@ export default function ConfigureForm({
     parentSubId != null ? selectSubheadById(parentSubId) : () => undefined,
   );
   const allSegments = useAppSelector(selectAllSegments);
+  const selectedBrand = useAppSelector((s) => s.ui.selectedBrand);
 
   const cfg = cfgFromStore;
 
@@ -236,6 +238,44 @@ export default function ConfigureForm({
   );
   const [chunkExp, setChunkExp] = useState(cfg?.chunk_expiry_days ?? 7);
   const [wagerChip, setWagerChip] = useState(cfg?.wager_chip_type || "CASH");
+
+  // Per-product wager multiplier overrides — the product list comes from the
+  // site's wager_multiplier_config (site-configure API, a JSON array of
+  // product names, e.g. ["RUMMY","AVIATOR"]). No rows are shown by default;
+  // the user explicitly adds a product override via the "+ Add" button.
+  // On edit, existing overrides are pre-populated as rows.
+  const [wagerMultProducts, setWagerMultProducts] = useState<string[]>([]);
+  const [productMultRows, setProductMultRows] = useState<
+    { product: string; multiplier: number }[]
+  >(() =>
+    Object.entries(cfg?.product_wager_multiplier ?? {}).map(([product, multiplier]) => ({
+      product,
+      multiplier: Number(multiplier),
+    })),
+  );
+
+  useEffect(() => {
+    if (selectedBrand == null) return;
+    api
+      .getSiteConfigure(selectedBrand)
+      .then((res) => {
+        const raw = res?.wager_multiplier_config;
+        if (!raw) return;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          return;
+        }
+        if (!Array.isArray(parsed)) return;
+        const products = parsed.filter((p): p is string => typeof p === "string");
+        setWagerMultProducts(products);
+      })
+      .catch(() => {
+        // site-configure fetch failed — fall back to the default wager multiplier only
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBrand]);
 
   // Cashback
   const hasCb =
@@ -339,6 +379,14 @@ export default function ConfigureForm({
     end_date: endDate ? new Date(endDate).toISOString() : null,
     priority,
     wager_multiplier: chunksOn ? wagerMult : null,
+    product_wager_multiplier:
+      chunksOn && productMultRows.some((r) => r.product.trim() !== "")
+        ? Object.fromEntries(
+            productMultRows
+              .filter((r) => r.product.trim() !== "")
+              .map((r) => [r.product, r.multiplier]),
+          )
+        : null,
     no_of_chunks: chunksOn ? chunks : null,
     release_bucket: chunksOn && fullRelease ? "FULL" : null,
     chunk_expiry_days: chunksOn ? chunkExp : null,
@@ -647,6 +695,94 @@ export default function ConfigureForm({
               of its value.
             </div>
           </div>
+
+          {(wagerMultProducts.length > 0 || productMultRows.length > 0) && (
+            <div className="field-group">
+              <label>
+                Product-based wager multipliers{" "}
+                <span style={{ color: "var(--g400)", fontWeight: 400 }}>
+                  (optional — overrides the wager multiplier above for specific products)
+                </span>
+              </label>
+              {productMultRows.map((row, i) => (
+                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                  <select
+                    value={row.product}
+                    style={{ flex: 1 }}
+                    onChange={(e) =>
+                      setProductMultRows((prev) =>
+                        prev.map((r, j) => (j === i ? { ...r, product: e.target.value } : r)),
+                      )
+                    }
+                  >
+                    <option value="">— select product —</option>
+                    {wagerMultProducts
+                      .filter(
+                        (p) => p === row.product || !productMultRows.some((r) => r.product === p),
+                      )
+                      .map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    placeholder="Multiplier"
+                    style={{ flex: 1 }}
+                    value={row.multiplier}
+                    onChange={(e) =>
+                      setProductMultRows((prev) =>
+                        prev.map((r, j) => (j === i ? { ...r, multiplier: +e.target.value } : r)),
+                      )
+                    }
+                  />
+                  <button
+                    type="button"
+                    style={{
+                      padding: "0 10px",
+                      color: "var(--g400)",
+                      background: "none",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--r)",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                    }}
+                    onClick={() =>
+                      setProductMultRows((prev) => prev.filter((_, j) => j !== i))
+                    }
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {wagerMultProducts.some(
+                (p) => !productMultRows.some((r) => r.product === p),
+              ) && (
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ marginTop: 4, fontSize: 12 }}
+                  onClick={() =>
+                    setProductMultRows((prev) => [
+                      ...prev,
+                      {
+                        product:
+                          wagerMultProducts.find(
+                            (p) => !prev.some((r) => r.product === p),
+                          ) ?? "",
+                        multiplier: wagerMult,
+                      },
+                    ])
+                  }
+                >
+                  + Add product multiplier
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="field-group">
             <div className="row-2">

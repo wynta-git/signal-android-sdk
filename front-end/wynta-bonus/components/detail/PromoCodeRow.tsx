@@ -133,23 +133,27 @@ export default function PromoCodeRow({ code, configureId, highlight }: PromoCode
             <span className="k">Valid</span>
             <span className="v">{formatDateShort(code.valid_from ?? '')} → {formatDateShort(code.valid_to ?? '')}</span>
           </div>
-          <div className="kv">
-            <span className="k">Auto-apply</span>
-            <span className="v">{code.auto_apply ? 'Yes' : 'No'}</span>
-          </div>
-          <div className="kv">
-            <span className="k">System auto-apply</span>
-            <span className="v">{code.system_auto_apply ? 'Yes' : 'No'}</span>
-          </div>
-          <div className="kv">
-            <span className="k">Order</span>
-            <span className="v">#{code.display_order}</span>
-          </div>
+          {!code.is_manual_bonus && (
+            <>
+              <div className="kv">
+                <span className="k">Auto-apply</span>
+                <span className="v">{code.auto_apply ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="kv">
+                <span className="k">System auto-apply</span>
+                <span className="v">{code.system_auto_apply ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Order</span>
+                <span className="v">#{code.display_order}</span>
+              </div>
+            </>
+          )}
         </div>
         <div style={{ flex: '0 0 110px', minWidth: 0 }}>
           <LifecycleBar usage={usage} size="sm"/>
           <div style={{ fontSize: 10.5, color: 'var(--g500)', marginTop: 4, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-            {formatINRCompact(usageGranted(usage))} granted
+            {formatINRCompact(code.is_manual_bonus ? Number(code.manual_bonus_success_amount ?? 0) : usageGranted(usage))} granted
           </div>
         </div>
         {code.manual && (

@@ -120,6 +120,7 @@ export interface BonusConfigure {
   start_date?: string;
   end_date?: string;
   wager_multiplier?: number;
+  product_wager_multiplier?: Record<string, number> | null;
   no_of_chunks?: number;
   bonus_amount_fixed?: string | null;
   bonus_amount_percent?: string | null;

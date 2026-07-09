@@ -98,7 +98,8 @@ _SELECT_WITH_CONFIG_SQL = """
         bc.cashback_bonus_amount_max,
         bc.priority,
         bc.active,
-        bs.head_id
+        bs.head_id,
+        bc.product_wager_multiplier
     FROM bonus_release_trigger brt
     JOIN bonus_configure bc ON bc.id = brt.configure_id
     JOIN bonus_subhead bs ON bs.id = bc.subhead_id
@@ -361,12 +362,23 @@ def _row_to_trigger_with_config(row: tuple) -> TriggerWithConfigResponse:
     #              cashback_bonus_amount_fixed[29] cashback_bonus_amount_percent[30]
     #              cashback_bonus_amount_max[31] priority[32] active[33]
     # bs columns:  head_id[34]
+    # product_wager_multiplier[35]
     raw_cfg = row[10]
     if isinstance(raw_cfg, str):
         try:
             raw_cfg = json.loads(raw_cfg)
         except Exception:
             raw_cfg = None
+
+    raw_pwm = row[35]
+    if isinstance(raw_pwm, str):
+        try:
+            raw_pwm = json.loads(raw_pwm)
+        except Exception:
+            raw_pwm = None
+    product_wager_multiplier = (
+        {k: float(v) for k, v in raw_pwm.items()} if isinstance(raw_pwm, dict) else None
+    )
 
     return TriggerWithConfigResponse(
         id=row[0],
@@ -391,6 +403,7 @@ def _row_to_trigger_with_config(row: tuple) -> TriggerWithConfigResponse:
             end_date=_as_dt(row[17]),
             applicability_frequency=row[18],
             wager_multiplier=row[19],
+            product_wager_multiplier=product_wager_multiplier,
             no_of_chunks=row[20],
             release_bucket=row[21],
             chunk_expiry_days=row[22],

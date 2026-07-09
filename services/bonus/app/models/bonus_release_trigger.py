@@ -83,6 +83,9 @@ class BonusConfigureSummary(BaseModel):
     end_date:                   datetime
     applicability_frequency:    str
     wager_multiplier:           Decimal
+    # dict[str, float], not Decimal -- must stay JSON-serializable through
+    # plain .model_dump() (grant_writer.py json.dumps()'s it directly)
+    product_wager_multiplier:   dict[str, float] | None = None
     no_of_chunks:               int | None
     release_bucket:             str | None
     chunk_expiry_days:          int | None
