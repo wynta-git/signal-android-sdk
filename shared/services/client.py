@@ -67,8 +67,9 @@ _SQL_VALIDATE_CLIENT = """
 """
 
 _SQL_SITE_CONFIG = """
-    SELECT s.program_id, cfg.config_key, cfg.config_value
+    SELECT s.program_id, p.project_key, cfg.config_key, cfg.config_value
     FROM site s
+    LEFT JOIN project p ON p.id = s.program_id
     LEFT JOIN site_configure cfg ON cfg.site_id = s.id AND cfg.active = 1
     WHERE s.id = %s
       AND s.active = 1
@@ -126,6 +127,7 @@ class ClientValidationResult(BaseModel):
 class SiteConfig(BaseModel):
     site_id: int
     project_id: int | None  # site.program_id
+    project_key: str | None = None  # project.project_key
     configuration: dict[str, str]  # all active site_configure rows
 
 
@@ -142,7 +144,7 @@ def _site_clients_cache_key(site_id: int) -> str:
 
 
 def _site_config_cache_key(site_id: int) -> str:
-    return f"pam:site_config:{site_id}"
+    return f"pam:site_config:v2:{site_id}"
 
 
 def _all_projects_cache_key() -> str:
@@ -317,11 +319,13 @@ async def get_site_config(
         return None
 
     project_id = rows[0][0]  # site.program_id — same for every row
-    configuration = {row[1]: row[2] for row in rows if row[1] is not None}
+    project_key = rows[0][1]  # project.project_key — same for every row
+    configuration = {row[2]: row[3] for row in rows if row[2] is not None}
 
     config = SiteConfig(
         site_id=site_id,
         project_id=project_id,
+        project_key=project_key,
         configuration=configuration,
     )
     await set_with_ttl(redis, key, config.model_dump_json(), ttl)

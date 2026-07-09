@@ -165,6 +165,10 @@ const BONUS_API =
   (process.env.NEXT_PUBLIC_BONUS_API_URL || "http://localhost:8010") +
   "/api/v1/bonus";
 
+// Dedupe concurrent/repeat getSiteConfigure calls for the same site (e.g. two
+// mount effects firing close together) so only one network request goes out.
+const _siteConfigureCache = new Map<string, Promise<Record<string, string>>>();
+
 export const api = {
   async fetchKpiSnapshot(siteId: string | number) {
     const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`, {
@@ -172,6 +176,25 @@ export const api = {
     });
     if (!res.ok) throw new Error("Failed to fetch bonus summary");
     return res.json();
+  },
+  getSiteConfigure(siteId: string | number): Promise<Record<string, string>> {
+    const key = String(siteId);
+    const cached = _siteConfigureCache.get(key);
+    if (cached) return cached;
+
+    const promise = (async () => {
+      const res = await fetch(`${BONUS_API}/site-configure?site_id=${siteId}`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error("Failed to fetch site configure");
+      return res.json();
+    })();
+    // Only dedupe overlapping calls (e.g. two mount effects firing close
+    // together) — drop the cache once settled so a later, independent open
+    // of the form still gets a fresh read.
+    promise.finally(() => _siteConfigureCache.delete(key));
+    _siteConfigureCache.set(key, promise);
+    return promise;
   },
   async fetchBonusSpend(entityType: string, entityId: number): Promise<SpendPeriod[]> {
     const res = await fetch(

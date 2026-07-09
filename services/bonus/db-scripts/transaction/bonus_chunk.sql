@@ -57,6 +57,8 @@ CREATE TABLE `bonus_chunk` (
     -- face value of this chunk; sum across all chunks equals bonus_log.grant_amount
     `wager_multiplier`       DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     -- x-wager required to release this chunk; copied from bonus_log at grant time
+    `product_wager_multiplier` JSON        DEFAULT NULL,
+    -- optional per-product override; copied from bonus_grant at grant time
     `required_wager_amount`  DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     -- pre-computed chunk_amount × wager_multiplier, set at grant time
 

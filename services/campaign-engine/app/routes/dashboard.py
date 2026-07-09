@@ -174,6 +174,16 @@ async def _fetch_analytics_defaults(
     return (doc or {}).get("analytics", {})
 
 
+async def _fetch_channel_boosts(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> dict:
+    doc = await db["dashboard_boosts"].find_one(
+        {"project_id": project_id, "brand_id": brand_id},
+        {"_id": 0, "channels": 1},
+    )
+    return (doc or {}).get("channels", {})
+
+
 def _b(boosts: dict, key: str) -> int:
     return int(boosts.get(key, 0))
 
@@ -409,15 +419,9 @@ async def dashboard_summary(
 # GET /channels
 # ---------------------------------------------------------------------------
 
-# TODO: replace with real per-channel opt-in tracking tomorrow
-_CHANNEL_DEFAULTS: list[dict] = [
-    {"channel": "email",    "reach_pct": 0.80, "status": "live",   "messages_sent": 1100000, "delivery_rate": 0.942, "open_rate": 0.243, "ctr": 0.038},
-    {"channel": "push",     "reach_pct": 0.62, "status": "live",   "messages_sent":  750000, "delivery_rate": 0.918, "open_rate": 0.187, "ctr": 0.052},
-    {"channel": "sms",      "reach_pct": 0.30, "status": "paused", "messages_sent":  380000, "delivery_rate": 0.971, "open_rate": 0.312, "ctr": 0.041},
-    {"channel": "whatsapp", "reach_pct": 0.20, "status": "live",   "messages_sent":  270000, "delivery_rate": 0.964, "open_rate": 0.425, "ctr": 0.083},
-    {"channel": "telegram", "reach_pct": 0.08, "status": "live",   "messages_sent":   85000, "delivery_rate": 0.982, "open_rate": 0.381, "ctr": 0.067},
-    {"channel": "in_app",   "reach_pct": 0.55, "status": "live",   "messages_sent":  580000, "delivery_rate": 0.991, "open_rate": 0.614, "ctr": 0.129},
-]
+_CHANNEL_BOOST_FIELDS = frozenset({
+    "reach_pct", "status", "messages_sent", "delivery_rate", "open_rate", "ctr",
+})
 
 _DAILY_WEIGHTS = [0.12, 0.15, 0.16, 0.14, 0.18, 0.13, 0.12]
 
@@ -446,16 +450,17 @@ async def dashboard_channels(
     project_id = ctx.project_id
     since, now, window_days = _resolve_window(start_date, end_date, window_days)
 
-    raw, daily_range = await asyncio.gather(
+    raw, daily_range, channel_boosts = await asyncio.gather(
         get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
         get_daily_boosts_range(db, project_id, since, now, brand_id),
+        _fetch_channel_boosts(db, project_id, brand_id),
     )
     buckets = _crunch_deliveries(raw)
     db_totals = _crunch_daily_boosts(daily_range)
 
     channels = []
-    for default in _CHANNEL_DEFAULTS:
-        ch = default["channel"]
+    for ch in _DAILY_CHANNELS:
+        cfg = channel_boosts.get(ch, {})
         ch_data = buckets.get(ch, {})
 
         sent_by_date: dict[str, int] = {}
@@ -486,23 +491,31 @@ async def dashboard_channels(
             for d in all_dates
         ]
 
-        demo_sent = default["messages_sent"] + total_sent
+        baseline_sent = cfg.get("messages_sent", 0)
+        demo_sent = baseline_sent + total_sent
         if total_sent > 0 or total_deliv > 0:
             delivery_rate = _safe_rate(total_deliv if total_deliv else real_sent,
                                        (total_deliv if total_deliv else real_sent) + total_failed)
         else:
-            delivery_rate = default["delivery_rate"]
+            delivery_rate = cfg.get("delivery_rate")
+
+        if trend:
+            trend_out = trend
+        elif demo_sent > 0:
+            trend_out = _synthetic_trend(demo_sent, 1 - delivery_rate if delivery_rate is not None else 0.05)
+        else:
+            trend_out = []
 
         channels.append({
             "channel": ch,
             "opted_in_users": None,
-            "reach_pct": default["reach_pct"],
-            "status": default["status"],
+            "reach_pct": cfg.get("reach_pct"),
+            "status": cfg.get("status"),
             "messages_sent": demo_sent,
             "delivery_rate": delivery_rate,
-            "open_rate": default["open_rate"],
-            "ctr": default["ctr"],
-            "trend_7d": trend if len(trend) >= 2 else _synthetic_trend(demo_sent, 1 - default["delivery_rate"]),
+            "open_rate": cfg.get("open_rate"),
+            "ctr": cfg.get("ctr"),
+            "trend_7d": trend_out,
         })
 
     return {"window_days": window_days, "channels": channels}
@@ -849,14 +862,16 @@ async def get_dashboard_boosts(
 ) -> dict:
     doc = await db["dashboard_boosts"].find_one(
         {"project_id": ctx.project_id, "brand_id": brand_id},
-        {"_id": 0, "boosts": 1, "analytics": 1},
+        {"_id": 0, "boosts": 1, "analytics": 1, "channels": 1},
     )
     return {
         "project_id": ctx.project_id,
         "brand_id": brand_id,
         "boosts": (doc or {}).get("boosts", {}),
         "analytics": (doc or {}).get("analytics", {}),
+        "channels": (doc or {}).get("channels", {}),
         "supported_fields": sorted(_BOOSTABLE_FIELDS),
+        "supported_channel_fields": sorted(_CHANNEL_BOOST_FIELDS),
     }
 
 
@@ -892,12 +907,38 @@ async def set_dashboard_boosts(
             if not isinstance(val, (int, float)) or val < 0:
                 raise HTTPException(status_code=422, detail=f"analytics.{rate_key} must be a non-negative number")
 
+    channels: dict = body.get("channels", {})
+    invalid_ch = set(channels) - set(_DAILY_CHANNELS)
+    if invalid_ch:
+        raise HTTPException(status_code=422, detail=f"Unsupported channels: {sorted(invalid_ch)}")
+    for ch, cfg in channels.items():
+        if not isinstance(cfg, dict):
+            raise HTTPException(status_code=422, detail=f"channels.{ch} must be an object")
+        invalid_fields = set(cfg) - _CHANNEL_BOOST_FIELDS
+        if invalid_fields:
+            raise HTTPException(status_code=422, detail=f"Unsupported fields for channels.{ch}: {sorted(invalid_fields)}")
+        if "status" in cfg and cfg["status"] not in ("live", "paused"):
+            raise HTTPException(status_code=422, detail=f"channels.{ch}.status must be 'live' or 'paused'")
+        if "messages_sent" in cfg and (not isinstance(cfg["messages_sent"], int) or cfg["messages_sent"] < 0):
+            raise HTTPException(status_code=422, detail=f"channels.{ch}.messages_sent must be a non-negative integer")
+        for rate_field in ("reach_pct", "delivery_rate", "open_rate", "ctr"):
+            if rate_field in cfg:
+                val = cfg[rate_field]
+                if not isinstance(val, (int, float)) or not (0 <= val <= 1):
+                    raise HTTPException(status_code=422, detail=f"channels.{ch}.{rate_field} must be a number between 0 and 1")
+
     await db["dashboard_boosts"].update_one(
         {"project_id": ctx.project_id, "brand_id": brand_id},
-        {"$set": {"boosts": boosts, "analytics": analytics, "updated_at": datetime.now(timezone.utc)}},
+        {"$set": {
+            "boosts": boosts, "analytics": analytics, "channels": channels,
+            "updated_at": datetime.now(timezone.utc),
+        }},
         upsert=True,
     )
-    return {"project_id": ctx.project_id, "brand_id": brand_id, "boosts": boosts, "analytics": analytics}
+    return {
+        "project_id": ctx.project_id, "brand_id": brand_id,
+        "boosts": boosts, "analytics": analytics, "channels": channels,
+    }
 
 
 # ---------------------------------------------------------------------------

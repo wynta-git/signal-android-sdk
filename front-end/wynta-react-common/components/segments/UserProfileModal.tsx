@@ -5,6 +5,7 @@ import Icon from '../Icon';
 import { fetchUserProfile } from '../../services/pamUsersApi';
 import type { PamUserProfile } from '../../services/pamUsersApi';
 import { _initials, _tierClass, _kycClass } from './SegmentUsersList';
+import PlayerActivitySection from './PlayerActivityPanels';
 import type { Segment } from '../../types';
 
 interface UserProfileModalProps {
@@ -141,6 +142,13 @@ export default function UserProfileModal({ userId, brandId, segment, onClose }: 
                   ))
                 )}
               </div>
+
+              <PlayerActivitySection
+                userId={profile.user_id}
+                brandId={brandId}
+                showBonus
+                siteId={brandId ? Number(brandId) : null}
+              />
             </div>
           )}
         </div>
