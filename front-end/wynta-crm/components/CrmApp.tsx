@@ -13,9 +13,8 @@ declare global {
     __WYNTA_HEADER_FRAGMENT_FOUND__?: boolean;
   }
 }
-import { toggleCopilot } from 'wynta-react-common/store/slices/copilotSlice';
+import { setCopilotModule } from 'wynta-react-common/store/slices/copilotSlice';
 import BrandSwitcher from 'wynta-react-common/components/BrandSwitcher';
-import Icon          from 'wynta-react-common/components/Icon';
 import CopilotPanel  from 'wynta-react-common/components/copilot/CopilotPanel';
 import CrmSidebar    from './CrmSidebar';
 import { listReports, createReport as createReportApi } from '../services/reportsApi';
@@ -102,6 +101,10 @@ function CrmShell() {
   useEffect(() => { dispatch(fetchBrands()); }, [dispatch]);
 
   useEffect(() => {
+    dispatch(setCopilotModule('crm'));
+  }, [dispatch]);
+
+  useEffect(() => {
     // DjHeaderSlot may be rendered by a host layout (e.g. wynta-web's root
     // layout) that has no knowledge of this app's Redux store, so it reports
     // the header-fragment fetch outcome via a window global + CustomEvent
@@ -175,13 +178,6 @@ function CrmShell() {
             compact
           />
           <div style={{ flex: 1 }} />
-          <button
-            className="copilot-open-btn"
-            title="AI Co-pilot"
-            onClick={() => dispatch(toggleCopilot())}
-          >
-            <Icon name="sparkles" size={15} />
-          </button>
         </div>
         )}
         <div className="crm-content">

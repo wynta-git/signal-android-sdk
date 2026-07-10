@@ -47,6 +47,10 @@ export interface CopilotMessage {
 
 export type CopilotTab = 'thread' | 'copilot';
 
+export interface CopilotContext {
+  module: string;
+}
+
 // ── Segments & Players ────────────────────────────────────────────────────────
 
 export interface UploadHistoryEntry {
@@ -161,7 +165,7 @@ export interface DerivedRuleConfig {
 
 /** Response from GET /meta/events/{rule_name}/properties/{param}/operators */
 export interface ParameterOperatorsResponse {
-  operators: string[];
+  operators: string[]; 
   type: string;
   options?: string[];
 }

@@ -13,6 +13,7 @@ import {
   fetchUsers,
   selectAuthStatus,
 } from "wynta-react-common/store/slices/usersSlice";
+import { setCopilotModule } from "wynta-react-common/store/slices/copilotSlice";
 import { selectAllBrands } from "wynta-react-common/store/slices/brandsSlice";
 import {
   openDrawer,
@@ -158,6 +159,10 @@ function BonusShell() {
 
   const prevBrandRef = useRef<number | null>(null);
   const prevKpiStatusRef = useRef(kpiStatus);
+
+  useEffect(() => {
+    dispatch(setCopilotModule("bonus"));
+  }, [dispatch]);
 
   // kpiSlice flips status back to 'idle' after any head/subhead/configure/promo
   // code create or edit so the header stats don't go stale — refetch here.

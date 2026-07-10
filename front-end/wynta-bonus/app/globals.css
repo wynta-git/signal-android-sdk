@@ -4653,13 +4653,15 @@ a { color: inherit; text-decoration: none; }
 .copilot-send:hover:not(:disabled) { background: var(--blue); }
 .copilot-send:disabled { opacity: 0.5; cursor: default; }
 
-/* Standalone opener for shells without .main-topbar (e.g. CRM) */
-.copilot-open-btn {
-  width: 32px; height: 32px;
-  border-radius: var(--r); border: 1px solid var(--g200);
-  flex-shrink: 0;
-  background: #fff; color: var(--g500);
-  display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s;
+.copilot-fab {
+  position: fixed;
+  right: 24px; bottom: 24px;
+  width: 52px; height: 52px;
+  border-radius: 50%; border: none;
+  background: var(--blue); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shm);
+  cursor: pointer; z-index: 39;
+  transition: background 0.12s, transform 0.12s;
 }
-.copilot-open-btn:hover { background: var(--g50); color: var(--g700); border-color: var(--g300); }
+.copilot-fab:hover { background: var(--bl); transform: scale(1.06); }

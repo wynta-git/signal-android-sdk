@@ -5,6 +5,7 @@ import Icon from '../Icon';
 import EmptyState from '../EmptyState';
 import { useCommonSelector } from '../../store/hooks';
 import {
+  openCopilot,
   closeCopilot,
   setCopilotTab,
   sendMessage,
@@ -72,7 +73,17 @@ export default function CopilotPanel() {
   }
 
   return (
-    <aside className={'copilot-panel' + (isOpen ? ' open' : '')} aria-hidden={!isOpen}>
+    <>
+      {!isOpen && (
+        <button
+          className="copilot-fab"
+          title="AI Co-pilot"
+          onClick={() => dispatch(openCopilot())}
+        >
+          <Icon name="sparkles" size={22} />
+        </button>
+      )}
+      <aside className={'copilot-panel' + (isOpen ? ' open' : '')} aria-hidden={!isOpen}>
       <div className="copilot-header">
         <Icon name="message-square" size={18} />
         <span className="copilot-title">AI Co-pilot</span>
@@ -160,6 +171,7 @@ export default function CopilotPanel() {
           </div>
         </>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }

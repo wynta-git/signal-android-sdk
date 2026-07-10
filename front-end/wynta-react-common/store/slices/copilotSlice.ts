@@ -8,6 +8,7 @@ interface CopilotState {
   activeTab: CopilotTab;
   messages: CopilotMessage[];
   status: 'idle' | 'thinking';
+  module: string | null;
 }
 
 const initialState: CopilotState = {
@@ -15,11 +16,16 @@ const initialState: CopilotState = {
   activeTab: 'copilot',
   messages: [],
   status: 'idle',
+  module: null,
 };
 
-export const sendMessage = createAsyncThunk<string, string>(
+export const sendMessage = createAsyncThunk<string, string, { state: { copilot: CopilotState } }>(
   'copilot/sendMessage',
-  (text) => sendCopilotMessage(text),
+  (text, thunkAPI) => {
+    const module = thunkAPI.getState().copilot.module;
+    const context = module ? { module } : null;
+    return sendCopilotMessage(text, context);
+  },
 );
 
 const copilotSlice = createSlice({
@@ -30,6 +36,7 @@ const copilotSlice = createSlice({
     closeCopilot(state) { state.isOpen = false; },
     toggleCopilot(state) { state.isOpen = !state.isOpen; },
     setCopilotTab(state, action: PayloadAction<CopilotTab>) { state.activeTab = action.payload; },
+    setCopilotModule(state, action: PayloadAction<string | null>) { state.module = action.payload; },
   },
   extraReducers(builder) {
     builder
@@ -63,11 +70,12 @@ const copilotSlice = createSlice({
   },
 });
 
-export const { openCopilot, closeCopilot, toggleCopilot, setCopilotTab } = copilotSlice.actions;
+export const { openCopilot, closeCopilot, toggleCopilot, setCopilotTab, setCopilotModule } = copilotSlice.actions;
 
 export const selectCopilotOpen = (state: { copilot: CopilotState }) => state.copilot.isOpen;
 export const selectCopilotTab = (state: { copilot: CopilotState }) => state.copilot.activeTab;
 export const selectCopilotMessages = (state: { copilot: CopilotState }) => state.copilot.messages;
 export const selectCopilotStatus = (state: { copilot: CopilotState }) => state.copilot.status;
+export const selectCopilotModule = (state: { copilot: CopilotState }) => state.copilot.module;
 
 export default copilotSlice.reducer;
