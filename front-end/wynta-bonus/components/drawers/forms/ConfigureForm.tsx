@@ -1344,6 +1344,15 @@ export default function ConfigureForm({
         <div className="drawer-body">
           {step1}
           <div className="section-divider" />
+          <div className="field-group">
+            <label>Status</label>
+            <Toggle
+              on={active}
+              onChange={setActive}
+              label={active ? "Active" : "Paused"}
+            />
+          </div>
+          <div className="section-divider" />
           <div
             style={{
               fontWeight: 600,
