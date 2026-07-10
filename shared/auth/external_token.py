@@ -22,6 +22,7 @@ class InvalidExternalTokenError(Exception):
 class ExternalTokenContext:
     sub: str
     project_id: str
+    email: str
 
 
 _CACHE_KEY_PREFIX = "pam:prog_key:"
@@ -80,10 +81,13 @@ async def validate_external_jwt(
     # External token uses "user_id" and "program id" (integer) instead of "sub"/"project_id"
     sub = payload.get("user_id")
     raw_project_id = payload.get("program id")
+    email = payload.get("email")
 
     if not sub or not str(sub).strip():
         raise InvalidExternalTokenError()
     if raw_project_id is None:
+        raise InvalidExternalTokenError()
+    if not email or not str(email).strip():
         raise InvalidExternalTokenError()
 
     project_id = await _fetch_program_key(int(raw_project_id), redis=redis, ttl=program_key_cache_ttl)
@@ -91,4 +95,4 @@ async def validate_external_jwt(
         log.warning("external_jwt_unmapped_program_id", program_id=raw_project_id)
         raise InvalidExternalTokenError()
 
-    return ExternalTokenContext(sub=str(sub), project_id=project_id)
+    return ExternalTokenContext(sub=str(sub), project_id=project_id, email=str(email))
