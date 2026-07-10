@@ -9,6 +9,7 @@ from app.cache import get_redis
 from app.config import settings
 from shared.auth.external_token import InvalidExternalTokenError, validate_external_jwt
 from shared.auth.portal_token import PORTAL_JWT_ALGORITHM, PORTAL_JWT_ISSUER, PORTAL_TOKEN_TYPE
+from shared.services.system_user import ensure_system_user_provisioned
 
 router = APIRouter()
 log = structlog.get_logger()
@@ -48,6 +49,12 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
             status_code=401,
             detail={"code": "invalid_token", "message": "Invalid or expired token"},
         )
+
+    # Bridging this external identity into the portal for the first time —
+    # ensure it has a system_user + user_site_role row (best-effort, never raises).
+    await ensure_system_user_provisioned(
+        get_redis(), external_id=ext_ctx.sub, email=ext_ctx.email, program_key=ext_ctx.project_id,
+    )
 
     db = request.app.state.mongo[settings.mongo_db]
     doc = await db[_SERVICE_ACCOUNTS_COLLECTION].find_one(
