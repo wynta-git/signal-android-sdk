@@ -76,7 +76,7 @@ async def get_system_token(body: TokenRequest) -> TokenResponse:
         "type": "system",
         "client_id": result.client_id,
         "project_id": result.program_id,
-        "project_key": result.project_key,
+        "project_key": result.program_key,
         "site_id": str(result.site_id),
         "iss": SYSTEM_JWT_ISSUER,
         "iat": now,
