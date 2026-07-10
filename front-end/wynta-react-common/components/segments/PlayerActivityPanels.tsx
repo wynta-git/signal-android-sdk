@@ -51,6 +51,28 @@ function _friendlyName(eventName: string): string {
     .join(' ');
 }
 
+const _KEY_ACRONYMS = new Set(['id', 'url', 'ip', 'os', 'sdk', 'utm']);
+
+function _friendlyKey(key: string): string {
+  return key
+    .split(/[_\s]+/)
+    .map(w => (_KEY_ACRONYMS.has(w.toLowerCase()) ? w.toUpperCase() : w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
+const _ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+
+function _formatValue(value: unknown): string {
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'number') return value.toLocaleString('en-IN');
+  if (typeof value === 'string') {
+    if (_ISO_DATE_RE.test(value) && !Number.isNaN(Date.parse(value))) return _fmtDate(value);
+    return value;
+  }
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
 function _dayLabel(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -361,7 +383,14 @@ function EventsList({ events, loading, error, hasMore, moreLoading, onMore }: {
                     </span>
                   </div>
                   {isOpen && (
-                    <pre className="at-raw">{JSON.stringify(_rawEventData(e), null, 2)}</pre>
+                    <div className="at-detail">
+                      {Object.entries(_rawEventData(e)).map(([key, value]) => (
+                        <div key={key} className="at-detail-row">
+                          <span className="k">{_friendlyKey(key)}</span>
+                          <span className="v">{_formatValue(value)}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               );

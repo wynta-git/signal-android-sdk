@@ -27,7 +27,7 @@ class ExternalTokenContext:
 _CACHE_KEY_PREFIX = "pam:prog_key:"
 
 
-async def _fetch_project_key(
+async def _fetch_program_key(
     program_id: int,
     redis: Redis | None = None,
     ttl: int = 3600,
@@ -41,7 +41,7 @@ async def _fetch_project_key(
     async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
             await cur.execute(
-                "SELECT project_key FROM project WHERE id = %s LIMIT 1",
+                "SELECT program_key FROM program WHERE id = %s LIMIT 1",
                 (program_id,),
             )
             row = await cur.fetchone()
@@ -86,7 +86,7 @@ async def validate_external_jwt(
     if raw_project_id is None:
         raise InvalidExternalTokenError()
 
-    project_id = await _fetch_project_key(int(raw_project_id), redis=redis, ttl=program_key_cache_ttl)
+    project_id = await _fetch_program_key(int(raw_project_id), redis=redis, ttl=program_key_cache_ttl)
     if project_id is None:
         log.warning("external_jwt_unmapped_program_id", program_id=raw_project_id)
         raise InvalidExternalTokenError()
