@@ -6,6 +6,7 @@ import BrandSwitcher from "./BrandSwitcher";
 import DjSidebarSlot from "./DjSidebarSlot";
 import CopilotPanel from "./copilot/CopilotPanel";
 import { fetchBrands } from "../store/slices/brandsSlice";
+import { fetchUserSettings } from "../store/slices/settingsSlice";
 
 export interface NavItem {
   id: string;
@@ -49,6 +50,7 @@ export default function AppShell({
 
   useEffect(() => {
     dispatch(fetchBrands());
+    dispatch(fetchUserSettings());
   }, [dispatch]);
 
   return (

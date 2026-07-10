@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { getToken } from "../../services/tokenRegistry";
-import { selectBridgeUser } from "../../store/slices/usersSlice";
+import { selectUserSetting } from "../../store/slices/settingsSlice";
 
 const CHAT_URL =
   process.env.NEXT_PUBLIC_CHAT_URL || "https://qa-chat.fozilpartners.com/chat/";
@@ -12,7 +12,7 @@ export default function ChatPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [token, setToken] = useState("");
   const [chatReady, setChatReady] = useState(false);
-  const bridgeUser = useSelector(selectBridgeUser);
+  const chatE2eeKey = useSelector(selectUserSetting("chat_e2ee_key"));
 
   useEffect(() => {
     const existing = getToken();
@@ -42,12 +42,12 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!token || !chatReady) return;
+    if (!token || !chatReady || !chatE2eeKey) return;
     iframeRef.current?.contentWindow?.postMessage(
-      { type: "AUTH_TOKEN", token, userId: bridgeUser?.id },
+      { type: "AUTH_TOKEN", token, chat_e2ee_key: chatE2eeKey },
       CHAT_ORIGIN,
     );
-  }, [token, chatReady, bridgeUser]);
+  }, [token, chatReady, chatE2eeKey]);
 
   return (
     <div

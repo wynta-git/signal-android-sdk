@@ -9,7 +9,7 @@ from app.cache import get_redis
 from app.config import settings
 from shared.auth.external_token import InvalidExternalTokenError, validate_external_jwt
 from shared.auth.portal_token import PORTAL_JWT_ALGORITHM, PORTAL_JWT_ISSUER, PORTAL_TOKEN_TYPE
-from shared.services.system_user import ensure_system_user_provisioned
+from shared.services.system_user import ensure_system_user_provisioned, get_system_user_display_name
 
 router = APIRouter()
 log = structlog.get_logger()
@@ -64,6 +64,10 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
         log.error("exchange_token_portal_ui_account_missing")
         raise HTTPException(status_code=503, detail={"code": "misconfigured", "message": "Service account not found"})
 
+    display_name = await get_system_user_display_name(ext_ctx.sub, get_redis())
+    if display_name is None:
+        display_name = ext_ctx.email.split("@")[0]  # best-effort fallback only
+
     now = int(datetime.now(tz=timezone.utc).timestamp())
     payload = {
         "sub": _PORTAL_UI_ACCOUNT,
@@ -71,6 +75,7 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
         "type": PORTAL_TOKEN_TYPE,
         "project_id": ext_ctx.project_id,
         "user_id": ext_ctx.sub,
+        "dn": display_name,
         "iat": now,
         "exp": now + settings.portal_token_ttl,
         "scope": list(doc.get("scope", [])),

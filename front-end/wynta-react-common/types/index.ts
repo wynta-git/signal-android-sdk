@@ -36,6 +36,9 @@ export interface AuthResponse {
   };
 }
 
+/** Flat key-value UI settings for the current system_user, from GET /users/me/settings */
+export type UserSettings = Record<string, string>;
+
 // ── AI Co-pilot ───────────────────────────────────────────────────────────────
 
 export interface CopilotMessage {
@@ -165,7 +168,7 @@ export interface DerivedRuleConfig {
 
 /** Response from GET /meta/events/{rule_name}/properties/{param}/operators */
 export interface ParameterOperatorsResponse {
-  operators: string[]; 
+  operators: string[];
   type: string;
   options?: string[];
 }

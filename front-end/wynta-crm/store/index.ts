@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import usersReducer     from 'wynta-react-common/store/slices/usersSlice';
 import brandsReducer    from 'wynta-react-common/store/slices/brandsSlice';
 import segmentsReducer  from 'wynta-react-common/store/slices/segmentsSlice';
+import settingsReducer  from 'wynta-react-common/store/slices/settingsSlice';
 import copilotReducer   from 'wynta-react-common/store/slices/copilotSlice';
 import campaignsReducer from './slices/campaignsSlice';
 import dashboardReducer from './slices/dashboardSlice';
@@ -14,6 +15,7 @@ export const store = configureStore({
     users:     usersReducer,
     brands:    brandsReducer,
     segments:  segmentsReducer,
+    settings:  settingsReducer,
     copilot:   copilotReducer,
     campaigns: campaignsReducer,
     dashboard: dashboardReducer,

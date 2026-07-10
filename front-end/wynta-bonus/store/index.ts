@@ -19,6 +19,7 @@ import usersReducer, {
   authenticateWithBridgeToken,
 } from "wynta-react-common/store/slices/usersSlice";
 import eventsReducer from "wynta-react-common/store/slices/eventsSlice";
+import settingsReducer from "wynta-react-common/store/slices/settingsSlice";
 import copilotReducer from "wynta-react-common/store/slices/copilotSlice";
 import type { SelectedNode } from "../types";
 
@@ -28,10 +29,14 @@ const initOnAuthMiddleware: Middleware = (storeApi) => (next) => (action) => {
 
   const typedAction = action as { type?: string; payload?: { data?: { token?: string } } };
   if (typedAction.type === "users/auth/fulfilled") {
-    // Brands are already fetched unconditionally by AppShell's own mount effect
-    // (wynta-react-common/components/AppShell.tsx), which — thanks to
-    // BonusAdminApp's token-ready gate — only mounts after auth succeeds anyway.
-    // Dispatching fetchBrands() here too caused a duplicate GET /system/brands call.
+    // Brands and settings are already fetched unconditionally by AppShell's
+    // own mount effect (wynta-react-common/components/AppShell.tsx), which —
+    // thanks to BonusAdminApp's token-ready gate — only mounts after auth
+    // succeeds anyway. Dispatching them here too caused duplicate GET calls
+    // (confirmed for fetchBrands; fetchUserSettings was moved out for the
+    // same reason after it caused a duplicate GET /users/me/settings when
+    // this store is used as wynta-web's ambient store alongside CrmApp's own
+    // nested store, which also fetches settings on mount).
     storeApi.dispatch(fetchSegments() as never);
   }
   return result;
@@ -56,6 +61,7 @@ export const store = configureStore({
     spend: spendReducer,
     users: usersReducer,
     events: eventsReducer,
+    settings: settingsReducer,
     copilot: copilotReducer,
   },
   middleware: (getDefaultMiddleware) =>
