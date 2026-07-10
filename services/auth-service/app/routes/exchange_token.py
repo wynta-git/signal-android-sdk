@@ -75,7 +75,7 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
         "type": PORTAL_TOKEN_TYPE,
         "project_id": ext_ctx.project_id,
         "user_id": ext_ctx.sub,
-        "display_name": display_name,
+        "dn": display_name,
         "iat": now,
         "exp": now + settings.portal_token_ttl,
         "scope": list(doc.get("scope", [])),
