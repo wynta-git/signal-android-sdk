@@ -275,3 +275,38 @@ async def get_system_user_id_by_external_id(
 
     await set_with_ttl(redis, key, str(row[0]), ttl)
     return int(row[0])
+
+
+_DISPLAY_NAME_BY_EXTERNAL_ID_TTL = 3600  # 1 hour
+
+_SQL_DISPLAY_NAME_BY_EXTERNAL_ID = (
+    "SELECT display_name FROM system_user WHERE external_id = %s AND active = 1 LIMIT 1"
+)
+
+
+def _display_name_cache_key(external_id: str) -> str:
+    return f"auth:sys_user:display_name:{external_id}"
+
+
+async def get_system_user_display_name(
+    external_id: str,
+    redis: Redis,
+    ttl: int = _DISPLAY_NAME_BY_EXTERNAL_ID_TTL,
+) -> str | None:
+    """Return system_user.display_name for an active external_id, or None if unmapped."""
+    key = _display_name_cache_key(external_id)
+
+    cached = await get_str(redis, key)
+    if cached is not None:
+        return cached
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_DISPLAY_NAME_BY_EXTERNAL_ID, (external_id,))
+            row = await cur.fetchone()
+
+    if row is None or row[0] is None:
+        return None
+
+    await set_with_ttl(redis, key, row[0], ttl)
+    return str(row[0])
