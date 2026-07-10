@@ -6,6 +6,7 @@ import { store }     from '../store';
 import { getToken }  from 'wynta-react-common/services/tokenRegistry';
 import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
+import { fetchUserSettings } from 'wynta-react-common/store/slices/settingsSlice';
 import { setSelectedBrand, setHeaderFragmentFound } from '../store/slices/uiSlice';
 
 declare global {
@@ -97,6 +98,7 @@ function CrmShell() {
   const [createError,     setCreateError]     = useState<string | null>(null);
 
   useEffect(() => { dispatch(fetchBrands()); }, [dispatch]);
+  useEffect(() => { dispatch(fetchUserSettings()); }, [dispatch]);
 
   useEffect(() => {
     // DjHeaderSlot may be rendered by a host layout (e.g. wynta-web's root

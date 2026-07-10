@@ -1,3 +1,5 @@
+import uuid
+
 import aiomysql
 import structlog
 from aiomysql import IntegrityError
@@ -27,6 +29,22 @@ _SQL_INSERT_USER_SITE_ROLE = """
     INSERT INTO user_site_role (user_id, site_id, role_id, active, created_by, updated_by)
     VALUES (%s, %s, %s, 1, %s, %s)
 """
+
+SETTING_TYPE_UI = "UI"
+
+_CHAT_E2EE_KEY_SETTING = "chat_e2ee_key"
+
+_SQL_GET_SYSTEM_USER_SETTING = (
+    "SELECT id FROM system_user_setting WHERE system_user_id = %s AND config_key = %s AND active = 1 LIMIT 1"
+)
+_SQL_INSERT_SYSTEM_USER_SETTING = """
+    INSERT INTO system_user_setting (system_user_id, type, config_key, config_value, active, created_by, updated_by)
+    VALUES (%s, %s, %s, %s, 1, %s, %s)
+"""
+
+
+def settings_cache_key(system_user_id: int) -> str:
+    return f"auth:sys_user_settings:{system_user_id}"
 
 
 def _provisioned_cache_key(program_key: str, external_id: str) -> str:
@@ -106,6 +124,32 @@ async def _ensure_user_site_role(
             await conn.rollback()
 
 
+async def _ensure_chat_e2ee_key(user_id: int, conn: aiomysql.Connection, redis: Redis) -> None:
+    """Idempotent check-then-insert; tolerates a concurrent-request race on the
+    UNIQUE(system_user_id, config_key) constraint by treating it as a no-op.
+    Invalidates the settings cache on a real insert so a settings response
+    cached before this key existed can't keep hiding it until its TTL expires."""
+    async with conn.cursor() as cur:
+        await cur.execute(_SQL_GET_SYSTEM_USER_SETTING, (user_id, _CHAT_E2EE_KEY_SETTING))
+        if await cur.fetchone() is not None:
+            return
+
+        try:
+            await cur.execute(
+                _SQL_INSERT_SYSTEM_USER_SETTING,
+                (
+                    user_id, SETTING_TYPE_UI, _CHAT_E2EE_KEY_SETTING, str(uuid.uuid4()),
+                    _AUTO_PROVISION_ACTOR, _AUTO_PROVISION_ACTOR,
+                ),
+            )
+            await conn.commit()
+        except IntegrityError:
+            await conn.rollback()
+            return
+
+    await redis.delete(settings_cache_key(user_id))
+
+
 async def ensure_system_user_provisioned(
     redis: Redis,
     external_id: str,
@@ -123,7 +167,11 @@ async def ensure_system_user_provisioned(
     cache_key = _provisioned_cache_key(program_key, external_id)
     try:
         if await get_str(redis, cache_key) is not None:
-            return  # already provisioned — skip MySQL entirely
+            # Already fully provisioned — still self-heal chat_e2ee_key on its
+            # own, independent cache so a user with a warm provisioned-cache
+            # entry doesn't wait out the full _PROVISIONED_TTL to get one.
+            await _ensure_chat_e2ee_key_standalone(redis, external_id)
+            return
 
         display_name = email.split("@")[0]
 
@@ -148,6 +196,7 @@ async def ensure_system_user_provisioned(
             user_id = await _get_or_create_system_user_id(
                 external_id, email, display_name, program_id, conn
             )
+            await _ensure_chat_e2ee_key(user_id, conn, redis)
             for site_id in site_ids:
                 await _ensure_user_site_role(user_id, site_id, role_id, conn)
 
@@ -162,3 +211,67 @@ async def ensure_system_user_provisioned(
             "system_user.auto_provision_failed",
             external_id=external_id, program_key=program_key, error=str(exc),
         )
+
+
+_CHAT_KEY_ENSURED_TTL = 3600  # 1 hour — independent of _PROVISIONED_TTL
+
+
+def _chat_key_ensured_cache_key(external_id: str) -> str:
+    return f"auth:sys_user:chat_key_ensured:{external_id}"
+
+
+async def _ensure_chat_e2ee_key_standalone(redis: Redis, external_id: str) -> None:
+    """Best-effort self-heal for already-provisioned users: ensure chat_e2ee_key
+    exists without waiting out ensure_system_user_provisioned's own cache TTL.
+    Never raises — mirrors that function's best-effort contract."""
+    try:
+        chat_key_cache = _chat_key_ensured_cache_key(external_id)
+        if await get_str(redis, chat_key_cache) is not None:
+            return
+
+        user_id = await get_system_user_id_by_external_id(external_id, redis)
+        if user_id is None:
+            return
+
+        async with get_connection(POOL_COMMON) as conn:
+            await _ensure_chat_e2ee_key(user_id, conn, redis)
+
+        await set_with_ttl(redis, chat_key_cache, "1", _CHAT_KEY_ENSURED_TTL)
+    except Exception as exc:
+        log.warning(
+            "system_user.chat_e2ee_key_standalone_failed",
+            external_id=external_id, error=str(exc),
+        )
+
+
+_ID_BY_EXTERNAL_ID_TTL = 3600  # 1 hour
+
+_SQL_ID_BY_EXTERNAL_ID = "SELECT id FROM system_user WHERE external_id = %s AND active = 1 LIMIT 1"
+
+
+def _id_by_external_id_cache_key(external_id: str) -> str:
+    return f"auth:sys_user:id_by_external:{external_id}"
+
+
+async def get_system_user_id_by_external_id(
+    external_id: str,
+    redis: Redis,
+    ttl: int = _ID_BY_EXTERNAL_ID_TTL,
+) -> int | None:
+    """Return system_user.id for an active external_id, or None if unmapped."""
+    key = _id_by_external_id_cache_key(external_id)
+
+    cached = await get_str(redis, key)
+    if cached is not None:
+        return int(cached)
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_ID_BY_EXTERNAL_ID, (external_id,))
+            row = await cur.fetchone()
+
+    if row is None:
+        return None
+
+    await set_with_ttl(redis, key, str(row[0]), ttl)
+    return int(row[0])

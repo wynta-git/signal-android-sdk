@@ -36,6 +36,9 @@ export interface AuthResponse {
   };
 }
 
+/** Flat key-value UI settings for the current system_user, from GET /users/me/settings */
+export type UserSettings = Record<string, string>;
+
 // ── Segments & Players ────────────────────────────────────────────────────────
 
 export interface UploadHistoryEntry {
