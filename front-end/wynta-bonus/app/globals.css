@@ -2461,20 +2461,30 @@ a { color: inherit; text-decoration: none; }
 }
 .at-row:hover .at-arrow { background: var(--g100); }
 .at-arrow.open { transform: rotate(90deg); }
-.at-raw {
+.at-detail {
   margin: 2px 0 10px 60px;
-  padding: 10px 12px;
+  padding: 4px 14px;
   background: var(--g50);
   border: 1px solid var(--g150);
   border-radius: var(--rl);
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--g700);
+  max-height: 320px;
   overflow: auto;
-  max-height: 260px;
-  white-space: pre;
   position: relative; z-index: 1;
+}
+.at-detail-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 16px;
+  padding: 8px 0; border-top: 1px dashed var(--g150);
+  font-size: 12px;
+}
+.at-detail-row:first-child { border-top: none; }
+.at-detail-row .k {
+  color: var(--g500); flex-shrink: 0;
+  font-size: 11px;
+}
+.at-detail-row .v {
+  color: var(--g900); font-weight: 600;
+  text-align: right; word-break: break-word;
 }
 
 /* player profile — recent activity events */

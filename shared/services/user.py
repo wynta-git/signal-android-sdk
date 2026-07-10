@@ -144,15 +144,15 @@ async def _upsert_new_user_profile(
 
     try:
         cfg = await get_site_config(site_id, redis)
-        if cfg is None or not cfg.project_key:
+        if cfg is None or not cfg.program_key:
             log.warning(
-                "pam_user.profile_upsert_skipped_no_project_key",
+                "pam_user.profile_upsert_skipped_no_program_key",
                 site_id=site_id, user_id=user_id,
             )
             return
         await upsert_user_profile(
             mongo_db,
-            project_id=cfg.project_key,
+            project_id=cfg.program_key,
             user_id=user_id,
             traits={},
             anonymous_id=None,
