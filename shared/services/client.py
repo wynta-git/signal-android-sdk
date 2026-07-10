@@ -405,3 +405,65 @@ async def get_all_programs(
 
     await set_with_ttl(redis, key, json.dumps([p.model_dump() for p in programs]), ttl)
     return programs
+
+
+_PROGRAM_ID_BY_KEY_TTL = 3600  # 1 hour
+_ACTIVE_SITES_BY_PROGRAM_TTL = 3600  # 1 hour
+
+_SQL_PROGRAM_ID_BY_KEY = "SELECT id FROM program WHERE program_key = %s AND active = 1 LIMIT 1"
+_SQL_ACTIVE_SITE_IDS_BY_PROGRAM = "SELECT id FROM site WHERE program_id = %s AND active = 1"
+
+
+def _program_id_by_key_cache_key(program_key: str) -> str:
+    return f"pam:program:id_by_key:{program_key}"
+
+
+def _active_sites_by_program_cache_key(program_id: int) -> str:
+    return f"pam:site:by_program:{program_id}"
+
+
+async def get_program_id_by_key(
+    program_key: str,
+    redis: Redis,
+    ttl: int = _PROGRAM_ID_BY_KEY_TTL,
+) -> int | None:
+    """Return program.id for an active program_key, or None if unmapped."""
+    key = _program_id_by_key_cache_key(program_key)
+
+    cached = await get_str(redis, key)
+    if cached is not None:
+        return int(cached)
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_PROGRAM_ID_BY_KEY, (program_key,))
+            row = await cur.fetchone()
+
+    if row is None:
+        return None
+
+    await set_with_ttl(redis, key, str(row[0]), ttl)
+    return int(row[0])
+
+
+async def get_active_site_ids_by_program(
+    program_id: int,
+    redis: Redis,
+    ttl: int = _ACTIVE_SITES_BY_PROGRAM_TTL,
+) -> list[int]:
+    """Return the ids of every active site under program_id."""
+    key = _active_sites_by_program_cache_key(program_id)
+
+    cached = await get_str(redis, key)
+    if cached is not None:
+        return [int(v) for v in json.loads(cached)]
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_ACTIVE_SITE_IDS_BY_PROGRAM, (program_id,))
+            rows = await cur.fetchall()
+
+    site_ids = [int(row[0]) for row in rows]
+
+    await set_with_ttl(redis, key, json.dumps(site_ids), ttl)
+    return site_ids
