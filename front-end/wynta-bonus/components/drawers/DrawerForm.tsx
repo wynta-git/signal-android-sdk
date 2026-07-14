@@ -3,7 +3,6 @@ import HeadForm from './forms/HeadForm';
 import SubheadForm from './forms/SubheadForm';
 import ConfigureForm from './forms/ConfigureForm';
 import PromoCodeForm from './forms/PromoCodeForm';
-import EligibilityForm from './forms/EligibilityForm';
 import TriggerForm from './forms/TriggerForm';
 import ChunkForm from './forms/ChunkForm';
 import BudgetForm from './forms/BudgetForm';
@@ -31,7 +30,6 @@ export default function DrawerForm({ state, submitting, onCancel, onSubmit }: Dr
     case 'NEW_PROMOCODE':    return <PromoCodeForm  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_PROMOCODE':   return <PromoCodeForm  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'CLONE_PROMOCODE':  return <PromoCodeForm  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
-    case 'NEW_ELIGIBILITY':  return <EligibilityForm state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'NEW_TRIGGER':      return <TriggerForm    state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_TRIGGER':     return <TriggerForm    state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_CHUNKS':      return <ChunkForm      state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
