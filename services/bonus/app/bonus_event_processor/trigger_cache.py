@@ -39,7 +39,8 @@ _FETCH_SQL = """
         bc.cashback_bonus_amount_percent,
         bc.cashback_bonus_amount_max,
         bc.priority,
-        bs.head_id
+        bs.head_id,
+        bc.product_wager_multiplier
     FROM bonus_release_trigger brt
     JOIN bonus_configure bc ON bc.id = brt.configure_id
     JOIN bonus_subhead   bs ON bs.id = bc.subhead_id
@@ -59,6 +60,18 @@ def _serialize(value: object) -> object:
     if isinstance(value, datetime):
         return value.isoformat()
     return value
+
+
+def _parse_product_wager_multiplier(raw: object) -> dict | None:
+    """JSON column value -> {product: float}. Handles both str and pre-parsed dict."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return None
+    if not isinstance(raw, dict):
+        return None
+    return {k: float(v) for k, v in raw.items()}
 
 
 def _row_to_dict(row: tuple) -> dict:
@@ -90,6 +103,7 @@ def _row_to_dict(row: tuple) -> dict:
             "cashback_bonus_amount_max": _serialize(row[23]),
             "priority": row[24],
             "head_id": row[25],
+            "product_wager_multiplier": _parse_product_wager_multiplier(row[26]),
         },
     }
 

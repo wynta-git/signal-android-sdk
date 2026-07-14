@@ -19,6 +19,7 @@ class PortalTokenContext:
     project_id: str
     user_id: str
     scope: list[str]
+    display_name: str = ""
 
     def has_scope(self, required: str) -> bool:
         return required in self.scope
@@ -44,6 +45,7 @@ def validate_portal_token(token: str, public_key: str) -> PortalTokenContext:
     project_id = payload.get("project_id")
     user_id = payload.get("user_id", "")
     scope = payload.get("scope", [])
+    display_name = payload.get("display_name", "")
 
     if not isinstance(sub, str) or not sub:
         raise InvalidPortalTokenError()
@@ -52,4 +54,7 @@ def validate_portal_token(token: str, public_key: str) -> PortalTokenContext:
     if not isinstance(scope, list):
         raise InvalidPortalTokenError()
 
-    return PortalTokenContext(service=sub, project_id=project_id, user_id=str(user_id), scope=scope)
+    return PortalTokenContext(
+        service=sub, project_id=project_id, user_id=str(user_id), scope=scope,
+        display_name=str(display_name),
+    )

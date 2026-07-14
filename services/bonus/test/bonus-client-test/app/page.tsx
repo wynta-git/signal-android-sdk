@@ -514,6 +514,7 @@ function DepositScreen({
   const isbet = mode === "bet";
   const [amount, setAmount] = useState("500");
   const [paymentMethod, setPaymentMethod] = useState("upi");
+  const [product, setProduct] = useState("RUMMY");
   const [promos, setPromos] = useState<PromoCode[]>([]);
   const [selectedPromo, setSelectedPromo] = useState<PromoCode | null>(null);
   const [promosLoading, setPromosLoading] = useState(true);
@@ -593,6 +594,7 @@ function DepositScreen({
           payment_method: paymentMethod,
           transaction_id: txnId,
           event_name: isbet ? "bet_placed" : "deposit_success",
+          ...(isbet ? { product } : {}),
           ...(selectedPromo ? { promo_code: selectedPromo.code } : {}),
         }),
       });
@@ -643,16 +645,28 @@ function DepositScreen({
         {error && <div className="error-toast">{error}</div>}
         <form onSubmit={handleDeposit}>
           {isbet ? (
-            <div className="input-group" style={{ marginBottom: 24 }}>
-              <label>Bet Amount (₹)</label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                min="1"
-                step="1"
-                required
-              />
+            <div className="input-row" style={{ marginBottom: 24 }}>
+              <div className="input-group" style={{ flex: 2 }}>
+                <label>Bet Amount (₹)</label>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  min="1"
+                  step="1"
+                  required
+                />
+              </div>
+              <div className="input-group" style={{ flex: 1.6 }}>
+                <label>Product</label>
+                <select
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                >
+                  <option value="RUMMY">RUMMY</option>
+                  <option value="AVIATOR">AVIATOR</option>
+                </select>
+              </div>
             </div>
           ) : (
             <>

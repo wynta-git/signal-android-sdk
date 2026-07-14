@@ -6,6 +6,7 @@ import { store }     from '../store';
 import { getToken }  from 'wynta-react-common/services/tokenRegistry';
 import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
+import { fetchUserSettings } from 'wynta-react-common/store/slices/settingsSlice';
 import { setSelectedBrand, setHeaderFragmentFound } from '../store/slices/uiSlice';
 
 declare global {
@@ -34,6 +35,7 @@ const ChurnRetentionReport    = dynamic(() => import('./reports/ChurnRetentionRe
 const CustomReportBuilder     = dynamic(() => import('./reports/CustomReportBuilder'), { ssr: false });
 const CustomReportView        = dynamic(() => import('./reports/CustomReportView'), { ssr: false });
 const ClientsPage             = dynamic(() => import('./clients/ClientsPage'),      { ssr: false });
+const ChatPage                = dynamic(() => import('wynta-react-common/components/chat/ChatPage'), { ssr: false });
 
 /**
  * CrmApp wraps itself in the wynta-crm store Provider.
@@ -96,6 +98,7 @@ function CrmShell() {
   const [createError,     setCreateError]     = useState<string | null>(null);
 
   useEffect(() => { dispatch(fetchBrands()); }, [dispatch]);
+  useEffect(() => { dispatch(fetchUserSettings()); }, [dispatch]);
 
   useEffect(() => {
     // DjHeaderSlot may be rendered by a host layout (e.g. wynta-web's root
@@ -179,6 +182,7 @@ function CrmShell() {
            activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
            activeNav === 'clients'          ? <ClientsPage brandId={brandId} /> :
+           activeNav === 'chat'             ? <ChatPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :
            activeNav === 'reports:campaign' ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :

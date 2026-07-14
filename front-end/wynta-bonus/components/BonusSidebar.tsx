@@ -42,7 +42,8 @@ const BONUS_NAV_SECTIONS: NavSection[] = [
           { id: 'lifecycle', label: 'Player Lifecycle'  },
           { id: 'churn',     label: 'Churn & Retention' },
         ],
-      }
+      },
+      { id: 'chat', label: 'Chat', icon: 'message-circle' },
     ],
   },
 ];
