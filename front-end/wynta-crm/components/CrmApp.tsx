@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import dynamic       from 'next/dynamic';
 import { store }     from '../store';
-import { getToken }  from 'wynta-react-common/services/tokenRegistry';
+import { getToken, setBrandId }  from 'wynta-react-common/services/tokenRegistry';
 import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
 import { fetchUserSettings } from 'wynta-react-common/store/slices/settingsSlice';
@@ -105,6 +105,14 @@ function CrmShell() {
   useEffect(() => {
     dispatch(setCopilotModule('crm'));
   }, [dispatch]);
+
+  // Keep the shared tokenRegistry site id in sync with this app's own brand
+  // selection (manual switch or the default-brand fallback in uiSlice) so
+  // shared code like copilotSlice, which has no access to `ui.selectedBrand`,
+  // still sees the correct site_id.
+  useEffect(() => {
+    if (selectedBrand != null) setBrandId(selectedBrand);
+  }, [selectedBrand]);
 
   useEffect(() => {
     // DjHeaderSlot may be rendered by a host layout (e.g. wynta-web's root
