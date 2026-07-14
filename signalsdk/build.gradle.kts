@@ -17,7 +17,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Enabled for public distribution (Maven Central / public GitHub) — the .aar
+            // still decompiles, but R8 strips/renames everything not covered by
+            // proguard-rules.pro's keep list, instead of shipping clean Kotlin source.
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -52,9 +55,12 @@ dependencies {
 }
 
 // ── Maven Central publishing ──────────────────────────────────────────────────
+//
+// groupId is Sonatype-verified as io.github.wynta-git; public repo is
+// github.com/wynta-git/signal-android-sdk.
 
 val sdkVersion: String = project.findProperty("VERSION_NAME") as String? ?: "1.0.0"
-val sdkGroup:   String = project.findProperty("GROUP")        as String? ?: "com.signalsdk"
+val sdkGroup:   String = project.findProperty("GROUP")        as String? ?: "io.github.wynta-git"
 
 afterEvaluate {
     publishing {
@@ -69,7 +75,7 @@ afterEvaluate {
                 pom {
                     name.set("Signal Android SDK")
                     description.set("Signal Android SDK for player analytics and marketing automation.")
-                    url.set("https://github.com/signal-sdk/android-sdk")
+                    url.set("https://github.com/wynta-git/signal-android-sdk")
 
                     licenses {
                         license {
@@ -80,16 +86,16 @@ afterEvaluate {
 
                     developers {
                         developer {
-                            id.set("signal")
+                            id.set("wynta-git")
                             name.set("Signal SDK")
-                            email.set("support@signal-sdk.com")
+                            email.set("support@wynta.com")
                         }
                     }
 
                     scm {
-                        connection.set("scm:git:github.com/signal-sdk/android-sdk.git")
-                        developerConnection.set("scm:git:ssh://github.com/signal-sdk/android-sdk.git")
-                        url.set("https://github.com/signal-sdk/android-sdk/tree/main")
+                        connection.set("scm:git:github.com/wynta-git/signal-android-sdk.git")
+                        developerConnection.set("scm:git:ssh://github.com/wynta-git/signal-android-sdk.git")
+                        url.set("https://github.com/wynta-git/signal-android-sdk/tree/main")
                     }
                 }
             }
@@ -101,7 +107,9 @@ afterEvaluate {
     // Local: set signing.key / signing.password in ~/.gradle/gradle.properties
     signing {
         val signingKey      = providers.environmentVariable("SIGNING_KEY").orNull
+            ?: findProperty("signing.key") as String?
         val signingPassword = providers.environmentVariable("SIGNING_PASSWORD").orNull
+            ?: findProperty("signing.password") as String?
         if (signingKey != null && signingPassword != null) {
             useInMemoryPgpKeys(signingKey, signingPassword)
         }
