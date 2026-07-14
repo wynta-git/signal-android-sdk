@@ -64,6 +64,7 @@ export interface PromoCode {
   badge_text?: string | null;
   cta_text?: string | null;
   auto_apply?: boolean;
+  system_auto_apply?: boolean | null;
   display_order?: number;
   display_on?: string;
   min_display_amount?: string | number | null;
@@ -75,6 +76,14 @@ export interface PromoCode {
   updated_by?: string;
   created_at?: string;
   updated_at?: string;
+  is_manual_bonus?: boolean;
+  manual_bonus_status?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'PARTIAL_SUCCESS' | 'FAILED' | null;
+  manual_bonus_total_players?: number | null;
+  manual_bonus_total_amount?: string | number | null;
+  manual_bonus_success_players?: number | null;
+  manual_bonus_success_amount?: string | number | null;
+  manual_bonus_failed_players?: number | null;
+  manual_bonus_failed_amount?: string | number | null;
 }
 
 export interface Trigger {
@@ -111,6 +120,7 @@ export interface BonusConfigure {
   start_date?: string;
   end_date?: string;
   wager_multiplier?: number;
+  product_wager_multiplier?: Record<string, number> | null;
   no_of_chunks?: number;
   bonus_amount_fixed?: string | null;
   bonus_amount_percent?: string | null;
@@ -158,6 +168,7 @@ export interface KpiSnapshot {
   monthly_consumed: number;
   monthly_pending: number;
   monthly_forfeit: number;
+  monthly_expiring: number;
   monthly_limit: number;
   monthly_pct: number;
 }
@@ -176,7 +187,7 @@ export interface Segment {
   owner?: string;
 }
 
-export interface Player {
+export interface PAMUser {
   id: number;
   name: string;
   email: string;
@@ -195,8 +206,8 @@ export interface Player {
   product: string;
 }
 
-export interface PlayerPage {
-  players: Player[];
+export interface PAMUserPage {
+  players: PAMUser[];
   page: number;
   pageTotal: number;
   total: number;
@@ -282,6 +293,7 @@ export type DrawerType =
   | 'EDIT_CHUNKS'
   | 'EDIT_BUDGET'
   | 'EDIT_OWNERS'
+  | 'EDIT_OWNER'
   | 'NEW_MANUAL_BONUS'
   | 'ISSUE_CODE_BONUS';
 

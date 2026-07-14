@@ -1,60 +1,21 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../Icon';
 import { formatINRCompact } from '../../utils';
-import { _initials, _tierClass, _kycClass } from './SegmentPlayersList';
+import { _initials, _tierClass, _kycClass } from './SegmentUsersList';
+import PlayerActivitySection from './PlayerActivityPanels';
 import type { Player, Segment } from '../../types';
-
-function _strHash(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
-
-function _seedRng(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = Math.imul(s ^ (s >>> 15), 1 | s);
-    s ^= s + Math.imul(s ^ (s >>> 7), 61 | s);
-    return ((s ^ (s >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-interface BonusEntry {
-  id: number;
-  name: string;
-  amount: number;
-  status: string;
-  daysAgo: number;
-}
 
 interface PlayerProfileModalProps {
   player: Player | null;
   segment: Segment | null;
   onClose: () => void;
+  siteId?: string | number | null;
+  showBonus?: boolean;
 }
 
-export default function PlayerProfileModal({ player, segment, onClose }: PlayerProfileModalProps) {
-  const bonuses = useMemo<BonusEntry[]>(() => {
-    if (!player) return [];
-    const r = _seedRng(_strHash('bonus:' + player.id));
-    const count = 3 + Math.floor(r() * 4);
-    const names = ['Welcome Bonus','Weekly Reload','Friday Drop','VIP Cashback','Birthday Drop','Refer & Earn','Tier Milestone'];
-    const statuses = ['RELEASED','RELEASED','PENDING','EXPIRED','CONSUMED'];
-    const out: BonusEntry[] = [];
-    for (let i = 0; i < count; i++) {
-      out.push({
-        id: i + 1,
-        name: names[Math.floor(r() * names.length)],
-        amount: Math.floor(r() * 9000 + 100),
-        status: statuses[Math.floor(r() * statuses.length)],
-        daysAgo: Math.floor(r() * 60) + 1,
-      });
-    }
-    return out;
-  }, [player?.id]); // eslint-disable-line
-
+export default function PlayerProfileModal({ player, segment, onClose, siteId, showBonus = false }: PlayerProfileModalProps) {
   useEffect(() => {
     if (!player) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -128,20 +89,11 @@ export default function PlayerProfileModal({ player, segment, onClose }: PlayerP
               <div className="kv"><span className="k">Account status</span><span className="v" style={{ color: 'var(--ok)' }}>Active</span></div>
             </div>
 
-            <div className="player-section-label">Recent Bonus Activity</div>
-            <div className="player-bonuses">
-              {bonuses.map(b => (
-                <div key={b.id} className="player-bonus-row">
-                  <Icon name="gift" size={14} color="var(--blue)"/>
-                  <div>
-                    <div className="b-name">{b.name}</div>
-                    <div className="b-meta">{b.daysAgo}d ago</div>
-                  </div>
-                  <span className="b-amount">{formatINRCompact(b.amount)}</span>
-                  <span className={'b-status ' + b.status}>{b.status}</span>
-                </div>
-              ))}
-            </div>
+            <PlayerActivitySection
+              userId={String(player.id)}
+              showBonus={showBonus}
+              siteId={siteId}
+            />
           </div>
         </div>
         <div className="modal-footer-row" style={{ justifyContent: 'flex-end', gap: 8, display: 'flex' }}>

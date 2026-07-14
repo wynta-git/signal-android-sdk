@@ -8,6 +8,7 @@ import { selectAllSegments } from "wynta-react-common/store/slices/segmentsSlice
 import Icon from "wynta-react-common/components/Icon";
 import Toggle from "wynta-react-common/components/Toggle";
 import DrawerFooter from "../../../components/drawers/DrawerFooter";
+import { api } from "../../../services/api";
 import type { DrawerState } from "../../../types";
 
 const FREQUENCIES: { value: string; label: string; hint: string }[] = [
@@ -159,6 +160,7 @@ export default function ConfigureForm({
     parentSubId != null ? selectSubheadById(parentSubId) : () => undefined,
   );
   const allSegments = useAppSelector(selectAllSegments);
+  const selectedBrand = useAppSelector((s) => s.ui.selectedBrand);
 
   const cfg = cfgFromStore;
 
@@ -237,6 +239,44 @@ export default function ConfigureForm({
   const [chunkExp, setChunkExp] = useState(cfg?.chunk_expiry_days ?? 7);
   const [wagerChip, setWagerChip] = useState(cfg?.wager_chip_type || "CASH");
 
+  // Per-product wager multiplier overrides — the product list comes from the
+  // site's wager_multiplier_config (site-configure API, a JSON array of
+  // product names, e.g. ["RUMMY","AVIATOR"]). No rows are shown by default;
+  // the user explicitly adds a product override via the "+ Add" button.
+  // On edit, existing overrides are pre-populated as rows.
+  const [wagerMultProducts, setWagerMultProducts] = useState<string[]>([]);
+  const [productMultRows, setProductMultRows] = useState<
+    { product: string; multiplier: number }[]
+  >(() =>
+    Object.entries(cfg?.product_wager_multiplier ?? {}).map(([product, multiplier]) => ({
+      product,
+      multiplier: Number(multiplier),
+    })),
+  );
+
+  useEffect(() => {
+    if (selectedBrand == null) return;
+    api
+      .getSiteConfigure(selectedBrand)
+      .then((res) => {
+        const raw = res?.wager_multiplier_config;
+        if (!raw) return;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          return;
+        }
+        if (!Array.isArray(parsed)) return;
+        const products = parsed.filter((p): p is string => typeof p === "string");
+        setWagerMultProducts(products);
+      })
+      .catch(() => {
+        // site-configure fetch failed — fall back to the default wager multiplier only
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBrand]);
+
   // Cashback
   const hasCb =
     (cfg?.cashback_bonus_amount_fixed != null &&
@@ -311,7 +351,7 @@ export default function ConfigureForm({
   }>({});
 
   // ── Step 3: Segments ──────────────────────────────────────────────────────
-  const [allPlayers, setAllPlayers] = useState(true);
+  const [allPAMUsers, setAllPlayers] = useState(true);
   const [segmentId, setSegmentId] = useState("");
 
   // ── Step 2 (trigger part) ─────────────────────────────────────────────────
@@ -326,6 +366,7 @@ export default function ConfigureForm({
   const [promoCode, setPromoCode] = useState("");
   const [codeDisplayOn, setCodeDisplayOn] = useState("DEPOSIT");
   const [codeAutoApply, setCodeAutoApply] = useState(false);
+  const [codeSystemAutoApply, setCodeSystemAutoApply] = useState(false);
 
   const toNum = (v: string) => (v.trim() !== "" ? Number(v) : null);
   const freqMeta = FREQUENCIES.find((f) => f.value === freq);
@@ -338,6 +379,14 @@ export default function ConfigureForm({
     end_date: endDate ? new Date(endDate).toISOString() : null,
     priority,
     wager_multiplier: chunksOn ? wagerMult : null,
+    product_wager_multiplier:
+      chunksOn && productMultRows.some((r) => r.product.trim() !== "")
+        ? Object.fromEntries(
+            productMultRows
+              .filter((r) => r.product.trim() !== "")
+              .map((r) => [r.product, r.multiplier]),
+          )
+        : null,
     no_of_chunks: chunksOn ? chunks : null,
     release_bucket: chunksOn && fullRelease ? "FULL" : null,
     chunk_expiry_days: chunksOn ? chunkExp : null,
@@ -368,7 +417,7 @@ export default function ConfigureForm({
         hard_limit: isHardLimit,
       },
     ].filter((p) => p.budget_limit != null),
-    _segment_id: !allPlayers && segmentId ? segmentId : null,
+    _segment_id: !allPAMUsers && segmentId ? segmentId : null,
     _trigger: triggerEnabled
       ? {
           trigger_type: triggerType,
@@ -389,6 +438,7 @@ export default function ConfigureForm({
             code: promoCode,
             display_on: codeDisplayOn,
             auto_apply: codeAutoApply,
+            system_auto_apply: codeSystemAutoApply,
             active: true,
           }
         : null,
@@ -645,6 +695,94 @@ export default function ConfigureForm({
               of its value.
             </div>
           </div>
+
+          {(wagerMultProducts.length > 0 || productMultRows.length > 0) && (
+            <div className="field-group">
+              <label>
+                Product-based wager multipliers{" "}
+                <span style={{ color: "var(--g400)", fontWeight: 400 }}>
+                  (optional — overrides the wager multiplier above for specific products)
+                </span>
+              </label>
+              {productMultRows.map((row, i) => (
+                <div key={i} style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+                  <select
+                    value={row.product}
+                    style={{ flex: 1 }}
+                    onChange={(e) =>
+                      setProductMultRows((prev) =>
+                        prev.map((r, j) => (j === i ? { ...r, product: e.target.value } : r)),
+                      )
+                    }
+                  >
+                    <option value="">— select product —</option>
+                    {wagerMultProducts
+                      .filter(
+                        (p) => p === row.product || !productMultRows.some((r) => r.product === p),
+                      )
+                      .map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                  </select>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    placeholder="Multiplier"
+                    style={{ flex: 1 }}
+                    value={row.multiplier}
+                    onChange={(e) =>
+                      setProductMultRows((prev) =>
+                        prev.map((r, j) => (j === i ? { ...r, multiplier: +e.target.value } : r)),
+                      )
+                    }
+                  />
+                  <button
+                    type="button"
+                    style={{
+                      padding: "0 10px",
+                      color: "var(--g400)",
+                      background: "none",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--r)",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                    }}
+                    onClick={() =>
+                      setProductMultRows((prev) => prev.filter((_, j) => j !== i))
+                    }
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {wagerMultProducts.some(
+                (p) => !productMultRows.some((r) => r.product === p),
+              ) && (
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ marginTop: 4, fontSize: 12 }}
+                  onClick={() =>
+                    setProductMultRows((prev) => [
+                      ...prev,
+                      {
+                        product:
+                          wagerMultProducts.find(
+                            (p) => !prev.some((r) => r.product === p),
+                          ) ?? "",
+                        multiplier: wagerMult,
+                      },
+                    ])
+                  }
+                >
+                  + Add product multiplier
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="field-group">
             <div className="row-2">
@@ -984,7 +1122,7 @@ export default function ConfigureForm({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: !allPlayers ? 16 : 0,
+          marginBottom: !allPAMUsers ? 16 : 0,
         }}
       >
         <div>
@@ -996,13 +1134,13 @@ export default function ConfigureForm({
           </div>
         </div>
         <Toggle
-          on={allPlayers}
+          on={allPAMUsers}
           onChange={setAllPlayers}
-          label={allPlayers ? "All players" : "Segment only"}
+          label={allPAMUsers ? "All players" : "Segment only"}
         />
       </div>
 
-      {!allPlayers && (
+      {!allPAMUsers && (
         <div className="field-group" style={{ marginTop: 16 }}>
           <label>Segment</label>
           <select
@@ -1097,6 +1235,20 @@ export default function ConfigureForm({
               </span>
             </div>
           </div>
+
+          <div className="field-group">
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Toggle
+                on={codeSystemAutoApply}
+                onChange={setCodeSystemAutoApply}
+                label={codeSystemAutoApply ? "System auto-apply: On" : "System auto-apply: Off"}
+              />
+              <span className="helper" style={{ margin: 0 }}>
+                When on, the system automatically applies this code to eligible players on a
+                bonus release event — independent of the front-end auto-apply hint above.
+              </span>
+            </div>
+          </div>
         </>
       )}
     </>
@@ -1174,7 +1326,7 @@ export default function ConfigureForm({
           <div style={{ fontWeight: 600, marginBottom: 6, color: "var(--g700)" }}>Segments & Promo</div>
           <SummaryRow
             label="Audience"
-            value={allPlayers ? "All players" : selectedSegment ? (selectedSegment.name ?? selectedSegment.label ?? segmentId) : segmentId || "—"}
+            value={allPAMUsers ? "All players" : selectedSegment ? (selectedSegment.name ?? selectedSegment.label ?? segmentId) : segmentId || "—"}
           />
           <SummaryRow
             label="Promo code"
@@ -1191,6 +1343,15 @@ export default function ConfigureForm({
       <form onSubmit={handle} style={{ display: "contents" }}>
         <div className="drawer-body">
           {step1}
+          <div className="section-divider" />
+          <div className="field-group">
+            <label>Status</label>
+            <Toggle
+              on={active}
+              onChange={setActive}
+              label={active ? "Active" : "Paused"}
+            />
+          </div>
           <div className="section-divider" />
           <div
             style={{
@@ -1275,7 +1436,7 @@ export default function ConfigureForm({
 
     if (step === 4) {
       const errors: typeof step4Errors = {};
-      if (!allPlayers && !segmentId) {
+      if (!allPAMUsers && !segmentId) {
         errors.segment = "Select a segment or switch back to all players.";
       }
       if (codeEnabled && !promoCode.trim()) {

@@ -591,12 +591,38 @@ async def admin_delete_user(
 
 
 async def get_user(
-    db: AsyncIOMotorDatabase, project_id: str, user_id: str
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    brand_id: str | None = None,
 ) -> dict[str, Any] | None:
-    return await db["users"].find_one(
-        {"project_id": project_id, "user_id": user_id},
+    try:
+        query: dict[str, Any] = {"project_id": project_id, "user_id": user_id}
+        if brand_id is not None:
+            try:
+                query["brand_id"] = int(brand_id)
+            except (TypeError, ValueError):
+                log.debug("get_user.non_numeric_brand_id", brand_id=brand_id)
+        log.info("Query",query)
+        return await db["users"].find_one(query, {"_id": 0})
+    except  Exception as ex:
+        log.debug("get_user.non_numeric_brand_id", ex)
+
+
+
+async def get_users_batch(
+    db: AsyncIOMotorDatabase, project_id: str, user_ids: list[str]
+) -> dict[str, dict[str, Any]]:
+    """Batch-fetch user profile docs, keyed by user_id. Missing user_ids are
+    simply absent from the returned dict."""
+    if not user_ids:
+        return {}
+    cursor = db["users"].find(
+        {"project_id": project_id, "user_id": {"$in": user_ids}},
         {"_id": 0},
     )
+    docs = await cursor.to_list(length=len(user_ids))
+    return {doc["user_id"]: doc for doc in docs}
 
 
 async def get_user_device_tokens(
@@ -875,10 +901,13 @@ async def upsert_user_profile(
     anonymous_id: str | None,
     unset_traits: list[str],
     now: datetime,
-    brand_id: str | None = None,
+    brand_id: str | int | None = None,
+    pam_id: int | None = None,
 ) -> None:
     set_fields: dict[str, Any] = {f"traits.{k}": v for k, v in traits.items()}
     set_fields["last_seen_at"] = now
+    if pam_id is not None:
+        set_fields["pam_id"] = pam_id
 
     update: dict[str, Any] = {
         "$set": set_fields,
@@ -908,15 +937,23 @@ async def get_dashboard_delivery_stats(
     project_id: str,
     since: datetime,
     until: datetime,
+    brand_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Aggregate notification_deliveries by (channel, status, date) for dashboard use."""
+    match: dict[str, Any] = {
+        "project_id": project_id,
+        "attempted_at": {"$gte": since, "$lte": until},
+    }
+    if brand_id:
+        # notification_deliveries has no brand_id; scope via campaign_id lookup
+        brand_campaign_ids = await db["campaigns"].distinct(
+            "campaign_id", {"project_id": project_id, "brand_id": brand_id}
+        )
+        if not brand_campaign_ids:
+            return []
+        match["campaign_id"] = {"$in": brand_campaign_ids}
     pipeline = [
-        {
-            "$match": {
-                "project_id": project_id,
-                "attempted_at": {"$gte": since, "$lte": until},
-            }
-        },
+        {"$match": match},
         {
             "$group": {
                 "_id": {
@@ -942,10 +979,11 @@ async def get_daily_boosts_range(
     project_id: str,
     since: datetime,
     until: datetime,
+    brand_id: str | None = None,
 ) -> dict[str, dict]:
     """Return {date_str: day_data} for daily_boosts entries within [since.date, until.date]."""
     doc = await db["dashboard_boosts"].find_one(
-        {"project_id": project_id}, {"_id": 0, "daily_boosts": 1}
+        {"project_id": project_id, "brand_id": brand_id}, {"_id": 0, "daily_boosts": 1}
     )
     all_daily: dict = (doc or {}).get("daily_boosts", {})
     since_date = since.date()
@@ -960,6 +998,7 @@ async def get_daily_boosts_range(
 async def get_dashboard_user_health(
     db: AsyncIOMotorDatabase,
     project_id: str,
+    brand_id: str | None = None,
 ) -> dict[str, int]:
     """
     Returns user counts bucketed by activity.
@@ -969,24 +1008,16 @@ async def get_dashboard_user_health(
     cutoff_30d = now - timedelta(days=30)
     cutoff_90d = now - timedelta(days=90)
 
+    base: dict[str, Any] = {"project_id": project_id}
+    if brand_id:
+        base["brand_id"] = brand_id
+
     total, new, healthy, at_risk, churned = await asyncio.gather(
-        db["users"].count_documents({"project_id": project_id}),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "first_seen_at": {"$gte": cutoff_30d},
-        }),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "last_seen_at": {"$gte": cutoff_30d},
-        }),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "last_seen_at": {"$gte": cutoff_90d, "$lt": cutoff_30d},
-        }),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "last_seen_at": {"$lt": cutoff_90d},
-        }),
+        db["users"].count_documents(base),
+        db["users"].count_documents({**base, "first_seen_at": {"$gte": cutoff_30d}}),
+        db["users"].count_documents({**base, "last_seen_at": {"$gte": cutoff_30d}}),
+        db["users"].count_documents({**base, "last_seen_at": {"$gte": cutoff_90d, "$lt": cutoff_30d}}),
+        db["users"].count_documents({**base, "last_seen_at": {"$lt": cutoff_90d}}),
     )
 
     return {
@@ -1001,28 +1032,29 @@ async def get_dashboard_user_health(
 async def get_dashboard_channel_optin(
     db: AsyncIOMotorDatabase,
     project_id: str,
+    brand_id: str | None = None,
 ) -> dict[str, int]:
     """
     Opted-in user counts per channel.
     Push: distinct user_ids in device_tokens.
     Email/SMS: users with hashed trait present (approximate — hashed at identify time).
     """
+    push_match: dict[str, Any] = {"project_id": project_id}
+    user_base: dict[str, Any] = {"project_id": project_id}
+    if brand_id:
+        push_match["brand_id"] = brand_id
+        user_base["brand_id"] = brand_id
+
     push_agg = await db["device_tokens"].aggregate([
-        {"$match": {"project_id": project_id}},
+        {"$match": push_match},
         {"$group": {"_id": "$user_id"}},
         {"$count": "count"},
     ]).to_list(length=1)
     push_count = push_agg[0]["count"] if push_agg else 0
 
     email_count, sms_count = await asyncio.gather(
-        db["users"].count_documents({
-            "project_id": project_id,
-            "traits.email_hash": {"$exists": True, "$ne": None},
-        }),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "traits.phone_hash": {"$exists": True, "$ne": None},
-        }),
+        db["users"].count_documents({**user_base, "traits.email_hash": {"$exists": True, "$ne": None}}),
+        db["users"].count_documents({**user_base, "traits.phone_hash": {"$exists": True, "$ne": None}}),
     )
 
     return {"push": push_count, "email": email_count, "sms": sms_count}

@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { getToken } from "wynta-react-common/services/tokenRegistry";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   fetchHeads,
@@ -23,6 +25,8 @@ import {
 } from "../store/slices/uiSlice";
 import {
   toggleHead,
+  expandAll,
+  collapseAll,
   selectNode,
   expandAncestorsOf,
   toggleSubheadExpand,
@@ -30,7 +34,7 @@ import {
 import { MOCK_SUBHEADS } from "../services/mocks/subheads";
 import { MOCK_CONFIGURES } from "../services/mocks/configures";
 import AppShell from "wynta-react-common/components/AppShell";
-import type { NavSection } from "wynta-react-common/components/AppShell";
+import BonusSidebar from "../components/BonusSidebar";
 import Topbar from "../components/shell/Topbar";
 import GlobalSearch from "../components/shell/GlobalSearch";
 import ContextMenu from "wynta-react-common/components/ContextMenu";
@@ -48,29 +52,26 @@ import type {
   SelectedNode,
 } from "../types";
 
-const BONUS_NAV: NavSection[] = [
-  {
-    label: "Analytics",
-    items: [{ id: "dashboard", label: "Dashboard", icon: "home" }],
-  },
-  {
-    label: "Bonus",
-    items: [
-      { id: "heads", label: "Bonus Heads", icon: "folders" },
-      { id: "subheads", label: "Subheads", icon: "folder-tree" },
-      { id: "configures", label: "Configures", icon: "settings-2" },
-      { id: "codes", label: "Promo Codes", icon: "ticket" },
-    ],
-  },
-  {
-    label: "Admin",
-    items: [
-      { id: "players", label: "Players", icon: "users" },
-      { id: "reports", label: "Reports", icon: "bar-chart-3" },
-      { id: "settings", label: "Settings", icon: "settings" },
-    ],
-  },
-];
+const WorkspaceSettingsPage = dynamic(
+  () => import("wynta-react-common/workspace-settings/WorkspaceSettingsPage"),
+  { ssr: false },
+);
+const BillingPricingPage = dynamic(
+  () => import("wynta-react-common/billing-pricing/BillingPricingPage"),
+  { ssr: false },
+);
+const SegmentsPage = dynamic(
+  () => import("wynta-react-common/components/segments/SegmentsPage"),
+  { ssr: false },
+);
+const EventsPage = dynamic(
+  () => import("wynta-react-common/components/events/EventsPage"),
+  { ssr: false },
+);
+const ChatPage = dynamic(
+  () => import("wynta-react-common/components/chat/ChatPage"),
+  { ssr: false },
+);
 
 interface ContextItem {
   icon?: string;
@@ -79,7 +80,66 @@ interface ContextItem {
   sep?: boolean;
 }
 
+/**
+ * All other API calls (heads, users, kpi, brands, segments, …) must only fire
+ * after the exchange_token flow completes — either DjHeaderSlot's bridge-token
+ * exchange or the token prompt — so BonusShell (which does that fetching) is
+ * not mounted until tokenRegistry has a token. Mirrors wynta-crm/components/CrmApp.tsx.
+ */
 export default function BonusAdminApp() {
+  // Check synchronously first — token may already be set if DjHeaderSlot ran earlier
+  const [ready, setReady] = useState(() => !!getToken());
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (ready) return;
+    // Poll tokenRegistry until DjHeaderSlot registers a token (bridge or portal)
+    intervalRef.current = setInterval(() => {
+      if (getToken()) {
+        setReady(true);
+        clearInterval(intervalRef.current!);
+      }
+    }, 200);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [ready]);
+
+  if (!ready) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          gap: 16,
+          background: "var(--crm-bg, #f7f8fa)",
+        }}
+      >
+        <span
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            border: "3px solid var(--crm-border-md, #e5e7eb)",
+            borderTopColor: "var(--crm-blue, #3b82f6)",
+            animation: "crm-spin 0.75s linear infinite",
+            display: "inline-block",
+          }}
+        />
+        <span style={{ color: "var(--crm-fg4, #9ca3af)", fontSize: 13 }}>
+          Connecting…
+        </span>
+      </div>
+    );
+  }
+
+  return <BonusShell />;
+}
+
+function BonusShell() {
   const dispatch = useAppDispatch();
 
   const selectedBrand = useAppSelector((s) => s.ui.selectedBrand);
@@ -94,16 +154,22 @@ export default function BonusAdminApp() {
   const headEntities = useAppSelector((s) => s.heads.entities);
   const brands = useAppSelector(selectAllBrands);
   const authStatus = useAppSelector(selectAuthStatus);
+  const kpiStatus = useAppSelector((s) => s.kpi.status);
 
   const prevBrandRef = useRef<number | null>(null);
+  const prevKpiStatusRef = useRef(kpiStatus);
+
+  // kpiSlice flips status back to 'idle' after any head/subhead/configure/promo
+  // code create or edit so the header stats don't go stale — refetch here.
+  useEffect(() => {
+    const wasSucceeded = prevKpiStatusRef.current === "succeeded";
+    prevKpiStatusRef.current = kpiStatus;
+    if (wasSucceeded && kpiStatus === "idle" && selectedBrand) {
+      dispatch(fetchKpiSnapshot(selectedBrand));
+    }
+  }, [kpiStatus, selectedBrand, dispatch]);
 
   useEffect(() => {
-    console.log(
-      "selectedBrand changed:",
-      selectedBrand,
-      "authStatus:",
-      authStatus,
-    );
     if (!selectedBrand || authStatus !== "succeeded") return;
     const isSwitch =
       prevBrandRef.current !== null && prevBrandRef.current !== selectedBrand;
@@ -113,9 +179,19 @@ export default function BonusAdminApp() {
     dispatch(fetchUsers(selectedBrand));
     dispatch(fetchHeads(selectedBrand))
       .unwrap()
-      .then((list) => {
+      .then(async (list) => {
         const headIds = new Set(list.map((h) => h.id));
-        list.forEach((h) => dispatch(fetchHead(h.id)));
+        const detailedHeads = await Promise.all(
+          list.map((h) => dispatch(fetchHead(h.id)).unwrap()),
+        );
+        dispatch(
+          expandAll({
+            headIds: list.map((h) => h.id),
+            subheadIds: detailedHeads.flatMap((h) =>
+              h.subheads.map((s) => s.id),
+            ),
+          }),
+        );
         const nodeIsValid =
           !nodeAtLoad ||
           nodeAtLoad.type !== "head" ||
@@ -352,7 +428,12 @@ export default function BonusAdminApp() {
   return (
     <AppShell
       appLabel="BONUS"
-      navSections={BONUS_NAV}
+      sidebar={
+        <BonusSidebar
+          activeNav={sidebarActive}
+          onNavChange={(id) => dispatch(setSidebarActive(id))}
+        />
+      }
       activeNav={sidebarActive}
       onNavChange={(id) => dispatch(setSidebarActive(id))}
       selectedBrand={selectedBrand}
@@ -390,33 +471,74 @@ export default function BonusAdminApp() {
         </>
       }
     >
-      <KpiStrip />
-      <div className="three-zone">
-        <HierarchyTree
-          heads={heads}
-          expandedHeads={expandedHeadsSet}
-          expandedSubheads={expandedSubheadsSet}
-          loadingSubheads={loadingSubheadsSet}
-          selectedNode={selectedNode}
-          onSelectNode={handleSelectNode}
-          onToggleHead={(id: number) => dispatch(toggleHead(id))}
-          onToggleSubhead={(id: number) => dispatch(toggleSubheadExpand(id))}
-          onAddHead={() =>
-            dispatch(openDrawer({ type: "NEW_HEAD" } as DrawerState))
-          }
-          onReload={() => {
-            if (!selectedBrand) return;
-            dispatch(fetchHeads(selectedBrand))
-              .unwrap()
-              .then((list) => list.forEach((h) => dispatch(fetchHead(h.id))));
+      {sidebarActive === "workspace-settings" ? (
+        <WorkspaceSettingsPage />
+      ) : sidebarActive === "billing" ? (
+        <BillingPricingPage />
+      ) : sidebarActive === "segments" ? (
+        <SegmentsPage brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "events" ? (
+        <EventsPage brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "chat" ? (
+        <ChatPage />
+      ) : sidebarActive === "logs" ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            minHeight: "60vh",
+            color: "var(--crm-fg4)",
+            fontSize: 14,
           }}
-          onMenu={(ctx: ContextMenuState) => dispatch(openContextMenu(ctx))}
-          selectedBrand={selectedBrand}
         />
-        <div className="detail-panel">
-          <DetailPanel onAction={handleAction} />
-        </div>
-      </div>
+      ) : (
+        <>
+          <KpiStrip />
+          <div className="three-zone">
+            <HierarchyTree
+              heads={heads}
+              expandedHeads={expandedHeadsSet}
+              expandedSubheads={expandedSubheadsSet}
+              loadingSubheads={loadingSubheadsSet}
+              selectedNode={selectedNode}
+              onSelectNode={handleSelectNode}
+              onToggleHead={(id: number) => dispatch(toggleHead(id))}
+              onToggleSubhead={(id: number) =>
+                dispatch(toggleSubheadExpand(id))
+              }
+              onExpandAll={() =>
+                dispatch(
+                  expandAll({
+                    headIds: heads.map((h) => h.id),
+                    subheadIds: heads.flatMap((h) =>
+                      h.subheads.map((s) => s.id),
+                    ),
+                  }),
+                )
+              }
+              onCollapseAll={() => dispatch(collapseAll())}
+              onAddHead={() =>
+                dispatch(openDrawer({ type: "NEW_HEAD" } as DrawerState))
+              }
+              onReload={() => {
+                if (!selectedBrand) return;
+                dispatch(fetchHeads(selectedBrand))
+                  .unwrap()
+                  .then((list) =>
+                    list.forEach((h) => dispatch(fetchHead(h.id))),
+                  );
+              }}
+              onMenu={(ctx: ContextMenuState) => dispatch(openContextMenu(ctx))}
+              selectedBrand={selectedBrand}
+            />
+            <div className="detail-panel">
+              <DetailPanel onAction={handleAction} />
+            </div>
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }

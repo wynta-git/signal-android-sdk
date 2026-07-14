@@ -4,7 +4,7 @@ Pydantic models for bonus_configure and its embedded code summary.
 bonus_configure columns:
   id, subhead_id, site_id, name, description,
   start_date, end_date, applicability_frequency,   -- stored as DATETIME (UTC naive)
-  wager_multiplier, no_of_chunks, release_bucket,
+  wager_multiplier, product_wager_multiplier, no_of_chunks, release_bucket,
   chunk_expiry_days, bonus_expiry_days,
   wager_chip_type, credit_chip_type,
   bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
@@ -34,6 +34,7 @@ class BonusConfigureCreate(BaseModel):
     end_date:                   datetime
     applicability_frequency:    ApplicabilityFrequency = "EVERYTIME"
     wager_multiplier:           Decimal | None         = Field(None, ge=0)
+    product_wager_multiplier:  dict[str, Decimal] | None = None
     no_of_chunks:               int | None             = Field(None, ge=1)
     release_bucket:             str | None             = Field(None, max_length=50)
     chunk_expiry_days:          int | None             = Field(None, ge=1)
@@ -56,6 +57,20 @@ class BonusConfigureCreate(BaseModel):
         """Convert timezone-aware datetimes to UTC naive for MySQL DATETIME storage."""
         if v.tzinfo is not None:
             return v.astimezone(timezone.utc).replace(tzinfo=None)
+        return v
+
+    @field_validator("product_wager_multiplier", mode="after")
+    @classmethod
+    def _validate_product_wager_multiplier(
+        cls, v: dict[str, Decimal] | None
+    ) -> dict[str, Decimal] | None:
+        if v is None:
+            return v
+        for product, multiplier in v.items():
+            if not product.strip():
+                raise ValueError("product_wager_multiplier keys must not be blank")
+            if multiplier <= 0:
+                raise ValueError(f"product_wager_multiplier[{product}] must be > 0")
         return v
 
     @model_validator(mode="after")
@@ -99,6 +114,7 @@ class BonusConfigureResponse(BaseModel):
     end_date:                   datetime
     applicability_frequency:    str
     wager_multiplier:           Decimal
+    product_wager_multiplier:  dict[str, Decimal] | None = None
     no_of_chunks:               int | None
     release_bucket:             str | None
     chunk_expiry_days:          int | None
@@ -127,14 +143,25 @@ class BonusConfigureResponse(BaseModel):
 class BonusCodeSummary(BaseModel):
     """Embedded code entry returned inside BonusConfigureDetail."""
 
-    id:            int
-    code:          str
-    max_amount:    Decimal | None
-    valid_from:    datetime | None
-    valid_to:      datetime | None
-    auto_apply:    bool
-    display_order: int
-    active:        bool
+    id:                int
+    code:              str
+    max_amount:        Decimal | None
+    valid_from:        datetime | None
+    valid_to:          datetime | None
+    auto_apply:        bool
+    system_auto_apply: bool | None
+    display_order:     int
+    active:            bool
+    is_manual_bonus:   bool = False
+
+    # Populated from the linked bonus_manual_bonus_file row when is_manual_bonus — None otherwise.
+    manual_bonus_status:          str | None = None
+    manual_bonus_total_players:   int | None = None
+    manual_bonus_total_amount:    Decimal | None = None
+    manual_bonus_success_players: int | None = None
+    manual_bonus_success_amount:  Decimal | None = None
+    manual_bonus_failed_players:  int | None = None
+    manual_bonus_failed_amount:   Decimal | None = None
 
 
 class BonusConfigureDetail(BonusConfigureResponse):
@@ -152,6 +179,7 @@ class BonusConfigureUpdate(BaseModel):
     end_date:                   datetime | None                 = None
     applicability_frequency:    ApplicabilityFrequency | None   = None
     wager_multiplier:           Decimal | None                  = Field(None, ge=0)
+    product_wager_multiplier:  dict[str, Decimal] | None       = None
     no_of_chunks:               int | None                      = Field(None, ge=1)
     release_bucket:             str | None                      = None
     chunk_expiry_days:          int | None                      = Field(None, ge=1)
@@ -173,6 +201,20 @@ class BonusConfigureUpdate(BaseModel):
     def _to_utc_naive(cls, v: datetime | None) -> datetime | None:
         if v is not None and v.tzinfo is not None:
             return v.astimezone(timezone.utc).replace(tzinfo=None)
+        return v
+
+    @field_validator("product_wager_multiplier", mode="after")
+    @classmethod
+    def _validate_product_wager_multiplier(
+        cls, v: dict[str, Decimal] | None
+    ) -> dict[str, Decimal] | None:
+        if v is None:
+            return v
+        for product, multiplier in v.items():
+            if not product.strip():
+                raise ValueError("product_wager_multiplier keys must not be blank")
+            if multiplier <= 0:
+                raise ValueError(f"product_wager_multiplier[{product}] must be > 0")
         return v
 
     @model_validator(mode="after")

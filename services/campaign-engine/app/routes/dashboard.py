@@ -154,20 +154,34 @@ _BOOSTABLE_FIELDS: frozenset[str] = frozenset({
 })
 
 
-async def _fetch_boosts(db: AsyncIOMotorDatabase, project_id: str) -> dict[str, int]:
+async def _fetch_boosts(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> dict[str, int]:
     doc = await db["dashboard_boosts"].find_one(
-        {"project_id": project_id},
+        {"project_id": project_id, "brand_id": brand_id},
         {"_id": 0, "boosts": 1},
     )
     return (doc or {}).get("boosts", {})
 
 
-async def _fetch_analytics_defaults(db: AsyncIOMotorDatabase, project_id: str) -> dict:
+async def _fetch_analytics_defaults(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> dict:
     doc = await db["dashboard_boosts"].find_one(
-        {"project_id": project_id},
+        {"project_id": project_id, "brand_id": brand_id},
         {"_id": 0, "analytics": 1},
     )
     return (doc or {}).get("analytics", {})
+
+
+async def _fetch_channel_boosts(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> dict:
+    doc = await db["dashboard_boosts"].find_one(
+        {"project_id": project_id, "brand_id": brand_id},
+        {"_id": 0, "channels": 1},
+    )
+    return (doc or {}).get("channels", {})
 
 
 def _b(boosts: dict, key: str) -> int:
@@ -204,11 +218,28 @@ async def dashboard_summary(
     end_date:      str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_start: str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_end:   str | None = Query(default=None, description="YYYY-MM-DD"),
+    brand_id:      str | None = None,
 ) -> dict:
     project_id = ctx.project_id
     since, now, window_days = _resolve_window(start_date, end_date, window_days)
     prev_since = since - timedelta(days=window_days)
     comp_since, comp_until = _parse_compare_window(compare_start, compare_end, prev_since, since)
+
+    user_base: dict = {"project_id": project_id}
+    campaign_base: dict = {"project_id": project_id, "status": {"$in": ["running", "scheduled"]}}
+    segment_base: dict = {"project_id": project_id}
+    if brand_id:
+        user_base["brand_id"] = brand_id
+        campaign_base["brand_id"] = brand_id
+        segment_base["brand_id"] = brand_id
+
+    reachable_filter = {
+        **user_base,
+        "$or": [
+            {"traits.email_hash": {"$exists": True, "$ne": None}},
+            {"traits.phone_hash": {"$exists": True, "$ne": None}},
+        ],
+    }
 
     (
         curr_raw,
@@ -226,38 +257,20 @@ async def dashboard_summary(
         daily_range,
         prev_daily_range,
     ) = await asyncio.gather(
-        get_dashboard_delivery_stats(db, project_id, since, now),
-        get_dashboard_delivery_stats(db, project_id, comp_since, comp_until),
-        get_dashboard_user_health(db, project_id),
-        get_dashboard_channel_optin(db, project_id),
-        db["campaigns"].count_documents(
-            {"project_id": project_id, "status": {"$in": ["running", "scheduled"]}}
-        ),
-        db["segments"].count_documents({"project_id": project_id}),
-        db["users"].count_documents(
-            {"project_id": project_id, "last_seen_at": {"$gte": since}}
-        ),
-        db["users"].count_documents(
-            {"project_id": project_id, "last_seen_at": {"$gte": comp_since, "$lt": comp_until}}
-        ),
-        db["users"].count_documents({"project_id": project_id}),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "$or": [
-                {"traits.email_hash": {"$exists": True, "$ne": None}},
-                {"traits.phone_hash": {"$exists": True, "$ne": None}},
-            ],
-        }),
-        db["users"].count_documents({
-            "project_id": project_id,
-            "$or": [
-                {"traits.email_hash": {"$exists": True, "$ne": None}},
-                {"traits.phone_hash": {"$exists": True, "$ne": None}},
-            ],
-        }),
-        _fetch_boosts(db, project_id),
-        get_daily_boosts_range(db, project_id, since, now),
-        get_daily_boosts_range(db, project_id, comp_since, comp_until),
+        get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
+        get_dashboard_delivery_stats(db, project_id, comp_since, comp_until, brand_id),
+        get_dashboard_user_health(db, project_id, brand_id),
+        get_dashboard_channel_optin(db, project_id, brand_id),
+        db["campaigns"].count_documents(campaign_base),
+        db["segments"].count_documents(segment_base),
+        db["users"].count_documents({**user_base, "last_seen_at": {"$gte": since}}),
+        db["users"].count_documents({**user_base, "last_seen_at": {"$gte": comp_since, "$lt": comp_until}}),
+        db["users"].count_documents(user_base),
+        db["users"].count_documents(reachable_filter),
+        db["users"].count_documents(reachable_filter),
+        _fetch_boosts(db, project_id, brand_id),
+        get_daily_boosts_range(db, project_id, since, now, brand_id),
+        get_daily_boosts_range(db, project_id, comp_since, comp_until, brand_id),
     )
 
     curr = _crunch_deliveries(curr_raw)
@@ -406,15 +419,9 @@ async def dashboard_summary(
 # GET /channels
 # ---------------------------------------------------------------------------
 
-# TODO: replace with real per-channel opt-in tracking tomorrow
-_CHANNEL_DEFAULTS: list[dict] = [
-    {"channel": "email",    "reach_pct": 0.80, "status": "live",   "messages_sent": 1100000, "delivery_rate": 0.942, "open_rate": 0.243, "ctr": 0.038},
-    {"channel": "push",     "reach_pct": 0.62, "status": "live",   "messages_sent":  750000, "delivery_rate": 0.918, "open_rate": 0.187, "ctr": 0.052},
-    {"channel": "sms",      "reach_pct": 0.30, "status": "paused", "messages_sent":  380000, "delivery_rate": 0.971, "open_rate": 0.312, "ctr": 0.041},
-    {"channel": "whatsapp", "reach_pct": 0.20, "status": "live",   "messages_sent":  270000, "delivery_rate": 0.964, "open_rate": 0.425, "ctr": 0.083},
-    {"channel": "telegram", "reach_pct": 0.08, "status": "live",   "messages_sent":   85000, "delivery_rate": 0.982, "open_rate": 0.381, "ctr": 0.067},
-    {"channel": "in_app",   "reach_pct": 0.55, "status": "live",   "messages_sent":  580000, "delivery_rate": 0.991, "open_rate": 0.614, "ctr": 0.129},
-]
+_CHANNEL_BOOST_FIELDS = frozenset({
+    "reach_pct", "status", "messages_sent", "delivery_rate", "open_rate", "ctr",
+})
 
 _DAILY_WEIGHTS = [0.12, 0.15, 0.16, 0.14, 0.18, 0.13, 0.12]
 
@@ -438,20 +445,22 @@ async def dashboard_channels(
     window_days: int = Query(default=7, ge=1, le=90),
     start_date:  str | None = Query(default=None, description="YYYY-MM-DD"),
     end_date:    str | None = Query(default=None, description="YYYY-MM-DD"),
+    brand_id:    str | None = None,
 ) -> dict:
     project_id = ctx.project_id
     since, now, window_days = _resolve_window(start_date, end_date, window_days)
 
-    raw, daily_range = await asyncio.gather(
-        get_dashboard_delivery_stats(db, project_id, since, now),
-        get_daily_boosts_range(db, project_id, since, now),
+    raw, daily_range, channel_boosts = await asyncio.gather(
+        get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
+        get_daily_boosts_range(db, project_id, since, now, brand_id),
+        _fetch_channel_boosts(db, project_id, brand_id),
     )
     buckets = _crunch_deliveries(raw)
     db_totals = _crunch_daily_boosts(daily_range)
 
     channels = []
-    for default in _CHANNEL_DEFAULTS:
-        ch = default["channel"]
+    for ch in _DAILY_CHANNELS:
+        cfg = channel_boosts.get(ch, {})
         ch_data = buckets.get(ch, {})
 
         sent_by_date: dict[str, int] = {}
@@ -482,23 +491,31 @@ async def dashboard_channels(
             for d in all_dates
         ]
 
-        demo_sent = default["messages_sent"] + total_sent
+        baseline_sent = cfg.get("messages_sent", 0)
+        demo_sent = baseline_sent + total_sent
         if total_sent > 0 or total_deliv > 0:
             delivery_rate = _safe_rate(total_deliv if total_deliv else real_sent,
                                        (total_deliv if total_deliv else real_sent) + total_failed)
         else:
-            delivery_rate = default["delivery_rate"]
+            delivery_rate = cfg.get("delivery_rate")
+
+        if trend:
+            trend_out = trend
+        elif demo_sent > 0:
+            trend_out = _synthetic_trend(demo_sent, 1 - delivery_rate if delivery_rate is not None else 0.05)
+        else:
+            trend_out = []
 
         channels.append({
             "channel": ch,
             "opted_in_users": None,
-            "reach_pct": default["reach_pct"],
-            "status": default["status"],
+            "reach_pct": cfg.get("reach_pct"),
+            "status": cfg.get("status"),
             "messages_sent": demo_sent,
             "delivery_rate": delivery_rate,
-            "open_rate": default["open_rate"],
-            "ctr": default["ctr"],
-            "trend_7d": trend if len(trend) >= 2 else _synthetic_trend(demo_sent, 1 - default["delivery_rate"]),
+            "open_rate": cfg.get("open_rate"),
+            "ctr": cfg.get("ctr"),
+            "trend_7d": trend_out,
         })
 
     return {"window_days": window_days, "channels": channels}
@@ -686,6 +703,7 @@ async def dashboard_analytics(
     end_date:      str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_start: str | None = Query(default=None, description="YYYY-MM-DD"),
     compare_end:   str | None = Query(default=None, description="YYYY-MM-DD"),
+    brand_id:      str | None = None,
 ) -> dict:
     project_id = ctx.project_id
     since, now, window_days = _resolve_window(start_date, end_date, window_days)
@@ -706,18 +724,18 @@ async def dashboard_analytics(
 
     if use_window_as_mtd:
         raw, comp_raw, daily_range = await asyncio.gather(
-            get_dashboard_delivery_stats(db, project_id, since, now),
-            get_dashboard_delivery_stats(db, project_id, comp_since, comp_until),
-            get_daily_boosts_range(db, project_id, since, now),
+            get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
+            get_dashboard_delivery_stats(db, project_id, comp_since, comp_until, brand_id),
+            get_daily_boosts_range(db, project_id, since, now, brand_id),
         )
         mtd_raw = raw
         prev_mtd_raw = comp_raw
     else:
         raw, mtd_raw, prev_mtd_raw, daily_range = await asyncio.gather(
-            get_dashboard_delivery_stats(db, project_id, since, now),
-            get_dashboard_delivery_stats(db, project_id, month_start, now),
-            get_dashboard_delivery_stats(db, project_id, prev_month_start, month_start),
-            get_daily_boosts_range(db, project_id, since, now),
+            get_dashboard_delivery_stats(db, project_id, since, now, brand_id),
+            get_dashboard_delivery_stats(db, project_id, month_start, now, brand_id),
+            get_dashboard_delivery_stats(db, project_id, prev_month_start, month_start, brand_id),
+            get_daily_boosts_range(db, project_id, since, now, brand_id),
         )
 
     buckets = _crunch_deliveries(raw)
@@ -740,7 +758,7 @@ async def dashboard_analytics(
     mtd_failed = _sum_status(mtd, "failed")
 
     # ── Analytics boost: daily time series takes priority, daily_avg as fallback ──
-    analytics_cfg = await _fetch_analytics_defaults(db, project_id)
+    analytics_cfg = await _fetch_analytics_defaults(db, project_id, brand_id)
     daily_avg     = int(analytics_cfg.get("daily_avg_sent", 0))
     override_open = analytics_cfg.get("avg_open_rate")
     override_ctr  = analytics_cfg.get("avg_ctr")
@@ -837,21 +855,33 @@ async def dashboard_analytics(
 
 
 @router.get("/boosts")
-async def get_dashboard_boosts(ctx: PortalAuthDep, db: DbDep) -> dict:
+async def get_dashboard_boosts(
+    ctx: PortalAuthDep,
+    db: DbDep,
+    brand_id: str | None = None,
+) -> dict:
     doc = await db["dashboard_boosts"].find_one(
-        {"project_id": ctx.project_id},
-        {"_id": 0, "boosts": 1, "analytics": 1},
+        {"project_id": ctx.project_id, "brand_id": brand_id},
+        {"_id": 0, "boosts": 1, "analytics": 1, "channels": 1},
     )
     return {
         "project_id": ctx.project_id,
+        "brand_id": brand_id,
         "boosts": (doc or {}).get("boosts", {}),
         "analytics": (doc or {}).get("analytics", {}),
+        "channels": (doc or {}).get("channels", {}),
         "supported_fields": sorted(_BOOSTABLE_FIELDS),
+        "supported_channel_fields": sorted(_CHANNEL_BOOST_FIELDS),
     }
 
 
 @router.put("/boosts")
-async def set_dashboard_boosts(ctx: PortalAuthDep, db: DbDep, body: dict) -> dict:
+async def set_dashboard_boosts(
+    ctx: PortalAuthDep,
+    db: DbDep,
+    body: dict,
+    brand_id: str | None = None,
+) -> dict:
     boosts: dict = body.get("boosts", {})
     invalid = set(boosts) - _BOOSTABLE_FIELDS
     if invalid:
@@ -877,12 +907,38 @@ async def set_dashboard_boosts(ctx: PortalAuthDep, db: DbDep, body: dict) -> dic
             if not isinstance(val, (int, float)) or val < 0:
                 raise HTTPException(status_code=422, detail=f"analytics.{rate_key} must be a non-negative number")
 
+    channels: dict = body.get("channels", {})
+    invalid_ch = set(channels) - set(_DAILY_CHANNELS)
+    if invalid_ch:
+        raise HTTPException(status_code=422, detail=f"Unsupported channels: {sorted(invalid_ch)}")
+    for ch, cfg in channels.items():
+        if not isinstance(cfg, dict):
+            raise HTTPException(status_code=422, detail=f"channels.{ch} must be an object")
+        invalid_fields = set(cfg) - _CHANNEL_BOOST_FIELDS
+        if invalid_fields:
+            raise HTTPException(status_code=422, detail=f"Unsupported fields for channels.{ch}: {sorted(invalid_fields)}")
+        if "status" in cfg and cfg["status"] not in ("live", "paused"):
+            raise HTTPException(status_code=422, detail=f"channels.{ch}.status must be 'live' or 'paused'")
+        if "messages_sent" in cfg and (not isinstance(cfg["messages_sent"], int) or cfg["messages_sent"] < 0):
+            raise HTTPException(status_code=422, detail=f"channels.{ch}.messages_sent must be a non-negative integer")
+        for rate_field in ("reach_pct", "delivery_rate", "open_rate", "ctr"):
+            if rate_field in cfg:
+                val = cfg[rate_field]
+                if not isinstance(val, (int, float)) or not (0 <= val <= 1):
+                    raise HTTPException(status_code=422, detail=f"channels.{ch}.{rate_field} must be a number between 0 and 1")
+
     await db["dashboard_boosts"].update_one(
-        {"project_id": ctx.project_id},
-        {"$set": {"boosts": boosts, "analytics": analytics, "updated_at": datetime.now(timezone.utc)}},
+        {"project_id": ctx.project_id, "brand_id": brand_id},
+        {"$set": {
+            "boosts": boosts, "analytics": analytics, "channels": channels,
+            "updated_at": datetime.now(timezone.utc),
+        }},
         upsert=True,
     )
-    return {"project_id": ctx.project_id, "boosts": boosts, "analytics": analytics}
+    return {
+        "project_id": ctx.project_id, "brand_id": brand_id,
+        "boosts": boosts, "analytics": analytics, "channels": channels,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -927,9 +983,10 @@ async def get_daily_boosts(
     db: DbDep,
     start_date: str | None = Query(default=None, description="YYYY-MM-DD"),
     end_date:   str | None = Query(default=None, description="YYYY-MM-DD"),
+    brand_id:   str | None = None,
 ) -> dict:
     doc = await db["dashboard_boosts"].find_one(
-        {"project_id": ctx.project_id}, {"_id": 0, "daily_boosts": 1}
+        {"project_id": ctx.project_id, "brand_id": brand_id}, {"_id": 0, "daily_boosts": 1}
     )
     all_daily: dict = (doc or {}).get("daily_boosts", {})
 
@@ -946,11 +1003,16 @@ async def get_daily_boosts(
             and (until is None or _date.fromisoformat(k) <= until)
         }
 
-    return {"project_id": ctx.project_id, "daily_boosts": all_daily}
+    return {"project_id": ctx.project_id, "brand_id": brand_id, "daily_boosts": all_daily}
 
 
 @router.put("/boosts/daily")
-async def upsert_daily_boosts(ctx: PortalAuthDep, db: DbDep, body: dict) -> dict:
+async def upsert_daily_boosts(
+    ctx: PortalAuthDep,
+    db: DbDep,
+    body: dict,
+    brand_id: str | None = None,
+) -> dict:
     incoming: dict = body.get("daily_boosts", {})
     if not isinstance(incoming, dict):
         raise HTTPException(422, "daily_boosts must be an object keyed by YYYY-MM-DD date strings")
@@ -962,12 +1024,12 @@ async def upsert_daily_boosts(ctx: PortalAuthDep, db: DbDep, body: dict) -> dict
     set_payload = {f"daily_boosts.{d}": v for d, v in incoming.items()}
     set_payload["updated_at"] = datetime.now(timezone.utc)
     await db["dashboard_boosts"].update_one(
-        {"project_id": ctx.project_id},
+        {"project_id": ctx.project_id, "brand_id": brand_id},
         {"$set": set_payload},
         upsert=True,
     )
 
     doc = await db["dashboard_boosts"].find_one(
-        {"project_id": ctx.project_id}, {"_id": 0, "daily_boosts": 1}
+        {"project_id": ctx.project_id, "brand_id": brand_id}, {"_id": 0, "daily_boosts": 1}
     )
     return {"project_id": ctx.project_id, "daily_boosts": (doc or {}).get("daily_boosts", {})}

@@ -21,11 +21,13 @@
 -- USAGE
 -- ─────
 -- • Inserted once per consume_bonus() call, before child bonus_chunk_consumed
---   rows are written.
+--   rows are written. A row is written even when nothing could be consumed
+--   (consumed_amount = 0, no child rows) so every request is trackable.
 -- • consumed_amount is the pre-aggregated total across all child rows.
--- • Idempotency is enforced at the child level via the UNIQUE KEY on
---   (chunk_id, consumed_ref) in bonus_chunk_consumed.
--- • wager_ref links back to the originating wager (optional).
+-- • wager_ref stores the caller's consume_txn_id (same value); it is the
+--   request-level idempotency key checked before insert, and the lookup key
+--   for the consume-status API. Child bonus_chunk_consumed keeps its own
+--   UNIQUE KEY on (chunk_id, consumed_ref).
 -- • Never updated after insert.
 --
 -- RELATIONSHIPS
@@ -37,7 +39,7 @@
 CREATE TABLE `bonus_consumed` (
     `id`                        BIGINT        NOT NULL AUTO_INCREMENT,
     `wager_ref`                 VARCHAR(100)  DEFAULT NULL,
-    -- originating wager transaction reference (wager_tnx_id); optional
+    -- caller-supplied consume transaction reference (consume_txn_id)
 
     -- ── Game context ──────────────────────────────────────────────────────────
     `chip_type`                 VARCHAR(20)   DEFAULT NULL,

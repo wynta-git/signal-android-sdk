@@ -2,10 +2,11 @@
 Cache invalidation helpers for bonus configuration changes.
 
 Key patterns:
-  pam:bonus:code:{code}:{chip_type}       — validate-code config cache (TTL 600 s)
-  pam:bonus:eligibility:{configure_id}    — eligibility rules cache (TTL 300 s)
-  pam:bonus:triggers:{site_id}:{type}     — per-trigger-type cache (TTL 300 s)
-  pam:bonus:site_triggers:{site_id}       — all-triggers-for-site cache (TTL 300 s)
+  pam:bonus:code:{code}:{chip_type}          — validate-code config cache (TTL 600 s)
+  pam:bonus:eligibility:{configure_id}       — eligibility rules cache (TTL 300 s)
+  pam:bonus:triggers:{site_id}:{type}        — per-trigger-type cache (TTL 300 s)
+  pam:bonus:site_triggers:{site_id}          — all-triggers-for-site cache (TTL 300 s)
+  pam:bonus:auto_apply_code:{configure_id}   — system-auto-apply code lookup cache (TTL 300 s)
 """
 
 import structlog
@@ -32,3 +33,9 @@ async def bust_trigger_cache(redis: Redis, site_id: int) -> None:
     keys.append(f"pam:bonus:site_triggers:{site_id}")
     await redis.delete(*keys)
     log.info("bonus_cache.bust_triggers", site_id=site_id, count=len(keys))
+
+
+async def bust_auto_apply_code_cache(redis: Redis, configure_id: int) -> None:
+    key = f"pam:bonus:auto_apply_code:{configure_id}"
+    await redis.delete(key)
+    log.info("bonus_cache.bust_auto_apply_code", configure_id=configure_id, key=key)

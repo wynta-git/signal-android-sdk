@@ -7,12 +7,14 @@ export const runtime = "nodejs";
 
 interface EventBody {
   user_id: string;
-  amount: number;
-  currency: string;
-  payment_method: string;
-  transaction_id: string;
+  amount?: number;
+  currency?: string;
+  payment_method?: string;
+  transaction_id?: string;
   event_name?: string;
   promo_code?: string;
+  registration_method?: string;
+  product?: string;
 }
 
 function buildProperties(body: EventBody): Record<string, unknown> {
@@ -20,13 +22,13 @@ function buildProperties(body: EventBody): Record<string, unknown> {
 
   if (eventName === "BET_PLACED") {
     return {
-      transaction_amount: body.amount.toFixed(4),
+      transaction_amount: (body.amount ?? 0).toFixed(4),
       bonus_amount: "0.0000",
       chip_type: "CASH",
       wager_tnx_id: body.transaction_id,
       session_key: `sess_${Date.now()}`,
       platform_client_id: "bonus-client-test",
-      product: "RUMMY",
+      product: body.product || "RUMMY",
       game_type: "TOURNEY",
       game_variant: "holdem",
       game_name: "Friday Holdem",
@@ -38,10 +40,18 @@ function buildProperties(body: EventBody): Record<string, unknown> {
     };
   }
 
+  if (eventName === "REGISTRATION") {
+    return {
+      registration_method: body.registration_method || "email",
+      currency: body.currency || "INR",
+      ...(body.promo_code ? { promo_code: body.promo_code } : {}),
+    };
+  }
+
   return {
     transaction_id: body.transaction_id,
-    amount: body.amount,
-    currency: body.currency,
+    amount: body.amount ?? 0,
+    currency: body.currency ?? "",
     payment_method: body.payment_method || null,
     ...(body.promo_code ? { promo_code: body.promo_code } : {}),
   };

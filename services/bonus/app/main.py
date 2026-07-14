@@ -14,7 +14,8 @@ from app.auth import verify_s2s_request
 from app.db import close_pool, init_pool
 from app.dependencies import get_portal_token_context
 from app.routers.bonus_head import register_exception_handlers
-from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_configure_code, bonus_release_trigger, bonus_eligibility, bonus_summary, bonus_spend, player_bonus
+from app.routers import bonus_head, bonus_subhead, bonus_configure, bonus_configure_code, bonus_release_trigger, bonus_eligibility, bonus_summary, bonus_spend, pam_user_bonus, site_configure, portal_user_bonus
+from shared.clients.kafka import make_kafka_producer
 from shared.clients.redis import make_redis_client
 from shared.cors import CORS_ORIGINS
 
@@ -43,10 +44,12 @@ _configure_logging()
 
 structlog.configure(
     processors=[
+        structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.add_log_level,
         structlog.processors.JSONRenderer(),
-    ]
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
 )
 
 log = structlog.get_logger(__name__)
@@ -60,7 +63,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     log.info("bonus_service.db_pool_ready")
     app.state.redis = make_redis_client(settings.redis_url)
     log.info("bonus_service.redis_ready")
+    try:
+        app.state.kafka_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+        log.info("bonus_service.kafka_producer_ready")
+    except Exception as exc:
+        log.warning("bonus_service.kafka_producer_unavailable", error=str(exc))
+        app.state.kafka_producer = None
     yield
+    if app.state.kafka_producer is not None:
+        await app.state.kafka_producer.stop()
     await app.state.redis.aclose()
     await close_pool()
     log.info("bonus_service.stopped")
@@ -93,14 +104,16 @@ app.include_router(bonus_release_trigger.router, prefix=route_prefix, dependenci
 app.include_router(bonus_eligibility.router,     prefix=route_prefix, dependencies=_portal)
 app.include_router(bonus_summary.router,         prefix=route_prefix, dependencies=_portal)
 app.include_router(bonus_spend.router,           prefix=route_prefix, dependencies=_portal)
+app.include_router(site_configure.router,        prefix=route_prefix, dependencies=_portal)
+app.include_router(portal_user_bonus.router,     prefix=route_prefix, dependencies=_portal)
 
-# Player bonus router — S2S auth required (called by game servers)
-app.include_router(player_bonus.router,          prefix=route_prefix, dependencies=_s2s)
+# PAM user bonus router — S2S auth required (called by game servers)
+app.include_router(pam_user_bonus.router,          prefix=route_prefix, dependencies=_s2s)
 register_exception_handlers(app)
 bonus_subhead.register_exception_handlers(app)
 bonus_release_trigger.register_exception_handlers(app)
 bonus_eligibility.register_exception_handlers(app)
-player_bonus.register_exception_handlers(app)
+pam_user_bonus.register_exception_handlers(app)
 
 
 @app.get("/health", include_in_schema=False)

@@ -11,6 +11,7 @@ import structlog
 from app.config import settings
 from app.db import close_pool, init_pool
 from app.bonus_event_processor.consumer import run_consumer
+from app.bonus_event_processor.manual_bonus_consumer import run_manual_bonus_consumer
 from app.bonus_event_processor.chunk_expiry_job import run_chunk_expiry_job
 from app.bonus_event_processor.bonus_forfeit_job import run_bonus_forfeit_job
 from shared.clients.redis import make_redis_client
@@ -39,6 +40,16 @@ def _configure_logging() -> None:
 
 
 _configure_logging()
+
+structlog.configure(
+    processors=[
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+)
 
 log = structlog.get_logger()
 
@@ -80,22 +91,24 @@ async def main() -> None:
     redis = make_redis_client(settings.redis_url)
     log.info("bonus_consumer_redis_ready", url=settings.redis_url)
 
-    stop_event     = asyncio.Event()
-    consumer_task  = asyncio.create_task(run_consumer(redis))
-    scheduler_task = asyncio.create_task(_run_scheduler(stop_event))
+    stop_event            = asyncio.Event()
+    consumer_task         = asyncio.create_task(run_consumer(redis))
+    manual_bonus_task     = asyncio.create_task(run_manual_bonus_consumer(redis))
+    scheduler_task        = asyncio.create_task(_run_scheduler(stop_event))
 
     loop = asyncio.get_running_loop()
 
     def _on_signal(sig: signal.Signals) -> None:
         log.info("shutdown_signal_received", signal=sig.name)
         consumer_task.cancel()
+        manual_bonus_task.cancel()
         stop_event.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, lambda s=sig: _on_signal(s))
 
     try:
-        await asyncio.gather(consumer_task, scheduler_task, return_exceptions=True)
+        await asyncio.gather(consumer_task, manual_bonus_task, scheduler_task, return_exceptions=True)
     except asyncio.CancelledError:
         log.info("bonus_consumer_stopped")
     finally:

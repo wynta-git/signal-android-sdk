@@ -10,6 +10,7 @@ When a trigger with release_type=CHUNK_RELEASE fires:
 """
 from __future__ import annotations
 
+import json
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -24,11 +25,23 @@ log = structlog.get_logger(__name__)
 
 _PENDING_CHUNKS_SQL = """
     SELECT bc.id, bc.chunk_amount, bc.bonus_grant_id, bc.required_wager_amount, bc.wager_amount,
-           bc.wager_multiplier
+           bc.wager_multiplier, bc.product_wager_multiplier
     FROM bonus_chunk bc
     WHERE bc.site_id = %s AND bc.pam_user_id = %s AND bc.release_status IN ('PENDING', 'INIT')
     ORDER BY bc.id ASC
 """
+
+
+def _parse_product_wager_multiplier(raw: object) -> dict | None:
+    """JSON column value -> {product: multiplier}. Handles both str and pre-parsed dict."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return None
+    if not isinstance(raw, dict):
+        return None
+    return raw
 
 
 _RELEASE_CHUNK_WITH_WAGER_SQL = """
@@ -187,6 +200,16 @@ async def handle_chunk_release(
         bonus_release_id = cur.lastrowid
 
     # ── Apply wager contribution across chunks in FIFO order ─────────────────
+    # Each chunk keeps a fixed required_wager_amount (chunk_amount × the chunk's
+    # own base wager_multiplier, set at grant time — unchanged by this logic).
+    # A per-product override changes how fast *this event's* raw wagered money
+    # advances new_wager toward that fixed target: weight_ratio = base/effective,
+    # so a product configured *above* the base multiplier contributes less per
+    # raw dollar (clears slower), and one configured *below* contributes more
+    # (clears faster). release_amount/event_release keep dividing by the
+    # chunk's own base wager_multiplier throughout, so progress stays monotonic
+    # even as different products contribute across the life of one chunk.
+    product = props.get("product")
     released_count = 0
     total_wager    = Decimal("0.00")
     total_release  = Decimal("0.00")
@@ -202,16 +225,24 @@ async def handle_chunk_release(
         curr_wager        = Decimal(str(row[4]))
         wager_multiplier  = Decimal(str(row[5]))
 
-        still_needed   = required - curr_wager
-        contributed    = min(remaining, still_needed)
-        new_wager      = curr_wager + contributed
+        product_wager_multiplier = _parse_product_wager_multiplier(row[6])
+        effective_multiplier = wager_multiplier
+        if product and product_wager_multiplier and product in product_wager_multiplier:
+            effective_multiplier = Decimal(str(product_wager_multiplier[product]))
+        weight_ratio = (wager_multiplier / effective_multiplier) if effective_multiplier > 0 else Decimal("1")
+
+        still_needed       = required - curr_wager
+        raw_needed_to_fill = (still_needed / weight_ratio).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        contributed        = min(remaining, raw_needed_to_fill)
+        weighted_contribution = (contributed * weight_ratio).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        new_wager      = curr_wager + weighted_contribution
         remaining     -= contributed
 
         is_full        = new_wager >= required
         release_amount = chunk_amount if is_full else (new_wager / wager_multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         release_status = 'RELEASE' if is_full else 'PENDING'
 
-        event_release  = (contributed / wager_multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        event_release  = (weighted_contribution / wager_multiplier).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         total_wager   += contributed
         total_release += event_release
 
@@ -253,6 +284,7 @@ async def release_all_chunks(
     bonus_grant_id: int,
     site_id: int,
     event_id: str,
+    pam_user_id: int,
 ) -> None:
     """Release all PENDING chunks for a grant in one pass.
 
@@ -270,9 +302,22 @@ async def release_all_chunks(
     total: float = sum(float(row[1]) for row in chunks)
 
     async with conn.cursor() as cur:
+        await cur.execute(
+            _INSERT_BONUS_RELEASE_SQL,
+            (
+                site_id, str(pam_user_id), event_id, "SYSTEM",
+                None, None, None, None,
+                0.00, total,
+            ),
+        )
+        bonus_release_id = cur.lastrowid
+
         await cur.executemany(
             _INSERT_CHUNK_RELEASE_SQL,
-            [(row[0], site_id, event_id, "SYSTEM", 0.00, row[1]) for row in chunks],
+            [
+                (row[0], site_id, event_id, "SYSTEM", 0.00, row[1], bonus_release_id)
+                for row in chunks
+            ],
         )
         await cur.execute(_RELEASE_ALL_PENDING_CHUNKS_SQL, (bonus_grant_id,))
         await cur.execute(_UPDATE_GRANT_RELEASE_SQL, (total, bonus_grant_id))

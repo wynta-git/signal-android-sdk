@@ -60,6 +60,9 @@ CREATE TABLE `bonus_configure` (
     -- ── Bonus release config ─────────────────────────────────────────────────
     `wager_multiplier`       DECIMAL(10,2)  DEFAULT NULL,
     -- 0 = no wagering required; >0 = chunk wager multiplier
+    `product_wager_multiplier` JSON         DEFAULT NULL,
+    -- optional per-product override, e.g. {"RUMMY":1.5,"AVIATOR":2}; only
+    -- meaningful when no_of_chunks/wager_multiplier enable chunked release
     `no_of_chunks`           INT            DEFAULT NULL 1,
     -- number of equal chunks the bonus is split into
     `release_bucket`         VARCHAR(50)    DEFAULT NULL,

@@ -9,25 +9,22 @@ import { getUsage, getBudget, getHistory } from "./mocks/utils";
 
 function authHeaders(): HeadersInit {
   const token = getToken();
-
-  console.log("Auth headers, token:", token);
-
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 import {
   MANUAL_SEGMENTS,
-  PLAYER_FIRST_NAMES,
-  PLAYER_LAST_NAMES,
-  PLAYER_STATES,
-  PLAYER_TIERS,
-  PLAYER_KYC,
-  PLAYER_PRODUCTS,
-  PLAYERS_PAGE_SIZE,
-  PLAYERS_SEARCH_CAP,
+  PAM_USER_FIRST_NAMES,
+  PAM_USER_LAST_NAMES,
+  PAM_USER_STATES,
+  PAM_USER_TIERS,
+  PAM_USER_KYC,
+  PAM_USER_PRODUCTS,
+  PAM_USERS_PAGE_SIZE,
+  PAM_USERS_SEARCH_CAP,
 } from "./mocks/constants";
 import type {
-  Player,
-  PlayerPage,
+  PAMUser,
+  PAMUserPage,
   BonusHead,
   BonusSubhead,
   BonusConfigure,
@@ -63,17 +60,17 @@ function _seedRng(seed: number): () => number {
   };
 }
 
-function makePlayer(segmentId: string, index: number): Player {
+function makePAMUser(segmentId: string, index: number): PAMUser {
   const r = _seedRng(_strHash(segmentId + ":" + index));
   const pick = <T>(arr: T[]): T => arr[Math.floor(r() * arr.length)];
-  const fn = pick(PLAYER_FIRST_NAMES);
-  const ln = pick(PLAYER_LAST_NAMES);
+  const fn = pick(PAM_USER_FIRST_NAMES);
+  const ln = pick(PAM_USER_LAST_NAMES);
   const id = 10000 + Math.floor(r() * 89999);
   const name = `${fn} ${ln}`;
   const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${Math.floor(r() * 99)}@wynta.in`;
-  const state = pick(PLAYER_STATES);
-  const tier = pick(PLAYER_TIERS);
-  const kyc = pick(PLAYER_KYC);
+  const state = pick(PAM_USER_STATES);
+  const tier = pick(PAM_USER_TIERS);
+  const kyc = pick(PAM_USER_KYC);
   const lifetimeDep = Math.floor((r() * 200000 + 1000) / 100) * 100;
   const lifetimeWager = Math.round(lifetimeDep * (3 + r() * 8));
   const lifetimeGgr = Math.round(lifetimeWager * (0.03 + r() * 0.07));
@@ -81,7 +78,7 @@ function makePlayer(segmentId: string, index: number): Player {
   const sessions7 = Math.floor(r() * 28);
   const daysAgoReg = Math.floor(r() * 720) + 1;
   const daysAgoLogin = Math.floor(r() * 30);
-  const product = pick(PLAYER_PRODUCTS);
+  const product = pick(PAM_USER_PRODUCTS);
   const phone =
     "+91 " +
     (60000 + Math.floor(r() * 39999)) +
@@ -107,11 +104,11 @@ function makePlayer(segmentId: string, index: number): Player {
   };
 }
 
-export function makePlayerById(id: number): Player {
+export function makePAMUserById(id: number): PAMUser {
   const r = _seedRng(_strHash("pid:" + id));
   const pick = <T>(arr: T[]): T => arr[Math.floor(r() * arr.length)];
-  const fn = pick(PLAYER_FIRST_NAMES);
-  const ln = pick(PLAYER_LAST_NAMES);
+  const fn = pick(PAM_USER_FIRST_NAMES);
+  const ln = pick(PAM_USER_LAST_NAMES);
   const name = `${fn} ${ln}`;
   const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${Math.floor(r() * 99)}@wynta.in`;
   const lifetimeDep = Math.floor((r() * 200000 + 1000) / 100) * 100;
@@ -125,10 +122,10 @@ export function makePlayerById(id: number): Player {
       (60000 + Math.floor(r() * 39999)) +
       " " +
       (10000 + Math.floor(r() * 89999)),
-    state: pick(PLAYER_STATES),
+    state: pick(PAM_USER_STATES),
     country: "India",
-    tier: pick(PLAYER_TIERS),
-    kyc: pick(PLAYER_KYC),
+    tier: pick(PAM_USER_TIERS),
+    kyc: pick(PAM_USER_KYC),
     lifetimeDep,
     lifetimeWager,
     lifetimeGgr: Math.round(lifetimeWager * (0.03 + r() * 0.07)),
@@ -136,20 +133,20 @@ export function makePlayerById(id: number): Player {
     sessions7: Math.floor(r() * 28),
     daysAgoReg: Math.floor(r() * 720) + 1,
     daysAgoLogin: Math.floor(r() * 30),
-    product: pick(PLAYER_PRODUCTS),
+    product: pick(PAM_USER_PRODUCTS),
   };
 }
 
 // Global pool (lazy, capped ~1500) for name/email search
-let _GLOBAL_PLAYER_POOL: Player[] | null = null;
-export function getGlobalPlayerPool(): Player[] {
-  if (_GLOBAL_PLAYER_POOL) return _GLOBAL_PLAYER_POOL;
-  const pool: Player[] = [];
+let _GLOBAL_PAM_USER_POOL: PAMUser[] | null = null;
+export function getGlobalPAMUserPool(): PAMUser[] {
+  if (_GLOBAL_PAM_USER_POOL) return _GLOBAL_PAM_USER_POOL;
+  const pool: PAMUser[] = [];
   const seen = new Set<number>();
   for (const s of MANUAL_SEGMENTS) {
     const take = Math.min(80, s.count);
     for (let i = 0; i < take; i++) {
-      const p = makePlayer(s.id, i);
+      const p = makePAMUser(s.id, i);
       if (!seen.has(p.id)) {
         seen.add(p.id);
         pool.push(p);
@@ -158,7 +155,7 @@ export function getGlobalPlayerPool(): Player[] {
     }
     if (pool.length >= 1500) break;
   }
-  _GLOBAL_PLAYER_POOL = pool;
+  _GLOBAL_PAM_USER_POOL = pool;
   return pool;
 }
 
@@ -168,7 +165,10 @@ const BONUS_API =
   (process.env.NEXT_PUBLIC_BONUS_API_URL || "http://localhost:8010") +
   "/api/v1/bonus";
 
-console.log("BONUS_API", BONUS_API);
+// Dedupe concurrent/repeat getSiteConfigure calls for the same site (e.g. two
+// mount effects firing close together) so only one network request goes out.
+const _siteConfigureCache = new Map<string, Promise<Record<string, string>>>();
+
 export const api = {
   async fetchKpiSnapshot(siteId: string | number) {
     const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`, {
@@ -176,6 +176,25 @@ export const api = {
     });
     if (!res.ok) throw new Error("Failed to fetch bonus summary");
     return res.json();
+  },
+  getSiteConfigure(siteId: string | number): Promise<Record<string, string>> {
+    const key = String(siteId);
+    const cached = _siteConfigureCache.get(key);
+    if (cached) return cached;
+
+    const promise = (async () => {
+      const res = await fetch(`${BONUS_API}/site-configure?site_id=${siteId}`, {
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error("Failed to fetch site configure");
+      return res.json();
+    })();
+    // Only dedupe overlapping calls (e.g. two mount effects firing close
+    // together) — drop the cache once settled so a later, independent open
+    // of the form still gets a fresh read.
+    promise.finally(() => _siteConfigureCache.delete(key));
+    _siteConfigureCache.set(key, promise);
+    return promise;
   },
   async fetchBonusSpend(entityType: string, entityId: number): Promise<SpendPeriod[]> {
     const res = await fetch(
@@ -186,7 +205,6 @@ export const api = {
     return res.json();
   },
   async fetchHeads(siteId: string | number) {
-    console.log("Fetching heads for siteId:", siteId);
     const res = await fetch(`${BONUS_API}/bonus-heads?site_id=${siteId}`, {
       headers: authHeaders(),
     });
@@ -362,15 +380,35 @@ export const api = {
     return res.json() as Promise<PromoCode>;
   },
   async createPromoCode(configureId: number, payload: Record<string, unknown>) {
-    const res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ configure_id: configureId, ...payload }),
-    });
+    const { csv_file, ...rest } = payload as Record<string, unknown> & {
+      csv_file?: File | null;
+    };
+    const body = { configure_id: configureId, ...rest };
+
+    let res: Response;
+    if (csv_file instanceof File) {
+      const form = new FormData();
+      Object.entries(body).forEach(([key, value]) => {
+        if (value === null || value === undefined) return;
+        form.append(key, String(value));
+      });
+      form.append("csv_file", csv_file);
+      res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
+        method: "POST",
+        headers: { ...authHeaders() },
+        body: form,
+      });
+    } else {
+      res = await fetch(`${BONUS_API}/bonus-configure-codes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(body),
+      });
+    }
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
+      const errBody = await res.json().catch(() => ({}));
       throw new Error(
-        (body as { detail?: string }).detail ?? "Failed to create promo code",
+        (errBody as { detail?: string }).detail ?? "Failed to create promo code",
       );
     }
     return res.json() as Promise<PromoCode>;
@@ -526,10 +564,10 @@ export const api = {
     const id = Date.now();
     return { id, ...payload } as unknown as Segment;
   },
-  async fetchSegmentPlayers(
+  async fetchSegmentPAMUsers(
     segmentId: string | number,
     { page = 1, search = "" }: { page?: number; search?: string } = {},
-  ): Promise<PlayerPage> {
+  ): Promise<PAMUserPage> {
     await delay();
     const segment = MANUAL_SEGMENTS.find((s) => s.id === segmentId);
     if (!segment)
@@ -538,16 +576,16 @@ export const api = {
     const total = segment.count;
     const q = search.trim().toLowerCase();
 
-    let slice: Player[],
+    let slice: PAMUser[],
       filteredTotal: number,
       pageTotal: number,
       scopeNote: string;
 
     if (q) {
-      const cap = Math.min(total, PLAYERS_SEARCH_CAP);
-      const searchPool: Player[] = [];
+      const cap = Math.min(total, PAM_USERS_SEARCH_CAP);
+      const searchPool: PAMUser[] = [];
       for (let i = 0; i < cap; i++)
-        searchPool.push(makePlayer(String(segmentId), i));
+        searchPool.push(makePAMUser(String(segmentId), i));
 
       const matches = searchPool.filter(
         (p) =>
@@ -556,25 +594,25 @@ export const api = {
           p.email.toLowerCase().includes(q),
       );
       filteredTotal = matches.length;
-      pageTotal = Math.max(1, Math.ceil(filteredTotal / PLAYERS_PAGE_SIZE));
+      pageTotal = Math.max(1, Math.ceil(filteredTotal / PAM_USERS_PAGE_SIZE));
       const safe = Math.min(page, pageTotal);
       slice = matches.slice(
-        (safe - 1) * PLAYERS_PAGE_SIZE,
-        safe * PLAYERS_PAGE_SIZE,
+        (safe - 1) * PAM_USERS_PAGE_SIZE,
+        safe * PAM_USERS_PAGE_SIZE,
       );
       scopeNote =
-        total > PLAYERS_SEARCH_CAP
-          ? ` · searched first ${PLAYERS_SEARCH_CAP.toLocaleString("en-IN")} of ${total.toLocaleString("en-IN")}`
+        total > PAM_USERS_SEARCH_CAP
+          ? ` · searched first ${PAM_USERS_SEARCH_CAP.toLocaleString("en-IN")} of ${total.toLocaleString("en-IN")}`
           : "";
     } else {
       filteredTotal = total;
-      pageTotal = Math.max(1, Math.ceil(total / PLAYERS_PAGE_SIZE));
+      pageTotal = Math.max(1, Math.ceil(total / PAM_USERS_PAGE_SIZE));
       const safe = Math.min(page, pageTotal);
-      const startIdx = (safe - 1) * PLAYERS_PAGE_SIZE;
-      const endIdx = Math.min(startIdx + PLAYERS_PAGE_SIZE, total);
+      const startIdx = (safe - 1) * PAM_USERS_PAGE_SIZE;
+      const endIdx = Math.min(startIdx + PAM_USERS_PAGE_SIZE, total);
       slice = [];
       for (let i = startIdx; i < endIdx; i++)
-        slice.push(makePlayer(String(segmentId), i));
+        slice.push(makePAMUser(String(segmentId), i));
       scopeNote = "";
     }
 

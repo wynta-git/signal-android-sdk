@@ -1,5 +1,6 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import Icon from 'wynta-react-common/components/Icon';
 import { useAppSelector } from '../../store/hooks';
@@ -55,9 +56,20 @@ function scheduleTypeLabel(c: Campaign): string {
   return '—';
 }
 
+const IST_TZ = 'Asia/Kolkata';
+
+/** YYYY-MM-DD calendar-day key for an instant, evaluated in IST (not the browser's local zone). */
+function istDayKey(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: IST_TZ });
+}
+
 function formatActivity(dateStr?: string): string {
   if (!dateStr) return '—';
-  const date = new Date(dateStr);
+  // Backend emits naive UTC timestamps with no Z/offset (e.g. "2026-06-25T13:02:30.091000").
+  // Without an explicit UTC marker, Date() parses the string as local browser time instead
+  // of UTC, silently shifting every value by the browser's UTC offset (~5:30h for IST).
+  const hasTzMarker = /(Z|[+-]\d{2}:?\d{2})$/.test(dateStr);
+  const date = new Date(hasTzMarker ? dateStr : `${dateStr}Z`);
   if (isNaN(date.getTime())) return dateStr; // pass through if already formatted
 
   const now     = new Date();
@@ -70,19 +82,20 @@ function formatActivity(dateStr?: string): string {
   const diffHr = Math.floor(diffMin / 60);
   if (diffHr < 24)   return `${diffHr}h ago`;
 
-  const todayStr     = now.toDateString();
-  const yesterday    = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toDateString();
-  const dateStr2     = date.toDateString();
+  // Compare calendar days in IST so "Today"/"Yesterday" are correct regardless
+  // of the viewer's browser timezone.
+  const todayKey     = istDayKey(now);
+  const yesterdayKey = istDayKey(new Date(now.getTime() - 86_400_000));
+  const dateKey      = istDayKey(date);
 
-  if (dateStr2 === todayStr)     return 'Today';
-  if (dateStr2 === yesterdayStr) return 'Yesterday';
+  if (dateKey === todayKey)     return 'Today';
+  if (dateKey === yesterdayKey) return 'Yesterday';
 
   const diffDay = Math.floor(diffMs / 86_400_000);
   if (diffDay < 7)  return `${diffDay}d ago`;
   if (diffDay < 30) return `${Math.floor(diffDay / 7)}w ago`;
 
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: IST_TZ });
 }
 
 function formatRevenue(n?: number) {
@@ -187,6 +200,22 @@ export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: 
 
   /* Action menu */
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  // The menu is portaled to <body> (see render below) so it isn't clipped by the
+  // table card's overflow:hidden or the horizontal-scroll wrapper. Since it's
+  // then positioned in viewport coordinates instead of following the row,
+  // close it on scroll/resize so it can't drift away from its trigger button.
+  useEffect(() => {
+    if (!openMenu) return;
+    const close = () => setOpenMenu(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openMenu]);
 
   /** Fetch full campaign details then open the wizard in view or edit mode. */
   async function openWizard(c: Campaign, viewOnly: boolean) {
@@ -389,46 +418,24 @@ export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: 
                         >
                           {loadingId === c.id ? '…' : 'Edit'}
                         </button>
-                        {/* More menu */}
+                        {/* More menu — button only; the dropdown itself is portaled to <body>
+                            below so it can't be clipped by the table's scroll/overflow wrappers. */}
                         <div className="cp-more-wrap">
                           <button
                             className="seg-row-btn cp-more-btn"
                             type="button"
-                            onClick={() => setOpenMenu(openMenu === c.id ? null : c.id)}
+                            onClick={e => {
+                              if (openMenu === c.id) {
+                                setOpenMenu(null);
+                                return;
+                              }
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setMenuPos({ top: rect.bottom + 4, left: rect.right - 160 });
+                              setOpenMenu(c.id);
+                            }}
                           >
                             <Icon name="more-horizontal" size={14} />
                           </button>
-                          {openMenu === c.id && (
-                            <div className="cp-more-menu">
-                              <button type="button" onClick={() => handleAction('duplicate', c)}>
-                                <Icon name="copy" size={13}/> Duplicate
-                              </button>
-                              {c.status === 'draft' || c.status === 'scheduled' ? (
-                                <button type="button" onClick={() => handleAction('activate', c)}>
-                                  <Icon name="play" size={13}/> Activate
-                                </button>
-                              ) : null}
-                              {c.status === 'running' ? (
-                                <button type="button" onClick={() => handleAction('pause', c)}>
-                                  <Icon name="pause" size={13}/> Pause
-                                </button>
-                              ) : null}
-                              {c.status === 'paused' ? (
-                                <button type="button" onClick={() => handleAction('resume', c)}>
-                                  <Icon name="play" size={13}/> Resume
-                                </button>
-                              ) : null}
-                              {c.status !== 'cancelled' && c.status !== 'completed' ? (
-                                <button type="button" className="cp-more-danger" onClick={() => handleAction('cancel', c)}>
-                                  <Icon name="x-circle" size={13}/> Cancel
-                                </button>
-                              ) : null}
-                              <div className="cp-more-divider"/>
-                              <button type="button" className="cp-more-danger" onClick={() => handleAction('delete', c)}>
-                                <Icon name="trash-2" size={13}/> Delete
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </td>
@@ -481,6 +488,45 @@ export default function CampaignsPage({ autoOpenAdd, brandId }: { autoOpenAdd?: 
       {openMenu && (
         <div className="cp-overlay-dismiss" onClick={() => setOpenMenu(null)} />
       )}
+
+      {/* Row action dropdown — portaled to <body> so it renders above the table's
+          overflow:hidden card and horizontal-scroll wrapper instead of being clipped. */}
+      {openMenu && menuPos && (() => {
+        const c = paginated.find(x => x.id === openMenu);
+        if (!c) return null;
+        return createPortal(
+          <div className="cp-more-menu cp-more-menu--portal" style={{ top: menuPos.top, left: menuPos.left }}>
+            <button type="button" onClick={() => handleAction('duplicate', c)}>
+              <Icon name="copy" size={13}/> Duplicate
+            </button>
+            {c.status === 'draft' || c.status === 'scheduled' ? (
+              <button type="button" onClick={() => handleAction('activate', c)}>
+                <Icon name="play" size={13}/> Activate
+              </button>
+            ) : null}
+            {c.status === 'running' ? (
+              <button type="button" onClick={() => handleAction('pause', c)}>
+                <Icon name="pause" size={13}/> Pause
+              </button>
+            ) : null}
+            {c.status === 'paused' ? (
+              <button type="button" onClick={() => handleAction('resume', c)}>
+                <Icon name="play" size={13}/> Resume
+              </button>
+            ) : null}
+            {c.status !== 'cancelled' && c.status !== 'completed' ? (
+              <button type="button" className="cp-more-danger" onClick={() => handleAction('cancel', c)}>
+                <Icon name="x-circle" size={13}/> Cancel
+              </button>
+            ) : null}
+            <div className="cp-more-divider"/>
+            <button type="button" className="cp-more-danger" onClick={() => handleAction('delete', c)}>
+              <Icon name="trash-2" size={13}/> Delete
+            </button>
+          </div>,
+          document.body
+        );
+      })()}
     </div>
   );
 }

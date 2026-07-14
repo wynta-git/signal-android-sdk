@@ -44,10 +44,10 @@ _INSERT_SQL = """
          wager_chip_type, credit_chip_type,
          bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
          cashback_bonus_amount_fixed, cashback_bonus_amount_percent, cashback_bonus_amount_max,
-         priority, active, created_by, updated_by, row_hash)
+         priority, active, created_by, updated_by, row_hash, product_wager_multiplier)
     VALUES
         (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_SQL = """
@@ -58,7 +58,8 @@ _SELECT_SQL = """
            wager_chip_type, credit_chip_type,
            bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
            cashback_bonus_amount_fixed, cashback_bonus_amount_percent, cashback_bonus_amount_max,
-           priority, active, created_by, updated_by, created_at, updated_at
+           priority, active, created_by, updated_by, created_at, updated_at,
+           product_wager_multiplier
     FROM bonus_configure
     WHERE id = %s
 """
@@ -71,7 +72,8 @@ _LIST_BY_SUBHEAD_SQL = """
            wager_chip_type, credit_chip_type,
            bonus_amount_fixed, bonus_amount_percent, bonus_amount_max,
            cashback_bonus_amount_fixed, cashback_bonus_amount_percent, cashback_bonus_amount_max,
-           priority, active, created_by, updated_by, created_at, updated_at
+           priority, active, created_by, updated_by, created_at, updated_at,
+           product_wager_multiplier
     FROM bonus_configure
     WHERE subhead_id = %s
     ORDER BY priority ASC, id ASC
@@ -86,10 +88,14 @@ _EXISTS_CONFIGURE_SQL = (
 )
 
 _SELECT_CODES_SQL = """
-    SELECT id, code, max_amount, valid_from, valid_to, auto_apply, display_order, active
-    FROM bonus_configure_code
-    WHERE configure_id = %s
-    ORDER BY display_order
+    SELECT bcc.id, bcc.code, bcc.max_amount, bcc.valid_from, bcc.valid_to, bcc.auto_apply,
+           bcc.display_order, bcc.active, bcc.system_auto_apply, bcc.is_manual_bonus,
+           bmf.status, bmf.total_players, bmf.total_bonus_amount,
+           bmf.success_players, bmf.success_amount, bmf.failed_players, bmf.failed_amount
+    FROM bonus_configure_code bcc
+    LEFT JOIN bonus_manual_bonus_file bmf ON bmf.bonus_configure_code_id = bcc.id
+    WHERE bcc.configure_id = %s
+    ORDER BY bcc.display_order
 """
 
 _SELECT_TRIGGERS_FOR_IDS_SQL = """
@@ -128,6 +134,7 @@ _PATCHABLE: dict[str, str] = {
     "end_date":                   "end_date",
     "applicability_frequency":    "applicability_frequency",
     "wager_multiplier":           "wager_multiplier",
+    "product_wager_multiplier":  "product_wager_multiplier",
     "no_of_chunks":               "no_of_chunks",
     "release_bucket":             "release_bucket",
     "chunk_expiry_days":          "chunk_expiry_days",
@@ -167,6 +174,25 @@ async def _write_audit(
         log.warning("audit_write.failed", table=table_name, entity_id=entity_id, error=str(exc))
 
 
+def _dump_product_wager_multiplier(value: dict[str, Decimal] | None) -> str | None:
+    """{product: Decimal} -> JSON string for storage/hashing, sort_keys for stable hashing."""
+    if not value:
+        return None
+    return json.dumps({k: float(v) for k, v in value.items()}, sort_keys=True)
+
+
+def _parse_product_wager_multiplier(raw: object) -> dict[str, Decimal] | None:
+    """JSON column value -> {product: Decimal}. Handles both str and pre-parsed dict."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            return None
+    if not isinstance(raw, dict):
+        return None
+    return {k: Decimal(str(v)) for k, v in raw.items()}
+
+
 def _row_to_response(row: tuple) -> BonusConfigureResponse:
     # SELECT col order: id[0] subhead_id[1] site_id[2] name[3] description[4]
     #   start_date[5] end_date[6] applicability_frequency[7]
@@ -175,6 +201,7 @@ def _row_to_response(row: tuple) -> BonusConfigureResponse:
     #   bonus_amount_fixed[15] bonus_amount_percent[16] bonus_amount_max[17]
     #   cashback_bonus_amount_fixed[18] cashback_bonus_amount_percent[19] cashback_bonus_amount_max[20]
     #   priority[21] active[22] created_by[23] updated_by[24] created_at[25] updated_at[26]
+    #   product_wager_multiplier[27]
     return BonusConfigureResponse(
         id=row[0], subhead_id=row[1], site_id=row[2], name=row[3], description=row[4],
         start_date=_as_dt(row[5]), end_date=_as_dt(row[6]),
@@ -187,6 +214,7 @@ def _row_to_response(row: tuple) -> BonusConfigureResponse:
         priority=row[21], active=bool(row[22]),
         created_by=row[23], updated_by=row[24],
         created_at=_as_dt(row[25]), updated_at=_as_dt(row[26]),
+        product_wager_multiplier=_parse_product_wager_multiplier(row[27]),
     )
 
 
@@ -201,6 +229,7 @@ def _configure_row_hash(data: BonusConfigureCreate | dict) -> str:
             "end_date": str(data.end_date),
             "applicability_frequency": data.applicability_frequency,
             "wager_multiplier": str(data.wager_multiplier if data.wager_multiplier is not None else Decimal("0.00")),
+            "product_wager_multiplier": _dump_product_wager_multiplier(data.product_wager_multiplier),
             "no_of_chunks": data.no_of_chunks if data.no_of_chunks is not None else 1,
             "release_bucket": data.release_bucket,
             "chunk_expiry_days": data.chunk_expiry_days,
@@ -295,7 +324,7 @@ async def add_bonus_configure(data: BonusConfigureCreate) -> BonusConfigureRespo
                         data.bonus_amount_fixed, data.bonus_amount_percent, data.bonus_amount_max,
                         data.cashback_bonus_amount_fixed, data.cashback_bonus_amount_percent, data.cashback_bonus_amount_max,
                         data.priority, int(data.active), data.created_by, data.created_by,
-                        row_hash,
+                        row_hash, _dump_product_wager_multiplier(data.product_wager_multiplier),
                     ),
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
@@ -380,6 +409,15 @@ async def get_bonus_configure(configure_id: int) -> BonusConfigureDetail:
                 id=r[0], code=r[1], max_amount=r[2],
                 valid_from=r[3], valid_to=r[4],
                 auto_apply=bool(r[5]), display_order=r[6], active=bool(r[7]),
+                system_auto_apply=bool(r[8]) if r[8] is not None else None,
+                is_manual_bonus=bool(r[9]),
+                manual_bonus_status=r[10],
+                manual_bonus_total_players=r[11],
+                manual_bonus_total_amount=r[12],
+                manual_bonus_success_players=r[13],
+                manual_bonus_success_amount=r[14],
+                manual_bonus_failed_players=r[15],
+                manual_bonus_failed_amount=r[16],
             )
             for r in code_rows
         ],
@@ -474,6 +512,7 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, 
     _not_null_defaults: dict[str, object] = {
         "wager_multiplier": Decimal("0.00"),
         "wager_chip_type": "CASH",
+        "no_of_chunks": 1,
     }
 
     updates: dict[str, object] = {}
@@ -483,6 +522,8 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, 
         val = getattr(data, field)
         if field == "active" and val is not None:
             updates[col] = int(val)
+        elif field == "product_wager_multiplier":
+            updates[col] = _dump_product_wager_multiplier(val)
         elif val is None and field in _not_null_defaults:
             updates[col] = _not_null_defaults[field]
         else:
@@ -510,6 +551,10 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, 
                     "end_date": str(updates.get("end_date", row[6])),
                     "applicability_frequency": updates.get("applicability_frequency", row[7]),
                     "wager_multiplier": str(updates.get("wager_multiplier", row[8])),
+                    "product_wager_multiplier": updates.get(
+                        "product_wager_multiplier",
+                        _dump_product_wager_multiplier(_parse_product_wager_multiplier(row[27])),
+                    ),
                     "no_of_chunks": updates.get("no_of_chunks", row[9]),
                     "release_bucket": updates.get("release_bucket", row[10]),
                     "chunk_expiry_days": updates.get("chunk_expiry_days", row[11]),
@@ -541,7 +586,8 @@ async def update_bonus_configure(configure_id: int, data: BonusConfigureUpdate, 
                 _audit_col_idx = {
                     "name": 3, "description": 4, "applicability_frequency": 7,
                     "active": 22, "priority": 21,
-                    "wager_multiplier": 8, "no_of_chunks": 9, "release_bucket": 10,
+                    "wager_multiplier": 8, "product_wager_multiplier": 27,
+                    "no_of_chunks": 9, "release_bucket": 10,
                     "chunk_expiry_days": 11, "bonus_expiry_days": 12,
                     "wager_chip_type": 13, "credit_chip_type": 14,
                     "bonus_amount_fixed": 15, "bonus_amount_percent": 16, "bonus_amount_max": 17,
@@ -613,17 +659,17 @@ _UPSERT_CONFIGURE_LIMIT_SQL = """
 
 _SELECT_CONFIGURE_BUDGET_SQL = """
     SELECT
-        bu.period_type,
+        bl.period_type,
         bl.budget_limit,
-        bu.budget_used,
+        COALESCE(bu.budget_used, 0),
         bu.reset_at
-    FROM bonus_budget_usage bu
-    LEFT JOIN bonus_budget_limit bl
-        ON  bl.entity_type = bu.entity_type
-        AND bl.entity_id   = bu.entity_id
-        AND bl.period_type = bu.period_type
-    WHERE bu.entity_type = 'CONFIGURE' AND bu.entity_id = %s
-    ORDER BY CASE bu.period_type
+    FROM bonus_budget_limit bl
+    LEFT JOIN bonus_budget_usage bu
+        ON  bu.entity_type = bl.entity_type
+        AND bu.entity_id   = bl.entity_id
+        AND bu.period_type = bl.period_type
+    WHERE bl.entity_type = 'CONFIGURE' AND bl.entity_id = %s
+    ORDER BY CASE bl.period_type
         WHEN 'DAILY'   THEN 1
         WHEN 'WEEKLY'  THEN 2
         WHEN 'MONTHLY' THEN 3

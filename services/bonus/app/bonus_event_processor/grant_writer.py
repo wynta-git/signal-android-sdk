@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -22,11 +23,11 @@ _APPLICABILITY_COUNT_SQL = """
 
 _INSERT_GRANT_SQL = """
     INSERT INTO bonus_grant
-        (player_bonus_id, configure_id, subhead_id, head_id, site_id, pam_user_id,
+        (configure_id, subhead_id, head_id, site_id, pam_user_id,
          event_id, product, wager_multiplier, no_of_chunks,
          chunk_expiry_days, bonus_expiry_days,
          wager_chip_type, credit_chip_type, grant_amount,
-         bonus_code, release_amount, bonus_grant_type)
+         bonus_code, release_amount, bonus_grant_type, product_wager_multiplier)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 # product comes from bonus_release_trigger.product (trigger["product"]); may be NULL
@@ -34,8 +35,9 @@ _INSERT_GRANT_SQL = """
 _INSERT_CHUNK_SQL = """
     INSERT INTO bonus_chunk
         (chunk_ref, bonus_grant_id, site_id, pam_user_id,
-         chunk_amount, wager_multiplier, required_wager_amount, release_status)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+         chunk_amount, wager_multiplier, required_wager_amount, release_status,
+         product_wager_multiplier)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _UPSERT_BUDGET_SQL = """
@@ -137,13 +139,17 @@ async def write_grant(
     pam_user_id: int,
     site_id: int,
     grant_amount: Decimal,
-    player_bonus_id: int,
     event_id: str,
     bonus_code: str | None = None,
     bonus_code_id: int | None = None,
 ) -> int:
     wager_multiplier = configure["wager_multiplier"]
     no_of_chunks: int = configure["no_of_chunks"]
+    product_wager_multiplier_json = (
+        json.dumps(configure["product_wager_multiplier"], sort_keys=True)
+        if configure.get("product_wager_multiplier")
+        else None
+    )
     chunk_amount = (grant_amount / Decimal(str(no_of_chunks))).quantize(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
@@ -155,7 +161,6 @@ async def write_grant(
         await cur.execute(
             _INSERT_GRANT_SQL,
             (
-                player_bonus_id,
                 configure["id"],
                 configure["subhead_id"],
                 configure["head_id"],
@@ -173,6 +178,7 @@ async def write_grant(
                 bonus_code,
                 Decimal("0.00"),
                 "CHUNK",
+                product_wager_multiplier_json,
             ),
         )
         grant_id: int = cur.lastrowid  # type: ignore[assignment]
@@ -180,7 +186,11 @@ async def write_grant(
         for i in range(1, no_of_chunks + 1):
             await cur.execute(
                 _INSERT_CHUNK_SQL,
-                (f"CH{i:03d}", grant_id, site_id, pam_user_id, chunk_amount, wager_multiplier, required_wager_amount, "PENDING"),
+                (
+                    f"CH{i:03d}", grant_id, site_id, pam_user_id, chunk_amount,
+                    wager_multiplier, required_wager_amount, "PENDING",
+                    product_wager_multiplier_json,
+                ),
             )
 
         entities = [
@@ -200,7 +210,7 @@ async def write_grant(
         await conn.commit()
 
     if Decimal(str(wager_multiplier)) == Decimal("0"):
-        await release_all_chunks(conn, grant_id, site_id, event_id)
+        await release_all_chunks(conn, grant_id, site_id, event_id, pam_user_id)
 
     log.info(
         "bonus_grant_written",
@@ -221,7 +231,6 @@ async def write_cashback_grant(
     pam_user_id: int,
     site_id: int,
     cashback_amount: Decimal,
-    player_bonus_id: int,
     event_id: str,
     bonus_code: str | None = None,
     bonus_code_id: int | None = None,
@@ -232,7 +241,6 @@ async def write_cashback_grant(
             await cur.execute(
                 _INSERT_GRANT_SQL,
                 (
-                    player_bonus_id,
                     configure["id"],
                     configure["subhead_id"],
                     configure["head_id"],
@@ -250,13 +258,14 @@ async def write_cashback_grant(
                     bonus_code,
                     Decimal("0.00"),
                     "CASHBACK",
+                    None,
                 ),
             )
             grant_id: int = cur.lastrowid  # type: ignore[assignment]
 
             await cur.execute(
                 _INSERT_CHUNK_SQL,
-                ("CH001", grant_id, site_id, pam_user_id, cashback_amount, 0, Decimal("0.00"), "PENDING"),
+                ("CH001", grant_id, site_id, pam_user_id, cashback_amount, 0, Decimal("0.00"), "PENDING", None),
             )
 
             entities = [
@@ -275,7 +284,7 @@ async def write_cashback_grant(
 
             await conn.commit()
 
-        await release_all_chunks(conn, grant_id, site_id, event_id)
+        await release_all_chunks(conn, grant_id, site_id, event_id, pam_user_id)
 
         log.info(
             "cashback_grant_written",

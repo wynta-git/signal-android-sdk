@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch } from 'react-redux';
 import Icon from '../Icon';
@@ -17,6 +17,20 @@ import type { SegmentRule, SegmentField, MetaEventItem } from '../../types';
 
 function toLabel(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+const PICKER_MARGIN = 6;
+
+/** Open the picker below its trigger, unless there isn't room — then flip it above. */
+function computePickerPos(r: DOMRect, pickerHeight: number): { top: number; left: number } {
+  const spaceBelow = window.innerHeight - r.bottom;
+  const spaceAbove = r.top;
+  const fitsBelow  = spaceBelow >= pickerHeight + PICKER_MARGIN;
+  const openAbove  = !fitsBelow && spaceAbove > spaceBelow;
+  const top = openAbove
+    ? Math.max(PICKER_MARGIN, r.top - pickerHeight - PICKER_MARGIN)
+    : r.bottom + PICKER_MARGIN;
+  return { top, left: r.left };
 }
 
 function buildSplitFields(
@@ -91,6 +105,12 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
   const behaviourPickerRef = useRef<HTMLButtonElement>(null);
   const pickerRef          = useRef<HTMLDivElement>(null);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const [nameError, setNameError]   = useState(false);
+  const [rulesError, setRulesError] = useState(false);
+  const [csvError, setCsvError]     = useState(false);
+  const nameInputRef   = useRef<HTMLInputElement>(null);
+  const filterSectionsRef = useRef<HTMLDivElement>(null);
+  const csvUploadRef   = useRef<HTMLDivElement>(null);
   const dispatch      = useDispatch();
   const projectId     = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const metaTraits    = useCommonSelector(selectMetaTraits);
@@ -117,6 +137,44 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
+  }, [activePicker]);
+
+  // The picker is portaled to <body> with position:fixed, computed once from the
+  // trigger button's rect at open time. If the page (or any scrollable ancestor)
+  // scrolls afterward, the button moves but the portal doesn't — they visually
+  // separate. Re-track the button on scroll/resize so the picker stays glued to
+  // it. Scrolls that originate inside the picker's own item list are ignored so
+  // browsing the list doesn't fight with this.
+  useEffect(() => {
+    if (!activePicker) return;
+    const btnRef = activePicker === 'property' ? propertyPickerRef : behaviourPickerRef;
+    const reposition = (e: Event) => {
+      if (pickerRef.current && e.target instanceof Node && pickerRef.current.contains(e.target as Node)) return;
+      if (!btnRef.current) return;
+      const r = btnRef.current.getBoundingClientRect();
+      const height = pickerRef.current?.getBoundingClientRect().height ?? 0;
+      setPickerPos(computePickerPos(r, height));
+    };
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [activePicker]);
+
+  // The initial position (set in togglePicker) always opens below, since the
+  // picker's real height isn't known until it has actually rendered — its
+  // content varies (empty state vs a long list). Once mounted, measure it and
+  // flip above the trigger if there isn't room below, for both pickers.
+  useLayoutEffect(() => {
+    if (!activePicker || !pickerRef.current) return;
+    const btnRef = activePicker === 'property' ? propertyPickerRef : behaviourPickerRef;
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const height = pickerRef.current.getBoundingClientRect().height;
+    const next = computePickerPos(r, height);
+    setPickerPos(prev => (prev && prev.top === next.top && prev.left === next.left) ? prev : next);
   }, [activePicker]);
 
   const { traitFields, eventFields } = useMemo(() => {
@@ -227,8 +285,11 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
     return Math.max(12, base);
   }, [allRules, combinator]);
 
-  const canSave = name.trim().length >= 2 &&
-    (segmentMode === 'custom' ? csvFile !== null : allRules.length > 0);
+  // Clear each error as soon as its own condition is satisfied, so it doesn't
+  // linger after the user fixes it but before they hit Submit again.
+  useEffect(() => { if (name.trim().length >= 2) setNameError(false); }, [name]);
+  useEffect(() => { if (allRules.length > 0) setRulesError(false); }, [allRules.length]);
+  useEffect(() => { if (csvFile !== null) setCsvError(false); }, [csvFile]);
 
   const handlePreview = async () => {
     setPreviewing(true);
@@ -258,7 +319,30 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
   }, [mode, segmentId]);
 
   const handleSave = () => {
-    if (!canSave) return;
+    const nameInvalid  = name.trim().length < 2;
+    const rulesInvalid = segmentMode === 'filter' && allRules.length === 0;
+    const csvInvalid   = segmentMode === 'custom' && csvFile === null;
+
+    setNameError(nameInvalid);
+    setRulesError(rulesInvalid);
+    setCsvError(csvInvalid);
+
+    if (nameInvalid) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (rulesInvalid) {
+      setBehaviourExpanded(true);
+      setPropertyExpanded(true);
+      filterSectionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (csvInvalid) {
+      csvUploadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     onSave({
       name, description, combinator,
       rules:        segmentMode === 'filter' ? allRules : [],
@@ -352,19 +436,17 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
     <>
       <div className="modal-body seg-builder-body">
 
-        {/* Info banner */}
-        <div className="asm-banner">
-          <Icon name="refresh-cw" size={13} color="#0073B2" />
-          <span>
-            This segment re-evaluates its conditions each time the campaign runs,
-            rather than locking in a fixed list of players.
-          </span>
-        </div>
-
         {/* Segment name */}
-        <div className="field-group">
-          <label>Segment name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. High LTV — no recent bonus"/>
+        <div className="field-group seg-name-field">
+          <label>Segment name <span className="cwiz-req">*</span></label>
+          <input
+            ref={nameInputRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. High LTV — no recent bonus"
+            style={nameError ? { borderColor: 'var(--crm-negative, #D64545)', boxShadow: '0 0 0 1px var(--crm-negative, #D64545)' } : undefined}
+          />
+          {nameError && <span className="cwiz-field-error">Segment name must be at least 2 characters.</span>}
         </div>
 
         {/* Segment type toggle — only for create mode */}
@@ -373,14 +455,14 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
             <button
               type="button"
               className={'seg-type-btn' + (segmentMode === 'filter' ? ' active' : '')}
-              onClick={() => { setSegmentMode('filter'); setCsvFile(null); }}
+              onClick={() => { setSegmentMode('filter'); setCsvFile(null); setCsvError(false); }}
             >
               <Icon name="filter" size={13} /> Filters
             </button>
             <button
               type="button"
               className={'seg-type-btn' + (segmentMode === 'custom' ? ' active' : '')}
-              onClick={() => setSegmentMode('custom')}
+              onClick={() => { setSegmentMode('custom'); setRulesError(false); }}
             >
               <Icon name="upload" size={13} /> CSV Import
             </button>
@@ -413,7 +495,11 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
               </button>
             </div>
 
-            <div className="seg-csv-upload">
+            <div
+              className="seg-csv-upload"
+              ref={csvUploadRef}
+              style={csvError ? { borderColor: 'var(--crm-negative, #D64545)' } : undefined}
+            >
               <label className="seg-csv-label" htmlFor="seg-csv-input">
                 <Icon name="file-text" size={28} color="var(--g400)" />
                 <span className="seg-csv-hint">
@@ -430,7 +516,13 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                 type="file"
                 accept=".csv,text/csv"
                 style={{ display: 'none' }}
-                onChange={e => setCsvFile(e.target.files?.[0] ?? null)}
+                onChange={e => {
+                const f = e.target.files?.[0] ?? null;
+                setCsvFile(f);
+                if (f && !name.trim()) {
+                  setName(f.name.replace(/\.csv$/i, '').replace(/[_-]+/g, ' ').trim());
+                }
+              }}
               />
               {csvFile && (
                 <button
@@ -443,12 +535,17 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
                 </button>
               )}
             </div>
+            {csvError && <span className="cwiz-field-error">Select a CSV file before submitting.</span>}
           </>
         )}
 
         {/* Filter sections — hidden when CSV Import is selected */}
         {segmentMode === 'filter' && <div className="builder-section">
-            <div className="builder-filter-sections">
+            <div
+              className="builder-filter-sections"
+              ref={filterSectionsRef}
+              style={rulesError ? { outline: '1px solid var(--crm-negative, #D64545)', borderRadius: 'var(--rl)' } : undefined}
+            >
 
               {/* User Behaviour */}
               <div className={'builder-filter-section' + (!behaviourExpanded ? ' collapsed' : '')}>
@@ -541,6 +638,7 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
               </div>
 
             </div>
+            {rulesError && <span className="cwiz-field-error">Add at least one condition before submitting.</span>}
           </div>}
 
         {/* Estimated count — visible in edit mode only */}
@@ -575,6 +673,15 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
           </div>
         )}
 
+        {/* Info banner */}
+        <div className="asm-banner">
+          <Icon name="refresh-cw" size={13} color="#0073B2" />
+          <span>
+            This segment re-evaluates its conditions each time the campaign runs,
+            rather than locking in a fixed list of players.
+          </span>
+        </div>
+
       </div>
 
       <div className="modal-footer-row builder-footer">
@@ -588,7 +695,6 @@ export default function SegmentBuilder({ onCancel, onSave, mode = 'create', segm
         <button
           className="btn btn-primary btn-sm"
           type="button"
-          disabled={!canSave}
           onClick={handleSave}
           style={{ letterSpacing: 0.5, fontWeight: 700, gap: 6, paddingRight: 14 }}
         >

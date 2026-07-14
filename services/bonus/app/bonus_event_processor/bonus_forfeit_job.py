@@ -3,8 +3,11 @@
 Finds bonus grants whose bonus_expiry_days window has elapsed and still carry
 a released-but-unconsumed wallet balance.  For each such grant:
   1. Inserts a bonus_forfeit record (type=AUTO) for the remaining balance.
-  2. Expires any PENDING chunks that were never released, writing
-     bonus_chunk_expiry records for each.
+  2. Credits forfeited_amount on bonus_grant and on each RELEASE-status
+     bonus_chunk that still holds an unconsumed released balance.
+
+Expiring PENDING chunks that were never released is handled separately by
+chunk_expiry_job.py.
 
 The NOT EXISTS guard on bonus_forfeit makes every run idempotent.
 """
@@ -24,6 +27,12 @@ _EXPIRED_GRANTS_SQL = """
     WHERE bg.bonus_expiry_days IS NOT NULL
       AND DATE_ADD(bg.created_at, INTERVAL bg.bonus_expiry_days DAY) <= NOW()
       AND bg.release_amount > bg.consume_amount
+      AND EXISTS (
+          SELECT 1 FROM bonus_chunk bc
+          WHERE bc.bonus_grant_id = bg.id
+            AND bc.release_status = 'RELEASE'
+            AND bc.consume_status = 'PENDING'
+      )
       AND NOT EXISTS (
           SELECT 1 FROM bonus_forfeit bf WHERE bf.bonus_grant_id = bg.id
       )
@@ -36,22 +45,22 @@ _INSERT_FORFEIT_SQL = """
     VALUES (%s, %s, %s, 'AUTO', NULL, NOW(), NOW())
 """
 
-_PENDING_CHUNKS_SQL = """
-    SELECT id, chunk_amount
+_RELEASED_UNCONSUMED_CHUNKS_SQL = """
+    SELECT id, release_amount, consume_amount
     FROM bonus_chunk
-    WHERE bonus_grant_id = %s AND release_status = 'PENDING'
+    WHERE bonus_grant_id = %s AND release_status = 'RELEASE' AND consume_status = 'PENDING'
 """
 
-_EXPIRE_CHUNK_SQL = """
+_FORFEIT_CHUNK_SQL = """
     UPDATE bonus_chunk
-    SET release_status = 'EXPIRED', updated_at = NOW()
+    SET forfeited_amount = forfeited_amount + %s, updated_at = NOW(), consume_status='FORFEITED'
     WHERE id = %s
 """
 
-_INSERT_CHUNK_EXPIRY_SQL = """
-    INSERT INTO bonus_chunk_expiry
-        (chunk_id, bonus_grant_id, amount, type, operator, expired_at, created_at)
-    VALUES (%s, %s, %s, 'AUTO', NULL, NOW(), NOW())
+_UPDATE_GRANT_FORFEITED_SQL = """
+    UPDATE bonus_grant
+    SET forfeited_amount = forfeited_amount + %s
+    WHERE id = %s
 """
 
 
@@ -71,19 +80,20 @@ async def run_bonus_forfeit_job(batch_size: int = 500) -> int:
         for grant_id, release_amount, consume_amount in grants:
             forfeit_amount = Decimal(str(release_amount)) - Decimal(str(consume_amount))
 
-            # Collect pending chunks before writing anything
+            # Collect released-but-unconsumed chunks before writing anything
             async with conn.cursor() as cur:
-                await cur.execute(_PENDING_CHUNKS_SQL, (grant_id,))
-                pending_chunks = await cur.fetchall()
+                await cur.execute(_RELEASED_UNCONSUMED_CHUNKS_SQL, (grant_id,))
+                released_chunks = await cur.fetchall()
 
             async with conn.cursor() as cur:
                 await cur.execute(_INSERT_FORFEIT_SQL, (grant_id, forfeit_amount, forfeit_amount))
-                for chunk_id, chunk_amount in pending_chunks:
-                    await cur.execute(_EXPIRE_CHUNK_SQL, (chunk_id,))
-                    await cur.execute(
-                        _INSERT_CHUNK_EXPIRY_SQL,
-                        (chunk_id, grant_id, chunk_amount),
-                    )
+                await cur.execute(_UPDATE_GRANT_FORFEITED_SQL, (forfeit_amount, grant_id))
+
+                for chunk_id, chunk_release_amount, chunk_consume_amount in released_chunks:
+                    available = Decimal(str(chunk_release_amount)) - Decimal(str(chunk_consume_amount))
+                    if available <= Decimal("0.00"):
+                        continue
+                    await cur.execute(_FORFEIT_CHUNK_SQL, (available, chunk_id))
 
             forfeited_count += 1
 

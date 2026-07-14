@@ -103,6 +103,12 @@ export const evaluateSegment = createAsyncThunk(
   (segmentId: string) => segmentApi.evaluateSegment(segmentId)
 );
 
+export const reuploadSegment = createAsyncThunk(
+  'segments/reupload',
+  ({ segmentId, file }: { segmentId: string; file: File }) =>
+    segmentApi.reuploadCustomAudience(segmentId, file)
+);
+
 export const fetchSegmentMembers = createAsyncThunk(
   'segments/fetchMembers',
   ({ segmentId, cursor }: { segmentId: string; cursor?: string }) =>
@@ -210,6 +216,12 @@ const segmentsSlice = createSlice({
         const { segmentId, seg } = action.payload;
         const id = String(segmentId);
         if (state.entities[id]) state.entities[id] = seg;
+      })
+
+      .addCase(reuploadSegment.fulfilled, (state, action) => {
+        const s = action.payload;
+        const id = String(s.id);
+        if (state.entities[id]) state.entities[id] = s;
       })
 
       .addCase(deleteSegment.fulfilled, (state, action) => {

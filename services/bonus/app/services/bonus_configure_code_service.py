@@ -1,12 +1,17 @@
 import json
 from datetime import datetime, timezone
 
+import aioboto3
 import aiomysql
 import structlog
+from aiokafka import AIOKafkaProducer
+from botocore.exceptions import ClientError
 from redis.asyncio import Redis
+from starlette.datastructures import UploadFile
 
 from shared.clients.mysql import POOL_BONUS, get_connection
-from app.services.bonus_cache import bust_code_cache
+from app.config import settings
+from app.services.bonus_cache import bust_auto_apply_code_cache, bust_code_cache
 
 from app.exceptions import DatabaseError
 from app.models.bonus_configure_code import (
@@ -19,22 +24,40 @@ from app.services.bonus_head_service import _as_dt
 
 log = structlog.get_logger(__name__)
 
+
+def code_validity_sql(alias: str = "") -> str:
+    """SQL fragment: is this bonus_configure_code row active and within its validity window."""
+    p = f"{alias}." if alias else ""
+    return (
+        f"{p}active = 1 "
+        f"AND ({p}valid_from IS NULL OR {p}valid_from <= NOW()) "
+        f"AND ({p}valid_to   IS NULL OR {p}valid_to   >= NOW())"
+    )
+
+
 _INSERT_SQL = """
     INSERT INTO bonus_configure_code
         (configure_id, site_id, code, max_amount, valid_from, valid_to,
          display_title, display_description, terms_url, banner_image_url,
-         badge_text, cta_text, auto_apply, display_order, display_on,
-         min_display_amount, active, created_by, updated_by, row_hash)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+         badge_text, cta_text, auto_apply, system_auto_apply, display_order, display_on,
+         min_display_amount, active, created_by, updated_by, row_hash, is_manual_bonus)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 _SELECT_SQL = """
     SELECT id, configure_id, site_id, code, max_amount, valid_from, valid_to,
            display_title, display_description, terms_url, banner_image_url,
-           badge_text, cta_text, auto_apply, display_order, display_on,
-           min_display_amount, active, created_by, updated_by, created_at, updated_at
+           badge_text, cta_text, auto_apply, system_auto_apply, display_order, display_on,
+           min_display_amount, active, created_by, updated_by, created_at, updated_at, is_manual_bonus
     FROM bonus_configure_code
     WHERE id = %s
+"""
+
+_MANUAL_BONUS_FILE_INSERT_SQL = """
+    INSERT INTO bonus_manual_bonus_file
+        (bonus_configure_code_id, original_file_name, s3_bucket, s3_key, file_size,
+         total_players, total_bonus_amount)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
 """
 
 _CHANGELOG_INSERT_SQL = """
@@ -48,8 +71,8 @@ _FIELD_IDX: dict[str, int] = {
     "code": 3, "max_amount": 4, "valid_from": 5, "valid_to": 6,
     "display_title": 7, "display_description": 8, "terms_url": 9,
     "banner_image_url": 10, "badge_text": 11, "cta_text": 12,
-    "auto_apply": 13, "display_order": 14, "display_on": 15,
-    "min_display_amount": 16, "active": 17,
+    "auto_apply": 13, "system_auto_apply": 14, "display_order": 15, "display_on": 16,
+    "min_display_amount": 17, "active": 18,
 }
 
 _EXISTS_CONFIGURE_SQL = "SELECT site_id FROM bonus_configure WHERE id = %s"
@@ -69,11 +92,75 @@ def _row_to_response(row: tuple) -> BonusConfigureCodeResponse:
         display_title=row[7], display_description=row[8],
         terms_url=row[9], banner_image_url=row[10],
         badge_text=row[11], cta_text=row[12],
-        auto_apply=bool(row[13]), display_order=row[14], display_on=row[15],
-        min_display_amount=row[16],
-        active=bool(row[17]), created_by=row[18], updated_by=row[19],
-        created_at=_as_dt(row[20]), updated_at=_as_dt(row[21]),
+        auto_apply=bool(row[13]),
+        system_auto_apply=bool(row[14]) if row[14] is not None else None,
+        display_order=row[15], display_on=row[16],
+        min_display_amount=row[17],
+        active=bool(row[18]), created_by=row[19], updated_by=row[20],
+        created_at=_as_dt(row[21]), updated_at=_as_dt(row[22]),
+        is_manual_bonus=bool(row[23]),
     )
+
+
+async def _create_bucket_if_missing(s3, exc: ClientError) -> bool:
+    """Returns True if exc was NoSuchBucket and the bucket was created (or already existed)."""
+    if exc.response.get("Error", {}).get("Code") != "NoSuchBucket":
+        return False
+
+    create_kwargs: dict[str, object] = {"Bucket": settings.s3_bucket}
+    if settings.s3_region and settings.s3_region != "us-east-1":
+        create_kwargs["CreateBucketConfiguration"] = {"LocationConstraint": settings.s3_region}
+
+    try:
+        await s3.create_bucket(**create_kwargs)
+        log.info("s3_bucket_created", bucket=settings.s3_bucket, region=settings.s3_region)
+    except ClientError as create_exc:
+        # Someone else (or a concurrent request) already created it — fine, proceed.
+        if create_exc.response.get("Error", {}).get("Code") == "BucketAlreadyOwnedByYou":
+            return True
+        log.warning("s3_bucket_create_failed", bucket=settings.s3_bucket, error=str(create_exc))
+        return False
+    return True
+
+
+async def _upload_manual_bonus_csv(csv_file: UploadFile, code: str) -> tuple[str | None, str | None, int]:
+    """Uploads a manual-bonus CSV to S3 (if configured), creating the bucket if it doesn't exist yet.
+
+    Returns (bucket, key, size).
+    """
+    raw = await csv_file.read()
+    size = len(raw)
+
+    s3_configured = bool(settings.s3_access_key_id or settings.s3_endpoint_url)
+    if not s3_configured:
+        log.info("s3_not_configured_skipping_manual_bonus_upload", code=code)
+        return None, None, size
+
+    s3_key = f"manual-bonus/{code}"
+    session = aioboto3.Session()
+    async with session.client(
+        "s3",
+        region_name=settings.s3_region,
+        aws_access_key_id=settings.s3_access_key_id or None,
+        aws_secret_access_key=settings.s3_secret_access_key or None,
+        endpoint_url=settings.s3_endpoint_url or None,
+    ) as s3:
+        try:
+            await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
+        except ClientError as exc:
+            if not await _create_bucket_if_missing(s3, exc):
+                log.warning("s3_upload_failed", code=code, error=str(exc))
+                return None, None, size
+            try:
+                await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
+            except Exception as retry_exc:
+                log.warning("s3_upload_failed", code=code, error=str(retry_exc))
+                return None, None, size
+        except Exception as exc:
+            log.warning("s3_upload_failed", code=code, error=str(exc))
+            return None, None, size
+
+    return settings.s3_bucket, s3_key, size
 
 
 async def get_bonus_configure_code(code_id: int) -> BonusConfigureCodeResponse:
@@ -86,9 +173,23 @@ async def get_bonus_configure_code(code_id: int) -> BonusConfigureCodeResponse:
     return _row_to_response(row)
 
 
-async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfigureCodeResponse:
+async def add_bonus_configure_code(
+    data: BonusConfigureCodeCreate,
+    redis: Redis | None = None,
+    csv_file: UploadFile | None = None,
+    total_players: int | None = None,
+    total_bonus_amount: str | None = None,
+    kafka_producer: AIOKafkaProducer | None = None,
+) -> BonusConfigureCodeResponse:
     """
     Create a custom promo code entry for an existing configure.
+
+    When data.is_manual_bonus is set, csv_file is uploaded to S3 (if configured)
+    and a linked bonus_manual_bonus_file row is written in the same transaction,
+    seeded with total_players/total_bonus_amount parsed from the filename. Once
+    committed, a {"manual_bonus_file_id": <id>} event is published to
+    settings.kafka_manual_bonus_topic (best-effort — a publish failure never
+    fails the request) so bonus_event_processor can grant the CSV's players.
 
     Raises:
         DatabaseError: if configure_id does not exist, code already active for the site,
@@ -100,6 +201,11 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
         data.configure_id, data.site_id, data.code, data.created_by,
         data.max_amount, data.valid_from, data.valid_to,
     )
+
+    s3_bucket = s3_key = None
+    file_size = 0
+    if data.is_manual_bonus and csv_file is not None:
+        s3_bucket, s3_key, file_size = await _upload_manual_bonus_csv(csv_file, data.code)
 
     try:
         async with get_connection(POOL_BONUS) as conn:
@@ -122,12 +228,26 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
                         data.display_title, data.display_description,
                         data.terms_url, data.banner_image_url,
                         data.badge_text, data.cta_text,
-                        int(data.auto_apply), data.display_order, data.display_on,
+                        int(data.auto_apply),
+                        int(data.system_auto_apply) if data.system_auto_apply is not None else None,
+                        data.display_order, data.display_on,
                         data.min_display_amount, int(data.active),
                         data.created_by, data.created_by, row_hash,
+                        int(data.is_manual_bonus),
                     ),
                 )
                 new_id: int = cur.lastrowid  # type: ignore[assignment]
+
+                manual_bonus_file_id: int | None = None
+                if data.is_manual_bonus and csv_file is not None:
+                    await cur.execute(
+                        _MANUAL_BONUS_FILE_INSERT_SQL,
+                        (
+                            new_id, csv_file.filename, s3_bucket, s3_key, file_size,
+                            total_players or 0, total_bonus_amount or "0",
+                        ),
+                    )
+                    manual_bonus_file_id = cur.lastrowid
 
                 now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
                 new_vals = {
@@ -160,6 +280,23 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
         raise DatabaseError("Insert succeeded but row could not be retrieved")
 
     response = _row_to_response(row)
+    if redis:
+        await bust_auto_apply_code_cache(redis, response.configure_id)
+
+    if manual_bonus_file_id is not None and kafka_producer is not None:  # type: ignore[possibly-undefined]
+        try:
+            await kafka_producer.send(
+                settings.kafka_manual_bonus_topic,
+                key=str(manual_bonus_file_id).encode(),
+                value=json.dumps({"manual_bonus_file_id": manual_bonus_file_id}).encode(),
+            )
+        except Exception as exc:
+            log.warning(
+                "add_bonus_configure_code.manual_bonus_publish_failed",
+                manual_bonus_file_id=manual_bonus_file_id,
+                error=str(exc),
+            )
+
     log.info("add_bonus_configure_code.created", code_id=response.id, configure_id=response.configure_id)
     return response
 
@@ -167,7 +304,7 @@ async def add_bonus_configure_code(data: BonusConfigureCodeCreate) -> BonusConfi
 _UPDATABLE = {
     "code", "max_amount", "valid_from", "valid_to",
     "display_title", "display_description", "terms_url", "banner_image_url",
-    "badge_text", "cta_text", "auto_apply", "display_order", "display_on",
+    "badge_text", "cta_text", "auto_apply", "system_auto_apply", "display_order", "display_on",
     "min_display_amount", "active",
 }
 
@@ -222,7 +359,10 @@ async def update_bonus_configure_code(
 
                 await cur.execute(update_sql, values)
 
-                # Write changelog — only include fields that actually changed
+                # Write changelog — only include fields that actually changed.
+                # Nullable-boolean columns (e.g. system_auto_apply) store NULL and 0
+                # as the same "off" state, so compare them as normalized bools —
+                # otherwise every edit of an untouched NULL field logs a false change.
                 old_vals: dict = {}
                 new_vals: dict = {}
                 for f in fields:
@@ -231,7 +371,11 @@ async def update_bonus_configure_code(
                         continue
                     old_v = old_row[idx]
                     new_v = getattr(data, f)
-                    if old_v != new_v:
+                    if f == "system_auto_apply":
+                        changed = bool(old_v) != bool(new_v)
+                    else:
+                        changed = old_v != new_v
+                    if changed:
                         old_vals[f] = str(old_v) if old_v is not None else None
                         new_vals[f] = str(new_v) if new_v is not None else None
                 if old_vals:
@@ -262,11 +406,13 @@ async def update_bonus_configure_code(
     if not row:
         raise DatabaseError(f"bonus_configure_code {code_id} not found")
 
-    if redis and chip_type_str:
-        bust_codes = list({old_code})  # type: ignore[possibly-undefined]
-        if "code" in fields and data.code is not None:  # type: ignore[possibly-undefined]
-            bust_codes.append(data.code)
-        await bust_code_cache(redis, bust_codes, [chip_type_str])
+    if redis:
+        if chip_type_str:
+            bust_codes = list({old_code})  # type: ignore[possibly-undefined]
+            if "code" in fields and data.code is not None:  # type: ignore[possibly-undefined]
+                bust_codes.append(data.code)
+            await bust_code_cache(redis, bust_codes, [chip_type_str])
+        await bust_auto_apply_code_cache(redis, configure_id)  # type: ignore[possibly-undefined]
 
     response = _row_to_response(row)
     log.info("update_bonus_configure_code.updated", code_id=response.id)

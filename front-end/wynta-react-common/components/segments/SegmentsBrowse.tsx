@@ -103,6 +103,13 @@ export default function SegmentsBrowse({
                   <span className="seg-panel-icon"><Icon name="users" size={11}/></span>
                   <span className="lbl">{highlight(s.label ?? '', search)}</span>
                 </div>
+                {s.original_filename && (
+                  <div className="seg-table-csv-meta">
+                    <Icon name="file-text" size={10} color="var(--g400)"/>
+                    <span className="seg-table-csv-filename" title={s.original_filename}>{s.original_filename}</span>
+                    {s.uploaded_by && <span className="seg-table-csv-by">· {s.uploaded_by}</span>}
+                  </div>
+                )}
                 <span className="seg-table-owner">
                   {s.owner
                     ? <span className="seg-owner-text">{s.owner}</span>

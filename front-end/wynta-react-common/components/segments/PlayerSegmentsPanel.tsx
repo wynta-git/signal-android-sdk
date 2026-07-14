@@ -7,7 +7,7 @@ import { formatRelative } from '../../utils';
 import { useCommonSelector } from '../../store/hooks';
 import { fetchSegments, selectAllSegments, selectSegmentsStatus } from '../../store/slices/segmentsSlice';
 import SegmentsModal from './SegmentsModal';
-import SegmentPlayersModal from './SegmentPlayersModal';
+import SegmentUsersModal from './SegmentUsersModal';
 import type { Segment, SegmentRule } from '../../types';
 
 type ModalMode = 'browse' | 'create';
@@ -100,7 +100,7 @@ export default function PlayerSegmentsPanel({ onCreateSegment }: PlayerSegmentsP
       )}
 
       {viewSegment && (
-        <SegmentPlayersModal
+        <SegmentUsersModal
           segment={viewSegment}
           onClose={() => setViewSegment(null)}
         />

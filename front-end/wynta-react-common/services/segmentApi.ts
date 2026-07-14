@@ -58,6 +58,10 @@ function toSegment(s: {
   refresh_strategy?: string;
   scheduled_cron?: string | null;
   used_by_campaigns?: string[];
+  type?: string;
+  original_filename?: string | null;
+  uploaded_by?: string | null;
+  upload_history?: unknown[];
 }): Segment {
   return {
     id:                 s.segment_id,
@@ -69,6 +73,10 @@ function toSegment(s: {
     refresh_strategy:   s.refresh_strategy,
     scheduled_cron:     s.scheduled_cron ?? undefined,
     used_by_campaigns:  s.used_by_campaigns ?? [],
+    segment_type:       s.type ?? undefined,
+    original_filename:  s.original_filename ?? undefined,
+    uploaded_by:        s.uploaded_by ?? undefined,
+    upload_history:     s.upload_history as any ?? undefined,
   };
 }
 
@@ -256,7 +264,7 @@ export async function createSegment(payload: {
     if (payload.brandId)           form.append("brand_id", String(payload.brandId));
     form.append("file", payload.csvFile);
 
-    const res = await fetch(`${SEG_API}/segments`, {
+    const res = await fetch(`${SEG_API}/segments/upload`, {
       method: "POST",
       // Do NOT set Content-Type — browser sets it automatically with boundary
       headers: { Authorization: `Bearer ${getToken()}` },
@@ -351,6 +359,20 @@ export async function checkMembership(
   });
   if (!res.ok) throw new Error(`checkMembership failed: ${res.status}`);
   return res.json();
+}
+
+// ── Re-upload custom audience ─────────────────────────────────────────────────
+
+export async function reuploadCustomAudience(segmentId: string, file: File): Promise<Segment> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${SEG_API}/segments/${segmentId}/upload`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`reuploadCustomAudience failed: ${res.status}`);
+  return toSegment(await res.json());
 }
 
 // ── Evaluate ──────────────────────────────────────────────────────────────────

@@ -26,6 +26,8 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
     setOpenSubheads(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
 
+  const activeStakeholders = head.owners.filter(o => o.active);
+
   return (
     <React.Fragment key={`head-${head.id}`}>
     <div className="detail-content">
@@ -40,7 +42,13 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
             <div className="meta">
               <span><Icon name="globe" size={11}/> Site {head.site_id}</span>
               <span className="dot"/>
-              <span><Icon name="user" size={11}/> {head.owner}</span>
+              <span
+                style={{ cursor: 'pointer' }}
+                title="Edit main owner"
+                onClick={() => onAction({ type: 'EDIT_OWNER', scope: 'head', id: head.id })}
+              >
+                <Icon name="user" size={11}/> Owner: {head.owner} <Icon name="pencil" size={10} color="var(--g400)"/>
+              </span>
               <span className="dot"/>
               <span><Icon name="clock" size={11}/> Updated {formatRelative(head.updated_at ?? '')}</span>
             </div>
@@ -111,7 +119,7 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
 
       <div className="section-row" style={{ marginTop: 28 }}>
         <div className="section-label">
-          Owners & Permissions · {head.owners.filter(o => o.active).length}
+          Owners & Permissions · {activeStakeholders.length + (head.owner ? 1 : 0)}
         </div>
         <div className="right">
           <button
@@ -123,10 +131,13 @@ export default function HeadDetailPanel({ head, onAction }: HeadDetailPanelProps
         </div>
       </div>
       <div className="owners-list mb-4">
-        {head.owners.filter(o => o.active).length === 0 && (
+        {!head.owner && activeStakeholders.length === 0 && (
           <span style={{ fontSize: 12, color: 'var(--g400)', fontStyle: 'italic' }}>No owners assigned.</span>
         )}
-        {head.owners.filter(o => o.active).map((o, i) => <OwnerPill key={i} owner={o} />)}
+        {head.owner && (
+          <OwnerPill owner={{ username: head.owner, role: 'Main Owner', active: true }} isMain/>
+        )}
+        {activeStakeholders.map((o, i) => <OwnerPill key={i} owner={o}/>)}
       </div>
 
     </div>

@@ -10,6 +10,7 @@ When a trigger with grant_type=BONUS_grant fires:
 """
 from __future__ import annotations
 
+import json
 from decimal import Decimal
 from typing import Any
 
@@ -26,9 +27,56 @@ from app.bonus_event_processor.grant_writer import (
     write_cashback_grant,
     write_grant,
 )
+from app.config import settings
 from app.models.bonus_release_trigger import TriggerWithConfigResponse
+from app.services.bonus_configure_code_service import code_validity_sql
 
 log = structlog.get_logger(__name__)
+
+_AUTO_APPLY_CODE_SQL = f"""
+    SELECT bcc.id, bcc.code, bcc.max_amount
+    FROM bonus_configure_code bcc
+    JOIN bonus_configure bc ON bc.id = bcc.configure_id
+    WHERE bcc.configure_id = %s
+      AND bcc.system_auto_apply = 1
+      AND {code_validity_sql("bcc")}
+      AND bc.active = 1
+    ORDER BY bcc.display_order ASC, bcc.id ASC
+    LIMIT 1
+"""
+
+_AUTO_APPLY_CACHE_KEY = "pam:bonus:auto_apply_code:{configure_id}"
+
+
+async def _get_auto_apply_code(
+    redis: Redis, conn: aiomysql.Connection, configure_id: int
+) -> tuple[int, str, Decimal | None] | None:
+    """Cache-aside lookup of the best system_auto_apply code for a configure."""
+    cache_key = _AUTO_APPLY_CACHE_KEY.format(configure_id=configure_id)
+    cached = await redis.get(cache_key)
+    if cached is not None:
+        parsed = json.loads(cached)
+        if parsed is None:
+            return None
+        return parsed["id"], parsed["code"], (
+            Decimal(parsed["max_amount"]) if parsed["max_amount"] is not None else None
+        )
+
+    async with conn.cursor() as cur:
+        await cur.execute(_AUTO_APPLY_CODE_SQL, (configure_id,))
+        row = await cur.fetchone()
+
+    if row is None:
+        await redis.set(cache_key, "null", ex=settings.trigger_cache_ttl)
+        return None
+
+    code_id, code, raw_max = row
+    await redis.set(
+        cache_key,
+        json.dumps({"id": code_id, "code": code, "max_amount": str(raw_max) if raw_max is not None else None}),
+        ex=settings.trigger_cache_ttl,
+    )
+    return code_id, code, Decimal(str(raw_max)) if raw_max is not None else None
 
 
 async def handle_bonus_grant(
@@ -38,8 +86,21 @@ async def handle_bonus_grant(
     props: dict[str, Any],
     trigger: TriggerWithConfigResponse,
     event_id: str,
-) -> None:
-    """Evaluate all guards then create a bonus grant for the matched trigger."""
+    override_grant_amount: Decimal | None = None,
+) -> int | None:
+    """
+    Evaluate all guards then create a bonus grant for the matched trigger.
+
+    override_grant_amount (used by manual-bonus CSV processing) replaces the
+    normal fixed/percent-of-trigger calculation with an exact amount, capped
+    at (not skipped for exceeding) the promo code's max_amount. Every other
+    guard — trigger amount range, promo code, occurrence, applicability,
+    eligibility — still applies unchanged.
+
+    Returns the new bonus_grant.id if a grant was written, or None if the
+    grant was skipped by any guard (callers relied only on side effects
+    before this override was added, so existing callers are unaffected).
+    """
     site_id: int = trigger.site_id
 
     # ── Amount range ──────────────────────────────────────────────────────────
@@ -108,7 +169,8 @@ async def handle_bonus_grant(
         async with conn.cursor() as cur:
             await cur.execute(
                 "SELECT id, max_amount FROM bonus_configure_code "
-                "WHERE configure_id = %s AND code = %s AND active = 1 LIMIT 1",
+                "WHERE configure_id = %s AND code = %s AND active = 1 "
+                "AND (system_auto_apply IS NULL OR system_auto_apply = 0) LIMIT 1",
                 (cfg.id, promo_code),
             )
             code_row = await cur.fetchone()
@@ -159,34 +221,49 @@ async def handle_bonus_grant(
         )
         return
 
+    # ── System auto-apply (fallback when the event carries no explicit code) ──
+    if promo_code is None:
+        auto_result = await _get_auto_apply_code(redis, conn, cfg.id)
+        if auto_result is not None:
+            code_id, promo_code, code_max_amount = auto_result
+            log.info(
+                "bonus_grant_auto_applied_code",
+                trigger_id=trigger.id,
+                configure_id=cfg.id,
+                pam_user_id=pam_user_id,
+                code=promo_code,
+            )
+
     # ── Compute amount ────────────────────────────────────────────────────────
     cfg_dict = cfg.model_dump()
     trigger_dict = trigger.model_dump()
 
-    grant_amount = compute_grant_amount(cfg_dict, trigger_amount)
-    cashback_amount = compute_cashback_amount(cfg_dict, trigger_amount)
+    if override_grant_amount is not None:
+        # Manual-bonus CSV path: exact per-player amount, capped (not skipped) at the code's max.
+        grant_amount = override_grant_amount
+        if code_max_amount is not None:
+            grant_amount = min(grant_amount, code_max_amount)
+        cashback_amount = Decimal("0.00")
+    else:
+        grant_amount = compute_grant_amount(cfg_dict, trigger_amount)
+        cashback_amount = compute_cashback_amount(cfg_dict, trigger_amount)
 
-    if code_max_amount is not None and (grant_amount + cashback_amount) > code_max_amount:
-        log.error("bonus_grant_skipped_eligibility_amount",
-            trigger_id=trigger.id,
-            configure_id=cfg.id,
-            pam_user_id=pam_user_id,
-            grant_amount=grant_amount,
-            cashback_amount=cashback_amount,
-            code_max_amount=code_max_amount,
-        )
-        return
+        if code_max_amount is not None and (grant_amount + cashback_amount) > code_max_amount:
+            log.error("bonus_grant_skipped_eligibility_amount",
+                trigger_id=trigger.id,
+                configure_id=cfg.id,
+                pam_user_id=pam_user_id,
+                grant_amount=grant_amount,
+                cashback_amount=cashback_amount,
+                code_max_amount=code_max_amount,
+            )
+            return None
 
-    if code_max_amount is not None:
-        grant_amount = min(grant_amount, code_max_amount)
-
-    # ── Generate shared player_bonus_id for all grants in this event ─────────
-    async with conn.cursor() as cur:
-        await cur.execute("SELECT UUID_SHORT()")
-        row = await cur.fetchone()
-    player_bonus_id: int = row[0]
+        if code_max_amount is not None:
+            grant_amount = min(grant_amount, code_max_amount)
 
     # ── Write main grant ──────────────────────────────────────────────────────
+    grant_id: int | None = None
     if grant_amount > 0:
         grant_id = await write_grant(
             conn,
@@ -195,7 +272,6 @@ async def handle_bonus_grant(
             pam_user_id,
             site_id,
             grant_amount,
-            player_bonus_id,
             event_id,
             bonus_code=promo_code,
             bonus_code_id=code_id,
@@ -203,7 +279,6 @@ async def handle_bonus_grant(
         log.info(
             "bonus_grant_written",
             grant_id=grant_id,
-            player_bonus_id=player_bonus_id,
             trigger_id=trigger.id,
             configure_id=cfg.id,
             pam_user_id=pam_user_id,
@@ -217,7 +292,7 @@ async def handle_bonus_grant(
             cashback_amount = min(cashback_amount, code_max_amount)
 
         cashback_grant_id = await write_cashback_grant(
-            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, player_bonus_id, event_id,
+            conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, event_id,
             bonus_code=promo_code, bonus_code_id=code_id,
         )
         log.info(
@@ -227,3 +302,5 @@ async def handle_bonus_grant(
             pam_user_id=pam_user_id,
             cashback_amount=str(cashback_amount),
         )
+
+    return grant_id

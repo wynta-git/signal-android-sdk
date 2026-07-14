@@ -5,31 +5,32 @@ from fastapi.responses import JSONResponse
 
 from app.exceptions import (
     DatabaseError,
-    PlayerBonusAlreadyRevertedError,
-    PlayerBonusConsumedError,
-    PlayerBonusNotFoundError,
+    PAMUserBonusAlreadyRevertedError,
+    PAMUserBonusConsumedError,
+    PAMUserBonusNotFoundError,
 )
-from app.models.player_bonus import (
+from app.models.pam_user_bonus import (
     ApplicableCodeResponse,
-    PlayerBonusConsumeCreate,
-    PlayerBonusConsumedResponse,
-    PlayerBonusRevertResponse,
-    PlayerBonusSummaryResponse,
-    PlayerBonusTransactionDetail,
-    PlayerBonusTransactionSummary,
-    PlayerReferralCodeResponse,
+    PAMUserBonusConsumeCreate,
+    PAMUserBonusConsumedResponse,
+    PAMUserBonusRevertResponse,
+    PAMUserBonusSummaryResponse,
+    PAMUserBonusTransactionDetail,
+    PAMUserBonusTransactionSummary,
+    PAMUserReferralCodeResponse,
     TxnDetailResponse,
     ValidateCodeRequest,
     ValidateCodeResponse,
 )
-from app.services.player_bonus_service import (
+from app.services.pam_user_bonus_service import (
     consume_bonus,
-    get_player_bonus_summary,
-    get_player_referral_code,
-    get_player_transaction_detail,
+    get_consume_status,
+    get_pam_user_bonus_summary,
+    get_pam_user_referral_code,
+    get_pam_user_transaction_detail,
     get_txn_detail_by_type,
     list_applicable_codes,
-    list_player_transactions,
+    list_pam_user_transactions,
     revert_consumption,
     validate_code,
 )
@@ -48,12 +49,15 @@ async def get_applicable_codes(
     request: Request,
     user_id: str = Query(..., min_length=1, max_length=50),
     chip_type: str = Query(..., pattern=r'^(cash|in_app_purchase)$'),
+    display_on: str = Query("DEPOSIT", min_length=1, max_length=100),
     x_client_id: str = Header(..., alias="x-client-id"),
 ) -> list[ApplicableCodeResponse]:
     site_id = await get_client_site_id(x_client_id, request.app.state.redis)
     if site_id is None:
         raise HTTPException(status_code=401, detail="Unknown client")
-    return await list_applicable_codes(user_id, chip_type, request.app.state.redis, site_id)
+    return await list_applicable_codes(
+        user_id, chip_type, request.app.state.redis, site_id, display_on=display_on
+    )
 
 
 @router.post("/validate-code", response_model=ValidateCodeResponse)
@@ -71,21 +75,26 @@ async def validate_promo_code(
     )
 
 
-@router.post("/consume", response_model=PlayerBonusConsumedResponse, status_code=201)
+@router.post("/consume", response_model=PAMUserBonusConsumedResponse, status_code=201)
 async def create_bonus_consumption(
-    payload: PlayerBonusConsumeCreate,
+    payload: PAMUserBonusConsumeCreate,
     request: Request,
     x_client_id: str = Header(..., alias="x-client-id"),
-) -> PlayerBonusConsumedResponse:
+) -> PAMUserBonusConsumedResponse:
     site_id = await get_client_site_id(x_client_id, request.app.state.redis)
     if site_id is None:
         raise HTTPException(status_code=401, detail="Unknown client")
     return await consume_bonus(payload, request.app.state.redis, site_id)
 
 
-@router.post("/consume/{consume_txn_id}/revert", response_model=PlayerBonusRevertResponse)
-async def revert_bonus_consumption(consume_txn_id: str) -> PlayerBonusRevertResponse:
+@router.post("/consume/{consume_txn_id}/revert", response_model=PAMUserBonusRevertResponse)
+async def revert_bonus_consumption(consume_txn_id: str) -> PAMUserBonusRevertResponse:
     return await revert_consumption(consume_txn_id)
+
+
+@router.post("/consume/{consume_txn_id}/status", response_model=PAMUserBonusConsumedResponse)
+async def check_bonus_consume_status(consume_txn_id: str) -> PAMUserBonusConsumedResponse:
+    return await get_consume_status(consume_txn_id)
 
 
 async def _resolve_pam_user(request: Request, x_client_id: str, user_id: str) -> int:
@@ -98,20 +107,20 @@ async def _resolve_pam_user(request: Request, x_client_id: str, user_id: str) ->
     return pam_id
 
 
-@router.get("/{user_id}/summary", response_model=list[PlayerBonusSummaryResponse])
+@router.get("/{user_id}/summary", response_model=list[PAMUserBonusSummaryResponse])
 async def get_summary(
     user_id: str,
     request: Request,
     x_client_id: str = Header(..., alias="x-client-id"),
-) -> list[PlayerBonusSummaryResponse]:
+) -> list[PAMUserBonusSummaryResponse]:
     site_id = await get_client_site_id(x_client_id, request.app.state.redis)
     if site_id is None:
         raise HTTPException(status_code=401, detail="Unknown client")
     pam_id = await get_or_create_pam_user(request.app.state.redis, site_id, user_id)
-    return await get_player_bonus_summary(pam_id)
+    return await get_pam_user_bonus_summary(pam_id)
 
 
-@router.get("/{user_id}/transactions", response_model=list[PlayerBonusTransactionSummary])
+@router.get("/{user_id}/transactions", response_model=list[PAMUserBonusTransactionSummary])
 async def get_transactions(
     user_id: str,
     request: Request,
@@ -119,23 +128,23 @@ async def get_transactions(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     x_client_id: str = Header(..., alias="x-client-id"),
-) -> list[PlayerBonusTransactionSummary]:
+) -> list[PAMUserBonusTransactionSummary]:
     pam_id = await _resolve_pam_user(request, x_client_id, user_id)
-    return await list_player_transactions(pam_id, chip_type, limit, offset)
+    return await list_pam_user_transactions(pam_id, chip_type, limit, offset)
 
 
 @router.get(
     "/{user_id}/transactions/{txn_id}",
-    response_model=PlayerBonusTransactionDetail,
+    response_model=PAMUserBonusTransactionDetail,
 )
 async def get_transaction_detail(
     user_id: str,
     txn_id: int,
     request: Request,
     x_client_id: str = Header(..., alias="x-client-id"),
-) -> PlayerBonusTransactionDetail:
+) -> PAMUserBonusTransactionDetail:
     pam_id = await _resolve_pam_user(request, x_client_id, user_id)
-    return await get_player_transaction_detail(pam_id, user_id, txn_id)
+    return await get_pam_user_transaction_detail(pam_id, user_id, txn_id)
 
 
 @router.get("/{user_id}/transaction-detail", response_model=TxnDetailResponse)
@@ -150,25 +159,25 @@ async def get_transaction_detail_by_type(
     return await get_txn_detail_by_type(pam_id, user_id, txn_id, txn_type)
 
 
-@router.get("/{user_id}/referral-code", response_model=PlayerReferralCodeResponse)
-async def get_referral_code(user_id: str) -> PlayerReferralCodeResponse:
-    return await get_player_referral_code(user_id)
+@router.get("/{user_id}/referral-code", response_model=PAMUserReferralCodeResponse)
+async def get_referral_code(user_id: str) -> PAMUserReferralCodeResponse:
+    return await get_pam_user_referral_code(user_id)
 
 
 def register_exception_handlers(app: "FastAPI") -> None:
     from fastapi import Request  # noqa: PLC0415
 
-    @app.exception_handler(PlayerBonusNotFoundError)
-    async def handle_not_found(request: Request, exc: PlayerBonusNotFoundError) -> JSONResponse:
+    @app.exception_handler(PAMUserBonusNotFoundError)
+    async def handle_not_found(request: Request, exc: PAMUserBonusNotFoundError) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": str(exc)})
 
-    @app.exception_handler(PlayerBonusConsumedError)
-    async def handle_consumed(request: Request, exc: PlayerBonusConsumedError) -> JSONResponse:
+    @app.exception_handler(PAMUserBonusConsumedError)
+    async def handle_consumed(request: Request, exc: PAMUserBonusConsumedError) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
-    @app.exception_handler(PlayerBonusAlreadyRevertedError)
+    @app.exception_handler(PAMUserBonusAlreadyRevertedError)
     async def handle_already_reverted(
-        request: Request, exc: PlayerBonusAlreadyRevertedError
+        request: Request, exc: PAMUserBonusAlreadyRevertedError
     ) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 

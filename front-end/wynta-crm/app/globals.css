@@ -356,7 +356,7 @@ html, body {
 /* Stat cards row */
 .seg-stats-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -365,8 +365,12 @@ html, body {
   border: 1px solid var(--crm-border);
   border-radius: 6px;
   padding: 18px 20px 16px;
+  min-width: 0;
 }
 .seg-stat-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -1094,10 +1098,11 @@ html, body {
 .cp-more-wrap { position:relative; }
 .cp-more-btn { width:28px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
 .cp-more-menu {
-  position:absolute; right:0; top:calc(100% + 4px); width:160px; z-index:60;
+  width:160px;
   background:#fff; border:1px solid var(--crm-border,#E9EBEE); border-radius:6px;
   box-shadow:0 8px 24px rgba(17,24,39,0.12); padding:4px;
 }
+.cp-more-menu--portal { position:fixed; z-index:1000; }
 .cp-more-menu button {
   display:flex; align-items:center; gap:8px; width:100%; padding:8px 10px;
   border:none; background:transparent; border-radius:4px; font-size:12.5px;
@@ -1389,7 +1394,7 @@ html, body {
 /* ── Segment type toggle (Filters / CSV Import) ── */
 .seg-type-toggle {
   display:flex; gap:3px; padding:3px;
-  background:var(--g100); border-radius:6px; margin-bottom:14px;
+  background:var(--g100); border-radius:6px;
 }
 .seg-type-btn {
   flex:1; height:30px; border:none; border-radius:4px;

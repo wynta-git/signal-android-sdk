@@ -56,6 +56,14 @@ const treeSlice = createSlice({
       if (idx >= 0) state.expandedHeads.splice(idx, 1);
       else state.expandedHeads.push(id);
     },
+    expandAll(state, action: PayloadAction<{ headIds: number[]; subheadIds: number[] }>) {
+      state.expandedHeads = [...action.payload.headIds];
+      state.expandedSubheads = [...action.payload.subheadIds];
+    },
+    collapseAll(state) {
+      state.expandedHeads = [];
+      state.expandedSubheads = [];
+    },
     setSubheadExpanded(state, action: PayloadAction<{ id: number; expanded: boolean }>) {
       const { id, expanded } = action.payload;
       const idx = state.expandedSubheads.indexOf(id);
@@ -99,5 +107,5 @@ const treeSlice = createSlice({
   },
 });
 
-export const { toggleHead, setSubheadExpanded, setSubheadLoading, selectNode, expandAncestorsOf } = treeSlice.actions;
+export const { toggleHead, expandAll, collapseAll, setSubheadExpanded, setSubheadLoading, selectNode, expandAncestorsOf } = treeSlice.actions;
 export default treeSlice.reducer;

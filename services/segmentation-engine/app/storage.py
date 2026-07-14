@@ -1,24 +1,29 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ASCENDING, IndexModel
 from redis.asyncio import Redis
+from shared.services.segments import (
+    get_membership,
+    get_segment_member_ids,
+    list_segment_members,
+)
+from shared.services.segments import segment_joined_key as _joined_key
+from shared.services.segments import segment_members_key as _members_key
 
 log = structlog.get_logger()
 
 SEGMENTS_COL = "segments"
 DERIVED_RULES_COL = "derived_rules"
 
-
-def _members_key(project_id: str, segment_id: str) -> str:
-    return f"pam:seg:{project_id}:{segment_id}:members"
-
-
-def _joined_key(project_id: str, segment_id: str) -> str:
-    return f"pam:seg:{project_id}:{segment_id}:joined"
+__all__ = [
+    "get_membership",
+    "get_segment_member_ids",
+    "list_segment_members",
+]
 
 
 async def create_indexes(db: AsyncIOMotorDatabase) -> None:
@@ -80,8 +85,9 @@ async def list_segments(
 
 
 async def get_segment_stats(
-    db: AsyncIOMotorDatabase, project_id: str, redis: Redis
+    db: AsyncIOMotorDatabase, project_id: str, redis: Redis, brand_id: str | None = None
 ) -> dict[str, Any]:
+    brand_filter: dict[str, Any] = {"brand_id": brand_id} if brand_id is not None else {}
     (
         total_segments,
         active_campaigns_using,
@@ -90,25 +96,27 @@ async def get_segment_stats(
         push_agg,
         segment_ids,
     ) = await asyncio.gather(
-        db[SEGMENTS_COL].count_documents({"project_id": project_id}),
+        db[SEGMENTS_COL].count_documents({"project_id": project_id, **brand_filter}),
         db["campaigns"].count_documents({
             "project_id": project_id,
             "audience.segment_id": {"$exists": True, "$ne": None},
+            **brand_filter,
         }),
         db["users"].count_documents({
             "project_id": project_id,
+            **brand_filter,
             "$or": [
                 {"traits.email_hash": {"$exists": True, "$ne": None}},
                 {"traits.phone_hash": {"$exists": True, "$ne": None}},
             ],
         }),
-        db["users"].count_documents({"project_id": project_id}),
+        db["users"].count_documents({"project_id": project_id, **brand_filter}),
         db["device_tokens"].aggregate([
-            {"$match": {"project_id": project_id}},
+            {"$match": {"project_id": project_id, **brand_filter}},
             {"$group": {"_id": "$user_id"}},
             {"$count": "count"},
         ]).to_list(length=1),
-        db[SEGMENTS_COL].distinct("segment_id", {"project_id": project_id}),
+        db[SEGMENTS_COL].distinct("segment_id", {"project_id": project_id, **brand_filter}),
     )
     push_count = push_agg[0]["count"] if push_agg else 0
     estimated_reach = min(reachable_count + push_count, total_users)
@@ -168,7 +176,7 @@ async def update_segment_size(
 async def upsert_membership(
     redis: Redis, project_id: str, segment_id: str, user_id: str
 ) -> None:
-    now = datetime.now(tz=timezone.utc).isoformat()
+    now = datetime.now(tz=UTC).isoformat()
     async with redis.pipeline(transaction=False) as pipe:
         pipe.sadd(_members_key(project_id, segment_id), user_id)
         pipe.hsetnx(_joined_key(project_id, segment_id), user_id, now)
@@ -183,7 +191,7 @@ async def bulk_upsert_memberships(
 ) -> None:
     if not user_ids:
         return
-    now = datetime.now(tz=timezone.utc).isoformat()
+    now = datetime.now(tz=UTC).isoformat()
     async with redis.pipeline(transaction=False) as pipe:
         pipe.sadd(_members_key(project_id, segment_id), *user_ids)
         for uid in user_ids:
@@ -206,6 +214,20 @@ async def remove_membership(
         await pipe.execute()
 
 
+async def append_upload_history(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    segment_id: str,
+    entry: dict[str, Any],
+    updates: dict[str, Any],
+) -> bool:
+    result = await db[SEGMENTS_COL].update_one(
+        {"project_id": project_id, "segment_id": segment_id},
+        {"$set": updates, "$push": {"upload_history": entry}},
+    )
+    return result.matched_count > 0
+
+
 async def delete_memberships(
     redis: Redis, project_id: str, segment_id: str
 ) -> None:
@@ -214,44 +236,6 @@ async def delete_memberships(
         _joined_key(project_id, segment_id),
     )
     log.info("memberships.cleared", project_id=project_id, segment_id=segment_id)
-
-
-async def list_segment_members(
-    redis: Redis,
-    project_id: str,
-    segment_id: str,
-    limit: int,
-    cursor: str | None,
-) -> list[dict[str, Any]]:
-    all_ids = sorted(await redis.smembers(_members_key(project_id, segment_id)))
-    if cursor:
-        all_ids = [uid for uid in all_ids if uid > cursor]
-    page_ids = all_ids[:limit]
-    if not page_ids:
-        return []
-    joined_values = await redis.hmget(_joined_key(project_id, segment_id), *page_ids)
-    return [{"user_id": uid, "joined_at": ts} for uid, ts in zip(page_ids, joined_values)]
-
-
-async def get_membership(
-    redis: Redis,
-    project_id: str,
-    segment_id: str,
-    user_id: str,
-) -> dict[str, Any] | None:
-    async with redis.pipeline(transaction=False) as pipe:
-        pipe.sismember(_members_key(project_id, segment_id), user_id)
-        pipe.hget(_joined_key(project_id, segment_id), user_id)
-        is_member, joined_at = await pipe.execute()
-    if not is_member:
-        return None
-    return {"segment_id": segment_id, "user_id": user_id, "joined_at": joined_at}
-
-
-async def get_segment_member_ids(
-    redis: Redis, project_id: str, segment_id: str
-) -> set[str]:
-    return await redis.smembers(_members_key(project_id, segment_id))
 
 
 async def create_derived_rule(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> None:

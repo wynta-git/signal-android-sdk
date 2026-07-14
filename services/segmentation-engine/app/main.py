@@ -13,6 +13,7 @@ from app.refresh.event_driven import run_consumer
 from app.routes.admin import router as admin_router
 from app.routes.segments import router as segments_router
 from app.routes.meta import router as meta_router
+from app.routes.pam_users import router as pam_users_router
 from app.services.meta import MetaService
 from shared.clients.clickhouse import make_clickhouse_client
 from shared.clients.mongo import make_mongo_client
@@ -80,6 +81,7 @@ route_prefix = "/api/v1/segment"
 app.include_router(admin_router, prefix=route_prefix)
 app.include_router(segments_router,prefix=route_prefix)
 app.include_router(meta_router,prefix=route_prefix)
+app.include_router(pam_users_router, prefix=route_prefix)
 
 
 @app.get("/health")

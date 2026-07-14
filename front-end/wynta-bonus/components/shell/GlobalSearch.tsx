@@ -3,13 +3,14 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import Icon from 'wynta-react-common/components/Icon';
 import SearchResultRow, { type SearchResultItem } from './SearchResultRow';
 import PlayerProfileModal from 'wynta-react-common/components/segments/PlayerProfileModal';
-import SegmentPlayersModal from 'wynta-react-common/components/segments/SegmentPlayersModal';
+import SegmentUsersModal from 'wynta-react-common/components/segments/SegmentUsersModal';
 import { MOCK_HEADS } from '../../services/mocks/heads';
 import { MOCK_SUBHEADS } from '../../services/mocks/subheads';
 import { MOCK_CONFIGURES } from '../../services/mocks/configures';
 import { MANUAL_SEGMENTS } from '../../services/mocks/constants';
-import { makePlayerById, getGlobalPlayerPool } from '../../services/api';
-import type { Player, Segment, SelectedNode } from '../../types';
+import { makePAMUserById, getGlobalPAMUserPool } from '../../services/api';
+import { useAppSelector } from '../../store/hooks';
+import type { PAMUser, Segment, SelectedNode } from '../../types';
 
 interface SearchGroup {
   kind: string;
@@ -19,7 +20,7 @@ interface SearchGroup {
 
 function buildSearchResults(q: string): SearchGroup[] {
   const out: SearchGroup[] = [
-    { kind: 'player',  label: 'Players',         items: [] },
+    { kind: 'pam_user',  label: 'Players',         items: [] },
     { kind: 'segment', label: 'Player Segments',  items: [] },
     { kind: 'code',    label: 'Promo Codes',      items: [] },
     { kind: 'config',  label: 'Bonus Configs',    items: [] },
@@ -30,16 +31,16 @@ function buildSearchResults(q: string): SearchGroup[] {
 
   // Players
   if (isNum) {
-    out[0].items.push({ kind: 'player', payload: makePlayerById(parseInt(q, 10)) });
+    out[0].items.push({ kind: 'pam_user', payload: makePAMUserById(parseInt(q, 10)) });
   } else {
-    const pool = getGlobalPlayerPool() as Player[];
+    const pool = getGlobalPAMUserPool() as PAMUser[];
     for (const p of pool) {
       if (
         p.name.toLowerCase().includes(needle) ||
         p.email.toLowerCase().includes(needle) ||
         String(p.id).includes(q)
       ) {
-        out[0].items.push({ kind: 'player', payload: p });
+        out[0].items.push({ kind: 'pam_user', payload: p });
         if (out[0].items.length >= 5) break;
       }
     }
@@ -105,8 +106,9 @@ export default function GlobalSearch({ onSelectNode }: GlobalSearchProps) {
   const [query, setQuery]               = useState('');
   const [open, setOpen]                 = useState(false);
   const [activeIdx, setActiveIdx]       = useState(0);
-  const [profilePlayer, setProfilePlayer] = useState<Player | null>(null);
+  const [profilePAMUser, setProfilePAMUser] = useState<PAMUser | null>(null);
   const [viewSegment, setViewSegment]   = useState<Segment | null>(null);
+  const selectedBrand = useAppSelector((s) => s.ui.selectedBrand);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -127,7 +129,7 @@ export default function GlobalSearch({ onSelectNode }: GlobalSearchProps) {
   const runResult = (r: SearchResultItem) => {
     setOpen(false);
     setQuery('');
-    if (r.kind === 'player')         setProfilePlayer(r.payload as Player);
+    if (r.kind === 'pam_user')         setProfilePAMUser(r.payload as PAMUser);
     else if (r.kind === 'segment')   setViewSegment(r.payload as Segment);
     else if (r.kind === 'code') {
       onSelectNode({ type: 'configure', id: r.parentId! });
@@ -144,7 +146,7 @@ export default function GlobalSearch({ onSelectNode }: GlobalSearchProps) {
     if (e.key === 'Escape') { setOpen(false); return; }
     if (flatResults.length === 0) {
       if (e.key === 'Enter' && /^\d+$/.test(q) && q.length >= 3) {
-        runResult({ kind: 'player', payload: makePlayerById(parseInt(q, 10)) });
+        runResult({ kind: 'pam_user', payload: makePAMUserById(parseInt(q, 10)) });
         e.preventDefault();
       }
       return;
@@ -200,15 +202,17 @@ export default function GlobalSearch({ onSelectNode }: GlobalSearchProps) {
           )}
         </div>
       )}
-      {profilePlayer && (
+      {profilePAMUser && (
         <PlayerProfileModal
-          player={profilePlayer}
+          player={profilePAMUser}
           segment={null}
-          onClose={() => setProfilePlayer(null)}
+          onClose={() => setProfilePAMUser(null)}
+          showBonus
+          siteId={selectedBrand}
         />
       )}
       {viewSegment && (
-        <SegmentPlayersModal
+        <SegmentUsersModal
           segment={viewSegment}
           onClose={() => setViewSegment(null)}
         />

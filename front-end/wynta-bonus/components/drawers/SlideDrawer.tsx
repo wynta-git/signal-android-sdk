@@ -54,6 +54,7 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   EDIT_CHUNKS: { title: "Edit Bonus Mechanics", icon: "layers" },
   EDIT_BUDGET: { title: "Manage Budget", icon: "wallet" },
   EDIT_OWNERS: { title: "Manage Owners", icon: "users" },
+  EDIT_OWNER: { title: "Edit Main Owner", icon: "user" },
   NEW_MANUAL_BONUS: { title: "New Manual Campaign", icon: "send" },
   ISSUE_CODE_BONUS: { title: "Issue Manual Bonus", icon: "send" },
 };
@@ -115,7 +116,6 @@ export default function SlideDrawer() {
   const onClose = () => dispatch(closeDrawer());
 
   const doSubmit = async (data: Record<string, unknown>) => {
-    console.log("doSubmit", data);
     setSubmitting(true);
     setSubmitError(null);
     // API identifier fields reject '@' — strip email domain for owner/actor values
@@ -356,6 +356,22 @@ export default function SlideDrawer() {
         ).unwrap();
         if (scope === "head") dispatch(fetchHead(drawerState.id));
         else dispatch(fetchSubhead(drawerState.id));
+      } else if (drawerState?.type === "EDIT_OWNER" && drawerState.id != null) {
+        if (drawerState.scope === "subhead") {
+          await dispatch(
+            updateSubhead({
+              id: drawerState.id,
+              patch: { owner: ownerIdent, updated_by: actor } as unknown as import("../../types").BonusSubhead,
+            }),
+          ).unwrap();
+        } else {
+          await dispatch(
+            updateHead({
+              id: drawerState.id,
+              patch: { owner: ownerIdent, updated_by: actor } as unknown as Partial<import("../../types").BonusHead>,
+            }),
+          ).unwrap();
+        }
       } else if (
         drawerState?.type === "NEW_TRIGGER" &&
         drawerState.parentId != null

@@ -23,7 +23,7 @@ ENDPOINT = "/api/v1/bonus/user-bonuses/applicable-codes"
 CLIENT_ID = "test-client"
 SECRET = "test-secret"
 
-# Matches the 18-column SELECT in _APPLICABLE_CODES_SQL
+# Matches the 19-column SELECT in _APPLICABLE_CODES_SQL
 _FAKE_ROW = (
     1,                      # bcc.id
     "WELCOME100",           # bcc.code
@@ -38,12 +38,26 @@ _FAKE_ROW = (
     "Claim Now",            # bcc.cta_text
     0,                      # bcc.auto_apply  (int → bool(0) = False)
     1,                      # bcc.display_order
-    "HOME",                 # bcc.display_on
+    "DEPOSIT",              # bcc.display_on
     Decimal("500.00"),      # bcc.min_display_amount
     Decimal("1.5"),         # bc.wager_multiplier
     3,                      # bc.no_of_chunks
     "ONCE",                 # bc.applicability_frequency
+    10,                     # bc.id AS configure_id
+    0,                      # bcc.system_auto_apply  (int → bool(0) = False)
 )
+
+
+def _row(**overrides) -> tuple:
+    """Return a copy of _FAKE_ROW with named fields overridden by index."""
+    idx = {
+        "id": 0, "code": 1, "display_on": 13, "configure_id": 18,
+        "system_auto_apply": 19,
+    }
+    row = list(_FAKE_ROW)
+    for field, value in overrides.items():
+        row[idx[field]] = value
+    return tuple(row)
 
 
 def _sign(client_id: str = CLIENT_ID, secret: str = SECRET, ts_offset: int = 0) -> dict:
@@ -141,7 +155,7 @@ def test_sign_stale_offset_is_outside_300s_window():
 
 async def test_returns_applicable_codes(http):
     with patch(
-        "app.services.player_bonus_service.get_connection",
+        "app.services.pam_user_bonus_service.get_connection",
         return_value=_mock_connection([_FAKE_ROW]),
     ):
         resp = await http.get(
@@ -163,9 +177,77 @@ async def test_returns_applicable_codes(http):
     assert item["applicability_frequency"] == "ONCE"
 
 
+async def test_excludes_system_auto_apply_codes(http):
+    rows = [_row(id=1, code="MANUAL1"), _row(id=2, code="AUTO1", system_auto_apply=1)]
+    with patch(
+        "app.services.pam_user_bonus_service.get_connection",
+        return_value=_mock_connection(rows),
+    ):
+        resp = await http.get(
+            ENDPOINT,
+            params={"user_id": "player_1", "chip_type": "cash"},
+            headers=_sign(),
+        )
+
+    assert resp.status_code == 200
+    codes = [item["code"] for item in resp.json()]
+    assert codes == ["MANUAL1"]
+
+
+async def test_default_display_on_filters_to_deposit(http):
+    rows = [_row(id=1, code="DEP1", display_on="DEPOSIT"), _row(id=2, code="REG1", display_on="REGISTRATION")]
+    with patch(
+        "app.services.pam_user_bonus_service.get_connection",
+        return_value=_mock_connection(rows),
+    ):
+        resp = await http.get(
+            ENDPOINT,
+            params={"user_id": "player_1", "chip_type": "cash"},
+            headers=_sign(),
+        )
+
+    assert resp.status_code == 200
+    codes = [item["code"] for item in resp.json()]
+    assert codes == ["DEP1"]
+
+
+async def test_explicit_display_on_query_param(http):
+    rows = [_row(id=1, code="DEP1", display_on="DEPOSIT"), _row(id=2, code="REG1", display_on="REGISTRATION")]
+    with patch(
+        "app.services.pam_user_bonus_service.get_connection",
+        return_value=_mock_connection(rows),
+    ):
+        resp = await http.get(
+            ENDPOINT,
+            params={"user_id": "player_1", "chip_type": "cash", "display_on": "REGISTRATION"},
+            headers=_sign(),
+        )
+
+    assert resp.status_code == 200
+    codes = [item["code"] for item in resp.json()]
+    assert codes == ["REG1"]
+
+
+async def test_comma_separated_display_on_matches_either_flow(http):
+    rows = [_row(id=1, code="MULTI1", display_on="DEPOSIT,REGISTRATION")]
+    with patch(
+        "app.services.pam_user_bonus_service.get_connection",
+        return_value=_mock_connection(rows),
+    ):
+        resp = await http.get(
+            ENDPOINT,
+            params={"user_id": "player_1", "chip_type": "cash", "display_on": "registration"},
+            headers=_sign(),
+        )
+
+    assert resp.status_code == 200
+    codes = [item["code"] for item in resp.json()]
+    assert codes == ["MULTI1"]
+
+
 async def test_returns_empty_list_when_no_codes(http):
     with patch(
-        "app.services.player_bonus_service.get_connection",
+        "app.services.pam_user_bonus_service.get_connection",
         return_value=_mock_connection([]),
     ):
         resp = await http.get(
@@ -226,7 +308,7 @@ async def test_non_integer_timestamp_returns_401(http):
 
 async def test_invalid_chip_type_returns_422(http):
     with patch(
-        "app.services.player_bonus_service.get_connection",
+        "app.services.pam_user_bonus_service.get_connection",
         return_value=_mock_connection([]),
     ):
         resp = await http.get(

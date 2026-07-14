@@ -9,7 +9,11 @@ set -euo pipefail
 VENV_DIR=".venv"
 
 
-PY="/usr/local/bin/python3.12"
+PY="$(command -v python3.12 || command -v python3.11 || command -v python3 || true)"
+if [[ -z "$PY" ]]; then
+  echo "No suitable Python 3.11+ found on PATH" >&2
+  exit 1
+fi
 echo "Using Python: $PY ($("$PY" --version))"
 
 # ── optional reset ────────────────────────────────────────────────────────────

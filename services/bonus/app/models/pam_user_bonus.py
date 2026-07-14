@@ -49,7 +49,7 @@ class ValidateCodeResponse(BaseModel):
 
 # ── API 2: consume ────────────────────────────────────────────────────────────
 
-class PlayerBonusConsumeCreate(BaseModel):
+class PAMUserBonusConsumeCreate(BaseModel):
     user_id: str = Field(..., min_length=1, max_length=100)
     consume_txn_id: str = Field(..., min_length=1, max_length=100)
     transaction_amount: Decimal = Field(..., ge=0)
@@ -69,7 +69,7 @@ class PlayerBonusConsumeCreate(BaseModel):
     base_request_id: int | None = None
 
 
-class PlayerBonusConsumedResponse(BaseModel):
+class PAMUserBonusConsumedResponse(BaseModel):
     txn_id: int
     consume_txn_id: str
     bonus_amount: Decimal
@@ -79,7 +79,7 @@ class PlayerBonusConsumedResponse(BaseModel):
 
 # ── API 3: revert ─────────────────────────────────────────────────────────────
 
-class PlayerBonusRevertResponse(BaseModel):
+class PAMUserBonusRevertResponse(BaseModel):
     txn_id: int
     consume_txn_id: str
     amount: Decimal
@@ -88,7 +88,7 @@ class PlayerBonusRevertResponse(BaseModel):
 
 # ── API 4: summary ────────────────────────────────────────────────────────────
 
-class PlayerBonusSummaryResponse(BaseModel):
+class PAMUserBonusSummaryResponse(BaseModel):
     chip_type: str
     bonus_balance: Decimal
     pending_bonus: Decimal
@@ -98,7 +98,7 @@ class PlayerBonusSummaryResponse(BaseModel):
 
 # ── API 5: referral code ─────────────────────────────────────────────────────
 
-class PlayerReferralCodeResponse(BaseModel):
+class PAMUserReferralCodeResponse(BaseModel):
     user_id: str
     referral_code: str
     created_at: datetime
@@ -106,7 +106,7 @@ class PlayerReferralCodeResponse(BaseModel):
 
 # ── API 7: transaction list ───────────────────────────────────────────────────
 
-class PlayerBonusTransactionSummary(BaseModel):
+class PAMUserBonusTransactionSummary(BaseModel):
     txn_id: int
     bonus_code: str | None
     amount: Decimal
@@ -117,7 +117,6 @@ class PlayerBonusTransactionSummary(BaseModel):
     expiry_amount: Decimal | None = None
     forfeit_amount: Decimal | None = None
     grant_txn_id: int | None = None
-    player_bonus_id: int | None = None
 
 
 # ── API 8: transaction detail ─────────────────────────────────────────────────
@@ -173,7 +172,7 @@ class BonusExpiryDetail(BaseModel):
     expired_at: datetime
 
 
-class PlayerBonusTransactionDetail(BaseModel):
+class PAMUserBonusTransactionDetail(BaseModel):
     txn_id: int
     user_id: str
     bonus_code: str | None
@@ -210,7 +209,7 @@ class ChunkConsumedRow(BaseModel):
     bonus_grant_id: int
 
 
-class GrantTxnDetail(PlayerBonusTransactionDetail):
+class GrantTxnDetail(PAMUserBonusTransactionDetail):
     type: Literal["GRANT"] = "GRANT"
 
 

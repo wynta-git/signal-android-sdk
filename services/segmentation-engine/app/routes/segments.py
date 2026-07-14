@@ -5,17 +5,19 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import aioboto3
+import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
 from app import storage
 from app.config import settings
-from app.dependencies import PortalAuthDep
+from app.dependencies import DualAuthDep, PortalAuthDep
 from app.dsl.validator import SegmentRule
 from app.refresh import scheduled
 from app.refresh.engine import evaluate_segment
 
 router = APIRouter(prefix="/segments", tags=["segments"])
+log = structlog.get_logger()
 
 
 def _db(request: Request):
@@ -90,8 +92,10 @@ async def list_segments(ctx: PortalAuthDep, db=Depends(_db), brand_id: str | Non
 
 
 @router.get("/stats")
-async def get_segment_stats(ctx: PortalAuthDep, db=Depends(_db), redis=Depends(_redis)) -> dict[str, Any]:
-    return await storage.get_segment_stats(db, ctx.project_id, redis)
+async def get_segment_stats(
+    ctx: PortalAuthDep, db=Depends(_db), redis=Depends(_redis), brand_id: str | None = Query(default=None)
+) -> dict[str, Any]:
+    return await storage.get_segment_stats(db, ctx.project_id, redis, brand_id=brand_id)
 
 
 @router.get("/{segment_id}")
@@ -181,7 +185,7 @@ async def list_segment_members(
 
 @router.get("/{segment_id}/members/{user_id}")
 async def check_membership(
-    ctx: PortalAuthDep,
+    ctx: DualAuthDep,
     segment_id: str,
     user_id: str,
     db=Depends(_db),
@@ -205,6 +209,7 @@ async def upload_custom_audience(
     redis=Depends(_redis),
     name: str = Form(...),
     file: UploadFile = File(...),
+    brand_id: str | None = Form(default=None),
 ) -> dict[str, Any]:
     project_id = ctx.project_id
 
@@ -243,23 +248,41 @@ async def upload_custom_audience(
         raise HTTPException(status_code=400, detail="No valid user IDs found in CSV")
 
     segment_id = f"seg_{uuid4().hex[:12]}"
-    s3_key = f"{project_id}/{segment_id}.csv"
-    s3_url = f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{s3_key}"
+    s3_key: str | None = None
+    s3_url: str | None = None
 
-    session = aioboto3.Session()
-    async with session.client(
-        "s3",
-        region_name=settings.s3_region,
-        aws_access_key_id=settings.s3_access_key_id or None,
-        aws_secret_access_key=settings.s3_secret_access_key or None,
-        endpoint_url=settings.s3_endpoint_url or None,
-    ) as s3:
-        try:
-            await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"Failed to upload to S3: {exc}") from exc
+    original_filename = (file.filename or "upload.csv").strip() or "upload.csv"
+
+    s3_configured = bool(settings.s3_access_key_id or settings.s3_endpoint_url)
+    if s3_configured:
+        s3_key = f"{project_id}/{segment_id}/{original_filename}"
+        s3_url = f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{s3_key}"
+        session = aioboto3.Session()
+        async with session.client(
+            "s3",
+            region_name=settings.s3_region,
+            aws_access_key_id=settings.s3_access_key_id or None,
+            aws_secret_access_key=settings.s3_secret_access_key or None,
+            endpoint_url=settings.s3_endpoint_url or None,
+        ) as s3:
+            try:
+                await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
+            except Exception as exc:
+                log.warning("s3_upload_failed", segment_id=segment_id, error=str(exc))
+                s3_key = None
+                s3_url = None
+    else:
+        log.info("s3_not_configured_skipping", segment_id=segment_id)
 
     now = datetime.now(tz=timezone.utc)
+    upload_entry: dict[str, Any] = {
+        "filename": original_filename,
+        "s3_key": s3_key,
+        "s3_url": s3_url,
+        "uploaded_by": ctx.user_id,
+        "uploaded_at": now,
+        "members_count": len(user_ids),
+    }
     doc: dict[str, Any] = {
         "project_id": project_id,
         "segment_id": segment_id,
@@ -270,8 +293,12 @@ async def upload_custom_audience(
         "scheduled_cron": None,
         "s3_key": s3_key,
         "s3_url": s3_url,
+        "original_filename": original_filename,
+        "uploaded_by": ctx.user_id,
         "members_count": len(user_ids),
         "last_refresh_time": now,
+        "brand_id": brand_id,
+        "upload_history": [upload_entry],
     }
     await storage.create_segment(db, doc)
     await storage.bulk_upsert_memberships(redis, project_id, segment_id, set(user_ids))
@@ -279,9 +306,114 @@ async def upload_custom_audience(
     return {
         "segment_id": segment_id,
         "name": name,
+        "type": "custom_audience",
         "members_count": len(user_ids),
+        "original_filename": original_filename,
+        "uploaded_by": ctx.user_id,
+        "last_refresh_time": now,
         "s3_url": s3_url,
+        "upload_history": [upload_entry],
     }
+
+
+@router.post("/{segment_id}/upload", status_code=status.HTTP_200_OK)
+async def reupload_custom_audience(
+    ctx: PortalAuthDep,
+    segment_id: str,
+    db=Depends(_db),
+    redis=Depends(_redis),
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    project_id = ctx.project_id
+
+    seg = await storage.get_segment(db, project_id, segment_id)
+    if not seg:
+        raise HTTPException(status_code=404, detail="segment not found")
+    if seg.get("type") != "custom_audience":
+        raise HTTPException(status_code=400, detail="only custom_audience segments can be re-uploaded")
+
+    if not (file.content_type in ("text/csv", "application/csv") or (file.filename or "").endswith(".csv")):
+        raise HTTPException(status_code=415, detail="Only CSV files are supported")
+
+    raw = await file.read()
+    if len(raw) > settings.custom_audience_max_bytes:
+        raise HTTPException(status_code=413, detail="File exceeds 50 MB limit")
+
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded")
+
+    reader = csv.reader(io.StringIO(text))
+    rows = [r for r in reader if r]
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="CSV file is empty")
+
+    first_cell = rows[0][0].strip().lower()
+    user_id_col = 0
+    data_rows = rows[1:] if first_cell in ("user_id", "userid", "id") else rows
+
+    if not data_rows:
+        raise HTTPException(status_code=400, detail="No user IDs found in CSV")
+    if len(data_rows) > settings.custom_audience_max_rows:
+        raise HTTPException(status_code=400, detail=f"CSV exceeds {settings.custom_audience_max_rows:,} row limit")
+
+    user_ids = list(dict.fromkeys(
+        row[user_id_col].strip() for row in data_rows if row and row[user_id_col].strip()
+    ))
+    if not user_ids:
+        raise HTTPException(status_code=400, detail="No valid user IDs found in CSV")
+
+    original_filename = (file.filename or "upload.csv").strip() or "upload.csv"
+    s3_key: str | None = None
+    s3_url: str | None = None
+
+    s3_configured = bool(settings.s3_access_key_id or settings.s3_endpoint_url)
+    if s3_configured:
+        s3_key = f"{project_id}/{segment_id}/{original_filename}"
+        s3_url = f"https://{settings.s3_bucket}.s3.{settings.s3_region}.amazonaws.com/{s3_key}"
+        session = aioboto3.Session()
+        async with session.client(
+            "s3",
+            region_name=settings.s3_region,
+            aws_access_key_id=settings.s3_access_key_id or None,
+            aws_secret_access_key=settings.s3_secret_access_key or None,
+            endpoint_url=settings.s3_endpoint_url or None,
+        ) as s3:
+            try:
+                await s3.put_object(Bucket=settings.s3_bucket, Key=s3_key, Body=raw, ContentType="text/csv")
+            except Exception as exc:
+                log.warning("s3_upload_failed", segment_id=segment_id, error=str(exc))
+                s3_key = None
+                s3_url = None
+    else:
+        log.info("s3_not_configured_skipping", segment_id=segment_id)
+
+    now = datetime.now(tz=timezone.utc)
+    upload_entry: dict[str, Any] = {
+        "filename": original_filename,
+        "s3_key": s3_key,
+        "s3_url": s3_url,
+        "uploaded_by": ctx.user_id,
+        "uploaded_at": now,
+        "members_count": len(user_ids),
+    }
+    updates: dict[str, Any] = {
+        "s3_key": s3_key,
+        "s3_url": s3_url,
+        "original_filename": original_filename,
+        "uploaded_by": ctx.user_id,
+        "members_count": len(user_ids),
+        "last_refresh_time": now,
+    }
+
+    await storage.delete_memberships(redis, project_id, segment_id)
+    await storage.bulk_upsert_memberships(redis, project_id, segment_id, set(user_ids))
+    await storage.append_upload_history(db, project_id, segment_id, upload_entry, updates)
+
+    updated_seg = await storage.get_segment(db, project_id, segment_id)
+    return updated_seg or {}
 
 
 @router.post("/{segment_id}/evaluate", status_code=status.HTTP_202_ACCEPTED)

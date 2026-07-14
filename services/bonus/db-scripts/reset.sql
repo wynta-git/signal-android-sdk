@@ -108,6 +108,8 @@ CREATE TABLE `bonus_configure` (
     -- ── Bonus release config ─────────────────────────────────────────────────
     `wager_multiplier`        DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
     -- 0 = no wagering required; >0 = chunk wager multiplier
+    `product_wager_multiplier` JSON         DEFAULT NULL,
+    -- optional per-product override, e.g. {"RUMMY":1.5,"AVIATOR":2}
     `no_of_chunks`            INT            NOT NULL DEFAULT 1,
     -- number of equal chunks the bonus is split into
     `release_bucket`          VARCHAR(50)    DEFAULT NULL,
@@ -358,8 +360,6 @@ CREATE TABLE `bonus_manual_bulk_pending` (
 -- bonus_grant
 CREATE TABLE `bonus_grant` (
     `id`                 BIGINT        NOT NULL AUTO_INCREMENT,
-    `player_bonus_id`    BIGINT        NOT NULL,
-    -- references userapp_player_bonus.id; unique — one log entry per grant
     `configure_id`       INT           NOT NULL,
     -- references bonus_configure.id
     `subhead_id`         INT           NOT NULL,
@@ -376,6 +376,8 @@ CREATE TABLE `bonus_grant` (
     -- product sourced from bonus_release_trigger at grant time; NULL when trigger has no product constraint
     `wager_multiplier`   DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     -- x-wager requirement per chunk; 0 = no wagering — from bonus_configure
+    `product_wager_multiplier` JSON     DEFAULT NULL,
+    -- optional per-product override snapshot — from bonus_configure
     `no_of_chunks`       INT           NOT NULL DEFAULT 1,
     -- number of chunks the bonus was split into — from bonus_configure
     `chunk_expiry_days`  INT           DEFAULT NULL,
@@ -406,7 +408,6 @@ CREATE TABLE `bonus_grant` (
     `created_at`         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_bonus_grant_player_bonus_id`  (`player_bonus_id`),
     KEY `idx_bonus_grant_configure_id`           (`configure_id`),
     KEY `idx_bonus_grant_subhead_id`             (`subhead_id`),
     KEY `idx_bonus_grant_head_id`                (`head_id`),
@@ -481,6 +482,8 @@ CREATE TABLE `bonus_chunk` (
     -- face value of this chunk; sum across all chunks equals bonus_grant.grant_amount
     `wager_multiplier` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     -- x-wager required to release this chunk; copied from bonus_grant at grant time
+    `product_wager_multiplier` JSON DEFAULT NULL,
+    -- optional per-product override; copied from bonus_grant at grant time
 
     -- ── Progress ──────────────────────────────────────────────────────────────
     `status`          VARCHAR(20)   NOT NULL DEFAULT 'PENDING',

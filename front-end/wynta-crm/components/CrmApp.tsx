@@ -6,7 +6,14 @@ import { store }     from '../store';
 import { getToken }  from 'wynta-react-common/services/tokenRegistry';
 import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
-import { setSelectedBrand } from '../store/slices/uiSlice';
+import { fetchUserSettings } from 'wynta-react-common/store/slices/settingsSlice';
+import { setSelectedBrand, setHeaderFragmentFound } from '../store/slices/uiSlice';
+
+declare global {
+  interface Window {
+    __WYNTA_HEADER_FRAGMENT_FOUND__?: boolean;
+  }
+}
 import BrandSwitcher from 'wynta-react-common/components/BrandSwitcher';
 import CrmSidebar    from './CrmSidebar';
 import { listReports, createReport as createReportApi } from '../services/reportsApi';
@@ -14,7 +21,7 @@ import type { ReportFilters, CustomReport } from '../services/reportsApi';
 
 const SegmentsPage       = dynamic(() => import('wynta-react-common/components/segments/SegmentsPage'), { ssr: false });
 const CampaignsPage      = dynamic(() => import('./campaigns/CampaignsPage'), { ssr: false });
-const EventsPage         = dynamic(() => import('./events/EventsPage'), { ssr: false });
+const EventsPage         = dynamic(() => import('wynta-react-common/components/events/EventsPage'), { ssr: false });
 const DashboardPage      = dynamic(() => import('./dashboard/DashboardPage'), { ssr: false });
 const IntegrationsPage   = dynamic(() => import('./integrations/IntegrationsPage'), { ssr: false });
 const WorkspaceSettingsPage   = dynamic(() => import('wynta-react-common/workspace-settings/WorkspaceSettingsPage'), { ssr: false });
@@ -27,6 +34,8 @@ const PlayerLifecycleReport   = dynamic(() => import('./reports/PlayerLifecycleR
 const ChurnRetentionReport    = dynamic(() => import('./reports/ChurnRetentionReport'), { ssr: false });
 const CustomReportBuilder     = dynamic(() => import('./reports/CustomReportBuilder'), { ssr: false });
 const CustomReportView        = dynamic(() => import('./reports/CustomReportView'), { ssr: false });
+const ClientsPage             = dynamic(() => import('./clients/ClientsPage'),      { ssr: false });
+const ChatPage                = dynamic(() => import('wynta-react-common/components/chat/ChatPage'), { ssr: false });
 
 /**
  * CrmApp wraps itself in the wynta-crm store Provider.
@@ -81,6 +90,7 @@ function CrmShell() {
   const dispatch = useDispatch<any>();
   const projectId    = useSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
   const selectedBrand = useSelector((s: any) => s.ui?.selectedBrand as number | null);
+  const headerFragmentFound = useSelector((s: any) => s.ui?.headerFragmentFound as boolean | null);
   const [activeNav,       setActiveNav]       = useState('dashboard');
   const [campaignAutoAdd, setCampaignAutoAdd] = useState(false);
   const [customReports,   setCustomReports]   = useState<CustomReport[]>([]);
@@ -88,6 +98,23 @@ function CrmShell() {
   const [createError,     setCreateError]     = useState<string | null>(null);
 
   useEffect(() => { dispatch(fetchBrands()); }, [dispatch]);
+  useEffect(() => { dispatch(fetchUserSettings()); }, [dispatch]);
+
+  useEffect(() => {
+    // DjHeaderSlot may be rendered by a host layout (e.g. wynta-web's root
+    // layout) that has no knowledge of this app's Redux store, so it reports
+    // the header-fragment fetch outcome via a window global + CustomEvent
+    // rather than a prop/dispatch — pick that signal up here instead.
+    if (typeof window.__WYNTA_HEADER_FRAGMENT_FOUND__ === 'boolean') {
+      dispatch(setHeaderFragmentFound(window.__WYNTA_HEADER_FRAGMENT_FOUND__));
+    }
+    function onStatus(e: Event) {
+      const found = (e as CustomEvent<{ found: boolean }>).detail?.found;
+      if (typeof found === 'boolean') dispatch(setHeaderFragmentFound(found));
+    }
+    window.addEventListener('wynta:header-fragment-status', onStatus);
+    return () => window.removeEventListener('wynta:header-fragment-status', onStatus);
+  }, [dispatch]);
 
   useEffect(() => { refreshCustomReports(); }, [selectedBrand]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -136,22 +163,26 @@ function CrmShell() {
       />
 
       <main className="crm-main">
-        <div className="crm-topbar">
-          <BrandSwitcher
-            value={selectedBrand}
-            onChange={(id) => {
-              dispatch(setSelectedBrand(id));
-              window.__fireBrandChange__?.(id);
-            }}
-            compact
-          />
-        </div>
+        {headerFragmentFound === false && (
+          <div className="crm-topbar">
+            <BrandSwitcher
+              value={selectedBrand}
+              onChange={(id) => {
+                dispatch(setSelectedBrand(id));
+                window.__fireBrandChange__?.(id);
+              }}
+              compact
+            />
+          </div>
+        )}
         <div className="crm-content">
           {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} brandId={brandId} /> :
            activeNav === 'segments'         ? <SegmentsPage brandId={brandId} /> :
            activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} brandId={brandId} /> :
            activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
+           activeNav === 'clients'          ? <ClientsPage brandId={brandId} /> :
+           activeNav === 'chat'             ? <ChatPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :
            activeNav === 'reports:campaign' ? <CampaignStatsReport   onOpenBuilder={() => handleNavChange('reports:create')} brandId={brandId} /> :

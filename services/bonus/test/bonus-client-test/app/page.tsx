@@ -56,7 +56,6 @@ interface Transaction {
   expiry_amount?: string;
   forfeit_amount?: string;
   grant_txn_id?: number;
-  player_bonus_id?: number;
 }
 
 interface ChunkReleaseEvent {
@@ -290,6 +289,13 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
   const [clientId, setClientId] = useState("bonus-test-v1");
   const [secret, setSecret] = useState("abc@123456");
 
+  const [regUserId, setRegUserId] = useState(() => `ply_${Date.now()}`);
+  const [regMethod, setRegMethod] = useState("email");
+  const [regPromo, setRegPromo] = useState("");
+  const [regCurrency, setRegCurrency] = useState("INR");
+  const [regStatus, setRegStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  const [regMessage, setRegMessage] = useState<string | null>(null);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!userId.trim() || !clientId.trim() || !secret.trim()) return;
@@ -298,6 +304,51 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
       clientId: clientId.trim(),
       secret: secret.trim(),
     });
+  }
+
+  async function handleSimulateRegistration(e: React.FormEvent) {
+    e.preventDefault();
+    if (regStatus === "sending" || !clientId.trim() || !secret.trim() || !regUserId.trim()) return;
+    setRegStatus("sending");
+    setRegMessage(null);
+    try {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...s2sHeaders({ userId: regUserId, clientId, secret }),
+        },
+        body: JSON.stringify({
+          user_id: regUserId.trim(),
+          event_name: "REGISTRATION",
+          registration_method: regMethod,
+          currency: regCurrency,
+          ...(regPromo.trim() ? { promo_code: regPromo.trim() } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (res.status === 202) {
+        setRegStatus("success");
+        onLogin({
+          userId: regUserId.trim(),
+          clientId: clientId.trim(),
+          secret: secret.trim(),
+        });
+      } else {
+        setRegStatus("error");
+        const detail = data?.detail;
+        setRegMessage(
+          typeof detail === "string"
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d: { msg?: string }) => d.msg).join(", ")
+              : "Failed to send event",
+        );
+      }
+    } catch {
+      setRegStatus("error");
+      setRegMessage("Network error");
+    }
   }
 
   return (
@@ -367,6 +418,81 @@ function LoginScreen({ onLogin }: { onLogin: (c: Creds) => void }) {
             </Link>
           </div>
         </form>
+
+        <form onSubmit={handleSimulateRegistration} style={{ marginTop: 28 }}>
+          <div className="section-label">Simulate Registration Event</div>
+          <div className="input-row">
+            <div className="input-group" style={{ flex: 2 }}>
+              <label>New Player ID</label>
+              <input
+                value={regUserId}
+                onChange={(e) => setRegUserId(e.target.value)}
+                placeholder="ply_1720000000000"
+                autoCapitalize="none"
+                required
+              />
+            </div>
+            <div className="input-group" style={{ flex: 1, justifyContent: "flex-end" }}>
+              <label>&nbsp;</label>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ marginTop: 0, minHeight: 44, padding: "0 14px" }}
+                onClick={() => setRegUserId(`ply_${Date.now()}`)}
+              >
+                New ID
+              </button>
+            </div>
+          </div>
+
+          <div className="input-row">
+            <div className="input-group" style={{ flex: 1.4 }}>
+              <label>Registration Method</label>
+              <select value={regMethod} onChange={(e) => setRegMethod(e.target.value)}>
+                <option value="email">Email</option>
+                <option value="google">Google</option>
+                <option value="facebook">Facebook</option>
+                <option value="guest">Guest</option>
+              </select>
+            </div>
+            <div className="input-group" style={{ flex: 1 }}>
+              <label>Currency</label>
+              <select value={regCurrency} onChange={(e) => setRegCurrency(e.target.value)}>
+                <option value="INR">INR</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label>Promo Code (optional)</label>
+            <input
+              value={regPromo}
+              onChange={(e) => setRegPromo(e.target.value)}
+              placeholder="e.g. WELCOME100"
+              autoCapitalize="none"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{ marginTop: 12 }}
+            disabled={regStatus === "sending"}
+          >
+            {regStatus === "sending" ? "Sending…" : "Send REGISTRATION Event"}
+          </button>
+
+          {regMessage && (
+            <div
+              className={regStatus === "error" ? "error-toast" : "success-toast"}
+              style={{ marginTop: 16, marginBottom: 0 }}
+            >
+              {regMessage}
+            </div>
+          )}
+        </form>
       </div>
     </div>
   );
@@ -388,6 +514,7 @@ function DepositScreen({
   const isbet = mode === "bet";
   const [amount, setAmount] = useState("500");
   const [paymentMethod, setPaymentMethod] = useState("upi");
+  const [product, setProduct] = useState("RUMMY");
   const [promos, setPromos] = useState<PromoCode[]>([]);
   const [selectedPromo, setSelectedPromo] = useState<PromoCode | null>(null);
   const [promosLoading, setPromosLoading] = useState(true);
@@ -467,6 +594,7 @@ function DepositScreen({
           payment_method: paymentMethod,
           transaction_id: txnId,
           event_name: isbet ? "bet_placed" : "deposit_success",
+          ...(isbet ? { product } : {}),
           ...(selectedPromo ? { promo_code: selectedPromo.code } : {}),
         }),
       });
@@ -517,16 +645,28 @@ function DepositScreen({
         {error && <div className="error-toast">{error}</div>}
         <form onSubmit={handleDeposit}>
           {isbet ? (
-            <div className="input-group" style={{ marginBottom: 24 }}>
-              <label>Bet Amount (₹)</label>
-              <input
-                type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                min="1"
-                step="1"
-                required
-              />
+            <div className="input-row" style={{ marginBottom: 24 }}>
+              <div className="input-group" style={{ flex: 2 }}>
+                <label>Bet Amount (₹)</label>
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  min="1"
+                  step="1"
+                  required
+                />
+              </div>
+              <div className="input-group" style={{ flex: 1.6 }}>
+                <label>Product</label>
+                <select
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                >
+                  <option value="RUMMY">RUMMY</option>
+                  <option value="AVIATOR">AVIATOR</option>
+                </select>
+              </div>
             </div>
           ) : (
             <>
@@ -919,19 +1059,6 @@ function TransactionsScreen({
                     <span className="txn-arrow">›</span>
                   </div>
                 </div>
-                {t.player_bonus_id && (
-                  <div
-                    style={{
-                      fontSize: "0.62rem",
-                      color: "#475569",
-                      marginBottom: 8,
-                      fontFamily: "monospace",
-                      letterSpacing: "0.03em",
-                    }}
-                  >
-                    ID: {String(t.player_bonus_id)}
-                  </div>
-                )}
                 <div
                   style={{
                     display: "grid",
@@ -1768,12 +1895,46 @@ function ConsumeScreen({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ConsumeResult | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusResult, setStatusResult] = useState<ConsumeResult | null>(null);
+
+  async function handleCheckStatus() {
+    if (!result || statusLoading) return;
+    setError(null);
+    setStatusResult(null);
+    setStatusLoading(true);
+    try {
+      const res = await fetch(`/api/consume/${result.consume_txn_id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...s2sHeaders(creds) },
+      });
+      const data = (await res.json()) as ConsumeResult & {
+        detail?: string | Array<{ msg: string; loc?: unknown[] }>;
+      };
+      if (res.ok) {
+        setStatusResult(data);
+      } else {
+        const detail = data.detail;
+        if (Array.isArray(detail)) {
+          setError(
+            detail.map((e) => e.msg).join("; ") || `Error ${res.status}`,
+          );
+        } else {
+          setError(detail ?? `Error ${res.status}`);
+        }
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Network error");
+    }
+    setStatusLoading(false);
+  }
 
   async function handleConsume(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (loading) return;
     setError(null);
     setResult(null);
+    setStatusResult(null);
     setLoading(true);
     try {
       const ts = Date.now();
@@ -1840,10 +2001,46 @@ function ConsumeScreen({
                 <div className="amount-label">Txn ID</div>
               </div>
             </div>
+            {statusResult && (
+              <div style={{ marginTop: 16 }}>
+                <div className="card-title" style={{ fontSize: 13 }}>
+                  Status — Consumed
+                </div>
+                <div className="amounts-grid" style={{ marginTop: 8 }}>
+                  <div className="amount-cell">
+                    <div className="amount-val">
+                      ₹{fmt(statusResult.consumed_amount)}
+                    </div>
+                    <div className="amount-label">Consumed</div>
+                  </div>
+                  <div className="amount-cell">
+                    <div className="amount-val">
+                      ₹{fmt(statusResult.bonus_amount)}
+                    </div>
+                    <div className="amount-label">Bonus Used</div>
+                  </div>
+                  <div className="amount-cell">
+                    <div className="amount-val">#{statusResult.txn_id}</div>
+                    <div className="amount-label">Txn ID</div>
+                  </div>
+                </div>
+              </div>
+            )}
             <button
               className="btn-primary"
               style={{ marginTop: 16 }}
-              onClick={() => setResult(null)}
+              onClick={handleCheckStatus}
+              disabled={statusLoading}
+            >
+              {statusLoading ? "Checking…" : "Check Status"}
+            </button>
+            <button
+              className="btn-primary"
+              style={{ marginTop: 8 }}
+              onClick={() => {
+                setResult(null);
+                setStatusResult(null);
+              }}
             >
               Consume Again
             </button>
