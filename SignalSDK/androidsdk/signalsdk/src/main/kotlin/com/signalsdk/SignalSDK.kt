@@ -1,6 +1,9 @@
 package com.signalsdk
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.os.Build
 import com.signalsdk.config.SignalConfig
 import com.signalsdk.models.IdentifyRequest
 import com.signalsdk.models.IdentityPayload
@@ -12,7 +15,10 @@ import com.signalsdk.services.LifecycleService
 import com.signalsdk.services.SessionService
 import com.signalsdk.services.toJsonObject
 import com.signalsdk.store.SDKState
+import com.signalsdk.utils.ApiLogger
 import com.signalsdk.utils.Logger
+import com.signalsdk.utils.Storage
+import com.signalsdk.utils.StorageKeys
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,6 +53,7 @@ object SignalSDK {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    private lateinit var appContext: Context
     private lateinit var eventService: EventService
     private lateinit var identityService: IdentityService
     private lateinit var lifecycleService: LifecycleService
@@ -55,11 +62,11 @@ object SignalSDK {
         timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    companion object {
-        private const val QA_PREFIX    = "QA_"
-        private const val PROD_BASE_URL = "https://api.wynta.com/api/v1"
-        private const val QA_BASE_URL   = "https://qa-app.fozilpartners.com/api/v1"
-    }
+    private const val QA_PREFIX     = "QA_"
+    private const val PROD_BASE_URL = "https://api.wynta.com/api/v1"
+    private const val QA_BASE_URL   = "https://qa-app.fozilpartners.com/api/v1"
+    // Default FCM channel — must match default_notification_channel_id in host app's AndroidManifest.xml
+    const val DEFAULT_CHANNEL_ID    = "signal_default"
 
     // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -76,6 +83,9 @@ object SignalSDK {
 
         if (config.debug) Logger.enable()
 
+        // Wire up API logging callback
+        ApiLogger.callback = config.onApiLog
+
         // Strip QA_ prefix and resolve the correct base URL
         val isQa       = config.clientId.startsWith(QA_PREFIX)
         val cleanId    = if (isQa) config.clientId.removePrefix(QA_PREFIX) else config.clientId
@@ -83,8 +93,15 @@ object SignalSDK {
 
         Logger.log("initSDK | env=${if (isQa) "QA" else "PROD"} | baseUrl=$baseUrl")
 
-        val appContext   = context.applicationContext
+        // Create the default FCM notification channel early so Firebase-rendered background
+        // notifications have a valid channel before the first message arrives (Android 8+).
+        createDefaultChannel(context.applicationContext)
+
+        appContext = context.applicationContext
         val deviceService = DeviceService(appContext)
+
+        // Restore persisted FCM token so it's available before setIdentity is called
+        val savedToken = Storage.get(appContext, StorageKeys.FCM_TOKEN)
 
         eventService   = EventService(deviceService)
         identityService = IdentityService()
@@ -95,13 +112,16 @@ object SignalSDK {
         )
 
         updateState { copy(
-            clientId      = cleanId,
-            clientSecret  = config.clientSecret,
-            baseUrl       = baseUrl,
-            userId        = null,
+            clientId       = cleanId,
+            clientSecret   = config.clientSecret,
+            baseUrl        = baseUrl,
+            userId         = null,
+            fcmToken       = savedToken,
             appOpenTracked = false,
-            initialized   = true
+            initialized    = true
         )}
+
+        if (savedToken != null) Logger.log("FCM token restored from storage")
 
         // Fresh session on every cold launch
         SessionService.reset()
@@ -159,6 +179,9 @@ object SignalSDK {
         }
         // Always merge fcm_token into traits so it reaches the backend
         fcmToken?.let { traitsMap["fcm_token"] = it }
+
+        // Persist FCM token so it survives app restarts
+        if (fcmToken != null) Storage.set(appContext, StorageKeys.FCM_TOKEN, fcmToken)
 
         // Update in-memory state before the network call
         updateState { copy(userId = userId, fcmToken = fcmToken) }
@@ -231,6 +254,51 @@ object SignalSDK {
         }
     }
 
+    // ── Notification Interaction Tracking ────────────────────────────────────
+
+    /**
+     * Call this when the user taps a push notification to track the interaction.
+     * Fires `notification_opened` (banner tap) or `notification_clicked` (action button tap).
+     *
+     * Typically called from your Activity's `onNewIntent` or `onCreate` after extracting
+     * campaign data from the Intent extras.
+     *
+     * Example:
+     * ```kotlin
+     * val campaignId = intent.getStringExtra("campaign_id") ?: return
+     * SignalSDK.handleNotificationClick(campaignId = campaignId)
+     * ```
+     */
+    fun handleNotificationClick(
+        campaignId: String,
+        campaignName: String? = null,
+        notificationType: String = "promotional",
+        channel: String = "push",
+        templateId: String? = null,
+        actionId: String? = null,
+        deepLink: String? = null
+    ) {
+        val current = state
+        if (!current.initialized || current.userId.isNullOrBlank()) {
+            Logger.log("handleNotificationClick: SDK not ready — skipping push interaction event")
+            return
+        }
+
+        val eventName = if (actionId != null) "notification_clicked" else "notification_opened"
+        val properties = mutableMapOf<String, Any?>(
+            "campaign_id"       to campaignId,
+            "notification_type" to notificationType,
+            "channel"           to channel
+        )
+        campaignName?.let { properties["campaign_name"] = it }
+        templateId?.let   { properties["template_id"]   = it }
+        actionId?.let     { properties["action_id"]     = it }
+        deepLink?.let     { properties["deep_link"]     = it }
+
+        Logger.log("handleNotificationClick: $eventName | campaign=$campaignId")
+        sendEvent(eventName, properties)
+    }
+
     // ── Internal ──────────────────────────────────────────────────────────────
 
     private suspend fun emitLifecycleEvent(eventName: String) {
@@ -240,6 +308,25 @@ object SignalSDK {
         val event = eventService.buildEvent(eventName, emptyMap(), userId)
         Logger.log("Lifecycle event: $eventName | event_id=${event.event_id}")
         eventService.trackEvent(event, current.clientId!!, current.clientSecret!!, current.baseUrl)
+    }
+
+    private fun createDefaultChannel(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (nm.getNotificationChannel(DEFAULT_CHANNEL_ID) == null) {
+                val channel = NotificationChannel(
+                    DEFAULT_CHANNEL_ID,
+                    "Signal Notifications",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description  = "Push notifications from Signal"
+                    enableLights(true)
+                    enableVibration(true)
+                }
+                nm.createNotificationChannel(channel)
+                Logger.log("Notification channel created: $DEFAULT_CHANNEL_ID")
+            }
+        }
     }
 
     private fun updateState(update: SDKState.() -> SDKState) {

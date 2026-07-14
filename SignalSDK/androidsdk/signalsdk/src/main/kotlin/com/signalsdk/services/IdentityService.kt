@@ -2,6 +2,7 @@ package com.signalsdk.services
 
 import com.signalsdk.models.IdentifyRequest
 import com.signalsdk.models.SDKResponse
+import com.signalsdk.utils.ApiLogger
 import com.signalsdk.utils.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -45,11 +46,13 @@ internal class IdentityService {
                 ?.bufferedReader()?.readText() ?: ""
 
             Logger.log("setIdentity ← $status | $identifyUrl | $response")
+            ApiLogger.fire(url = identifyUrl, method = "POST", requestBody = body, responseStatus = status, responseBody = response)
 
             if (status in 200..299) SDKResponse(success = true)
             else SDKResponse(success = false, error = "HTTP $status: $response")
         } catch (e: Exception) {
             Logger.error("identifyPlayer failed", e)
+            ApiLogger.fire(url = identifyUrl, method = "POST", requestBody = null, responseStatus = null, responseBody = null)
             SDKResponse(success = false, error = e.message ?: "Unknown error")
         }
     }
