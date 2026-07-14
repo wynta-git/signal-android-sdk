@@ -419,6 +419,24 @@ export async function updateCampaign(projectId: string, campaignId: string, payl
   return mergePayload(toCampaign(await res.json()), payload);
 }
 
+/**
+ * Uploads an image file (for in_app notification media) to S3 via campaign-engine
+ * and returns the public URL. Mirrors wynta-react-common/services/segmentApi.ts's
+ * multipart pattern — no Content-Type header, the browser sets the boundary itself.
+ */
+export async function uploadCampaignImage(projectId: string, file: File): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${campaignRoot(projectId)}/uploads/image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`uploadCampaignImage failed: ${res.status}`);
+  const data = await res.json();
+  return data.image_url as string;
+}
+
 export async function deleteCampaign(projectId: string, campaignId: string): Promise<void> {
   const res = await fetch(`${campaignRoot(projectId)}/${campaignId}`, {
     method: "DELETE",

@@ -16,8 +16,9 @@ import { createCampaign, updateCampaign, activateCampaign } from '../../store/sl
 import type {
   Campaign, CampaignPayload, CampaignChannel, TriggerCriteria,
   CampaignSchedule, CampaignDeliveryControls, ContentBlock,
-  Variant, Cta, Media, InAppTemplateType,
+  Variant, Cta, InAppTemplateType,
 } from '../../services/campaignApi';
+import { uploadCampaignImage } from '../../services/campaignApi';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                              */
@@ -166,7 +167,9 @@ function defaultLayoutFor(type: InAppTemplateType): Record<string, any> | null {
 const DEFAULT_VARIANT = (): Variant => ({
   variant_id:              `var_${Math.random().toString(36).slice(2, 8)}`,
   weight:                  100,
-  template_type:           'modal',
+  // Template type + background styling are locked to these defaults for now
+  // (category/template dropdowns are read-only, bg color/opacity hidden).
+  template_type:           'popup_image',
   render_engine:           'native',
   title:                   '',
   body:                    '',
@@ -174,7 +177,7 @@ const DEFAULT_VARIANT = (): Variant => ({
   cta:                     [{ role: 'primary', label: '', action: 'dismiss', value: '' }],
   close_button_visibility: 'always',
   layout:                  null,
-  web_view_url:            '',
+  web_view_url:            undefined, // hidden for now — stays unset
 });
 
 /* ------------------------------------------------------------------ */
@@ -1480,9 +1483,27 @@ function InAppEditor({ s, onChange, errors, errorTick }: InAppEditorProps) {
   const idx    = 0;
   const active = variants[0] ?? DEFAULT_VARIANT();
 
+  const projectId = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const setVariants   = (next: Variant[]) => onChange({ ...s, in_app_variants: next });
   const updateVariant = (i: number, patch: Partial<Variant>) =>
     setVariants(variants.map((v, vi) => vi === i ? { ...v, ...patch } : v));
+
+  const handleImageFile = async (file: File) => {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const url = await uploadCampaignImage(projectId, file);
+      updateVariant(idx, { media: { ...active.media, image_url: url } });
+    } catch {
+      setUploadError('Image upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const setTemplateType = (type: InAppTemplateType) => {
     updateVariant(idx, {
@@ -1522,35 +1543,9 @@ function InAppEditor({ s, onChange, errors, errorTick }: InAppEditorProps) {
   return (
     <div className="cwiz-step-body">
 
-      {/* Template type picker — 2 dropdowns for now (category, then specific type) */}
-      <div className="cwiz-card">
-        <div className="cwiz-card-title">Template type</div>
-        <div className="cwiz-form-grid">
-          <div className="cwiz-field">
-            <label className="cwiz-label">Category</label>
-            <select
-              className="cwiz-select"
-              value={category}
-              onChange={e => setCategory(e.target.value as 'native' | 'html')}
-            >
-              <option value="native">Native Templates</option>
-              <option value="html">HTML Templates</option>
-            </select>
-          </div>
-          <div className="cwiz-field">
-            <label className="cwiz-label">Template</label>
-            <select
-              className="cwiz-select"
-              value={active.template_type}
-              onChange={e => setTemplateType(e.target.value as InAppTemplateType)}
-            >
-              {(category === 'html' ? IN_APP_HTML_TYPES : IN_APP_NATIVE_TYPES).map(t => (
-                <option key={t.type} value={t.type}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
+      {/* Template type picker hidden for now — locked to Native Templates /
+          Popup Image via DEFAULT_VARIANT() until multi-template authoring
+          is re-introduced. */}
 
       {/* Common fields */}
       <div className="cwiz-card">
@@ -1590,38 +1585,37 @@ function InAppEditor({ s, onChange, errors, errorTick }: InAppEditorProps) {
         <div className="cwiz-form-grid" style={{ marginBottom: 14 }}>
           <div className="cwiz-field">
             <label className="cwiz-label">Image URL</label>
-            <input
-              className="cwiz-input"
-              value={active.media?.image_url ?? ''}
-              placeholder="https://…"
-              onChange={e => updateVariant(idx, { media: { ...active.media, image_url: e.target.value } })}
-            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="cwiz-input"
+                value={active.media?.image_url ?? ''}
+                placeholder="https://… or upload a file"
+                onChange={e => updateVariant(idx, { media: { ...active.media, image_url: e.target.value } })}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                hidden
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageFile(file);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                className="asm-btn asm-btn--secondary"
+                style={{ fontSize: 12, height: 34, padding: '0 12px', whiteSpace: 'nowrap' }}
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+            {uploadError && <span className="cwiz-field-error">{uploadError}</span>}
           </div>
-          <div className="cwiz-field">
-            <label className="cwiz-label">Background color</label>
-            <input
-              type="color"
-              className="cwiz-input"
-              style={{ padding: 2, width: 60 }}
-              value={active.media?.background_color || '#ffffff'}
-              onChange={e => updateVariant(idx, { media: { ...active.media, background_color: e.target.value } })}
-            />
-          </div>
-          <div className="cwiz-field">
-            <label className="cwiz-label">Background opacity</label>
-            <select
-              className="cwiz-select"
-              value={active.media?.background_opacity ?? ''}
-              onChange={e => updateVariant(idx, {
-                media: { ...active.media, background_opacity: (e.target.value || undefined) as Media['background_opacity'] },
-              })}
-            >
-              <option value="">—</option>
-              <option value="opaque">Opaque</option>
-              <option value="translucent">Translucent</option>
-              <option value="transparent">Transparent</option>
-            </select>
-          </div>
+          {/* Background color/opacity hidden for now — always sent as null/absent. */}
           <div className="cwiz-field">
             <label className="cwiz-label">Close button</label>
             <select className="cwiz-select" value="always" disabled>
@@ -1723,16 +1717,7 @@ function InAppEditor({ s, onChange, errors, errorTick }: InAppEditorProps) {
           </button>
         )}
 
-        {/* Web view override — available regardless of template_type */}
-        <div className="cwiz-field">
-          <label className="cwiz-label">Load full website instead (optional)</label>
-          <input
-            className="cwiz-input"
-            value={active.web_view_url ?? ''}
-            placeholder="https://…"
-            onChange={e => updateVariant(idx, { web_view_url: e.target.value })}
-          />
-        </div>
+        {/* Web view override hidden for now — web_view_url stays unset. */}
       </div>
 
       {/* Per-type layout editor — only for the 6 non-flat types */}
