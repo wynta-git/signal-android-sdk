@@ -1212,6 +1212,8 @@ html, body {
 .cwiz-trigger-card strong { font-size:13px; color:var(--crm-fg1,#1F2430); }
 .cwiz-trigger-card span   { font-size:11.5px; color:var(--crm-fg3,#6B7280); line-height:1.4; }
 .cwiz-trigger-card.selected { border-color:var(--crm-blue,#0091E0); background:rgba(0,145,224,.05); }
+.cwiz-trigger-card.disabled { opacity:0.5; cursor:not-allowed; }
+.cwiz-trigger-soon { font-size:9.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--crm-blue,#0091E0); margin-left:6px; vertical-align:middle; }
 .cwiz-reach { display:inline-flex; align-items:center; height:32px; padding:0 14px; border:1.5px solid #B3D9F0; border-radius:999px; font-size:12.5px; color:#0073B2; background:#E6F4FB; }
 .cwiz-toggles { display:flex; flex-direction:column; gap:10px; }
 .cwiz-toggle-label { display:flex; align-items:center; gap:12px; font-size:13px; color:var(--crm-fg2,#3F4652); cursor:pointer; }
@@ -1251,6 +1253,46 @@ html, body {
 .cwiz-block-remove:hover { background:var(--crm-border,#E9EBEE); color:var(--crm-fg2,#3F4652); }
 .cwiz-block-body { padding:14px; }
 .cwiz-block-placeholder { font-size:12px; color:var(--crm-fg3,#6B7280); font-style:italic; }
+
+/* In-app template builder */
+.cwiz-variant-tabs { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.cwiz-variant-tab {
+  display:flex; align-items:center; gap:6px; padding:6px 8px 6px 12px;
+  border:1px solid var(--crm-border-md,#DDE0E4); border-radius:6px; background:#fff;
+}
+.cwiz-variant-tab.active { border-color:var(--crm-blue,#0091E0); background:rgba(0,145,224,.05); }
+.cwiz-variant-tab.has-error { border-color:var(--crm-negative,#D64545); }
+.cwiz-variant-tab-label { border:none; background:transparent; font-family:inherit; font-size:13px; color:var(--crm-fg2,#3F4652); cursor:pointer; padding:0; }
+.cwiz-variant-tab.active .cwiz-variant-tab-label { color:var(--crm-fg1,#1F2430); font-weight:600; }
+.cwiz-variant-tab-weight { width:46px; height:24px; padding:0 6px; border:1px solid var(--crm-border-md,#DDE0E4); border-radius:4px; font-size:12px; font-family:inherit; text-align:center; outline:none; }
+.cwiz-variant-tab-remove { border:none; background:transparent; color:var(--crm-fg4,#9AA0A6); cursor:pointer; display:flex; align-items:center; }
+.cwiz-variant-tab-remove:hover { color:var(--crm-negative,#D64545); }
+.cwiz-variant-weight-total { font-size:12.5px; font-weight:600; color:var(--crm-fg3,#6B7280); margin-left:4px; }
+.cwiz-variant-weight-total.error { color:var(--crm-negative,#D64545); }
+
+.cwiz-tpl-row-label { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--crm-fg4,#9AA0A6); margin:0 0 8px; }
+.cwiz-tpl-grid { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.cwiz-tpl-btn {
+  padding:7px 12px; border:1px solid var(--crm-border-md,#DDE0E4); border-radius:6px;
+  background:#fff; font-size:12.5px; font-family:inherit; color:var(--crm-fg2,#3F4652); cursor:pointer;
+}
+.cwiz-tpl-btn.selected { border-color:var(--crm-blue,#0091E0); background:rgba(0,145,224,.08); color:var(--crm-blue,#0091E0); font-weight:600; }
+
+.cwiz-char-counter { display:block; font-size:11px; color:var(--crm-fg4,#9AA0A6); text-align:right; margin-top:4px; }
+.cwiz-char-counter.over { color:var(--crm-negative,#D64545); }
+
+.cwiz-cta-block { border:1px solid var(--crm-border,#E9EBEE); border-radius:6px; padding:14px; margin-bottom:14px; }
+.cwiz-cta-block-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+
+.cwiz-list-group { display:flex; flex-direction:column; gap:12px; }
+.cwiz-list-item {
+  border:1px solid var(--crm-border,#E9EBEE); border-radius:6px; padding:14px 36px 14px 14px;
+  display:flex; flex-direction:column; gap:10px; position:relative; background:#FAFBFC;
+}
+.cwiz-list-item-remove { position:absolute; top:10px; right:10px; border:none; background:transparent; color:var(--crm-fg4,#9AA0A6); cursor:pointer; }
+.cwiz-list-item-remove:hover { color:var(--crm-negative,#D64545); }
+.cwiz-option-row { display:flex; gap:8px; align-items:center; }
+.cwiz-option-row .cwiz-input { flex:1; }
 
 /* Schedule */
 .cwiz-schedule-layout { display:flex; gap:24px; }

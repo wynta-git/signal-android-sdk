@@ -13,6 +13,8 @@ class SendJob(BaseModel):
     brand_id: str | None = None
     channel: str
     template_id: str
+    trigger_type: str | None = None
+    expires_in_hours: int | None = None
     context: dict[str, Any] = {}
     deliver_at: datetime
     auto_dismiss_seconds: int | None = None

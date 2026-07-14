@@ -102,6 +102,54 @@ Merge two user ids (e.g. login flows that bridge two known users).
 }
 ```
 
+### `GET /v1/notifications/inbox`
+Fetch pending in_app notifications for a user. Mounted in code at `/api/v1/notifications/inbox` (separate prefix from the `/api/v1/events/...` ingestion routes above, since this is a read/update surface, not event ingestion).
+
+**Query params**: `user_id` (required), `unread_only` (bool, default `false`), `cursor` (opaque, from a previous response), `limit` (default 20, max 100).
+
+**Response 200**
+```json
+{
+  "notifications": [
+    {
+      "notification_id": "notif_abc123",
+      "campaign_id": "camp_789",
+      "variant_id": "var_a",
+      "template_type": "modal",
+      "render_engine": "native",
+      "trigger_type": "on_session_start",
+      "title": "Claim your welcome bonus!",
+      "body": "...",
+      "media": { "image_url": "...", "background_color": "#fff", "background_opacity": "opaque" },
+      "cta": [{ "role": "primary", "label": "Claim Now", "action": "deep_link", "value": "wynta://promo" }],
+      "close_button_visibility": "always",
+      "layout": null,
+      "web_view_url": null,
+      "created_at": "2026-07-13T10:00:00.000Z",
+      "expires_at": null,
+      "read": false
+    }
+  ],
+  "next_cursor": "opaque_token_or_null",
+  "unread_count": 5
+}
+```
+
+Full field reference: [`in-app-notifications-explained.md`](in-app-notifications-explained.md).
+
+### `GET /v1/notifications/unread-count`
+**Query params**: `user_id` (required).
+**Response 200**: `{ "unread_count": 5 }`
+
+### `POST /v1/notifications/read`
+**Query params**: `user_id` (required).
+**Request**: exactly one of `{ "notification_ids": ["notif_abc123"] }` or `{ "mark_all": true }`.
+**Response 200**: `{ "updated": 2 }`
+
+### `DELETE /v1/notifications/{notification_id}`
+**Query params**: `user_id` (required).
+**Response 204** — no body. **404** `notification_not_found` if missing or not owned by this user.
+
 ### `GET /v1/health`
 Liveness. No auth required.
 
@@ -124,6 +172,8 @@ Readiness — checks Kafka producer health. No auth required.
 | `invalid_token` | Token missing, malformed, expired, or revoked. |
 | `forbidden` | Token lacks required scope. |
 | `internal_error` | Server-side. Retry with backoff. |
+| `notification_not_found` | `notification_id` doesn't exist or doesn't belong to this user. |
+| `invalid_cursor` | Pagination cursor malformed or expired. |
 
 ## SDK retry policy (recommended)
 

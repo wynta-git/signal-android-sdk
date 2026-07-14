@@ -54,6 +54,22 @@ class DepositSuccessProperties(BaseModel):
     payment_method: str | None = None
 
 
+class InAppNotificationViewedProperties(BaseModel):
+    notification_id: str
+    campaign_id: str | None = None
+
+
+class InAppNotificationClickedProperties(BaseModel):
+    notification_id: str
+    campaign_id: str | None = None
+    cta_label: str | None = None
+
+
+class InAppNotificationDismissedProperties(BaseModel):
+    notification_id: str
+    campaign_id: str | None = None
+
+
 # Registry — add new events here and mirror in docs/event-schema.md (use /add-event)
 REGISTERED_EVENTS: dict[str, type[BaseModel]] = {
     "app_opened": AppOpenedProperties,
@@ -61,6 +77,9 @@ REGISTERED_EVENTS: dict[str, type[BaseModel]] = {
     "user_identified": UserIdentifiedProperties,
     "purchase_completed": PurchaseCompletedProperties,
     "deposit_success": DepositSuccessProperties,
+    "in_app_notification_viewed": InAppNotificationViewedProperties,
+    "in_app_notification_clicked": InAppNotificationClickedProperties,
+    "in_app_notification_dismissed": InAppNotificationDismissedProperties,
 }
 
 

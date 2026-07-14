@@ -14,6 +14,7 @@ from shared.logging_config import configure_logging
 from app.routes.admin import router as admin_router
 from app.routes.alias import router as alias_router
 from app.routes.identify import router as identify_router
+from app.routes.notifications import router as notifications_router
 from app.routes.ready import router as ready_router
 from app.routes.track import router as track_router
 from shared.clients.kafka import make_kafka_producer
@@ -133,6 +134,7 @@ app.include_router(track_router, prefix=route_prefix)
 app.include_router(identify_router, prefix=route_prefix)
 app.include_router(alias_router, prefix=route_prefix)
 app.include_router(ready_router, prefix=route_prefix)
+app.include_router(notifications_router, prefix="/api/v1")
 
 
 @app.get("/api/v1/events/health", include_in_schema=False)

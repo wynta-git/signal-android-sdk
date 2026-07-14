@@ -114,6 +114,31 @@ General-purpose wager event for non-gaming clients (sports, fantasy, exchange, t
 | `category` | string | no | Product vertical: `sports`, `fantasy`, `exchange`, etc. |
 | `provider` | string | no | Data or platform provider name. |
 
+### `in_app_notification_viewed`
+Fired by the client the moment an in_app notification is actually rendered on screen. Also implies "read" — there's no separate mark-read user action for in_app.
+
+| Property | Type | Required | Notes |
+|---|---|---|---|
+| `notification_id` | string | yes | The `notification_id` from the inbox response. |
+| `campaign_id` | string | no | For attribution back to the campaign. |
+
+### `in_app_notification_clicked`
+Fired when the user taps a CTA on an in_app notification.
+
+| Property | Type | Required | Notes |
+|---|---|---|---|
+| `notification_id` | string | yes | The `notification_id` from the inbox response. |
+| `campaign_id` | string | no | For attribution back to the campaign. |
+| `cta_label` | string | no | Which CTA button was tapped. |
+
+### `in_app_notification_dismissed`
+Fired when the user dismisses an in_app notification without acting on it.
+
+| Property | Type | Required | Notes |
+|---|---|---|---|
+| `notification_id` | string | yes | The `notification_id` from the inbox response. |
+| `campaign_id` | string | no | For attribution back to the campaign. |
+
 (Add new events here, then mirror in `shared/models/events.py` — use `/add-event` to keep both in sync.)
 
 ## PII handling

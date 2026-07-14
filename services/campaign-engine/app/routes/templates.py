@@ -36,7 +36,8 @@ async def create_template(
         "project_id": project_id,
         "name": body.name,
         "channel": body.channel,
-        "body": body.body,
+        "body": {} if body.channel == "in_app" else (body.body or {}),
+        "variants": [v.model_dump() for v in body.variants] if body.variants else None,
         "created_at": now,
         "updated_at": now,
     }
