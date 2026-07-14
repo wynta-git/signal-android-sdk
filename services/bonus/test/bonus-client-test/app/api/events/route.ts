@@ -14,6 +14,7 @@ interface EventBody {
   event_name?: string;
   promo_code?: string;
   registration_method?: string;
+  product?: string;
 }
 
 function buildProperties(body: EventBody): Record<string, unknown> {
@@ -27,7 +28,7 @@ function buildProperties(body: EventBody): Record<string, unknown> {
       wager_tnx_id: body.transaction_id,
       session_key: `sess_${Date.now()}`,
       platform_client_id: "bonus-client-test",
-      product: "RUMMY",
+      product: body.product || "RUMMY",
       game_type: "TOURNEY",
       game_variant: "holdem",
       game_name: "Friday Holdem",

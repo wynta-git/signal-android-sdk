@@ -29,11 +29,11 @@ Add to your app-level `build.gradle` or `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.signalsdk:signal-android-sdk:1.0.0")
+    implementation("io.github.wynta-git:signal-android-sdk:1.0.0")
 }
 ```
 
-No extra repository config needed — Maven Central is included by default in all modern Android projects.
+No extra repository config needed — Maven Central is included by default in all modern Android projects. Check [Maven Central](https://central.sonatype.com/artifact/io.github.wynta-git/signal-android-sdk) for the latest published version number.
 
 ### Local AAR (offline / private distribution)
 

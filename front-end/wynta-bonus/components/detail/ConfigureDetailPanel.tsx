@@ -62,6 +62,7 @@ interface ExtendedConfigure {
   start_date?: string;
   end_date?: string;
   wager_multiplier?: number;
+  product_wager_multiplier?: Record<string, number> | null;
   no_of_chunks?: number;
   bonus_amount_fixed?: string | null;
   bonus_amount_percent?: string | null;
@@ -302,6 +303,29 @@ export default function ConfigureDetailPanel({ configure, onAction }: ConfigureD
             {cfg.wager_multiplier != null ? `×${cfg.wager_multiplier}` : '—'}
           </span>
         </div>
+        {/* Product wager multipliers */}
+        {cfg.product_wager_multiplier && Object.keys(cfg.product_wager_multiplier).length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '6px 0', borderBottom: '1px solid var(--g100)' }}>
+            <span style={{ fontSize: 12, color: 'var(--g500)' }}>Product Wager Multipliers</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', maxWidth: '65%' }}>
+              {Object.entries(cfg.product_wager_multiplier).map(([product, mult]) => (
+                <span
+                  key={product}
+                  style={{
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: 'var(--g800)',
+                    background: 'var(--g100)',
+                    padding: '2px 8px',
+                    borderRadius: 'var(--r)',
+                  }}
+                >
+                  {product} ×{mult}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Chunks */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--g100)' }}>
           <span style={{ fontSize: 12, color: 'var(--g500)' }}>Chunks</span>

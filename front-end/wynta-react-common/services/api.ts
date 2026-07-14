@@ -1,4 +1,4 @@
-import type { AuthResponse, Brand, SystemUser } from "../types";
+import type { AuthResponse, Brand, SystemUser, UserSettings } from "../types";
 
 const BONUS_API =
   (process.env.NEXT_PUBLIC_BONUS_API_URL || "http://3.7.48.14:8006") +
@@ -34,6 +34,11 @@ export const api = {
       body: JSON.stringify(credentials),
     });
     if (!res.ok) throw new Error("Authentication failed");
+    return res.json();
+  },
+  async fetchMySettings(): Promise<UserSettings> {
+    const res = await fetch(`${AUTH_API}/users/me/settings`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch settings");
     return res.json();
   },
 };

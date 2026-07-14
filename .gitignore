@@ -92,3 +92,7 @@ Archive/
 # Eclipse / Buildship settings
 .settings/
 **/.settings/
+
+# Android local SDK path (machine-specific)
+local.properties
+**/local.properties

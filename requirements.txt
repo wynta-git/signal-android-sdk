@@ -1,4 +1,7 @@
 # PAM monorepo — combined requirements for a single shared venv.
+# Covers all active services: api-service, auth-service, bonus, campaign-engine,
+# event-processor, notifications-engine, scheduler-service, segmentation-engine,
+# wynta-mcp, plus shared/. (services/event-handler has no source yet and is excluded.)
 # Install with: pip install -r requirements.txt
 # Or run:       ./setup-venv.sh
 
@@ -6,29 +9,45 @@
 -e ./shared
 
 # web / API
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
+fastapi>=0.139.0
+uvicorn[standard]>=0.51.0
+python-multipart>=0.0.32
 
 # databases & messaging
-motor>=3.5.0
-redis[asyncio]>=5.0.0
-clickhouse-connect>=0.7.0
-aiokafka>=0.10.0
-aiomysql>=0.2.0
+motor>=3.7.1
+redis[asyncio]>=8.0.1
+clickhouse-connect>=1.4.2
+aiokafka>=0.14.0
+aiomysql>=0.3.2
 
 # config & validation
-pydantic>=2.7.0
-pydantic-settings>=2.3.0
+pydantic>=2.13.4
+pydantic-settings>=2.14.2
+
+# auth / crypto
+PyJWT[crypto]>=2.13.0
+bcrypt>=5.0.0
+cryptography>=49.0.0
+
+# scheduling
+apscheduler>=3.11.3
+croniter>=6.2.3
+tzdata>=2026.2
+
+# google / templating / cloud
+google-auth>=2.55.2
+jinja2>=3.1.6
+aioboto3>=15.5.0
 
 # observability
-structlog>=24.2.0
+structlog>=26.1.0
 
 # MCP (wynta-mcp)
-mcp[cli]>=1.0.0
-httpx>=0.27.0
+mcp[cli]>=1.28.1
+httpx>=0.28.1
 
 # dev / test / lint
-pytest>=8.2.0
-pytest-asyncio>=0.23.0
-ruff>=0.4.0
-mypy>=1.10.0
+pytest>=9.1.1
+pytest-asyncio>=1.4.0
+ruff>=0.15.20
+mypy>=2.2.0

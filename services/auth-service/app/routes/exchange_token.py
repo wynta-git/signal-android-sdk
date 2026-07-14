@@ -9,6 +9,7 @@ from app.cache import get_redis
 from app.config import settings
 from shared.auth.external_token import InvalidExternalTokenError, validate_external_jwt
 from shared.auth.portal_token import PORTAL_JWT_ALGORITHM, PORTAL_JWT_ISSUER, PORTAL_TOKEN_TYPE
+from shared.services.system_user import ensure_system_user_provisioned, get_system_user_display_name
 
 router = APIRouter()
 log = structlog.get_logger()
@@ -49,6 +50,12 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
             detail={"code": "invalid_token", "message": "Invalid or expired token"},
         )
 
+    # Bridging this external identity into the portal for the first time —
+    # ensure it has a system_user + user_site_role row (best-effort, never raises).
+    await ensure_system_user_provisioned(
+        get_redis(), external_id=ext_ctx.sub, email=ext_ctx.email, program_key=ext_ctx.project_id,
+    )
+
     db = request.app.state.mongo[settings.mongo_db]
     doc = await db[_SERVICE_ACCOUNTS_COLLECTION].find_one(
         {"username": _PORTAL_UI_ACCOUNT, "status": "active"}
@@ -57,6 +64,10 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
         log.error("exchange_token_portal_ui_account_missing")
         raise HTTPException(status_code=503, detail={"code": "misconfigured", "message": "Service account not found"})
 
+    display_name = await get_system_user_display_name(ext_ctx.sub, get_redis())
+    if display_name is None:
+        display_name = ext_ctx.email.split("@")[0]  # best-effort fallback only
+
     now = int(datetime.now(tz=timezone.utc).timestamp())
     payload = {
         "sub": _PORTAL_UI_ACCOUNT,
@@ -64,6 +75,7 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
         "type": PORTAL_TOKEN_TYPE,
         "project_id": ext_ctx.project_id,
         "user_id": ext_ctx.sub,
+        "dn": display_name,
         "iat": now,
         "exp": now + settings.portal_token_ttl,
         "scope": list(doc.get("scope", [])),

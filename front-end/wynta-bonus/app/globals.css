@@ -1106,19 +1106,22 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; justify-content: center;
   z-index: 200;
   padding: 32px 24px;
+  padding-top: 75px;
   animation: modal-fade 0.18s ease;
 }
 @keyframes modal-fade {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-.modal {
+.modal.modal {
+  position: static; top: auto; left: auto; right: auto; bottom: auto;
   background: #fff;
   border-radius: var(--rxl);
   box-shadow: 0 24px 60px rgba(0,0,0,0.22);
   display: flex; flex-direction: column;
   width: 100%;
   max-width: 920px;
+  height: auto;
   max-height: calc(100vh - 64px);
   overflow: hidden;
   animation: modal-rise 0.22s cubic-bezier(0.4,0,0.2,1);
@@ -1174,13 +1177,27 @@ a { color: inherit; text-decoration: none; }
 }
 .modal .close {
   background: transparent; border: none;
-  color: var(--g400);
+  color: #6c757d;
   width: 32px; height: 32px; border-radius: var(--r);
   display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
 .modal .close:hover { background: var(--g100); color: var(--g700); }
+
+.asm-close {
+  color: #9aa0a6;
+  cursor: pointer;
+  background: 0 0;
+  border: none;
+  border-radius: 5px;
+  justify-content: center;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  transition: background .12s, color .12s;
+  display: inline-flex;
+}
 
 .modal-toolbar {
   flex-shrink: 0;
@@ -1718,7 +1735,10 @@ a { color: inherit; text-decoration: none; }
 .empty-state .hint { font-size: 12px; color: var(--g400); margin-top: 6px; }
 
 /* ---------- Card primitive ---------- */
-.card {
+.card.card {
+  display: block !important;
+  position: static; top: auto; left: auto; right: auto; bottom: auto;
+  z-index: auto;
   background: #fff;
   border: 1px solid var(--g200);
   border-radius: var(--rl);
@@ -1729,7 +1749,7 @@ a { color: inherit; text-decoration: none; }
   border-color: var(--bm);
   box-shadow: var(--shm);
 }
-.card-header {
+.card-header.card-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: 18px 22px;
   border-bottom: 1px solid var(--g150);
@@ -2461,20 +2481,30 @@ a { color: inherit; text-decoration: none; }
 }
 .at-row:hover .at-arrow { background: var(--g100); }
 .at-arrow.open { transform: rotate(90deg); }
-.at-raw {
+.at-detail {
   margin: 2px 0 10px 60px;
-  padding: 10px 12px;
+  padding: 4px 14px;
   background: var(--g50);
   border: 1px solid var(--g150);
   border-radius: var(--rl);
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--g700);
+  max-height: 320px;
   overflow: auto;
-  max-height: 260px;
-  white-space: pre;
   position: relative; z-index: 1;
+}
+.at-detail-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 16px;
+  padding: 8px 0; border-top: 1px dashed var(--g150);
+  font-size: 12px;
+}
+.at-detail-row:first-child { border-top: none; }
+.at-detail-row .k {
+  color: var(--g500); flex-shrink: 0;
+  font-size: 11px;
+}
+.at-detail-row .v {
+  color: var(--g900); font-weight: 600;
+  text-align: right; word-break: break-word;
 }
 
 /* player profile — recent activity events */
@@ -2715,6 +2745,7 @@ a { color: inherit; text-decoration: none; }
   transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 40;
   display: flex; flex-direction: column;
+  padding-top: 50px;
 }
 .drawer.open { transform: translateX(0); }
 .drawer.drawer-left {
@@ -2794,7 +2825,7 @@ a { color: inherit; text-decoration: none; }
 /* Configure wizard dialog */
 .cfg-dialog {
   position: fixed;
-  top: 50%; left: 50%;
+  top: 53%; left: 50%;
   transform: translate(-50%, -46%) scale(0.97);
   width: min(600px, 95vw);
   max-height: 90vh;
@@ -2804,6 +2835,7 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 24px 64px rgba(15,23,42,0.18), 0 4px 16px rgba(15,23,42,0.08);
   z-index: 40;
   display: flex; flex-direction: column;
+  padding-top: 8px;
   opacity: 0;
   transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.34,1.4,0.64,1);
   pointer-events: none;
