@@ -1,13 +1,13 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
+import Markdown from 'markdown-to-jsx';
 import Icon from '../Icon';
 import EmptyState from '../EmptyState';
 import { useCommonSelector } from '../../store/hooks';
 import {
   openCopilot,
   closeCopilot,
-  setCopilotTab,
   sendMessage,
   selectCopilotOpen,
   selectCopilotTab,
@@ -15,12 +15,6 @@ import {
   selectCopilotStatus,
 } from '../../store/slices/copilotSlice';
 import { COPILOT_SUGGESTIONS } from '../../services/copilotApi';
-import type { CopilotTab } from '../../types';
-
-const TABS: { id: CopilotTab; label: string; icon: string }[] = [
-  { id: 'thread', label: 'Thread', icon: 'message-square' },
-  { id: 'copilot', label: 'AI Co-pilot', icon: 'layers' },
-];
 
 export default function CopilotPanel() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -77,7 +71,7 @@ export default function CopilotPanel() {
       {!isOpen && (
         <button
           className="copilot-fab"
-          title="AI Co-pilot"
+          title="Wynta AI"
           onClick={() => dispatch(openCopilot())}
         >
           <Icon name="sparkles" size={22} />
@@ -86,23 +80,10 @@ export default function CopilotPanel() {
       <aside className={'copilot-panel' + (isOpen ? ' open' : '')} aria-hidden={!isOpen}>
       <div className="copilot-header">
         <Icon name="message-square" size={18} />
-        <span className="copilot-title">AI Co-pilot</span>
+        <span className="copilot-title">Wynta AI</span>
         <button className="copilot-close" title="Close" onClick={() => dispatch(closeCopilot())}>
           <Icon name="x" size={16} />
         </button>
-      </div>
-
-      <div className="copilot-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={'copilot-tab' + (activeTab === t.id ? ' active' : '')}
-            onClick={() => dispatch(setCopilotTab(t.id))}
-          >
-            <Icon name={t.icon} size={15} />
-            <span>{t.label}</span>
-          </button>
-        ))}
       </div>
 
       {activeTab === 'thread' ? (
@@ -139,7 +120,7 @@ export default function CopilotPanel() {
               <div className="copilot-msgs">
                 {messages.map((m) => (
                   <div key={m.id} className={'copilot-msg ' + m.role}>
-                    {m.text}
+                    {m.role === 'assistant' ? <Markdown>{m.text}</Markdown> : m.text}
                   </div>
                 ))}
                 {thinking && (

@@ -4733,19 +4733,44 @@ body {
   padding: 9px 13px;
   border-radius: var(--rl);
   font-size: 13.5px; line-height: 1.5;
-  white-space: pre-wrap;
   overflow-wrap: break-word;
 }
 .copilot-msg.user {
   align-self: flex-end;
   background: var(--blue); color: #fff;
   border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
 }
 .copilot-msg.assistant {
   align-self: flex-start;
   background: var(--g100); color: var(--g900);
   border-bottom-left-radius: 4px;
 }
+.copilot-msg.assistant > *:first-child { margin-top: 0; }
+.copilot-msg.assistant > *:last-child { margin-bottom: 0; }
+.copilot-msg.assistant p, .copilot-msg.assistant ul, .copilot-msg.assistant ol {
+  margin: 0 0 8px;
+}
+.copilot-msg.assistant h1, .copilot-msg.assistant h2, .copilot-msg.assistant h3,
+.copilot-msg.assistant h4, .copilot-msg.assistant h5, .copilot-msg.assistant h6 {
+  margin: 14px 0 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.copilot-msg.assistant ul, .copilot-msg.assistant ol { padding-left: 18px; }
+.copilot-msg.assistant li { margin: 4px 0; }
+.copilot-msg.assistant li > ul, .copilot-msg.assistant li > ol { margin: 4px 0 10px; padding-left: 16px; }
+.copilot-msg.assistant li:has(> ul), .copilot-msg.assistant li:has(> ol) { margin-bottom: 10px; }
+.copilot-msg.assistant code {
+  background: var(--g200); border-radius: 4px;
+  padding: 1px 5px; font-size: 12.5px;
+}
+.copilot-msg.assistant pre {
+  background: var(--g200); border-radius: 6px;
+  padding: 8px 10px; overflow-x: auto; margin: 0 0 8px;
+}
+.copilot-msg.assistant pre code { background: none; padding: 0; }
+.copilot-msg.assistant a { color: var(--blue); }
 
 .copilot-typing { display: flex; gap: 4px; padding: 13px; }
 .copilot-typing span {
