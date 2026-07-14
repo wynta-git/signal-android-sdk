@@ -52,6 +52,7 @@ export type CopilotTab = 'thread' | 'copilot';
 
 export interface CopilotContext {
   module: string;
+  site_id: number | null;
 }
 
 // ── Segments & Players ────────────────────────────────────────────────────────

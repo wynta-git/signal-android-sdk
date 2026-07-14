@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, nanoid } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { sendCopilotMessage } from '../../services/copilotApi';
+import { getBrandId } from '../../services/tokenRegistry';
 import type { CopilotMessage, CopilotTab } from '../../types';
 
 interface CopilotState {
@@ -23,7 +24,7 @@ export const sendMessage = createAsyncThunk<string, string, { state: { copilot: 
   'copilot/sendMessage',
   (text, thunkAPI) => {
     const module = thunkAPI.getState().copilot.module;
-    const context = module ? { module } : null;
+    const context = module ? { module, site_id: getBrandId() } : null;
     return sendCopilotMessage(text, context);
   },
 );
