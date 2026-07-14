@@ -298,7 +298,7 @@ async def handle_bonus_grant(
                 bonus_code=promo_code, chip_type=cfg.credit_chip_type,
                 grant_amount=grant_amount, chunks=chunks, resulting_balance=resulting_balance,
             )
-            await send_bonus_webhook(redis, site_id, "BONUS_GRANTED", payload)
+            await send_bonus_webhook(redis, site_id, pam_user_id, "BONUS_GRANTED", payload)
 
     # ── Write cashback grant (if configured) ──────────────────────────────────
     if cashback_amount > 0:
@@ -324,6 +324,6 @@ async def handle_bonus_grant(
                 bonus_code=promo_code, chip_type=cfg.credit_chip_type,
                 grant_amount=cashback_amount, chunks=cashback_chunks, resulting_balance=resulting_balance,
             )
-            await send_bonus_webhook(redis, site_id, "BONUS_GRANTED", payload)
+            await send_bonus_webhook(redis, site_id, pam_user_id, "BONUS_GRANTED", payload)
 
     return grant_id

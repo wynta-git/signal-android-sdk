@@ -158,6 +158,14 @@ async def list_events(limit: int = 50) -> list[dict]:
     return received_events[-limit:]
 
 
+@router.get("/health")
+async def health_prefixed() -> dict:
+    # Duplicate of the root /health, reachable at /api/v1/webhook/health too —
+    # some deployments (e.g. a reverse proxy that only forwards paths under
+    # this prefix to the receiver) can't reach the unprefixed root route.
+    return {"status": "ok", "events_received": len(received_events)}
+
+
 route_prefix = "/api/v1/webhook"
 app.include_router(router, prefix=route_prefix)
 

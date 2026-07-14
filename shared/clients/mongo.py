@@ -714,6 +714,48 @@ async def create_notification_delivery_indexes(db: AsyncIOMotorDatabase) -> None
     )
 
 
+async def create_webhook_delivery_indexes(db: AsyncIOMotorDatabase) -> None:
+    """Shared collection for outbound-webhook delivery audit logs.
+
+    Any service that sends webhooks to third parties writes here via
+    record_webhook_delivery, tagged with its own `service` name — not just
+    bonus. Rows auto-expire after 90 days.
+    """
+    await db["webhook_deliveries"].create_index(
+        [("service", 1), ("site_id", 1), ("pam_user_id", 1)]
+    )
+    await db["webhook_deliveries"].create_index(
+        "sent_at",
+        expireAfterSeconds=90 * 86400,
+    )
+
+
+async def record_webhook_delivery(
+    db: AsyncIOMotorDatabase,
+    *,
+    service: str,
+    site_id: int,
+    pam_user_id: int,
+    transaction_type: str,
+    request: dict[str, Any],
+    response: dict[str, Any],
+    success: bool,
+    attempts: int,
+    sent_at: datetime,
+) -> None:
+    await db["webhook_deliveries"].insert_one({
+        "service": service,
+        "site_id": site_id,
+        "pam_user_id": pam_user_id,
+        "transaction_type": transaction_type,
+        "request": request,
+        "response": response,
+        "success": success,
+        "attempts": attempts,
+        "sent_at": sent_at,
+    })
+
+
 async def upsert_device_token(
     db: AsyncIOMotorDatabase,
     project_id: str,

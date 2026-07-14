@@ -80,8 +80,8 @@ async def test_release_all_chunks_emits_bonus_released_webhook(
 
     sent = []
 
-    async def fake_send(redis, site_id, event_type, payload):
-        sent.append((site_id, event_type, payload))
+    async def fake_send(redis, site_id, pam_user_id, event_type, payload):
+        sent.append((site_id, pam_user_id, event_type, payload))
 
     monkeypatch.setattr(
         "app.bonus_event_processor.chunk_release_handler.send_bonus_webhook", fake_send,
@@ -98,8 +98,9 @@ async def test_release_all_chunks_emits_bonus_released_webhook(
     )
 
     assert len(sent) == 1
-    site_id, event_type, payload = sent[0]
+    site_id, pam_user_id, event_type, payload = sent[0]
     assert site_id == 1
+    assert pam_user_id == 9001
     assert event_type == "BONUS_RELEASED"
     assert payload["player_id"] == "P123"
     assert payload["bonus_code"] == "WELCOME100"
