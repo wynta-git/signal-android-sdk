@@ -7,6 +7,7 @@ import os
 import signal
 
 import structlog
+from redis.asyncio import Redis
 
 from app.config import settings
 from app.db import close_pool, init_pool
@@ -54,7 +55,7 @@ structlog.configure(
 log = structlog.get_logger()
 
 
-async def _run_scheduler(stop_event: asyncio.Event) -> None:
+async def _run_scheduler(stop_event: asyncio.Event, redis: Redis) -> None:
     log.info(
         "bonus_scheduler.starting",
         interval_minutes=settings.scheduler_interval_minutes,
@@ -63,8 +64,8 @@ async def _run_scheduler(stop_event: asyncio.Event) -> None:
     while not stop_event.is_set():
         try:
             await asyncio.gather(
-                run_chunk_expiry_job(settings.scheduler_batch_size),
-                run_bonus_forfeit_job(settings.scheduler_batch_size),
+                run_chunk_expiry_job(settings.scheduler_batch_size, redis),
+                run_bonus_forfeit_job(settings.scheduler_batch_size, redis),
             )
         except Exception:
             log.exception("bonus_scheduler.job_error")
@@ -94,7 +95,7 @@ async def main() -> None:
     stop_event            = asyncio.Event()
     consumer_task         = asyncio.create_task(run_consumer(redis))
     manual_bonus_task     = asyncio.create_task(run_manual_bonus_consumer(redis))
-    scheduler_task        = asyncio.create_task(_run_scheduler(stop_event))
+    scheduler_task        = asyncio.create_task(_run_scheduler(stop_event, redis))
 
     loop = asyncio.get_running_loop()
 

@@ -20,13 +20,18 @@ from redis.asyncio import Redis
 
 from app.config import settings
 from app.models.bonus_release_trigger import TriggerWithConfigResponse
+from app.bonus_event_processor.webhook_payloads import build_bonus_released_payload, chunk_entry
+from app.bonus_event_processor.webhook_sender import get_resulting_balance, send_bonus_webhook
 
 log = structlog.get_logger(__name__)
 
 _PENDING_CHUNKS_SQL = """
     SELECT bc.id, bc.chunk_amount, bc.bonus_grant_id, bc.required_wager_amount, bc.wager_amount,
-           bc.wager_multiplier, bc.product_wager_multiplier
+           bc.wager_multiplier, bc.product_wager_multiplier,
+           bc.chunk_ref, bg.bonus_code, bg.no_of_chunks, bg.credit_chip_type,
+           DATE_ADD(bc.created_at, INTERVAL bg.chunk_expiry_days DAY), bg.wager_chip_type
     FROM bonus_chunk bc
+    JOIN bonus_grant bg ON bg.id = bc.bonus_grant_id
     WHERE bc.site_id = %s AND bc.pam_user_id = %s AND bc.release_status IN ('PENDING', 'INIT')
     ORDER BY bc.id ASC
 """
@@ -57,7 +62,7 @@ _UPDATE_GRANT_RELEASE_SQL = """
 """
 
 _ALL_PENDING_CHUNKS_SQL = """
-    SELECT id, chunk_amount
+    SELECT id, chunk_amount, chunk_ref, required_wager_amount
     FROM bonus_chunk
     WHERE bonus_grant_id = %s
       AND release_status = 'PENDING'
@@ -213,6 +218,7 @@ async def handle_chunk_release(
     released_count = 0
     total_wager    = Decimal("0.00")
     total_release  = Decimal("0.00")
+    by_grant: dict[int, dict[str, Any]] = {}
 
     for row in chunks:
         if remaining <= Decimal("0.00"):
@@ -224,6 +230,12 @@ async def handle_chunk_release(
         required          = Decimal(str(row[3]))
         curr_wager        = Decimal(str(row[4]))
         wager_multiplier  = Decimal(str(row[5]))
+        chunk_ref         = row[7]
+        bonus_code        = row[8]
+        chunk_count       = row[9]
+        chip_type         = row[10]
+        expires_at        = row[11]
+        wager_chip_type   = row[12]
 
         product_wager_multiplier = _parse_product_wager_multiplier(row[6])
         effective_multiplier = wager_multiplier
@@ -263,11 +275,34 @@ async def handle_chunk_release(
             release_status=release_status,
         )
 
+        if event_release > Decimal("0.00"):
+            grant_bucket = by_grant.setdefault(grant_id, {
+                "bonus_code": bonus_code, "chip_type": chip_type, "wager_chip_type": wager_chip_type,
+                "amount": Decimal("0.00"), "chunks": [],
+            })
+            grant_bucket["amount"] += event_release
+            grant_bucket["chunks"].append(chunk_entry(
+                chunk_ref=chunk_ref, sequence=int(chunk_ref[2:]) if chunk_ref else 0,
+                chunk_count=chunk_count, amount=event_release, wager_amount=new_wager,
+                status=release_status, expires_at=expires_at,
+            ))
+
     async with conn.cursor() as cur:
         await cur.execute(_UPDATE_BONUS_RELEASE_TOTALS_SQL, (float(total_wager), float(total_release), bonus_release_id))
 
     await conn.commit()
     await redis.set(dedup_key, "1", ex=settings.dedup_event_ttl)
+
+    external_user_id = props.get("user_id")
+    if external_user_id and by_grant:
+        for grant_id, bucket in by_grant.items():
+            resulting_balance = await get_resulting_balance(pam_user_id, bucket["wager_chip_type"])
+            payload = build_bonus_released_payload(
+                site_id=site_id, player_id=str(external_user_id), grant_id=grant_id,
+                bonus_code=bucket["bonus_code"], chip_type=bucket["chip_type"],
+                amount=bucket["amount"], chunks=bucket["chunks"], resulting_balance=resulting_balance,
+            )
+            await send_bonus_webhook(redis, site_id, "BONUS_RELEASED", payload)
 
     log.info(
         "chunk_release_complete",
@@ -285,6 +320,11 @@ async def release_all_chunks(
     site_id: int,
     event_id: str,
     pam_user_id: int,
+    bonus_code: str | None = None,
+    chip_type: str | None = None,
+    wager_chip_type: str | None = None,
+    external_user_id: str | None = None,
+    redis: Redis | None = None,
 ) -> None:
     """Release all PENDING chunks for a grant in one pass.
 
@@ -329,3 +369,21 @@ async def release_all_chunks(
         chunk_count=len(chunks),
         total_released=str(total),
     )
+
+    if external_user_id and redis is not None:
+        chunk_count = len(chunks)
+        entries = [
+            chunk_entry(
+                chunk_ref=row[2], sequence=int(row[2][2:]) if row[2] else 0,
+                chunk_count=chunk_count, amount=row[1], wager_amount=row[3],
+                status="RELEASE", expires_at=None,
+            )
+            for row in chunks
+        ]
+        resulting_balance = await get_resulting_balance(pam_user_id, wager_chip_type)
+        payload = build_bonus_released_payload(
+            site_id=site_id, player_id=str(external_user_id), grant_id=bonus_grant_id,
+            bonus_code=bonus_code, chip_type=chip_type or "",
+            amount=Decimal(str(total)), chunks=entries, resulting_balance=resulting_balance,
+        )
+        await send_bonus_webhook(redis, site_id, "BONUS_RELEASED", payload)
