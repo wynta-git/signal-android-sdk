@@ -15,6 +15,7 @@ from app.bonus_event_processor.consumer import run_consumer
 from app.bonus_event_processor.manual_bonus_consumer import run_manual_bonus_consumer
 from app.bonus_event_processor.chunk_expiry_job import run_chunk_expiry_job
 from app.bonus_event_processor.bonus_forfeit_job import run_bonus_forfeit_job
+from app.bonus_event_processor.webhook_sender import close_webhook_audit, init_webhook_audit
 from shared.clients.redis import make_redis_client
 
 
@@ -92,6 +93,11 @@ async def main() -> None:
     redis = make_redis_client(settings.redis_url)
     log.info("bonus_consumer_redis_ready", url=settings.redis_url)
 
+    await init_webhook_audit(
+        settings.mongo_url, settings.mongo_db, settings.mongo_min_pool_size, settings.mongo_max_pool_size,
+    )
+    log.info("bonus_consumer_webhook_audit_ready")
+
     stop_event            = asyncio.Event()
     consumer_task         = asyncio.create_task(run_consumer(redis))
     manual_bonus_task     = asyncio.create_task(run_manual_bonus_consumer(redis))
@@ -115,6 +121,7 @@ async def main() -> None:
     finally:
         await close_pool()
         await redis.aclose()
+        await close_webhook_audit()
 
 
 if __name__ == "__main__":

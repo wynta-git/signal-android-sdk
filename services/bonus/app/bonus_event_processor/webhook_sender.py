@@ -16,14 +16,21 @@ import hmac
 import json
 import random
 import time
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 import httpx
 import structlog
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pydantic import BaseModel, Field, field_validator
 from redis.asyncio import Redis
 
 from app.bonus_event_processor.webhook_payloads import resulting_balance_entry
+from shared.clients.mongo import (
+    create_webhook_delivery_indexes,
+    make_mongo_client,
+    record_webhook_delivery,
+)
 from shared.services.client import get_clients_by_site, get_site_config
 
 log = structlog.get_logger(__name__)
@@ -33,6 +40,33 @@ _http_client = httpx.AsyncClient()
 
 _RETRY_BACKOFF = 1.0  # seconds, doubles each attempt, +/- jitter
 _S2S_CLIENT_TTL = 300  # seconds
+
+# Discriminator tag stored on every audit row written to the shared
+# webhook_deliveries collection (shared.clients.mongo) — other services
+# writing to the same collection use their own service name.
+_SERVICE_NAME = "bonus"
+_mongo_client: AsyncIOMotorClient | None = None
+_mongo_db: AsyncIOMotorDatabase | None = None
+
+
+async def init_webhook_audit(
+    mongo_url: str, mongo_db_name: str, min_pool_size: int, max_pool_size: int,
+) -> None:
+    """Open the Mongo connection used to audit-log webhook deliveries.
+
+    Call once at process startup (bonus_event_processor/main.py). Safe to skip
+    in tests — _record_delivery no-ops when this was never called.
+    """
+    global _mongo_client, _mongo_db
+    _mongo_client = make_mongo_client(mongo_url, min_pool_size=min_pool_size, max_pool_size=max_pool_size)
+    _mongo_db = _mongo_client[mongo_db_name]
+    await create_webhook_delivery_indexes(_mongo_db)
+    log.info("bonus_webhook.audit_db_ready", mongo_db=mongo_db_name)
+
+
+async def close_webhook_audit() -> None:
+    if _mongo_client is not None:
+        _mongo_client.close()
 
 
 class WebhookEndpointConfig(BaseModel):
@@ -129,9 +163,14 @@ async def _send_with_retry(
     raw_body: bytes,
     headers: dict[str, str],
     event_type: str,
-) -> bool:
+) -> tuple[bool, int | None, str, int]:
+    """Returns (success, last_status_code, last_response_body, attempts_made)."""
     attempts = cfg.retry_count + 1
+    last_status: int | None = None
+    last_body: str = ""
+    made = 0
     for attempt in range(attempts):
+        made = attempt + 1
         log.info(
             "bonus_webhook.request_initiated",
             url=cfg.url, method=cfg.method, event_type=event_type, attempt=attempt + 1,
@@ -141,11 +180,15 @@ async def _send_with_retry(
                 cfg.method, cfg.url, content=raw_body, headers=headers, timeout=cfg.timeout,
             )
         except (httpx.TimeoutException, httpx.TransportError) as exc:
+            last_status = None
+            last_body = str(exc)
             log.warning(
                 "bonus_webhook.request_failed",
                 url=cfg.url, event_type=event_type, attempt=attempt + 1, error=str(exc),
             )
         else:
+            last_status = response.status_code
+            last_body = response.text
             log.info(
                 "bonus_webhook.response_received",
                 url=cfg.url, event_type=event_type, attempt=attempt + 1,
@@ -153,7 +196,7 @@ async def _send_with_retry(
             )
             if 200 <= response.status_code < 300:
                 log.info("bonus_webhook.send_success", url=cfg.url, event_type=event_type)
-                return True
+                return True, last_status, last_body, made
             if 400 <= response.status_code < 500:
                 # Permanent failure — retrying won't help.
                 log.error(
@@ -161,7 +204,7 @@ async def _send_with_retry(
                     url=cfg.url, event_type=event_type, status_code=response.status_code,
                     body=response.text[:500],
                 )
-                return False
+                return False, last_status, last_body, made
             # 5xx — treated as transient, falls through to retry below.
             log.warning(
                 "bonus_webhook.response_transient_error",
@@ -177,7 +220,7 @@ async def _send_with_retry(
             await asyncio.sleep(delay)
 
     log.error("bonus_webhook.send_failed_exhausted", url=cfg.url, event_type=event_type)
-    return False
+    return False, last_status, last_body, made
 
 
 async def get_resulting_balance(pam_user_id: int, chip_type: str | None) -> dict[str, str]:
@@ -206,9 +249,54 @@ async def get_resulting_balance(pam_user_id: int, chip_type: str | None) -> dict
     )
 
 
+async def _record_delivery(
+    *,
+    site_id: int,
+    pam_user_id: int,
+    event_type: str,
+    cfg: WebhookEndpointConfig,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+    success: bool,
+    status_code: int | None,
+    response_body: str,
+    attempts: int,
+) -> None:
+    """Audit-log one webhook delivery outcome to the shared Mongo collection. Never raises."""
+    if _mongo_db is None:
+        return
+    try:
+        await record_webhook_delivery(
+            _mongo_db,
+            service=_SERVICE_NAME,
+            site_id=site_id,
+            pam_user_id=pam_user_id,
+            transaction_type=event_type,
+            request={
+                "url": cfg.url,
+                "method": cfg.method,
+                "headers": headers,
+                "body": payload,
+            },
+            response={
+                "status_code": status_code,
+                "body": response_body[:500] if response_body else response_body,
+            },
+            success=success,
+            attempts=attempts,
+            sent_at=datetime.now(timezone.utc),
+        )
+    except Exception as exc:
+        log.warning(
+            "bonus_webhook.audit_write_failed",
+            site_id=site_id, event_type=event_type, error=str(exc),
+        )
+
+
 async def send_bonus_webhook(
     redis: Redis,
     site_id: int,
+    pam_user_id: int,
     event_type: str,
     payload: dict[str, Any],
 ) -> None:
@@ -238,7 +326,14 @@ async def send_bonus_webhook(
         raw_body = json.dumps(payload).encode()
         for cfg in matches:
             headers = _build_headers(cfg, raw_body, s2s_client_id)
-            await _send_with_retry(cfg, raw_body, headers, event_type)
+            success, status_code, response_body, attempts = await _send_with_retry(
+                cfg, raw_body, headers, event_type,
+            )
+            await _record_delivery(
+                site_id=site_id, pam_user_id=pam_user_id, event_type=event_type,
+                cfg=cfg, headers=headers, payload=payload,
+                success=success, status_code=status_code, response_body=response_body, attempts=attempts,
+            )
     except Exception as exc:
         log.error(
             "bonus_webhook.unexpected_error",

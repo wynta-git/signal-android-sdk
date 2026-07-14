@@ -302,7 +302,7 @@ async def handle_chunk_release(
                 bonus_code=bucket["bonus_code"], chip_type=bucket["chip_type"],
                 amount=bucket["amount"], chunks=bucket["chunks"], resulting_balance=resulting_balance,
             )
-            await send_bonus_webhook(redis, site_id, "BONUS_RELEASED", payload)
+            await send_bonus_webhook(redis, site_id, pam_user_id, "BONUS_RELEASED", payload)
 
     log.info(
         "chunk_release_complete",
@@ -386,4 +386,4 @@ async def release_all_chunks(
             bonus_code=bonus_code, chip_type=chip_type or "",
             amount=Decimal(str(total)), chunks=entries, resulting_balance=resulting_balance,
         )
-        await send_bonus_webhook(redis, site_id, "BONUS_RELEASED", payload)
+        await send_bonus_webhook(redis, site_id, pam_user_id, "BONUS_RELEASED", payload)

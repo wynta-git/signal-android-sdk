@@ -151,4 +151,4 @@ async def _dispatch_forfeit_webhooks(redis: Redis, webhook_events: list[dict]) -
             bonus_code=evt["bonus_code"], chip_type=evt["chip_type"], amount=evt["amount"],
             chunks=evt["chunks"], resulting_balance=resulting_balance,
         )
-        await send_bonus_webhook(redis, evt["site_id"], "BONUS_FORFEITED", payload)
+        await send_bonus_webhook(redis, evt["site_id"], pam_user_id, "BONUS_FORFEITED", payload)

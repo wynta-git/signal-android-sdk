@@ -388,17 +388,6 @@ function BonusShell() {
             ),
         },
         {
-          icon: "filter",
-          label: "Add Eligibility",
-          onClick: () =>
-            dispatch(
-              openDrawer({
-                type: "NEW_ELIGIBILITY",
-                parentId: id,
-              } as DrawerState),
-            ),
-        },
-        {
           icon: "wallet",
           label: "Manage Budget",
           onClick: () =>
