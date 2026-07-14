@@ -134,7 +134,7 @@ app.include_router(track_router, prefix=route_prefix)
 app.include_router(identify_router, prefix=route_prefix)
 app.include_router(alias_router, prefix=route_prefix)
 app.include_router(ready_router, prefix=route_prefix)
-app.include_router(notifications_router, prefix="/api/v1")
+app.include_router(notifications_router, prefix=route_prefix)
 
 
 @app.get("/api/v1/events/health", include_in_schema=False)
