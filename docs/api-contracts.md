@@ -103,7 +103,7 @@ Merge two user ids (e.g. login flows that bridge two known users).
 ```
 
 ### `GET /v1/notifications/inbox`
-Fetch pending in_app notifications for a user. Mounted in code at `/api/v1/notifications/inbox` (separate prefix from the `/api/v1/events/...` ingestion routes above, since this is a read/update surface, not event ingestion).
+Fetch pending in_app notifications for a user. Mounted in code at `/api/v1/events/notifications/inbox` — under the same `/api/v1/events` prefix as the ingestion routes above (`track`/`identify`/`alias`).
 
 **Query params**: `user_id` (required), `unread_only` (bool, default `false`), `cursor` (opaque, from a previous response), `limit` (default 20, max 100).
 
