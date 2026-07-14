@@ -7,7 +7,7 @@ service's webhook sender, verifies auth (Bearer or the proposed
 HMAC-SHA256 scheme), and prints + logs every event received.
 
 Point a site's webhook_config `url` at this receiver, e.g.:
-    http://localhost:8999/api/v1/bonus/wallet-update
+    http://localhost:8999/api/v1/webhook/wallet-update
 
 Run:
     ./start.sh
@@ -24,7 +24,7 @@ import time
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from shared.logging_config import configure_logging
@@ -44,6 +44,7 @@ WEBHOOK_BEARER_TOKEN = os.environ.get("WEBHOOK_BEARER_TOKEN", "abc@123456")
 REPLAY_WINDOW_SECONDS = 300
 
 app = FastAPI(title="Bonus Webhook Test Receiver")
+router = APIRouter()
 
 received_events: list[dict] = []
 _MAX_KEPT_EVENTS = 200
@@ -97,7 +98,7 @@ def _log_event(record: dict) -> None:
     log.info("webhook_receiver.event_received", **record)
 
 
-@app.post("/{path:path}")
+@router.post("/{path:path}")
 async def receive_webhook(path: str, request: Request) -> JSONResponse:
     raw_body = await request.body()
     client_id = request.headers.get("x-client-id")
@@ -152,11 +153,15 @@ async def receive_webhook(path: str, request: Request) -> JSONResponse:
     return JSONResponse(response_body, status_code=response_status)
 
 
-@app.get("/events")
+@router.get("/events")
 async def list_events(limit: int = 50) -> list[dict]:
     return received_events[-limit:]
 
 
-@app.get("/health")
+route_prefix = "/api/v1/webhook"
+app.include_router(router, prefix=route_prefix)
+
+
+@app.get("/health", include_in_schema=False)
 async def health() -> dict:
     return {"status": "ok", "events_received": len(received_events)}
