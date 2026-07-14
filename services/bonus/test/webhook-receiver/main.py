@@ -22,18 +22,26 @@ import json
 import os
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+
+from shared.logging_config import configure_logging
+
+# Same rotating-JSON-file + stdout convention as bonus-service/auth-service —
+# writes to {project_root}/logs/webhook-receiver.log. Requires PYTHONPATH to
+# include the repo root (see start.sh / the systemd unit's Environment=).
+configure_logging(
+    log_dir=os.environ.get("LOG_DIR") or None,
+    log_level=os.environ.get("LOG_LEVEL", "INFO"),
+    service_name="webhook-receiver",
+)
+log = structlog.get_logger(__name__)
 
 WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "wirefrog-v1")
 WEBHOOK_BEARER_TOKEN = os.environ.get("WEBHOOK_BEARER_TOKEN", "abc@123456")
 REPLAY_WINDOW_SECONDS = 300
-
-LOG_DIR = Path(__file__).parent / "logs"
-LOG_DIR.mkdir(exist_ok=True)
-LOG_FILE = LOG_DIR / "webhook-events.log"
 
 app = FastAPI(title="Bonus Webhook Test Receiver")
 
@@ -86,8 +94,7 @@ def _print_event(record: dict) -> None:
 
 
 def _log_event(record: dict) -> None:
-    with LOG_FILE.open("a") as f:
-        f.write(json.dumps(record) + "\n")
+    log.info("webhook_receiver.event_received", **record)
 
 
 @app.post("/{path:path}")
