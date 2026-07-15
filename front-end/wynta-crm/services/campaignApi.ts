@@ -57,6 +57,48 @@ export interface ContentBlock {
   data: Record<string, string>;
 }
 
+// ── In-app template (variants) ──────────────────────────────────────────────
+
+export interface Media {
+  image_url?:          string;
+  background_color?:   string;
+  background_opacity?: 'opaque' | 'translucent' | 'transparent';
+}
+
+export interface Cta {
+  role:   'primary' | 'secondary';
+  label:  string;
+  action: 'deep_link' | 'external_url' | 'dismiss';
+  value?: string;   // required unless action === 'dismiss'
+}
+
+export type InAppTemplateType =
+  | 'modal' | 'popup_image' | 'rating' | 'fullscreen' | 'nudge'
+  | 'carousel' | 'survey' | 'lead_gen' | 'gamification' | 'html_nudge';
+
+export interface Variant {
+  variant_id?:              string;    // server-generated if omitted
+  weight:                   number;    // 0-100, all variants must sum to 100
+  template_type:            InAppTemplateType;
+  render_engine:            'native' | 'html';
+  title?:                   string;
+  body?:                    string;
+  media?:                   Media;
+  cta:                      Cta[];
+  close_button_visibility:  string;    // only "always" is confirmed for now
+  /* Shape depends on template_type — see docs/event-schema equivalent on the
+     backend (services/campaign-engine/app/models.py). Kept as a loose record
+     here (mirrors the backend's `dict | null`) rather than a discriminated
+     union, since the UI narrows on template_type itself. */
+  layout?:                  Record<string, any> | null;
+  web_view_url?:            string;    // optional — SDK loads a webview instead of native rendering
+}
+
+export interface InAppTemplate {
+  name?:    string;
+  variants: Variant[];
+}
+
 export interface Campaign {
   id:                   string;
   name:                 string;
@@ -71,6 +113,9 @@ export interface Campaign {
   trigger_type?:        string;
   trigger_event_name?:  string;
   trigger_criteria?:    TriggerCriteria;
+  // in_app only — hours until a delivered notification stops appearing in the
+  // inbox even if unread. undefined/omitted = never expires.
+  expires_in_hours?:    number;
   // Audience / Segment
   segment_id?:          string;
   segment_name?:        string;
@@ -81,6 +126,8 @@ export interface Campaign {
   deep_link?:           string;
   // Rich content blocks (non-push channels)
   content_blocks?:      ContentBlock[];
+  // In-app template variants (in_app channel only)
+  variants?:            Variant[];
   // Schedule
   schedule?:            CampaignSchedule;
   // Controls
@@ -120,6 +167,11 @@ interface RawCampaign {
   status:        CampaignStatus;
   tags?:         string;         // comma-separated string from backend
   objective?:    string;
+  // Top-level trigger_type (in_app channel only) — sibling of `trigger`,
+  // e.g. "on_session_start" | "on_screen_load" | "on_custom_event".
+  trigger_type?: string;
+  // in_app only — sibling of trigger_type above, same "top-level, not nested" shape.
+  expires_in_hours?: number | null;
   // Nested trigger
   trigger?: {
     type?:       string;
@@ -144,6 +196,10 @@ interface RawCampaign {
       deep_link?: string;
     };
   } | string;                    // some list responses may return just the string
+  // In-app template — top-level `variants` on the response doc (per
+  // campaign-engine's GET /campaign/.../:id route) when a channel.template
+  // was set on create/update.
+  variants?: Variant[];
   // Top-level message / notification fallback shapes
   message?: {
     title?:     string;
@@ -264,6 +320,10 @@ function toCampaign(r: RawCampaign): Campaign {
     // Trigger
     trigger_type:       r.trigger?.type,
     trigger_event_name: r.trigger?.event_name,
+    // in_app trigger selector (on_session_start | on_screen_load | on_custom_event) —
+    // sent/returned as a top-level `trigger_type` field, distinct from `trigger.type` above.
+    trigger_criteria:   (r.trigger_type as TriggerCriteria) ?? undefined,
+    expires_in_hours:   r.expires_in_hours ?? undefined,
     // Audience
     segment_id:    r.audience?.segment_id,
     platforms:     r.audience?.target_platforms ?? [],
@@ -272,6 +332,8 @@ function toCampaign(r: RawCampaign): Campaign {
     title:      msgTitle,
     content:    msgBody,
     deep_link:  msgDeepLink,
+    // In-app template variants (in_app channel only)
+    variants:   r.variants ?? undefined,
     // Schedule & delivery
     schedule,
     delivery_controls,
@@ -301,10 +363,14 @@ function mergePayload(from: Campaign, payload: Partial<CampaignPayload>): Campai
     platforms:         payload.platforms   ?? from.platforms,
     segment_id:        payload.segment_id  ?? from.segment_id,
     segment_name:      payload.segment_name?? from.segment_name,
+    trigger_criteria:  payload.trigger_criteria ?? from.trigger_criteria,
+    expires_in_hours:  payload.expires_in_hours ?? from.expires_in_hours,
     // Push notification content — critical: always prefer payload over response
     title:             payload.title       ?? from.title,
     content:           payload.content     ?? from.content,
     deep_link:         payload.deep_link   ?? from.deep_link,
+    // In-app template variants — same rationale as push content above
+    variants:          payload.variants    ?? from.variants,
     schedule:          payload.schedule    ?? from.schedule,
     delivery_controls: payload.delivery_controls ?? from.delivery_controls,
   };
@@ -351,6 +417,24 @@ export async function updateCampaign(projectId: string, campaignId: string, payl
   if (!res.ok) throw new Error(`updateCampaign failed: ${res.status}`);
   // Merge payload back — API response may not echo content fields
   return mergePayload(toCampaign(await res.json()), payload);
+}
+
+/**
+ * Uploads an image file (for in_app notification media) to S3 via campaign-engine
+ * and returns the public URL. Mirrors wynta-react-common/services/segmentApi.ts's
+ * multipart pattern — no Content-Type header, the browser sets the boundary itself.
+ */
+export async function uploadCampaignImage(projectId: string, file: File): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${campaignRoot(projectId)}/uploads/image`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: form,
+  });
+  if (!res.ok) throw new Error(`uploadCampaignImage failed: ${res.status}`);
+  const data = await res.json();
+  return data.image_url as string;
 }
 
 export async function deleteCampaign(projectId: string, campaignId: string): Promise<void> {
@@ -410,7 +494,14 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
     type:        p.channel ?? 'push',
     template_id: p.template_id ?? null,
   };
-  if (p.channel === 'push' || (!p.channel && p.title)) {
+  if (p.channel === 'in_app') {
+    // in_app never uses `message` — it carries a full multi-variant template
+    // nested under channel.template, mutually exclusive with template_id/message.
+    channelObj.template = {
+      name:     p.name ?? '',
+      variants: p.variants ?? [],
+    } satisfies InAppTemplate;
+  } else if (p.channel === 'push' || (!p.channel && p.title)) {
     channelObj.message = {
       title:     p.title     ?? '',
       body:      p.content   ?? '',
@@ -437,6 +528,11 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
         return s;
       })(),
     },
+    // in_app trigger selector — top-level field, sibling of `trigger` above
+    // (NOT nested inside it). Only meaningful for the in_app channel today.
+    ...(p.channel === 'in_app' && p.trigger_criteria ? { trigger_type: p.trigger_criteria } : {}),
+    // in_app notification expiry — same top-level, sibling-of-trigger shape.
+    ...(p.channel === 'in_app' && p.expires_in_hours != null ? { expires_in_hours: p.expires_in_hours } : {}),
     channel: channelObj,
     delivery: {
       rate_limit: {

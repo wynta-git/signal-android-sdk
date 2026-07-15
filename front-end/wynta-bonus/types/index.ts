@@ -287,7 +287,6 @@ export type DrawerType =
   | 'NEW_PROMOCODE'
   | 'EDIT_PROMOCODE'
   | 'CLONE_PROMOCODE'
-  | 'NEW_ELIGIBILITY'
   | 'NEW_TRIGGER'
   | 'EDIT_TRIGGER'
   | 'EDIT_CHUNKS'

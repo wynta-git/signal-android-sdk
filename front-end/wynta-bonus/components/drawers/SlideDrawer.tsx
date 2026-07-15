@@ -48,7 +48,6 @@ const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   NEW_PROMOCODE: { title: "Add Promo Code", icon: "ticket" },
   EDIT_PROMOCODE: { title: "Edit Promo Code", icon: "pencil" },
   CLONE_PROMOCODE: { title: "Clone Promo Code", icon: "copy" },
-  NEW_ELIGIBILITY: { title: "Add Eligibility Criterion", icon: "filter" },
   NEW_TRIGGER: { title: "Add Release Trigger", icon: "zap" },
   EDIT_TRIGGER: { title: "Edit Release Trigger", icon: "pencil" },
   EDIT_CHUNKS: { title: "Edit Bonus Mechanics", icon: "layers" },
@@ -400,21 +399,6 @@ export default function SlideDrawer() {
         ).unwrap();
         if (drawerState.parentId != null)
           dispatch(fetchConfigure(drawerState.parentId));
-        dispatch(closeDrawer());
-      } else if (
-        drawerState?.type === "NEW_ELIGIBILITY" &&
-        drawerState.parentId != null
-      ) {
-        await dispatch(
-          createEligibility({
-            configureId: drawerState.parentId,
-            payload: {
-              ...data,
-              site_id: selectedBrand,
-              created_by: currentUser,
-            },
-          }),
-        ).unwrap();
         dispatch(closeDrawer());
       } else if (
         (drawerState?.type === "NEW_PROMOCODE" ||

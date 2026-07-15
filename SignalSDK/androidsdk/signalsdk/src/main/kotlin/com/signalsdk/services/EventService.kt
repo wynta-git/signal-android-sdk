@@ -4,6 +4,7 @@ import com.signalsdk.models.DeviceInfo
 import com.signalsdk.models.SDKResponse
 import com.signalsdk.models.SdkInfo
 import com.signalsdk.models.TrackEvent
+import com.signalsdk.utils.ApiLogger
 import com.signalsdk.utils.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,6 +25,11 @@ internal class EventService(private val deviceService: DeviceService) {
         private const val SDK_NAME    = "signal-android-sdk"
         private const val SDK_VERSION = "1.0.0"
         private const val TIMEOUT_MS  = 10_000
+
+        private val RESERVED_KEYS = setOf(
+            "user_id", "session_id", "event_id", "event_name",
+            "timestamp", "schema_version", "sdk", "device"
+        )
     }
 
     private val sdkInfo = SdkInfo(SDK_NAME, SDK_VERSION)
@@ -36,17 +42,20 @@ internal class EventService(private val deviceService: DeviceService) {
         eventName: String,
         properties: Map<String, Any?>,
         userId: String
-    ): TrackEvent = TrackEvent(
-        event_id       = UUID.randomUUID().toString(),
-        event_name     = eventName,
-        schema_version = 1,
-        user_id        = userId,
-        session_id     = SessionService.getSessionId(),
-        timestamp      = isoFormat.format(Date()),
-        sdk            = sdkInfo,
-        device         = deviceService.getDeviceInfo(),
-        properties     = properties
-    )
+    ): TrackEvent {
+        val filtered = properties.filterKeys { it !in RESERVED_KEYS }
+        return TrackEvent(
+            event_id       = UUID.randomUUID().toString(),
+            event_name     = eventName,
+            schema_version = 1,
+            user_id        = userId,
+            session_id     = SessionService.getSessionId(),
+            timestamp      = isoFormat.format(Date()),
+            sdk            = sdkInfo,
+            device         = deviceService.getDeviceInfo(),
+            properties     = filtered
+        )
+    }
 
     suspend fun trackEvent(
         event: TrackEvent,
@@ -79,6 +88,7 @@ internal class EventService(private val deviceService: DeviceService) {
                 ?.bufferedReader()?.readText() ?: ""
 
             Logger.log("trackEvent ← $status | $trackUrl | $response")
+            ApiLogger.fire(url = trackUrl, method = "POST", requestBody = body, responseStatus = status, responseBody = response)
 
             if (status in 200..299) {
                 val json = JSONObject(response)
@@ -92,6 +102,7 @@ internal class EventService(private val deviceService: DeviceService) {
             }
         } catch (e: Exception) {
             Logger.error("trackEvent failed", e)
+            ApiLogger.fire(url = trackUrl, method = "POST", requestBody = null, responseStatus = null, responseBody = null)
             SDKResponse(success = false, error = e.message ?: "Unknown error")
         }
     }
