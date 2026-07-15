@@ -30,6 +30,8 @@ from app.bonus_event_processor.grant_writer import (
 from app.config import settings
 from app.models.bonus_release_trigger import TriggerWithConfigResponse
 from app.services.bonus_configure_code_service import code_validity_sql
+from app.bonus_event_processor.webhook_payloads import build_bonus_granted_payload
+from app.bonus_event_processor.webhook_sender import get_resulting_balance, send_bonus_webhook
 
 log = structlog.get_logger(__name__)
 
@@ -262,10 +264,12 @@ async def handle_bonus_grant(
         if code_max_amount is not None:
             grant_amount = min(grant_amount, code_max_amount)
 
+    external_user_id = props.get("user_id")
+
     # ── Write main grant ──────────────────────────────────────────────────────
     grant_id: int | None = None
     if grant_amount > 0:
-        grant_id = await write_grant(
+        grant_id, chunks = await write_grant(
             conn,
             trigger_dict,
             cfg_dict,
@@ -275,6 +279,8 @@ async def handle_bonus_grant(
             event_id,
             bonus_code=promo_code,
             bonus_code_id=code_id,
+            external_user_id=external_user_id,
+            redis=redis,
         )
         log.info(
             "bonus_grant_written",
@@ -285,15 +291,24 @@ async def handle_bonus_grant(
             site_id=site_id,
             grant_amount=str(grant_amount),
         )
+        if external_user_id:
+            resulting_balance = await get_resulting_balance(pam_user_id, cfg.wager_chip_type)
+            payload = build_bonus_granted_payload(
+                site_id=site_id, player_id=str(external_user_id), grant_id=grant_id,
+                bonus_code=promo_code, chip_type=cfg.credit_chip_type,
+                grant_amount=grant_amount, chunks=chunks, resulting_balance=resulting_balance,
+            )
+            await send_bonus_webhook(redis, site_id, pam_user_id, "BONUS_GRANTED", payload)
 
     # ── Write cashback grant (if configured) ──────────────────────────────────
     if cashback_amount > 0:
         if code_max_amount is not None:
             cashback_amount = min(cashback_amount, code_max_amount)
 
-        cashback_grant_id = await write_cashback_grant(
+        cashback_grant_id, cashback_chunks = await write_cashback_grant(
             conn, trigger_dict, cfg_dict, pam_user_id, site_id, cashback_amount, event_id,
             bonus_code=promo_code, bonus_code_id=code_id,
+            external_user_id=external_user_id, redis=redis,
         )
         log.info(
             "cashback_grant_written",
@@ -302,5 +317,13 @@ async def handle_bonus_grant(
             pam_user_id=pam_user_id,
             cashback_amount=str(cashback_amount),
         )
+        if external_user_id:
+            resulting_balance = await get_resulting_balance(pam_user_id, cfg.wager_chip_type)
+            payload = build_bonus_granted_payload(
+                site_id=site_id, player_id=str(external_user_id), grant_id=cashback_grant_id,
+                bonus_code=promo_code, chip_type=cfg.credit_chip_type,
+                grant_amount=cashback_amount, chunks=cashback_chunks, resulting_balance=resulting_balance,
+            )
+            await send_bonus_webhook(redis, site_id, pam_user_id, "BONUS_GRANTED", payload)
 
     return grant_id
