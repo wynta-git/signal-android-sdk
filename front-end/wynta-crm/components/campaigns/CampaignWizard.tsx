@@ -171,10 +171,12 @@ const DEFAULT_VARIANT = (): Variant => ({
   // (category/template dropdowns are read-only, bg color/opacity hidden).
   template_type:           'popup_image',
   render_engine:           'native',
-  title:                   '',
-  body:                    '',
+  // Title / body hidden for now — always sent as null.
+  title:                   undefined,
+  body:                    undefined,
   media:                   {},
-  cta:                     [{ role: 'primary', label: '', action: 'dismiss', value: '' }],
+  // Primary CTA action locked to External URL for now (dropdown is read-only).
+  cta:                     [{ role: 'primary', label: '', action: 'external_url', value: '' }],
   close_button_visibility: 'always',
   layout:                  null,
   web_view_url:            undefined, // hidden for now — stays unset
@@ -449,11 +451,8 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
       }
       variants.forEach((v, i) => {
         const label = `Variant ${i + 1}`;
-        if (IN_APP_FLAT_TYPES.has(v.template_type)) {
-          if (!v.title?.trim() || !v.body?.trim()) {
-            errs.push({ key: `in_app_variant_${i}`, message: `${label}: title and body are required.` });
-          }
-        } else {
+        // Title/body hidden from the builder now (always null) — no longer validated.
+        if (!IN_APP_FLAT_TYPES.has(v.template_type)) {
           const layout = v.layout as Record<string, any> | null;
           let layoutValid = false;
           switch (v.template_type) {
@@ -1521,24 +1520,24 @@ function InAppEditor({ s, onChange, errors, errorTick }: InAppEditorProps) {
 
   const cta          = active.cta ?? [];
   const primaryCta    = cta.find(c => c.role === 'primary');
-  const secondaryCta  = cta.find(c => c.role === 'secondary');
   const isFlat        = IN_APP_FLAT_TYPES.has(active.template_type);
 
   const setPrimaryCta = (patch: Partial<Cta>) => {
     const pIdx = cta.findIndex(c => c.role === 'primary');
     const next = pIdx >= 0
       ? cta.map((c, i) => i === pIdx ? { ...c, ...patch } : c)
-      : [...cta, { role: 'primary' as const, label: '', action: 'dismiss' as const, value: '', ...patch }];
+      : [...cta, { role: 'primary' as const, label: '', action: 'external_url' as const, value: '', ...patch }];
     updateVariant(idx, { cta: next });
   };
-  const setSecondaryCta = (patch: Partial<Cta>) => {
-    const sIdx = cta.findIndex(c => c.role === 'secondary');
-    const next = sIdx >= 0
-      ? cta.map((c, i) => i === sIdx ? { ...c, ...patch } : c)
-      : [...cta, { role: 'secondary' as const, label: '', action: 'dismiss' as const, value: '', ...patch }];
-    updateVariant(idx, { cta: next });
-  };
-  const removeSecondaryCta = () => updateVariant(idx, { cta: cta.filter(c => c.role !== 'secondary') });
+
+  // Primary CTA action is locked to External URL (dropdown is read-only) —
+  // force-correct older variants (e.g. deep_link/dismiss) on load.
+  useEffect(() => {
+    if (primaryCta && primaryCta.action !== 'external_url') {
+      setPrimaryCta({ action: 'external_url' });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryCta?.action]);
 
   return (
     <div className="cwiz-step-body">
@@ -1550,37 +1549,8 @@ function InAppEditor({ s, onChange, errors, errorTick }: InAppEditorProps) {
       {/* Common fields */}
       <div className="cwiz-card">
         <div className="cwiz-card-title">Content</div>
-        {isFlat && errors?.has(`in_app_variant_${idx}`) && (
-          <span className="cwiz-field-error" style={{ display: 'block', marginBottom: 10 }}>
-            Title and body are both required.
-          </span>
-        )}
 
-        <div className="cwiz-field" style={{ marginBottom: 14 }}>
-          <label className="cwiz-label">Title</label>
-          <input
-            className={'cwiz-input' + (isFlat && errors?.has(`in_app_variant_${idx}`) && !active.title?.trim() ? ' cwiz-input--error' : '')}
-            value={active.title ?? ''}
-            placeholder="e.g. Don't miss out!"
-            onChange={e => updateVariant(idx, { title: e.target.value })}
-          />
-          <span className={'cwiz-char-counter' + ((active.title?.length ?? 0) > 60 ? ' over' : '')}>
-            {active.title?.length ?? 0}/60
-          </span>
-        </div>
-
-        <div className="cwiz-field" style={{ marginBottom: 14 }}>
-          <label className="cwiz-label">Body</label>
-          <textarea
-            className={'cwiz-textarea' + (isFlat && errors?.has(`in_app_variant_${idx}`) && !active.body?.trim() ? ' cwiz-input--error' : '')}
-            value={active.body ?? ''}
-            placeholder="Message body…"
-            onChange={e => updateVariant(idx, { body: e.target.value })}
-          />
-          <span className={'cwiz-char-counter' + ((active.body?.length ?? 0) > 200 ? ' over' : '')}>
-            {active.body?.length ?? 0}/200
-          </span>
-        </div>
+        {/* Title / body hidden for now — always sent as null. */}
 
         <div className="cwiz-form-grid" style={{ marginBottom: 14 }}>
           <div className="cwiz-field">
@@ -1636,86 +1606,30 @@ function InAppEditor({ s, onChange, errors, errorTick }: InAppEditorProps) {
             </div>
             <div className="cwiz-field">
               <label className="cwiz-label">Action</label>
-              <select
-                className="cwiz-select"
-                value={primaryCta?.action ?? 'dismiss'}
-                onChange={e => setPrimaryCta({ action: e.target.value as Cta['action'] })}
-              >
-                <option value="deep_link">Deep link</option>
+              <select className="cwiz-select" value="external_url" disabled>
                 <option value="external_url">External URL</option>
-                <option value="dismiss">Dismiss</option>
               </select>
             </div>
-            {primaryCta && primaryCta.action !== 'dismiss' && (
-              <div className="cwiz-field">
-                <label className="cwiz-label">Value</label>
-                <input
-                  className={'cwiz-input' + (errors?.has(`in_app_variant_${idx}_cta`) && !primaryCta.value?.trim() ? ' cwiz-input--error' : '')}
-                  placeholder="e.g. myapp://offer or https://…"
-                  value={primaryCta?.value ?? ''}
-                  onChange={e => setPrimaryCta({ value: e.target.value })}
-                />
-              </div>
-            )}
+            <div className="cwiz-field">
+              <label className="cwiz-label">Value</label>
+              <input
+                className={'cwiz-input' + (errors?.has(`in_app_variant_${idx}_cta`) && !primaryCta?.value?.trim() ? ' cwiz-input--error' : '')}
+                placeholder="e.g. https://…"
+                value={primaryCta?.value ?? ''}
+                onChange={e => setPrimaryCta({ value: e.target.value })}
+              />
+            </div>
           </div>
           {errors?.has(`in_app_variant_${idx}_cta`) && (
             <span className="cwiz-field-error" style={{ display: 'block', marginTop: 6 }}>
               {!(cta.some(c => c.role === 'primary'))
                 ? 'A primary CTA is required.'
-                : 'This CTA needs a value (deep link / URL) since its action isn\'t "Dismiss".'}
+                : 'This CTA needs a value (URL).'}
             </span>
           )}
         </div>
 
-        {/* Secondary CTA */}
-        {secondaryCta ? (
-          <div className="cwiz-cta-block">
-            <div className="cwiz-cta-block-head">
-              <strong style={{ fontSize: 12.5 }}>Secondary CTA</strong>
-              <button type="button" className="cwiz-block-remove" onClick={removeSecondaryCta} aria-label="Remove secondary CTA">
-                <Icon name="x" size={13} />
-              </button>
-            </div>
-            <div className="cwiz-form-grid">
-              <div className="cwiz-field">
-                <label className="cwiz-label">Label</label>
-                <input className="cwiz-input" value={secondaryCta.label ?? ''} onChange={e => setSecondaryCta({ label: e.target.value })} />
-              </div>
-              <div className="cwiz-field">
-                <label className="cwiz-label">Action</label>
-                <select
-                  className="cwiz-select"
-                  value={secondaryCta.action}
-                  onChange={e => setSecondaryCta({ action: e.target.value as Cta['action'] })}
-                >
-                  <option value="deep_link">Deep link</option>
-                  <option value="external_url">External URL</option>
-                  <option value="dismiss">Dismiss</option>
-                </select>
-              </div>
-              {secondaryCta.action !== 'dismiss' && (
-                <div className="cwiz-field">
-                  <label className="cwiz-label">Value</label>
-                  <input
-                    className={'cwiz-input' + (errors?.has(`in_app_variant_${idx}_cta`) && !secondaryCta.value?.trim() ? ' cwiz-input--error' : '')}
-                    placeholder="e.g. myapp://offer or https://…"
-                    value={secondaryCta.value ?? ''}
-                    onChange={e => setSecondaryCta({ value: e.target.value })}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="asm-btn asm-btn--secondary"
-            style={{ fontSize: 12, height: 30, padding: '0 12px', marginBottom: 14 }}
-            onClick={() => setSecondaryCta({})}
-          >
-            <Icon name="plus" size={12} /> Add Secondary CTA
-          </button>
-        )}
+        {/* Secondary CTA hidden for now. */}
 
         {/* Web view override hidden for now — web_view_url stays unset. */}
       </div>
