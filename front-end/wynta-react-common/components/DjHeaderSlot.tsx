@@ -38,6 +38,41 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
     if (didInit.current) return;
     didInit.current = true;
 
+    // The Django header renders position:fixed above everything (z-index 9999),
+    // so fixed-position React overlays (e.g. the copilot panel) need its real
+    // height to avoid being covered. It can arrive either injected by this
+    // component's own fetch below, or already present server-side by the time
+    // this mounts (e.g. local test harnesses that pre-render the fragment) —
+    // watch the placeholder for any content rather than assuming one path.
+    // The header element itself is fixed, so it contributes nothing to the
+    // placeholder's own offsetHeight — measure the header element directly.
+    const placeholderEl = document.getElementById('dj-header-placeholder');
+    let observedHeaderEl: HTMLElement | null = null;
+    const headerResizeObserver = new ResizeObserver(() => {
+      if (!observedHeaderEl) return;
+      document.documentElement.style.setProperty(
+        '--wynta-dj-header-height',
+        `${observedHeaderEl.getBoundingClientRect().height}px`
+      );
+    });
+    function syncHeaderHeightVar() {
+      const headerEl =
+        placeholderEl?.querySelector<HTMLElement>('#dj-header') ??
+        (placeholderEl?.firstElementChild as HTMLElement | null);
+      if (!headerEl || headerEl === observedHeaderEl) return;
+      observedHeaderEl = headerEl;
+      headerResizeObserver.observe(headerEl);
+      document.documentElement.style.setProperty(
+        '--wynta-dj-header-height',
+        `${headerEl.getBoundingClientRect().height}px`
+      );
+    }
+    syncHeaderHeightVar();
+    const placeholderObserver = placeholderEl
+      ? new MutationObserver(syncHeaderHeightVar)
+      : null;
+    placeholderObserver?.observe(placeholderEl!, { childList: true });
+
     function fireBrandChange(brandId: number) {
       setBrandId(brandId);
       if (onBrandChangeRef.current) onBrandChangeRef.current(brandId);
@@ -106,6 +141,11 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
         reportFragmentStatus(false);
         promptForToken();
       });
+
+    return () => {
+      placeholderObserver?.disconnect();
+      headerResizeObserver.disconnect();
+    };
   }, [dispatch]);
 
   return <div id="dj-header-placeholder" suppressHydrationWarning />;
