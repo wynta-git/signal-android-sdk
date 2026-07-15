@@ -46,6 +46,7 @@ const CRM_NAV_SECTIONS: NavSection[] = [
       },
       { id: 'integrations',  label: 'Integrations', icon: 'plug'         },
       { id: 'clients',       label: 'Clients',      icon: 'key'          },
+      { id: 'chat',          label: 'Chat',         icon: 'message-circle' },
     ],
   },
 ];

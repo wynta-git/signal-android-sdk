@@ -109,8 +109,10 @@ class Campaign(BaseModel):
     status: Literal["draft", "scheduled", "running", "paused", "completed", "cancelled"]
     trigger: Trigger
     audience: Audience
-    channel: Literal["push", "email", "sms", "webhook"]
+    channel: Literal["push", "email", "sms", "webhook", "in_app"]
     template_id: str
+    trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
+    expires_in_hours: int | None = None
     rate_limit: RateLimit = Field(default_factory=RateLimit)
     delay: Delay | None = None
     min_delay_between_sends_minutes: int | None = None
@@ -144,20 +146,157 @@ class SendJob(BaseModel):
     campaign_run_id: str
     user_id: str
     brand_id: str | None = None
-    channel: Literal["push", "email", "sms", "webhook"]
+    channel: Literal["push", "email", "sms", "webhook", "in_app"]
     template_id: str
+    trigger_type: str | None = None
+    expires_in_hours: int | None = None
     context: dict[str, Any] = Field(default_factory=dict)
     deliver_at: datetime
     auto_dismiss_seconds: int | None = None
     ignore_global_min_delay: bool = False
 
 
+class Media(BaseModel):
+    image_url: str | None = None
+    background_color: str | None = None
+    background_opacity: Literal["opaque", "translucent", "transparent"] | None = None
+
+
+class Cta(BaseModel):
+    role: Literal["primary", "secondary"]
+    label: str
+    action: Literal["deep_link", "external_url", "dismiss"]
+    value: str | None = None
+
+    @model_validator(mode="after")
+    def check_value_required(self) -> "Cta":
+        if self.action != "dismiss" and not self.value:
+            raise ValueError("value is required unless action is 'dismiss'")
+        return self
+
+
+class CarouselSlide(BaseModel):
+    image_url: str | None = None
+    title: str | None = None
+    body: str | None = None
+
+
+class CarouselLayout(BaseModel):
+    slides: list[CarouselSlide]
+
+
+class SurveyQuestion(BaseModel):
+    question_text: str
+    options: list[str] = Field(default_factory=list)
+
+
+class SurveyLayout(BaseModel):
+    questions: list[SurveyQuestion]
+
+
+class LeadGenField(BaseModel):
+    name: str
+    type: str
+    required: bool = False
+
+
+class LeadGenSubmit(BaseModel):
+    action: str
+    value: str | None = None
+
+
+class LeadGenLayout(BaseModel):
+    fields: list[LeadGenField]
+    submit_action: LeadGenSubmit
+
+
+class GamificationSegment(BaseModel):
+    label: str
+    value: str
+
+
+class GamificationLayout(BaseModel):
+    game_type: str
+    segments: list[GamificationSegment]
+
+
+class RatingLayout(BaseModel):
+    max_stars: int = 5
+    prompt: str
+
+
+class HtmlLayout(BaseModel):
+    html: str | None = None
+    hosted_url: str | None = None
+
+    @model_validator(mode="after")
+    def check_exactly_one(self) -> "HtmlLayout":
+        if bool(self.html) == bool(self.hosted_url):
+            raise ValueError("exactly one of html or hosted_url must be set")
+        return self
+
+
+_FLAT_TEMPLATE_TYPES = {"modal", "popup_image", "fullscreen", "nudge"}
+_LAYOUT_MODELS: dict[str, type[BaseModel]] = {
+    "carousel": CarouselLayout,
+    "survey": SurveyLayout,
+    "lead_gen": LeadGenLayout,
+    "gamification": GamificationLayout,
+    "rating": RatingLayout,
+    "html_nudge": HtmlLayout,
+}
+
+
+class Variant(BaseModel):
+    variant_id: str = Field(default_factory=lambda: f"var_{uuid.uuid4().hex[:8]}")
+    weight: int = Field(ge=0, le=100)
+    template_type: Literal[
+        "modal", "popup_image", "rating", "fullscreen", "nudge",
+        "carousel", "survey", "lead_gen", "gamification", "html_nudge",
+    ]
+    render_engine: Literal["native", "html"]
+    title: str | None = None
+    body: str | None = None
+    media: Media | None = None
+    cta: list[Cta] = Field(default_factory=list)
+    close_button_visibility: str = "always"
+    layout: dict[str, Any] | None = None
+    web_view_url: str | None = None
+
+    @model_validator(mode="after")
+    def validate_layout(self) -> "Variant":
+        if self.template_type in _FLAT_TEMPLATE_TYPES:
+            if self.layout:
+                raise ValueError(f"{self.template_type} must not have a layout")
+        else:
+            model = _LAYOUT_MODELS[self.template_type]
+            if self.layout is None:
+                raise ValueError(f"{self.template_type} requires a layout")
+            self.layout = model.model_validate(self.layout).model_dump()
+        return self
+
+
+class InAppTemplateInput(BaseModel):
+    name: str | None = None
+    variants: list[Variant]
+
+    @model_validator(mode="after")
+    def check_weights_sum_to_100(self) -> "InAppTemplateInput":
+        if not self.variants:
+            raise ValueError("at least one variant is required")
+        total = sum(v.weight for v in self.variants)
+        if total != 100:
+            raise ValueError(f"variant weights must sum to 100, got {total}")
+        return self
+
+
 class NotificationTemplate(BaseModel):
     template_id: str
     project_id: str
     name: str
-    channel: Literal["push", "email", "sms", "webhook"]
-    body: dict[str, Any]
+    channel: Literal["push", "email", "sms", "webhook", "in_app"]
+    body: dict[str, Any] = Field(default_factory=dict)
+    variants: list[Variant] | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -174,14 +313,17 @@ class InlineMessage(BaseModel):
 
 
 class ChannelConfig(BaseModel):
-    type: Literal["push", "email", "sms", "webhook"]
+    type: Literal["push", "email", "sms", "webhook", "in_app"]
     template_id: str | None = None
     message: InlineMessage | None = None
+    template: InAppTemplateInput | None = None
 
     @model_validator(mode="after")
     def check_template_or_message(self) -> ChannelConfig:
-        if not self.template_id and not self.message:
-            raise ValueError("Provide either template_id or message")
+        if self.template and (self.template_id or self.message):
+            raise ValueError("template cannot be combined with template_id or message")
+        if not self.template_id and not self.message and not self.template:
+            raise ValueError("Provide either template_id, message, or template")
         return self
 
 
@@ -219,7 +361,22 @@ class CreateCampaignRequest(BaseModel):
     trigger: TriggerInput
     audience: Audience
     channel: ChannelConfig
+    trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
+    expires_in_hours: int | None = Field(default=None, ge=1)
     delivery: DeliveryConfig = Field(default_factory=DeliveryConfig)
+
+    @model_validator(mode="after")
+    def check_trigger_type_supported(self) -> "CreateCampaignRequest":
+        if (
+            self.channel.type == "in_app"
+            and self.trigger_type is not None
+            and self.trigger_type != "on_session_start"
+        ):
+            raise ValueError(
+                "trigger_type 'on_screen_load' and 'on_custom_event' are not yet supported "
+                "for in_app campaigns — only 'on_session_start' is available this phase"
+            )
+        return self
 
 
 class UpdateCampaignRequest(BaseModel):
@@ -228,18 +385,31 @@ class UpdateCampaignRequest(BaseModel):
     objective: str | None = None
     audience: Audience | None = None
     channel: ChannelConfig | None = None
+    trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
+    expires_in_hours: int | None = Field(default=None, ge=1)
     delivery: DeliveryConfig | None = None
 
 
 class CreateTemplateRequest(BaseModel):
     name: str
-    channel: Literal["push", "email", "sms", "webhook"]
-    body: dict[str, Any]
+    channel: Literal["push", "email", "sms", "webhook", "in_app"]
+    body: dict[str, Any] | None = None
+    variants: list[Variant] | None = None
+
+    @model_validator(mode="after")
+    def check_body_or_variants(self) -> "CreateTemplateRequest":
+        if self.channel == "in_app":
+            if not self.variants:
+                raise ValueError("variants is required for channel 'in_app'")
+        elif not self.body:
+            raise ValueError(f"body is required for channel '{self.channel}'")
+        return self
 
 
 class UpdateTemplateRequest(BaseModel):
     name: str | None = None
     body: dict[str, Any] | None = None
+    variants: list[Variant] | None = None
 
 
 class FcmSettingsRequest(BaseModel):

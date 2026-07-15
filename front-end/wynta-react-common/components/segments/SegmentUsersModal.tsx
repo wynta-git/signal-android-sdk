@@ -48,8 +48,8 @@ export default function SegmentUsersModal({ segment, onClose }: SegmentUsersModa
               {segment.hint ? ` · ${segment.hint}` : ''}
             </span>
           </div>
-          <button className="close" style={{ marginLeft: 'auto' }} onClick={onClose} aria-label="Close">
-            <Icon name="x" size={18}/>
+          <button className="asm-close" type="button" style={{ marginLeft: 'auto' }} onClick={onClose} aria-label="Close">
+            <Icon name="x" size={16}/>
           </button>
         </div>
         <div className="modal-body" style={{ padding: 16 }}>

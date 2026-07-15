@@ -34,12 +34,14 @@ from app.services.bonus_configure_code_service import code_validity_sql
 log = structlog.get_logger(__name__)
 
 _AUTO_APPLY_CODE_SQL = f"""
-    SELECT id, code, max_amount
-    FROM bonus_configure_code
-    WHERE configure_id = %s
-      AND system_auto_apply = 1
-      AND {code_validity_sql()}
-    ORDER BY display_order ASC, id ASC
+    SELECT bcc.id, bcc.code, bcc.max_amount
+    FROM bonus_configure_code bcc
+    JOIN bonus_configure bc ON bc.id = bcc.configure_id
+    WHERE bcc.configure_id = %s
+      AND bcc.system_auto_apply = 1
+      AND {code_validity_sql("bcc")}
+      AND bc.active = 1
+    ORDER BY bcc.display_order ASC, bcc.id ASC
     LIMIT 1
 """
 

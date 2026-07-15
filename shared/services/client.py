@@ -10,19 +10,19 @@ from shared.clients.redis import get_str, set_with_ttl
 _CLIENT_VALIDATION_TTL = 300  # 5 minutes — matches token cache TTL
 _SITE_CONFIG_TTL = 3600  # 1 hour — site config changes rarely
 _CLIENT_SECRET_TTL = 300  # 5 minutes
-_ALL_PROJECTS_TTL = 3600  # 1 hour — project list changes rarely
+_ALL_PROGRAMS_TTL = 3600  # 1 hour — program list changes rarely
 
 _SQL_CLIENT = """
     SELECT sc.id, sc.site_id, sc.client_id, sc.name, sc.description, sc.client_type, sc.active,
            s.name        AS site_name,
-           p.id          AS project_id,
-           p.name        AS project_name,
-           p.project_key AS project_key,
+           p.id          AS program_id,
+           p.name        AS program_name,
+           p.program_key AS program_key,
            sc.created_by,
            sc.created_at
     FROM site_client sc
     LEFT JOIN site s ON s.id = sc.site_id
-    LEFT JOIN project p ON p.id = s.program_id
+    LEFT JOIN program p ON p.id = s.program_id
     WHERE sc.client_id = %s
       AND sc.active = 1
 """
@@ -30,14 +30,14 @@ _SQL_CLIENT = """
 _SQL_CLIENTS_BY_SITE = """
     SELECT sc.id, sc.site_id, sc.client_id, sc.name, sc.description, sc.client_type, sc.active,
            s.name        AS site_name,
-           p.id          AS project_id,
-           p.name        AS project_name,
-           p.project_key AS project_key,
+           p.id          AS program_id,
+           p.name        AS program_name,
+           p.program_key AS program_key,
            sc.created_by,
            sc.created_at
     FROM site_client sc
     LEFT JOIN site s ON s.id = sc.site_id
-    LEFT JOIN project p ON p.id = s.program_id
+    LEFT JOIN program p ON p.id = s.program_id
     WHERE sc.site_id = %s
     ORDER BY sc.id
 """
@@ -58,18 +58,18 @@ _SQL_CONFIG = """
 
 _SQL_VALIDATE_CLIENT = """
     SELECT sc.id, sc.client_id, sc.client_secret, sc.site_id, s.program_id,
-           s.name AS site_name, p.name AS project_name, p.project_key AS project_key
+           s.name AS site_name, p.name AS program_name, p.program_key AS program_key
     FROM site_client sc
     JOIN site s ON s.id = sc.site_id
-    LEFT JOIN project p ON p.id = s.program_id
+    LEFT JOIN program p ON p.id = s.program_id
     WHERE sc.client_id = %s
       AND sc.active = 1
 """
 
 _SQL_SITE_CONFIG = """
-    SELECT s.program_id, p.project_key, cfg.config_key, cfg.config_value
+    SELECT s.program_id, p.program_key, cfg.config_key, cfg.config_value
     FROM site s
-    LEFT JOIN project p ON p.id = s.program_id
+    LEFT JOIN program p ON p.id = s.program_id
     LEFT JOIN site_configure cfg ON cfg.site_id = s.id AND cfg.active = 1
     WHERE s.id = %s
       AND s.active = 1
@@ -83,18 +83,18 @@ _SQL_CLIENT_SECRET = """
     LIMIT 1
 """
 
-_SQL_ALL_PROJECTS = """
-    SELECT id, name, project_key
-    FROM project
+_SQL_ALL_PROGRAMS = """
+    SELECT id, name, program_key
+    FROM program
     WHERE active = 1
     ORDER BY id
 """
 
 
-class ProjectResponse(BaseModel):
+class ProgramResponse(BaseModel):
     id: int
     name: str
-    project_key: str
+    program_key: str
 
 
 class ClientResponse(BaseModel):
@@ -108,9 +108,9 @@ class ClientResponse(BaseModel):
     allowed_hosts: list[str]
     configuration: dict[str, str]
     site_name: str | None
-    project_id: int | None
-    project_name: str | None
-    project_key: str | None
+    program_id: int | None
+    program_name: str | None
+    program_key: str | None
     created_by: str | None = None
     created_at: str | None = None
 
@@ -120,35 +120,35 @@ class ClientValidationResult(BaseModel):
     site_id: int
     site_name: str | None
     program_id: int | None
-    project_name: str | None
-    project_key: str | None
+    program_name: str | None
+    program_key: str | None
 
 
 class SiteConfig(BaseModel):
     site_id: int
-    project_id: int | None  # site.program_id
-    project_key: str | None = None  # project.project_key
+    program_id: int | None  # site.program_id
+    program_key: str | None = None  # program.program_key
     configuration: dict[str, str]  # all active site_configure rows
 
 
 def _cache_key(client_id: str) -> str:
-    return f"auth:client:{client_id}"
+    return f"auth:client:v2:{client_id}"
 
 
 def _validation_cache_key(client_id: str) -> str:
-    return f"auth:client:val:{client_id}"
+    return f"auth:client:val:v2:{client_id}"
 
 
 def _site_clients_cache_key(site_id: int) -> str:
-    return f"auth:clients:site:{site_id}"
+    return f"auth:clients:site:v2:{site_id}"
 
 
 def _site_config_cache_key(site_id: int) -> str:
-    return f"pam:site_config:v2:{site_id}"
+    return f"pam:site_config:v3:{site_id}"
 
 
-def _all_projects_cache_key() -> str:
-    return "pam:projects:all"
+def _all_programs_cache_key() -> str:
+    return "pam:programs:all"
 
 
 async def get_client_details(client_id: str, redis: Redis, ttl: int) -> ClientResponse:
@@ -185,9 +185,9 @@ async def get_client_details(client_id: str, redis: Redis, ttl: int) -> ClientRe
         allowed_hosts=[h[0] for h in host_rows],
         configuration={r[0]: r[1] for r in config_rows},
         site_name=row[7],
-        project_id=row[8],
-        project_name=row[9],
-        project_key=row[10],
+        program_id=row[8],
+        program_name=row[9],
+        program_key=row[10],
         created_by=row[11],
         created_at=str(row[12]) if row[12] is not None else None,
     )
@@ -228,7 +228,7 @@ async def validate_client(
     if not row:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    _, cid, stored_secret, site_id, program_id, site_name, project_name,project_key = row
+    _, cid, stored_secret, site_id, program_id, site_name, program_name, program_key = row
 
     if client_secret != stored_secret:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -238,8 +238,8 @@ async def validate_client(
         site_id=site_id,
         site_name=site_name,
         program_id=program_id,
-        project_name=project_name,
-        project_key=project_key,
+        program_name=program_name,
+        program_key=program_key,
     )
     payload = {**result.model_dump(), "_h": stored_secret}
     await set_with_ttl(redis, key, json.dumps(payload), ttl)
@@ -282,9 +282,9 @@ async def get_clients_by_site(site_id: int, redis: Redis, ttl: int) -> list[Clie
                     allowed_hosts=[h[0] for h in host_rows],
                     configuration={r[0]: r[1] for r in config_rows},
                     site_name=row[7],
-                    project_id=row[8],
-                    project_name=row[9],
-                    project_key=row[10],
+                    program_id=row[8],
+                    program_name=row[9],
+                    program_key=row[10],
                     created_by=row[11],
                     created_at=str(row[12]) if row[12] is not None else None,
                 ))
@@ -299,7 +299,7 @@ async def get_site_config(
     redis: Redis,
     ttl: int = _SITE_CONFIG_TTL,
 ) -> SiteConfig | None:
-    """Return site config (project_id + all site_configure rows) for site_id.
+    """Return site config (program_id + all site_configure rows) for site_id.
 
     Cached in Redis at pam:site_config:{site_id} for `ttl` seconds.
     Returns None if the site does not exist or is inactive.
@@ -318,14 +318,14 @@ async def get_site_config(
     if not rows:
         return None
 
-    project_id = rows[0][0]  # site.program_id — same for every row
-    project_key = rows[0][1]  # project.project_key — same for every row
+    program_id = rows[0][0]  # site.program_id — same for every row
+    program_key = rows[0][1]  # program.program_key — same for every row
     configuration = {row[2]: row[3] for row in rows if row[2] is not None}
 
     config = SiteConfig(
         site_id=site_id,
-        project_id=project_id,
-        project_key=project_key,
+        program_id=program_id,
+        program_key=program_key,
         configuration=configuration,
     )
     await set_with_ttl(redis, key, config.model_dump_json(), ttl)
@@ -382,26 +382,88 @@ async def get_client_secret(
     return secret
 
 
-async def get_all_projects(
+async def get_all_programs(
     redis: Redis,
-    ttl: int = _ALL_PROJECTS_TTL,
-) -> list[ProjectResponse]:
-    """Return all active projects.
+    ttl: int = _ALL_PROGRAMS_TTL,
+) -> list[ProgramResponse]:
+    """Return all active programs.
 
-    Cached in Redis at pam:projects:all for `ttl` seconds.
+    Cached in Redis at pam:programs:all for `ttl` seconds.
     """
-    key = _all_projects_cache_key()
+    key = _all_programs_cache_key()
 
     cached = await get_str(redis, key)
     if cached:
-        return [ProjectResponse.model_validate(row) for row in json.loads(cached)]
+        return [ProgramResponse.model_validate(row) for row in json.loads(cached)]
 
     async with get_connection(POOL_COMMON) as conn:
         async with conn.cursor() as cur:
-            await cur.execute(_SQL_ALL_PROJECTS)
+            await cur.execute(_SQL_ALL_PROGRAMS)
             rows = await cur.fetchall()
 
-    projects = [ProjectResponse(id=row[0], name=row[1], project_key=row[2]) for row in rows]
+    programs = [ProgramResponse(id=row[0], name=row[1], program_key=row[2]) for row in rows]
 
-    await set_with_ttl(redis, key, json.dumps([p.model_dump() for p in projects]), ttl)
-    return projects
+    await set_with_ttl(redis, key, json.dumps([p.model_dump() for p in programs]), ttl)
+    return programs
+
+
+_PROGRAM_ID_BY_KEY_TTL = 3600  # 1 hour
+_ACTIVE_SITES_BY_PROGRAM_TTL = 3600  # 1 hour
+
+_SQL_PROGRAM_ID_BY_KEY = "SELECT id FROM program WHERE program_key = %s AND active = 1 LIMIT 1"
+_SQL_ACTIVE_SITE_IDS_BY_PROGRAM = "SELECT id FROM site WHERE program_id = %s AND active = 1"
+
+
+def _program_id_by_key_cache_key(program_key: str) -> str:
+    return f"pam:program:id_by_key:{program_key}"
+
+
+def _active_sites_by_program_cache_key(program_id: int) -> str:
+    return f"pam:site:by_program:{program_id}"
+
+
+async def get_program_id_by_key(
+    program_key: str,
+    redis: Redis,
+    ttl: int = _PROGRAM_ID_BY_KEY_TTL,
+) -> int | None:
+    """Return program.id for an active program_key, or None if unmapped."""
+    key = _program_id_by_key_cache_key(program_key)
+
+    cached = await get_str(redis, key)
+    if cached is not None:
+        return int(cached)
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_PROGRAM_ID_BY_KEY, (program_key,))
+            row = await cur.fetchone()
+
+    if row is None:
+        return None
+
+    await set_with_ttl(redis, key, str(row[0]), ttl)
+    return int(row[0])
+
+
+async def get_active_site_ids_by_program(
+    program_id: int,
+    redis: Redis,
+    ttl: int = _ACTIVE_SITES_BY_PROGRAM_TTL,
+) -> list[int]:
+    """Return the ids of every active site under program_id."""
+    key = _active_sites_by_program_cache_key(program_id)
+
+    cached = await get_str(redis, key)
+    if cached is not None:
+        return [int(v) for v in json.loads(cached)]
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_ACTIVE_SITE_IDS_BY_PROGRAM, (program_id,))
+            rows = await cur.fetchall()
+
+    site_ids = [int(row[0]) for row in rows]
+
+    await set_with_ttl(redis, key, json.dumps(site_ids), ttl)
+    return site_ids

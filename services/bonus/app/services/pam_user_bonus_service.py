@@ -59,8 +59,9 @@ _APPLICABLE_CODES_SQL = f"""
         bc.wager_multiplier, bc.no_of_chunks, bc.applicability_frequency,
         bc.id AS configure_id, bcc.system_auto_apply
     FROM bonus_configure_code bcc
-    JOIN bonus_configure bc ON bc.id = bcc.configure_id AND bc.active = 1
+    JOIN bonus_configure bc ON bc.id = bcc.configure_id
     WHERE {code_validity_sql("bcc")}
+      AND bc.active = 1
       AND bcc.site_id = %s
       AND bc.wager_chip_type = %s
       AND bcc.system_auto_apply = 0

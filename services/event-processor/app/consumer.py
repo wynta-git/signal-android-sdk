@@ -38,7 +38,7 @@ async def _resolve_table(
         if cfg:
             cache[site_id] = (
                 cfg.configuration.get("clickhouse_table")
-                or (str(cfg.project_id) if cfg.project_id else _UNKNOWN_TABLE)
+                or (str(cfg.program_id) if cfg.program_id else _UNKNOWN_TABLE)
             )
         else:
             cache[site_id] = _UNKNOWN_TABLE

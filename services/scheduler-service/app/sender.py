@@ -80,15 +80,20 @@ async def _emit_send_job(
     user_id: str,
     deliver_at: datetime,
 ) -> None:
+    brand_id = campaign.get("brand_id")
+    brand_id = str(brand_id) if brand_id is not None else None
+
     job = {
         "send_id": str(uuid.uuid4()),
         "project_id": campaign["project_id"],
         "campaign_id": campaign["campaign_id"],
         "campaign_run_id": run_id,
         "user_id": user_id,
-        "brand_id": campaign.get("brand_id"),
+        "brand_id": brand_id,
         "channel": campaign["channel"],
         "template_id": campaign["template_id"],
+        "trigger_type": campaign.get("trigger_type"),
+        "expires_in_hours": campaign.get("expires_in_hours"),
         "context": {},
         "deliver_at": deliver_at.isoformat(),
     }

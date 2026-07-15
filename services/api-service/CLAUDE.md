@@ -4,13 +4,14 @@
 Public ingress. Authenticate, rate-limit, validate envelope, publish to Kafka.
 
 ## Inputs
-- HTTP from public internet (`/v1/track`, `/v1/identify`, `/v1/alias`, `/v1/health`, `/v1/ready`)
+- HTTP from public internet (`/v1/track`, `/v1/identify`, `/v1/alias`, `/v1/health`, `/v1/ready`, `/v1/notifications/*`)
 
 ## Outputs
 - Publishes to Kafka topic `pam.events.raw.v1` (track, alias payloads)
 - Upserts MongoDB `users` collection on `/v1/identify`
 - Reads/writes Redis (rate limit, token cache)
 - Reads MongoDB (`projects`, `tokens` collections)
+- Reads/updates/deletes MongoDB `notification_inbox` on `/v1/notifications/*` (in_app inbox — written by notifications-engine, read by us on behalf of the client SDK)
 
 ## Hard rules (NEVER do these)
 

@@ -96,7 +96,10 @@ async def _process(redis: Redis, manual_bonus_file_id: int, file_row: dict[str, 
     trigger = next(
         (
             t for t in triggers
-            if t.configure_id == promo.configure_id and t.release_type == "BONUS_RELEASE" and t.active
+            if t.configure_id == promo.configure_id
+            and t.release_type == "BONUS_RELEASE"
+            and t.active
+            and t.configure.active
         ),
         None,
     )
