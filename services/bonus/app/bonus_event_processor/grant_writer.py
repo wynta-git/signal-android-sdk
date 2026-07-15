@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import aiomysql
 import structlog
+from redis.asyncio import Redis
 
 from app.bonus_event_processor.chunk_release_handler import release_all_chunks
+from app.bonus_event_processor.webhook_payloads import chunk_entry
 
 log = structlog.get_logger(__name__)
 
@@ -142,7 +145,9 @@ async def write_grant(
     event_id: str,
     bonus_code: str | None = None,
     bonus_code_id: int | None = None,
-) -> int:
+    external_user_id: str | None = None,
+    redis: Redis | None = None,
+) -> tuple[int, list[dict[str, Any]]]:
     wager_multiplier = configure["wager_multiplier"]
     no_of_chunks: int = configure["no_of_chunks"]
     product_wager_multiplier_json = (
@@ -183,15 +188,26 @@ async def write_grant(
         )
         grant_id: int = cur.lastrowid  # type: ignore[assignment]
 
+        expiry_days = configure.get("chunk_expiry_days")
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(days=expiry_days) if expiry_days else None
+        )
+        chunks: list[dict[str, Any]] = []
         for i in range(1, no_of_chunks + 1):
+            chunk_ref = f"CH{i:03d}"
             await cur.execute(
                 _INSERT_CHUNK_SQL,
                 (
-                    f"CH{i:03d}", grant_id, site_id, pam_user_id, chunk_amount,
+                    chunk_ref, grant_id, site_id, pam_user_id, chunk_amount,
                     wager_multiplier, required_wager_amount, "PENDING",
                     product_wager_multiplier_json,
                 ),
             )
+            chunks.append(chunk_entry(
+                chunk_ref=chunk_ref, sequence=i, chunk_count=no_of_chunks,
+                amount=chunk_amount, wager_amount=Decimal("0.00"),
+                status="PENDING", expires_at=expires_at,
+            ))
 
         entities = [
             ("CONFIGURE", configure["id"]),
@@ -210,7 +226,16 @@ async def write_grant(
         await conn.commit()
 
     if Decimal(str(wager_multiplier)) == Decimal("0"):
-        await release_all_chunks(conn, grant_id, site_id, event_id, pam_user_id)
+        await release_all_chunks(
+            conn, grant_id, site_id, event_id, pam_user_id,
+            bonus_code=bonus_code,
+            chip_type=configure["credit_chip_type"],
+            wager_chip_type=configure["wager_chip_type"],
+            external_user_id=external_user_id,
+            redis=redis,
+        )
+        for chunk in chunks:
+            chunk["status"] = "RELEASE"
 
     log.info(
         "bonus_grant_written",
@@ -221,7 +246,7 @@ async def write_grant(
         grant_amount=str(grant_amount),
         no_of_chunks=no_of_chunks,
     )
-    return grant_id
+    return grant_id, chunks
 
 
 async def write_cashback_grant(
@@ -234,7 +259,9 @@ async def write_cashback_grant(
     event_id: str,
     bonus_code: str | None = None,
     bonus_code_id: int | None = None,
-) -> int:
+    external_user_id: str | None = None,
+    redis: Redis | None = None,
+) -> tuple[int, list[dict[str, Any]]]:
     """Create a single-chunk cashback grant (wager_multiplier=0) and immediately release it."""
     try:
         async with conn.cursor() as cur:
@@ -284,7 +311,14 @@ async def write_cashback_grant(
 
             await conn.commit()
 
-        await release_all_chunks(conn, grant_id, site_id, event_id, pam_user_id)
+        await release_all_chunks(
+            conn, grant_id, site_id, event_id, pam_user_id,
+            bonus_code=bonus_code,
+            chip_type=configure["credit_chip_type"],
+            wager_chip_type=configure["wager_chip_type"],
+            external_user_id=external_user_id,
+            redis=redis,
+        )
 
         log.info(
             "cashback_grant_written",
@@ -294,7 +328,12 @@ async def write_cashback_grant(
             site_id=site_id,
             cashback_amount=str(cashback_amount),
         )
-        return grant_id
+        chunks = [chunk_entry(
+            chunk_ref="CH001", sequence=1, chunk_count=1,
+            amount=cashback_amount, wager_amount=Decimal("0.00"),
+            status="RELEASE", expires_at=None,
+        )]
+        return grant_id, chunks
 
     except Exception as exc:
         log.error(

@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     common_db_pool_minsize: int = 1
     common_db_pool_maxsize: int = 5
 
+    mongo_url: str = "mongodb://localhost:27017"
+    mongo_db: str = "pam"
+    mongo_min_pool_size: int = 2
+    mongo_max_pool_size: int = 10
+
     kafka_bootstrap_servers: str = "43.204.90.164:9093"
     kafka_topic: str = "pam.bonus.raw.v1"
     kafka_group_id: str = "pam-bonus-consumer"

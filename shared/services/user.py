@@ -27,9 +27,51 @@ _SQL_INSERT = """
     VALUES (%s, %s)
 """
 
+_SQL_GET_EXTERNAL_USER_ID = """
+    SELECT user_id
+    FROM pam_user_mapping
+    WHERE id = %s
+    LIMIT 1
+"""
+
 
 def _cache_key(site_id: int, user_id: str) -> str:
     return f"pam:user:{site_id}:{user_id}"
+
+
+def _reverse_cache_key(pam_user_id: int) -> str:
+    return f"pam:user:reverse:{pam_user_id}"
+
+
+async def get_external_user_id(
+    redis: Redis,
+    pam_user_id: int,
+    ttl: int = _PAM_USER_TTL,
+) -> str | None:
+    """Reverse lookup: pam_user_mapping.id -> the external user_id.
+
+    Checks Redis first; falls back to DB and caches the result.
+    """
+    key = _reverse_cache_key(pam_user_id)
+
+    cached = await get_str(redis, key)
+    if cached is not None:
+        log.debug("get_external_user_id.cache_hit", pam_user_id=pam_user_id)
+        return cached
+
+    async with get_connection(POOL_COMMON) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(_SQL_GET_EXTERNAL_USER_ID, (pam_user_id,))
+            row = await cur.fetchone()
+
+    if row is None:
+        log.debug("get_external_user_id.not_found", pam_user_id=pam_user_id)
+        return None
+
+    user_id: str = row[0]
+    await set_with_ttl(redis, key, user_id, ttl)
+    log.debug("get_external_user_id.cached", pam_user_id=pam_user_id, user_id=user_id)
+    return user_id
 
 
 async def get_pam_user_id(

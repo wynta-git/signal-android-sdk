@@ -19,8 +19,8 @@ from app.bonus_event_processor.chunk_release_handler import (
 )
 
 _PENDING_CHUNK_ROWS = (
-    (101, Decimal("50.00")),
-    (102, Decimal("25.00")),
+    (101, Decimal("50.00"), "CH001", Decimal("100.00")),
+    (102, Decimal("25.00"), "CH002", Decimal("100.00")),
 )
 
 
@@ -71,6 +71,44 @@ async def test_release_all_chunks_inserts_header_row_and_releases(
     assert grant_call.args[1] == (75.0, 5)
 
     conn.commit.assert_awaited_once()
+
+
+async def test_release_all_chunks_emits_bonus_released_webhook(
+    conn: MagicMock, cur: AsyncMock, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cur.fetchall.return_value = _PENDING_CHUNK_ROWS
+
+    sent = []
+
+    async def fake_send(redis, site_id, pam_user_id, event_type, payload):
+        sent.append((site_id, pam_user_id, event_type, payload))
+
+    monkeypatch.setattr(
+        "app.bonus_event_processor.chunk_release_handler.send_bonus_webhook", fake_send,
+    )
+    monkeypatch.setattr(
+        "app.bonus_event_processor.chunk_release_handler.get_resulting_balance",
+        AsyncMock(return_value={"pending_bonus": "0.00", "bonus_balance": "75.00", "wagering_required": "0.00"}),
+    )
+
+    await release_all_chunks(
+        conn, bonus_grant_id=5, site_id=1, event_id="evt-1", pam_user_id=9001,
+        bonus_code="WELCOME100", chip_type="BONUS", wager_chip_type="CASH",
+        external_user_id="P123", redis=AsyncMock(),
+    )
+
+    assert len(sent) == 1
+    site_id, pam_user_id, event_type, payload = sent[0]
+    assert site_id == 1
+    assert pam_user_id == 9001
+    assert event_type == "BONUS_RELEASED"
+    assert payload["player_id"] == "P123"
+    assert payload["bonus_code"] == "WELCOME100"
+    assert payload["txn_id"] == 5
+    assert len(payload["chunks"]) == 2
+    assert payload["chunks"][0]["chunk_ref"] == "CH001"
+    assert payload["chunks"][0]["sequence"] == 1
+    assert payload["amount"] == "75.00"
 
 
 async def test_release_all_chunks_nothing_pending_is_a_noop(

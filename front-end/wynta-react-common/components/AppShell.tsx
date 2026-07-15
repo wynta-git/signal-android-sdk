@@ -4,6 +4,7 @@ import { useDispatch } from "react-redux";
 import Icon from "./Icon";
 import BrandSwitcher from "./BrandSwitcher";
 import DjSidebarSlot from "./DjSidebarSlot";
+import CopilotPanel from "./copilot/CopilotPanel";
 import { fetchBrands } from "../store/slices/brandsSlice";
 import { fetchUserSettings } from "../store/slices/settingsSlice";
 
@@ -76,6 +77,7 @@ export default function AppShell({
         </div>
         {children}
       </main>
+      <CopilotPanel />
       {overlays}
     </div>
   );

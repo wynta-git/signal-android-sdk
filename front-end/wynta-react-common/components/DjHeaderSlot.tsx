@@ -2,6 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { setBridgeData, authenticateWithBridgeToken } from '../store/slices/usersSlice';
+import { setBrandId } from '../services/tokenRegistry';
 import type { WyntaBridge } from '../types';
 
 declare global {
@@ -38,6 +39,7 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
     didInit.current = true;
 
     function fireBrandChange(brandId: number) {
+      setBrandId(brandId);
       if (onBrandChangeRef.current) onBrandChangeRef.current(brandId);
       window.dispatchEvent(new CustomEvent('wynta:brand-changed', { detail: { brandId } }));
     }
@@ -47,6 +49,7 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
       const bridge: WyntaBridge = { token };
       window.__WYNTA_BRIDGE__ = bridge;
       dispatch(setBridgeData(bridge));
+      setBrandId(bridge.site_id ?? null);
       dispatch(authenticateWithBridgeToken({ token }));
     }
 
@@ -62,6 +65,7 @@ export default function DjHeaderSlot({ onBrandChange }: Props) {
         const bridge: WyntaBridge = JSON.parse(response.headers.get('X-Wynta-Bridge') || '{}');
         window.__WYNTA_BRIDGE__ = bridge;
         dispatch(setBridgeData(bridge));
+        setBrandId(bridge.site_id ?? null);
         if (bridge.token) {
           dispatch(authenticateWithBridgeToken({ token: bridge.token }));
           return response.text();
