@@ -303,123 +303,123 @@ async def get_affiliate(affiliate_id: str, program_id: int | None = None) -> str
     return await _get(f"/affiliates/{affiliate_id}/", {"program_id": program_id})
 
 
-@mcp.tool()
-async def update_affiliate(
-    affiliate_id: str,
-    email: str | None = None,
-    contactname: str | None = None,
-    lastname: str | None = None,
-    companyname: str | None = None,
-    status: str | None = None,
-    password: str | None = None,
-    dob: str | None = None,
-    affiliate_type: str | None = None,
-    superaffiliate: int | None = None,
-    contactmode: str | None = None,
-    telephone: str | None = None,
-    address: str | None = None,
-    address2: str | None = None,
-    city: str | None = None,
-    state: str | None = None,
-    country: str | None = None,
-    postcode: str | None = None,
-    siteid: list[int] | None = None,
-    site_url: list[str] | None = None,
-    assignuser: list[int] | None = None,
-) -> str:
-    """Full replacement update of an affiliate (PUT, Admin only).
+# @mcp.tool()
+# async def update_affiliate(
+#     affiliate_id: str,
+#     email: str | None = None,
+#     contactname: str | None = None,
+#     lastname: str | None = None,
+#     companyname: str | None = None,
+#     status: str | None = None,
+#     password: str | None = None,
+#     dob: str | None = None,
+#     affiliate_type: str | None = None,
+#     superaffiliate: int | None = None,
+#     contactmode: str | None = None,
+#     telephone: str | None = None,
+#     address: str | None = None,
+#     address2: str | None = None,
+#     city: str | None = None,
+#     state: str | None = None,
+#     country: str | None = None,
+#     postcode: str | None = None,
+#     siteid: list[int] | None = None,
+#     site_url: list[str] | None = None,
+#     assignuser: list[int] | None = None,
+# ) -> str:
+#     """Full replacement update of an affiliate (PUT, Admin only).
 
-    Args:
-        affiliate_id: The affiliate's ID.
-        email: New email address.
-        contactname: First/contact name.
-        lastname: Last name.
-        companyname: Company name.
-        status: New status: Pending|Approved|Rejected|Suspended|Pause|Inactive.
-        password: New password.
-        dob: Date of birth DD-MM-YYYY.
-        affiliate_type: Affiliate type string.
-        superaffiliate: Parent affiliate ID.
-        contactmode: "Email", "Phone", or "IM".
-        telephone: Phone number.
-        address: Address line 1.
-        address2: Address line 2.
-        city: City.
-        state: State/region.
-        country: Country.
-        postcode: Postcode/ZIP.
-        siteid: List of site/brand IDs.
-        site_url: List of site URLs.
-        assignuser: PartnerUser IDs to assign.
-    """
-    return await _put(
-        f"/affiliates/{affiliate_id}/",
-        {
-            "email": email,
-            "contactname": contactname,
-            "lastname": lastname,
-            "companyname": companyname,
-            "status": status,
-            "password": password,
-            "dob": dob,
-            "affiliate_type": affiliate_type,
-            "superaffiliate": superaffiliate,
-            "contactmode": contactmode,
-            "telephone": telephone,
-            "address": address,
-            "address2": address2,
-            "city": city,
-            "state": state,
-            "country": country,
-            "postcode": postcode,
-            "siteid": siteid,
-            "site_url": site_url,
-            "assignuser": assignuser,
-        },
-    )
-
-
-@mcp.tool()
-async def patch_affiliate(affiliate_id: str, fields: str) -> str:
-    """Partially update an affiliate (PATCH, Admin only).
-
-    Args:
-        affiliate_id: The affiliate's ID.
-        fields: JSON string of fields to update, e.g. '{"status": "Approved"}'.
-    """
-    payload = json.loads(fields)
-    return await _patch(f"/affiliates/{affiliate_id}/", payload)
+#     Args:
+#         affiliate_id: The affiliate's ID.
+#         email: New email address.
+#         contactname: First/contact name.
+#         lastname: Last name.
+#         companyname: Company name.
+#         status: New status: Pending|Approved|Rejected|Suspended|Pause|Inactive.
+#         password: New password.
+#         dob: Date of birth DD-MM-YYYY.
+#         affiliate_type: Affiliate type string.
+#         superaffiliate: Parent affiliate ID.
+#         contactmode: "Email", "Phone", or "IM".
+#         telephone: Phone number.
+#         address: Address line 1.
+#         address2: Address line 2.
+#         city: City.
+#         state: State/region.
+#         country: Country.
+#         postcode: Postcode/ZIP.
+#         siteid: List of site/brand IDs.
+#         site_url: List of site URLs.
+#         assignuser: PartnerUser IDs to assign.
+#     """
+#     return await _put(
+#         f"/affiliates/{affiliate_id}/",
+#         {
+#             "email": email,
+#             "contactname": contactname,
+#             "lastname": lastname,
+#             "companyname": companyname,
+#             "status": status,
+#             "password": password,
+#             "dob": dob,
+#             "affiliate_type": affiliate_type,
+#             "superaffiliate": superaffiliate,
+#             "contactmode": contactmode,
+#             "telephone": telephone,
+#             "address": address,
+#             "address2": address2,
+#             "city": city,
+#             "state": state,
+#             "country": country,
+#             "postcode": postcode,
+#             "siteid": siteid,
+#             "site_url": site_url,
+#             "assignuser": assignuser,
+#         },
+#     )
 
 
-@mcp.tool()
-async def delete_affiliate(affiliate_id: str) -> str:
-    """Delete an affiliate (Admin only).
+# @mcp.tool()
+# async def patch_affiliate(affiliate_id: str, fields: str) -> str:
+#     """Partially update an affiliate (PATCH, Admin only).
 
-    Args:
-        affiliate_id: The affiliate's ID.
-    """
-    return await _delete(f"/affiliates/{affiliate_id}/")
+#     Args:
+#         affiliate_id: The affiliate's ID.
+#         fields: JSON string of fields to update, e.g. '{"status": "Approved"}'.
+#     """
+#     payload = json.loads(fields)
+#     return await _patch(f"/affiliates/{affiliate_id}/", payload)
 
 
-@mcp.tool()
-async def update_affiliate_status(
-    aff_id: int,
-    status: str,
-    program_id: int | None = None,
-) -> str:
-    """Approve, reject, or suspend an affiliate (Admin only).
+# @mcp.tool()
+# async def delete_affiliate(affiliate_id: str) -> str:
+#     """Delete an affiliate (Admin only).
 
-    Returns the new pending count and the next 10 pending affiliates.
+#     Args:
+#         affiliate_id: The affiliate's ID.
+#     """
+#     return await _delete(f"/affiliates/{affiliate_id}/")
 
-    Args:
-        aff_id: ID of the affiliate to update (required).
-        status: New status — "Approved", "Rejected", or "Suspended" (required).
-        program_id: Programme ID; validates affiliate belongs to this programme.
-    """
-    return await _post(
-        "/update-affiliate-status/",
-        {"aff_id": aff_id, "status": status, "program_id": program_id},
-    )
+
+# @mcp.tool()
+# async def update_affiliate_status(
+#     aff_id: int,
+#     status: str,
+#     program_id: int | None = None,
+# ) -> str:
+#     """Approve, reject, or suspend an affiliate (Admin only).
+
+#     Returns the new pending count and the next 10 pending affiliates.
+
+#     Args:
+#         aff_id: ID of the affiliate to update (required).
+#         status: New status — "Approved", "Rejected", or "Suspended" (required).
+#         program_id: Programme ID; validates affiliate belongs to this programme.
+#     """
+#     return await _post(
+#         "/update-affiliate-status/",
+#         {"aff_id": aff_id, "status": status, "program_id": program_id},
+#     )
 
 
 # ---------------------------------------------------------------------------
@@ -765,142 +765,142 @@ async def get_commission(commission_id: str, program_id: int | None = None) -> s
     return await _get(f"/commissions/{commission_id}/", {"program_id": program_id})
 
 
-@mcp.tool()
-async def update_commission(
-    commission_id: str,
-    is_track_history: bool | None = None,
-    comm_type: str | None = None,
-    program_id: int | None = None,
-    affiliate_id: int | None = None,
-    site_id: int | None = None,
-    campaign_id: int | None = None,
-    product_id: int | None = None,
-    revshare: bool | None = None,
-    revsharepercent: float | None = None,
-    revtype: str | None = None,
-    ringfence: bool | None = None,
-    cpachoice: bool | None = None,
-    criteriaacquisition: str | None = None,
-    criteriavalue: float | None = None,
-    cpacommissionvalue: float | None = None,
-    currency: str | None = None,
-    cpacumulative: bool | None = None,
-    exclude_rev: bool | None = None,
-    tierchoice: bool | None = None,
-    tiertype: str | None = None,
-    tier_ringfence: bool | None = None,
-    tier_brackets: list[dict] | None = None,
-    cplchoice: bool | None = None,
-    cplcommissionvalue: float | None = None,
-    cplcurrency: str | None = None,
-    cpcchoice: bool | None = None,
-    cpccommissionvalue: float | None = None,
-    cpccurrency: str | None = None,
-    cpichoice: bool | None = None,
-    cpicommissionvalue: float | None = None,
-    cpicurrency: str | None = None,
-    tenancychoice: bool | None = None,
-    tenancyfee: float | None = None,
-    tenancycurrency: str | None = None,
-    referalchoice: bool | None = None,
-    referalcommissionvalue: float | None = None,
-    referral_type: str | None = None,
-    referral_ringfence: bool | None = None,
-    referrals: list[dict] | None = None,
-    iscpa_capping: bool | None = None,
-    cpa_capping_duration: str | None = None,
-    cpa_capping_limit: int | None = None,
-    iscpl_capping: bool | None = None,
-    cpl_capping_duration: str | None = None,
-    cpl_capping_limit: int | None = None,
-    iscpc_capping: bool | None = None,
-    cpc_capping_duration: str | None = None,
-    cpc_capping_limit: int | None = None,
-    iscpi_capping: bool | None = None,
-    cpi_capping_duration: str | None = None,
-    cpi_capping_limit: int | None = None,
-    wagercriteriavalue: float | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    notes: str | None = None,
-    month_to_date: bool | None = None,
-    pocdeduction: bool | None = None,
-    mastercommission_id: int | None = None,
-    country: list[int] | None = None,
-) -> str:
-    """Replace (PUT) an existing commission. Pass is_track_history=True to snapshot before updating (Admin only).
+# @mcp.tool()
+# async def update_commission(
+#     commission_id: str,
+#     is_track_history: bool | None = None,
+#     comm_type: str | None = None,
+#     program_id: int | None = None,
+#     affiliate_id: int | None = None,
+#     site_id: int | None = None,
+#     campaign_id: int | None = None,
+#     product_id: int | None = None,
+#     revshare: bool | None = None,
+#     revsharepercent: float | None = None,
+#     revtype: str | None = None,
+#     ringfence: bool | None = None,
+#     cpachoice: bool | None = None,
+#     criteriaacquisition: str | None = None,
+#     criteriavalue: float | None = None,
+#     cpacommissionvalue: float | None = None,
+#     currency: str | None = None,
+#     cpacumulative: bool | None = None,
+#     exclude_rev: bool | None = None,
+#     tierchoice: bool | None = None,
+#     tiertype: str | None = None,
+#     tier_ringfence: bool | None = None,
+#     tier_brackets: list[dict] | None = None,
+#     cplchoice: bool | None = None,
+#     cplcommissionvalue: float | None = None,
+#     cplcurrency: str | None = None,
+#     cpcchoice: bool | None = None,
+#     cpccommissionvalue: float | None = None,
+#     cpccurrency: str | None = None,
+#     cpichoice: bool | None = None,
+#     cpicommissionvalue: float | None = None,
+#     cpicurrency: str | None = None,
+#     tenancychoice: bool | None = None,
+#     tenancyfee: float | None = None,
+#     tenancycurrency: str | None = None,
+#     referalchoice: bool | None = None,
+#     referalcommissionvalue: float | None = None,
+#     referral_type: str | None = None,
+#     referral_ringfence: bool | None = None,
+#     referrals: list[dict] | None = None,
+#     iscpa_capping: bool | None = None,
+#     cpa_capping_duration: str | None = None,
+#     cpa_capping_limit: int | None = None,
+#     iscpl_capping: bool | None = None,
+#     cpl_capping_duration: str | None = None,
+#     cpl_capping_limit: int | None = None,
+#     iscpc_capping: bool | None = None,
+#     cpc_capping_duration: str | None = None,
+#     cpc_capping_limit: int | None = None,
+#     iscpi_capping: bool | None = None,
+#     cpi_capping_duration: str | None = None,
+#     cpi_capping_limit: int | None = None,
+#     wagercriteriavalue: float | None = None,
+#     start_date: str | None = None,
+#     end_date: str | None = None,
+#     notes: str | None = None,
+#     month_to_date: bool | None = None,
+#     pocdeduction: bool | None = None,
+#     mastercommission_id: int | None = None,
+#     country: list[int] | None = None,
+# ) -> str:
+#     """Replace (PUT) an existing commission. Pass is_track_history=True to snapshot before updating (Admin only).
 
-    Args:
-        commission_id: The commission's ID.
-        is_track_history: Snapshot current state before updating.
-        comm_type: Commission type.
-        program_id: Affiliate programme ID.
-        (All other args are the same as create_commission.)
-    """
-    return await _put(
-        f"/commissions/{commission_id}/",
-        {
-            "is_track_history": is_track_history,
-            "comm_type": comm_type,
-            "program_id": program_id,
-            "affiliate_id": affiliate_id,
-            "site_id": site_id,
-            "campaign_id": campaign_id,
-            "product_id": product_id,
-            "revshare": revshare,
-            "revsharepercent": revsharepercent,
-            "revtype": revtype,
-            "ringfence": ringfence,
-            "cpachoice": cpachoice,
-            "criteriaacquisition": criteriaacquisition,
-            "criteriavalue": criteriavalue,
-            "cpacommissionvalue": cpacommissionvalue,
-            "currency": currency,
-            "cpacumulative": cpacumulative,
-            "exclude_rev": exclude_rev,
-            "tierchoice": tierchoice,
-            "tiertype": tiertype,
-            "tier_ringfence": tier_ringfence,
-            "tier_brackets": tier_brackets,
-            "cplchoice": cplchoice,
-            "cplcommissionvalue": cplcommissionvalue,
-            "cplcurrency": cplcurrency,
-            "cpcchoice": cpcchoice,
-            "cpccommissionvalue": cpccommissionvalue,
-            "cpccurrency": cpccurrency,
-            "cpichoice": cpichoice,
-            "cpicommissionvalue": cpicommissionvalue,
-            "cpicurrency": cpicurrency,
-            "tenancychoice": tenancychoice,
-            "tenancyfee": tenancyfee,
-            "tenancycurrency": tenancycurrency,
-            "referalchoice": referalchoice,
-            "referalcommissionvalue": referalcommissionvalue,
-            "referral_type": referral_type,
-            "referral_ringfence": referral_ringfence,
-            "referrals": referrals,
-            "iscpa_capping": iscpa_capping,
-            "cpa_capping_duration": cpa_capping_duration,
-            "cpa_capping_limit": cpa_capping_limit,
-            "iscpl_capping": iscpl_capping,
-            "cpl_capping_duration": cpl_capping_duration,
-            "cpl_capping_limit": cpl_capping_limit,
-            "iscpc_capping": iscpc_capping,
-            "cpc_capping_duration": cpc_capping_duration,
-            "cpc_capping_limit": cpc_capping_limit,
-            "iscpi_capping": iscpi_capping,
-            "cpi_capping_duration": cpi_capping_duration,
-            "cpi_capping_limit": cpi_capping_limit,
-            "wagercriteriavalue": wagercriteriavalue,
-            "start_date": start_date,
-            "end_date": end_date,
-            "notes": notes,
-            "month_to_date": month_to_date,
-            "pocdeduction": pocdeduction,
-            "mastercommission_id": mastercommission_id,
-            "country": country,
-        },
-    )
+#     Args:
+#         commission_id: The commission's ID.
+#         is_track_history: Snapshot current state before updating.
+#         comm_type: Commission type.
+#         program_id: Affiliate programme ID.
+#         (All other args are the same as create_commission.)
+#     """
+#     return await _put(
+#         f"/commissions/{commission_id}/",
+#         {
+#             "is_track_history": is_track_history,
+#             "comm_type": comm_type,
+#             "program_id": program_id,
+#             "affiliate_id": affiliate_id,
+#             "site_id": site_id,
+#             "campaign_id": campaign_id,
+#             "product_id": product_id,
+#             "revshare": revshare,
+#             "revsharepercent": revsharepercent,
+#             "revtype": revtype,
+#             "ringfence": ringfence,
+#             "cpachoice": cpachoice,
+#             "criteriaacquisition": criteriaacquisition,
+#             "criteriavalue": criteriavalue,
+#             "cpacommissionvalue": cpacommissionvalue,
+#             "currency": currency,
+#             "cpacumulative": cpacumulative,
+#             "exclude_rev": exclude_rev,
+#             "tierchoice": tierchoice,
+#             "tiertype": tiertype,
+#             "tier_ringfence": tier_ringfence,
+#             "tier_brackets": tier_brackets,
+#             "cplchoice": cplchoice,
+#             "cplcommissionvalue": cplcommissionvalue,
+#             "cplcurrency": cplcurrency,
+#             "cpcchoice": cpcchoice,
+#             "cpccommissionvalue": cpccommissionvalue,
+#             "cpccurrency": cpccurrency,
+#             "cpichoice": cpichoice,
+#             "cpicommissionvalue": cpicommissionvalue,
+#             "cpicurrency": cpicurrency,
+#             "tenancychoice": tenancychoice,
+#             "tenancyfee": tenancyfee,
+#             "tenancycurrency": tenancycurrency,
+#             "referalchoice": referalchoice,
+#             "referalcommissionvalue": referalcommissionvalue,
+#             "referral_type": referral_type,
+#             "referral_ringfence": referral_ringfence,
+#             "referrals": referrals,
+#             "iscpa_capping": iscpa_capping,
+#             "cpa_capping_duration": cpa_capping_duration,
+#             "cpa_capping_limit": cpa_capping_limit,
+#             "iscpl_capping": iscpl_capping,
+#             "cpl_capping_duration": cpl_capping_duration,
+#             "cpl_capping_limit": cpl_capping_limit,
+#             "iscpc_capping": iscpc_capping,
+#             "cpc_capping_duration": cpc_capping_duration,
+#             "cpc_capping_limit": cpc_capping_limit,
+#             "iscpi_capping": iscpi_capping,
+#             "cpi_capping_duration": cpi_capping_duration,
+#             "cpi_capping_limit": cpi_capping_limit,
+#             "wagercriteriavalue": wagercriteriavalue,
+#             "start_date": start_date,
+#             "end_date": end_date,
+#             "notes": notes,
+#             "month_to_date": month_to_date,
+#             "pocdeduction": pocdeduction,
+#             "mastercommission_id": mastercommission_id,
+#             "country": country,
+#         },
+#     )
 
 
 # ---------------------------------------------------------------------------
@@ -955,15 +955,15 @@ async def create_bonus_code(
     )
 
 
-@mcp.tool()
-async def delete_bonus_code(bonus_code_id: str, program_id: int | None = None) -> str:
-    """Delete a bonus code (Admin only). Blocked if the campaign is in use by a tracking link.
+# @mcp.tool()
+# async def delete_bonus_code(bonus_code_id: str, program_id: int | None = None) -> str:
+#     """Delete a bonus code (Admin only). Blocked if the campaign is in use by a tracking link.
 
-    Args:
-        bonus_code_id: The BonusCode ID to delete.
-        program_id: Programme ID; validates the bonus code belongs to this programme.
-    """
-    return await _delete(f"/bonus-codes/{bonus_code_id}/", {"program_id": program_id})
+#     Args:
+#         bonus_code_id: The BonusCode ID to delete.
+#         program_id: Programme ID; validates the bonus code belongs to this programme.
+#     """
+#     return await _delete(f"/bonus-codes/{bonus_code_id}/", {"program_id": program_id})
 
 
 # ---------------------------------------------------------------------------
@@ -1129,56 +1129,56 @@ async def bonus_create_head(
     )
 
 
-@mcp.tool()
-async def bonus_patch_head(
-    head_id: int,
-    updated_by: str,
-    name: str | None = None,
-    description: str | None = None,
-    active: bool | None = None,
-    owner: str | None = None,
-) -> str:
-    """Partially update a bonus head. Only provided fields are written.
+# @mcp.tool()
+# async def bonus_patch_head(
+#     head_id: int,
+#     updated_by: str,
+#     name: str | None = None,
+#     description: str | None = None,
+#     active: bool | None = None,
+#     owner: str | None = None,
+# ) -> str:
+#     """Partially update a bonus head. Only provided fields are written.
 
-    Args:
-        head_id: Bonus head ID (required).
-        updated_by: Actor performing the update (required).
-        name: New name.
-        description: New description (pass null to clear).
-        active: New active flag.
-        owner: New owner username/email.
-    """
-    return await _bonus_patch(
-        f"/bonus-heads/{head_id}",
-        {"updated_by": updated_by, "name": name, "description": description,
-         "active": active, "owner": owner},
-    )
-
-
-@mcp.tool()
-async def bonus_upsert_head_owners(head_id: int, owners_json: str) -> str:
-    """Add or update owner assignments for a bonus head.
-
-    Args:
-        head_id: Bonus head ID (required).
-        owners_json: JSON string with "owners" list and "updated_by", e.g.
-            '{"owners": [{"username": "alice", "role": "OPS_LEAD", "active": true}], "updated_by": "admin"}'.
-            Role must be one of: OPS_LEAD, CAMPAIGN_MANAGER, FINANCE_APPROVER, ESCALATION_CONTACT.
-    """
-    return await _bonus_put(f"/bonus-heads/{head_id}/owners", json.loads(owners_json))
+#     Args:
+#         head_id: Bonus head ID (required).
+#         updated_by: Actor performing the update (required).
+#         name: New name.
+#         description: New description (pass null to clear).
+#         active: New active flag.
+#         owner: New owner username/email.
+#     """
+#     return await _bonus_patch(
+#         f"/bonus-heads/{head_id}",
+#         {"updated_by": updated_by, "name": name, "description": description,
+#          "active": active, "owner": owner},
+#     )
 
 
-@mcp.tool()
-async def bonus_upsert_head_limits(head_id: int, limits_json: str) -> str:
-    """Set or update budget caps for a bonus head.
+# @mcp.tool()
+# async def bonus_upsert_head_owners(head_id: int, owners_json: str) -> str:
+#     """Add or update owner assignments for a bonus head.
 
-    Args:
-        head_id: Bonus head ID (required).
-        limits_json: JSON string with "limits" list and "updated_by", e.g.
-            '{"limits": [{"period_type": "MONTHLY", "budget_limit": 50000}], "updated_by": "admin"}'.
-            period_type must be one of: DAILY, WEEKLY, MONTHLY. Pass null for budget_limit to uncap.
-    """
-    return await _bonus_put(f"/bonus-heads/{head_id}/limits", json.loads(limits_json))
+#     Args:
+#         head_id: Bonus head ID (required).
+#         owners_json: JSON string with "owners" list and "updated_by", e.g.
+#             '{"owners": [{"username": "alice", "role": "OPS_LEAD", "active": true}], "updated_by": "admin"}'.
+#             Role must be one of: OPS_LEAD, CAMPAIGN_MANAGER, FINANCE_APPROVER, ESCALATION_CONTACT.
+#     """
+#     return await _bonus_put(f"/bonus-heads/{head_id}/owners", json.loads(owners_json))
+
+
+# @mcp.tool()
+# async def bonus_upsert_head_limits(head_id: int, limits_json: str) -> str:
+#     """Set or update budget caps for a bonus head.
+
+#     Args:
+#         head_id: Bonus head ID (required).
+#         limits_json: JSON string with "limits" list and "updated_by", e.g.
+#             '{"limits": [{"period_type": "MONTHLY", "budget_limit": 50000}], "updated_by": "admin"}'.
+#             period_type must be one of: DAILY, WEEKLY, MONTHLY. Pass null for budget_limit to uncap.
+#     """
+#     return await _bonus_put(f"/bonus-heads/{head_id}/limits", json.loads(limits_json))
 
 
 @mcp.tool()
@@ -1239,52 +1239,52 @@ async def bonus_get_subhead(subhead_id: int) -> str:
     return await _bonus_get(f"/bonus-subheads/{subhead_id}")
 
 
-@mcp.tool()
-async def bonus_patch_subhead(
-    subhead_id: int,
-    updated_by: str,
-    name: str | None = None,
-    description: str | None = None,
-    active: bool | None = None,
-    owner: str | None = None,
-) -> str:
-    """Partially update a bonus subhead. Only provided fields are written.
+# @mcp.tool()
+# async def bonus_patch_subhead(
+#     subhead_id: int,
+#     updated_by: str,
+#     name: str | None = None,
+#     description: str | None = None,
+#     active: bool | None = None,
+#     owner: str | None = None,
+# ) -> str:
+#     """Partially update a bonus subhead. Only provided fields are written.
 
-    Args:
-        subhead_id: Bonus subhead ID (required).
-        updated_by: Actor performing the update (required).
-        name: New name.
-        description: New description (pass null to clear).
-        active: New active flag.
-        owner: New owner username/email.
-    """
-    return await _bonus_patch(
-        f"/bonus-subheads/{subhead_id}",
-        {"updated_by": updated_by, "name": name, "description": description,
-         "active": active, "owner": owner},
-    )
-
-
-@mcp.tool()
-async def bonus_upsert_subhead_owners(subhead_id: int, owners_json: str) -> str:
-    """Add or update owner assignments for a bonus subhead.
-
-    Args:
-        subhead_id: Bonus subhead ID (required).
-        owners_json: JSON string with "owners" list and "updated_by". Same format as bonus_upsert_head_owners.
-    """
-    return await _bonus_put(f"/bonus-subheads/{subhead_id}/owners", json.loads(owners_json))
+#     Args:
+#         subhead_id: Bonus subhead ID (required).
+#         updated_by: Actor performing the update (required).
+#         name: New name.
+#         description: New description (pass null to clear).
+#         active: New active flag.
+#         owner: New owner username/email.
+#     """
+#     return await _bonus_patch(
+#         f"/bonus-subheads/{subhead_id}",
+#         {"updated_by": updated_by, "name": name, "description": description,
+#          "active": active, "owner": owner},
+#     )
 
 
-@mcp.tool()
-async def bonus_upsert_subhead_limits(subhead_id: int, limits_json: str) -> str:
-    """Set or update budget caps for a bonus subhead.
+# @mcp.tool()
+# async def bonus_upsert_subhead_owners(subhead_id: int, owners_json: str) -> str:
+#     """Add or update owner assignments for a bonus subhead.
 
-    Args:
-        subhead_id: Bonus subhead ID (required).
-        limits_json: JSON string with "limits" list and "updated_by". Same format as bonus_upsert_head_limits.
-    """
-    return await _bonus_put(f"/bonus-subheads/{subhead_id}/limits", json.loads(limits_json))
+#     Args:
+#         subhead_id: Bonus subhead ID (required).
+#         owners_json: JSON string with "owners" list and "updated_by". Same format as bonus_upsert_head_owners.
+#     """
+#     return await _bonus_put(f"/bonus-subheads/{subhead_id}/owners", json.loads(owners_json))
+
+
+# @mcp.tool()
+# async def bonus_upsert_subhead_limits(subhead_id: int, limits_json: str) -> str:
+#     """Set or update budget caps for a bonus subhead.
+
+#     Args:
+#         subhead_id: Bonus subhead ID (required).
+#         limits_json: JSON string with "limits" list and "updated_by". Same format as bonus_upsert_head_limits.
+#     """
+#     return await _bonus_put(f"/bonus-subheads/{subhead_id}/limits", json.loads(limits_json))
 
 
 @mcp.tool()
@@ -1386,76 +1386,76 @@ async def bonus_create_configure(
     )
 
 
-@mcp.tool()
-async def bonus_patch_configure(
-    configure_id: int,
-    updated_by: str,
-    name: str | None = None,
-    description: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    applicability_frequency: str | None = None,
-    wager_multiplier: float | None = None,
-    no_of_chunks: int | None = None,
-    release_bucket: str | None = None,
-    chunk_expiry_days: int | None = None,
-    bonus_expiry_days: int | None = None,
-    wager_chip_type: str | None = None,
-    credit_chip_type: str | None = None,
-    bonus_amount_fixed: float | None = None,
-    bonus_amount_percent: float | None = None,
-    bonus_amount_max: float | None = None,
-    priority: int | None = None,
-    active: bool | None = None,
-) -> str:
-    """Partially update a bonus configure node. Only provided fields are written.
+# @mcp.tool()
+# async def bonus_patch_configure(
+#     configure_id: int,
+#     updated_by: str,
+#     name: str | None = None,
+#     description: str | None = None,
+#     start_date: str | None = None,
+#     end_date: str | None = None,
+#     applicability_frequency: str | None = None,
+#     wager_multiplier: float | None = None,
+#     no_of_chunks: int | None = None,
+#     release_bucket: str | None = None,
+#     chunk_expiry_days: int | None = None,
+#     bonus_expiry_days: int | None = None,
+#     wager_chip_type: str | None = None,
+#     credit_chip_type: str | None = None,
+#     bonus_amount_fixed: float | None = None,
+#     bonus_amount_percent: float | None = None,
+#     bonus_amount_max: float | None = None,
+#     priority: int | None = None,
+#     active: bool | None = None,
+# ) -> str:
+#     """Partially update a bonus configure node. Only provided fields are written.
 
-    Args:
-        configure_id: Bonus configure ID (required).
-        updated_by: Actor performing the update (required).
-        name: New name.
-        description: New description.
-        start_date: New start date ISO string.
-        end_date: New end date ISO string.
-        applicability_frequency: EVERYTIME, ONCE, MONTHLY, or WEEKLY.
-        wager_multiplier: New wager multiplier.
-        no_of_chunks: New chunk count.
-        release_bucket: New release bucket.
-        chunk_expiry_days: New chunk expiry days.
-        bonus_expiry_days: New bonus expiry days.
-        wager_chip_type: New wager chip type.
-        credit_chip_type: New credit chip type.
-        bonus_amount_fixed: New fixed amount.
-        bonus_amount_percent: New percent amount.
-        bonus_amount_max: New max amount cap.
-        priority: New priority.
-        active: New active flag.
-    """
-    return await _bonus_patch(
-        f"/bonus-configures/{configure_id}",
-        {
-            "updated_by": updated_by, "name": name, "description": description,
-            "start_date": start_date, "end_date": end_date,
-            "applicability_frequency": applicability_frequency,
-            "wager_multiplier": wager_multiplier, "no_of_chunks": no_of_chunks,
-            "release_bucket": release_bucket, "chunk_expiry_days": chunk_expiry_days,
-            "bonus_expiry_days": bonus_expiry_days, "wager_chip_type": wager_chip_type,
-            "credit_chip_type": credit_chip_type, "bonus_amount_fixed": bonus_amount_fixed,
-            "bonus_amount_percent": bonus_amount_percent, "bonus_amount_max": bonus_amount_max,
-            "priority": priority, "active": active,
-        },
-    )
+#     Args:
+#         configure_id: Bonus configure ID (required).
+#         updated_by: Actor performing the update (required).
+#         name: New name.
+#         description: New description.
+#         start_date: New start date ISO string.
+#         end_date: New end date ISO string.
+#         applicability_frequency: EVERYTIME, ONCE, MONTHLY, or WEEKLY.
+#         wager_multiplier: New wager multiplier.
+#         no_of_chunks: New chunk count.
+#         release_bucket: New release bucket.
+#         chunk_expiry_days: New chunk expiry days.
+#         bonus_expiry_days: New bonus expiry days.
+#         wager_chip_type: New wager chip type.
+#         credit_chip_type: New credit chip type.
+#         bonus_amount_fixed: New fixed amount.
+#         bonus_amount_percent: New percent amount.
+#         bonus_amount_max: New max amount cap.
+#         priority: New priority.
+#         active: New active flag.
+#     """
+#     return await _bonus_patch(
+#         f"/bonus-configures/{configure_id}",
+#         {
+#             "updated_by": updated_by, "name": name, "description": description,
+#             "start_date": start_date, "end_date": end_date,
+#             "applicability_frequency": applicability_frequency,
+#             "wager_multiplier": wager_multiplier, "no_of_chunks": no_of_chunks,
+#             "release_bucket": release_bucket, "chunk_expiry_days": chunk_expiry_days,
+#             "bonus_expiry_days": bonus_expiry_days, "wager_chip_type": wager_chip_type,
+#             "credit_chip_type": credit_chip_type, "bonus_amount_fixed": bonus_amount_fixed,
+#             "bonus_amount_percent": bonus_amount_percent, "bonus_amount_max": bonus_amount_max,
+#             "priority": priority, "active": active,
+#         },
+#     )
 
 
-@mcp.tool()
-async def bonus_upsert_configure_limits(configure_id: int, limits_json: str) -> str:
-    """Set or update budget caps for a bonus configure node.
+# @mcp.tool()
+# async def bonus_upsert_configure_limits(configure_id: int, limits_json: str) -> str:
+#     """Set or update budget caps for a bonus configure node.
 
-    Args:
-        configure_id: Bonus configure ID (required).
-        limits_json: JSON string with "limits" list and "updated_by". Same format as bonus_upsert_head_limits.
-    """
-    return await _bonus_put(f"/bonus-configures/{configure_id}/limits", json.loads(limits_json))
+#     Args:
+#         configure_id: Bonus configure ID (required).
+#         limits_json: JSON string with "limits" list and "updated_by". Same format as bonus_upsert_head_limits.
+#     """
+#     return await _bonus_put(f"/bonus-configures/{configure_id}/limits", json.loads(limits_json))
 
 
 @mcp.tool()
@@ -1541,60 +1541,60 @@ async def bonus_create_configure_code(
     )
 
 
-@mcp.tool()
-async def bonus_patch_configure_code(
-    code_id: int,
-    updated_by: str,
-    code: str | None = None,
-    max_amount: float | None = None,
-    valid_from: str | None = None,
-    valid_to: str | None = None,
-    display_title: str | None = None,
-    display_description: str | None = None,
-    terms_url: str | None = None,
-    banner_image_url: str | None = None,
-    badge_text: str | None = None,
-    cta_text: str | None = None,
-    auto_apply: bool | None = None,
-    display_order: int | None = None,
-    display_on: str | None = None,
-    min_display_amount: float | None = None,
-    active: bool | None = None,
-) -> str:
-    """Partially update a bonus configure promo code. Only provided fields are written.
+# @mcp.tool()
+# async def bonus_patch_configure_code(
+#     code_id: int,
+#     updated_by: str,
+#     code: str | None = None,
+#     max_amount: float | None = None,
+#     valid_from: str | None = None,
+#     valid_to: str | None = None,
+#     display_title: str | None = None,
+#     display_description: str | None = None,
+#     terms_url: str | None = None,
+#     banner_image_url: str | None = None,
+#     badge_text: str | None = None,
+#     cta_text: str | None = None,
+#     auto_apply: bool | None = None,
+#     display_order: int | None = None,
+#     display_on: str | None = None,
+#     min_display_amount: float | None = None,
+#     active: bool | None = None,
+# ) -> str:
+#     """Partially update a bonus configure promo code. Only provided fields are written.
 
-    Args:
-        code_id: Bonus configure code ID (required).
-        updated_by: Actor performing the update (required).
-        code: New promo code string, 1-50 chars.
-        max_amount: New maximum bonus amount.
-        valid_from: New validity start as ISO datetime string.
-        valid_to: New validity end as ISO datetime string.
-        display_title: New display title, max 200 chars.
-        display_description: New display description, max 500 chars.
-        terms_url: New terms URL, max 500 chars.
-        banner_image_url: New banner image URL, max 500 chars.
-        badge_text: New badge text, max 100 chars.
-        cta_text: New CTA text, max 100 chars.
-        auto_apply: New auto-apply flag.
-        display_order: New display order.
-        display_on: New display context.
-        min_display_amount: New minimum display amount.
-        active: New active flag.
-    """
-    return await _bonus_patch(
-        f"/bonus-configure-codes/{code_id}",
-        {
-            "updated_by": updated_by, "code": code, "max_amount": max_amount,
-            "valid_from": valid_from, "valid_to": valid_to,
-            "display_title": display_title, "display_description": display_description,
-            "terms_url": terms_url, "banner_image_url": banner_image_url,
-            "badge_text": badge_text, "cta_text": cta_text,
-            "auto_apply": auto_apply, "display_order": display_order,
-            "display_on": display_on, "min_display_amount": min_display_amount,
-            "active": active,
-        },
-    )
+#     Args:
+#         code_id: Bonus configure code ID (required).
+#         updated_by: Actor performing the update (required).
+#         code: New promo code string, 1-50 chars.
+#         max_amount: New maximum bonus amount.
+#         valid_from: New validity start as ISO datetime string.
+#         valid_to: New validity end as ISO datetime string.
+#         display_title: New display title, max 200 chars.
+#         display_description: New display description, max 500 chars.
+#         terms_url: New terms URL, max 500 chars.
+#         banner_image_url: New banner image URL, max 500 chars.
+#         badge_text: New badge text, max 100 chars.
+#         cta_text: New CTA text, max 100 chars.
+#         auto_apply: New auto-apply flag.
+#         display_order: New display order.
+#         display_on: New display context.
+#         min_display_amount: New minimum display amount.
+#         active: New active flag.
+#     """
+#     return await _bonus_patch(
+#         f"/bonus-configure-codes/{code_id}",
+#         {
+#             "updated_by": updated_by, "code": code, "max_amount": max_amount,
+#             "valid_from": valid_from, "valid_to": valid_to,
+#             "display_title": display_title, "display_description": display_description,
+#             "terms_url": terms_url, "banner_image_url": banner_image_url,
+#             "badge_text": badge_text, "cta_text": cta_text,
+#             "auto_apply": auto_apply, "display_order": display_order,
+#             "display_on": display_on, "min_display_amount": min_display_amount,
+#             "active": active,
+#         },
+#     )
 
 
 # ---------------------------------------------------------------------------
@@ -1656,56 +1656,56 @@ async def bonus_create_release_trigger(
     )
 
 
-@mcp.tool()
-async def bonus_patch_release_trigger(
-    trigger_id: int,
-    updated_by: str,
-    trigger_type: str | None = None,
-    description: str | None = None,
-    min_trigger_amount: float | None = None,
-    max_trigger_amount: float | None = None,
-    payment_method: str | None = None,
-    product: str | None = None,
-    occurrence: int | None = None,
-    trigger_config_json: str | None = None,
-    active: bool | None = None,
-) -> str:
-    """Partially update a bonus release trigger. Only provided fields are written.
+# @mcp.tool()
+# async def bonus_patch_release_trigger(
+#     trigger_id: int,
+#     updated_by: str,
+#     trigger_type: str | None = None,
+#     description: str | None = None,
+#     min_trigger_amount: float | None = None,
+#     max_trigger_amount: float | None = None,
+#     payment_method: str | None = None,
+#     product: str | None = None,
+#     occurrence: int | None = None,
+#     trigger_config_json: str | None = None,
+#     active: bool | None = None,
+# ) -> str:
+#     """Partially update a bonus release trigger. Only provided fields are written.
 
-    Args:
-        trigger_id: Release trigger ID (required).
-        updated_by: Actor performing the update (required).
-        trigger_type: New trigger type.
-        description: New description.
-        min_trigger_amount: New minimum qualifying amount.
-        max_trigger_amount: New maximum qualifying amount.
-        payment_method: New payment method restriction.
-        product: New product restriction.
-        occurrence: New occurrence value.
-        trigger_config_json: New trigger config as JSON string (full replacement).
-        active: New active flag.
-    """
-    return await _bonus_patch(
-        f"/bonus-release-triggers/{trigger_id}",
-        {
-            "updated_by": updated_by, "trigger_type": trigger_type,
-            "description": description, "min_trigger_amount": min_trigger_amount,
-            "max_trigger_amount": max_trigger_amount, "payment_method": payment_method,
-            "product": product, "occurrence": occurrence,
-            "trigger_config": json.loads(trigger_config_json) if trigger_config_json else None,
-            "active": active,
-        },
-    )
+#     Args:
+#         trigger_id: Release trigger ID (required).
+#         updated_by: Actor performing the update (required).
+#         trigger_type: New trigger type.
+#         description: New description.
+#         min_trigger_amount: New minimum qualifying amount.
+#         max_trigger_amount: New maximum qualifying amount.
+#         payment_method: New payment method restriction.
+#         product: New product restriction.
+#         occurrence: New occurrence value.
+#         trigger_config_json: New trigger config as JSON string (full replacement).
+#         active: New active flag.
+#     """
+#     return await _bonus_patch(
+#         f"/bonus-release-triggers/{trigger_id}",
+#         {
+#             "updated_by": updated_by, "trigger_type": trigger_type,
+#             "description": description, "min_trigger_amount": min_trigger_amount,
+#             "max_trigger_amount": max_trigger_amount, "payment_method": payment_method,
+#             "product": product, "occurrence": occurrence,
+#             "trigger_config": json.loads(trigger_config_json) if trigger_config_json else None,
+#             "active": active,
+#         },
+#     )
 
 
-@mcp.tool()
-async def bonus_delete_release_trigger(trigger_id: int) -> str:
-    """Hard-delete a bonus release trigger.
+# @mcp.tool()
+# async def bonus_delete_release_trigger(trigger_id: int) -> str:
+#     """Hard-delete a bonus release trigger.
 
-    Args:
-        trigger_id: Release trigger ID (required).
-    """
-    return await _bonus_delete(f"/bonus-release-triggers/{trigger_id}")
+#     Args:
+#         trigger_id: Release trigger ID (required).
+#     """
+#     return await _bonus_delete(f"/bonus-release-triggers/{trigger_id}")
 
 
 # ---------------------------------------------------------------------------
@@ -1759,36 +1759,36 @@ async def bonus_create_eligibility(
     )
 
 
-@mcp.tool()
-async def bonus_patch_eligibility(
-    eligibility_id: int,
-    updated_by: str,
-    eligibility_key: str | None = None,
-    eligibility_value: str | None = None,
-    eligibility_value_type: str | None = None,
-    description: str | None = None,
-    active: bool | None = None,
-) -> str:
-    """Partially update a bonus eligibility criterion. Only provided fields are written.
+# @mcp.tool()
+# async def bonus_patch_eligibility(
+#     eligibility_id: int,
+#     updated_by: str,
+#     eligibility_key: str | None = None,
+#     eligibility_value: str | None = None,
+#     eligibility_value_type: str | None = None,
+#     description: str | None = None,
+#     active: bool | None = None,
+# ) -> str:
+#     """Partially update a bonus eligibility criterion. Only provided fields are written.
 
-    Args:
-        eligibility_id: Eligibility criterion ID (required).
-        updated_by: Actor performing the update (required).
-        eligibility_key: New criterion key.
-        eligibility_value: New criterion value.
-        eligibility_value_type: New value type (STRING, INT, DECIMAL, BOOLEAN, JSON).
-        description: New description.
-        active: New active flag.
-    """
-    return await _bonus_patch(
-        f"/bonus-eligibilities/{eligibility_id}",
-        {
-            "updated_by": updated_by, "eligibility_key": eligibility_key,
-            "eligibility_value": eligibility_value,
-            "eligibility_value_type": eligibility_value_type,
-            "description": description, "active": active,
-        },
-    )
+#     Args:
+#         eligibility_id: Eligibility criterion ID (required).
+#         updated_by: Actor performing the update (required).
+#         eligibility_key: New criterion key.
+#         eligibility_value: New criterion value.
+#         eligibility_value_type: New value type (STRING, INT, DECIMAL, BOOLEAN, JSON).
+#         description: New description.
+#         active: New active flag.
+#     """
+#     return await _bonus_patch(
+#         f"/bonus-eligibilities/{eligibility_id}",
+#         {
+#             "updated_by": updated_by, "eligibility_key": eligibility_key,
+#             "eligibility_value": eligibility_value,
+#             "eligibility_value_type": eligibility_value_type,
+#             "description": description, "active": active,
+#         },
+#     )
 
 
 # ---------------------------------------------------------------------------
@@ -1873,62 +1873,62 @@ async def bonus_validate_promo_code(user_id: str, chip_type: str, code: str) -> 
     )
 
 
-@mcp.tool()
-async def bonus_consume_bonus(
-    user_id: str,
-    consume_txn_id: str,
-    wager_amount: float,
-    bonus_amount: float,
-    chip_type: str,
-    wager_tnx_id: str,
-    client_id: str,
-    game_id: str | None = None,
-    round_id: str | None = None,
-) -> str:
-    """Consume a player bonus against a wager (S2S).
+# @mcp.tool()
+# async def bonus_consume_bonus(
+#     user_id: str,
+#     consume_txn_id: str,
+#     wager_amount: float,
+#     bonus_amount: float,
+#     chip_type: str,
+#     wager_tnx_id: str,
+#     client_id: str,
+#     game_id: str | None = None,
+#     round_id: str | None = None,
+# ) -> str:
+#     """Consume a player bonus against a wager (S2S).
 
-    Args:
-        user_id: Player user ID, 1-50 chars (required).
-        consume_txn_id: Unique consumption transaction ID, 1-50 chars (required).
-        wager_amount: Wager amount (required).
-        bonus_amount: Bonus amount to consume (required).
-        chip_type: "cash" or "in_app_purchase" (required).
-        wager_tnx_id: Wager transaction ID, 1-50 chars (required).
-        client_id: x-client-id header value for S2S authentication (required).
-        game_id: Game identifier, max 50 chars (optional).
-        round_id: Round identifier, max 50 chars (optional).
-    """
-    payload = {k: v for k, v in {
-        "user_id": user_id, "consume_txn_id": consume_txn_id,
-        "wager_amount": wager_amount, "bonus_amount": bonus_amount,
-        "chip_type": chip_type, "wager_tnx_id": wager_tnx_id,
-        "game_id": game_id, "round_id": round_id,
-    }.items() if v is not None}
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{PAM_BASE_URL}/bonus/user-bonuses/consume",
-            json=payload,
-            headers={**_headers(), "x-client-id": client_id},
-            timeout=30,
-        )
-        return r.text
+#     Args:
+#         user_id: Player user ID, 1-50 chars (required).
+#         consume_txn_id: Unique consumption transaction ID, 1-50 chars (required).
+#         wager_amount: Wager amount (required).
+#         bonus_amount: Bonus amount to consume (required).
+#         chip_type: "cash" or "in_app_purchase" (required).
+#         wager_tnx_id: Wager transaction ID, 1-50 chars (required).
+#         client_id: x-client-id header value for S2S authentication (required).
+#         game_id: Game identifier, max 50 chars (optional).
+#         round_id: Round identifier, max 50 chars (optional).
+#     """
+#     payload = {k: v for k, v in {
+#         "user_id": user_id, "consume_txn_id": consume_txn_id,
+#         "wager_amount": wager_amount, "bonus_amount": bonus_amount,
+#         "chip_type": chip_type, "wager_tnx_id": wager_tnx_id,
+#         "game_id": game_id, "round_id": round_id,
+#     }.items() if v is not None}
+#     async with httpx.AsyncClient() as client:
+#         r = await client.post(
+#             f"{PAM_BASE_URL}/bonus/user-bonuses/consume",
+#             json=payload,
+#             headers={**_headers(), "x-client-id": client_id},
+#             timeout=30,
+#         )
+#         return r.text
 
 
-@mcp.tool()
-async def bonus_revert_bonus_consumption(consume_txn_id: str) -> str:
-    """Revert a previously consumed player bonus.
+# @mcp.tool()
+# async def bonus_revert_bonus_consumption(consume_txn_id: str) -> str:
+#     """Revert a previously consumed player bonus.
 
-    Args:
-        consume_txn_id: The consume transaction ID to revert (required).
-    """
-    async with httpx.AsyncClient() as client:
-        r = await client.post(
-            f"{PAM_BASE_URL}/bonus/user-bonuses/consume/{consume_txn_id}/revert",
-            json={},
-            headers=_headers(),
-            timeout=30,
-        )
-        return r.text
+#     Args:
+#         consume_txn_id: The consume transaction ID to revert (required).
+#     """
+#     async with httpx.AsyncClient() as client:
+#         r = await client.post(
+#             f"{PAM_BASE_URL}/bonus/user-bonuses/consume/{consume_txn_id}/revert",
+#             json={},
+#             headers=_headers(),
+#             timeout=30,
+#         )
+#         return r.text
 
 
 # ---------------------------------------------------------------------------
@@ -2023,44 +2023,44 @@ async def segment_get(segment_id: str) -> str:
     return await _segment_get(f"/segments/{segment_id}")
 
 
-@mcp.tool()
-async def segment_update(
-    segment_id: str,
-    name: str | None = None,
-    rule_json: str | None = None,
-    refresh_strategy: str | None = None,
-    scheduled_cron: str | None = None,
-    brand_id: str | None = None,
-) -> str:
-    """Replace (PUT) a segment's definition. Only provided fields are written.
+# @mcp.tool()
+# async def segment_update(
+#     segment_id: str,
+#     name: str | None = None,
+#     rule_json: str | None = None,
+#     refresh_strategy: str | None = None,
+#     scheduled_cron: str | None = None,
+#     brand_id: str | None = None,
+# ) -> str:
+#     """Replace (PUT) a segment's definition. Only provided fields are written.
 
-    Args:
-        segment_id: Segment ID (required).
-        name: New segment name.
-        rule_json: New DSL rule as JSON string (full replacement). Same format as segment_create.
-        refresh_strategy: New refresh strategy: "scheduled", "on_event", or "one_time".
-        scheduled_cron: New cron expression (required if refresh_strategy is "scheduled").
-        brand_id: New brand/site ID.
-    """
-    body: dict[str, Any] = {
-        "name": name,
-        "refresh_strategy": refresh_strategy,
-        "scheduled_cron": scheduled_cron,
-        "brand_id": brand_id,
-    }
-    if rule_json is not None:
-        body["rule"] = json.loads(rule_json)
-    return await _segment_put(f"/segments/{segment_id}", body)
+#     Args:
+#         segment_id: Segment ID (required).
+#         name: New segment name.
+#         rule_json: New DSL rule as JSON string (full replacement). Same format as segment_create.
+#         refresh_strategy: New refresh strategy: "scheduled", "on_event", or "one_time".
+#         scheduled_cron: New cron expression (required if refresh_strategy is "scheduled").
+#         brand_id: New brand/site ID.
+#     """
+#     body: dict[str, Any] = {
+#         "name": name,
+#         "refresh_strategy": refresh_strategy,
+#         "scheduled_cron": scheduled_cron,
+#         "brand_id": brand_id,
+#     }
+#     if rule_json is not None:
+#         body["rule"] = json.loads(rule_json)
+#     return await _segment_put(f"/segments/{segment_id}", body)
 
 
-@mcp.tool()
-async def segment_delete(segment_id: str) -> str:
-    """Delete a segment and remove all its Redis memberships.
+# @mcp.tool()
+# async def segment_delete(segment_id: str) -> str:
+#     """Delete a segment and remove all its Redis memberships.
 
-    Args:
-        segment_id: Segment ID (required).
-    """
-    return await _segment_delete(f"/segments/{segment_id}")
+#     Args:
+#         segment_id: Segment ID (required).
+#     """
+#     return await _segment_delete(f"/segments/{segment_id}")
 
 
 @mcp.tool()
@@ -2093,16 +2093,16 @@ async def segment_check_membership(segment_id: str, user_id: str) -> str:
     return await _segment_get(f"/segments/{segment_id}/members/{user_id}")
 
 
-@mcp.tool()
-async def segment_evaluate(segment_id: str) -> str:
-    """Trigger an immediate synchronous evaluation of a segment and return the new size.
+# @mcp.tool()
+# async def segment_evaluate(segment_id: str) -> str:
+#     """Trigger an immediate synchronous evaluation of a segment and return the new size.
 
-    Custom audience segments cannot be re-evaluated and will return a detail message.
+#     Custom audience segments cannot be re-evaluated and will return a detail message.
 
-    Args:
-        segment_id: Segment ID (required).
-    """
-    return await _segment_post(f"/segments/{segment_id}/evaluate", {})
+#     Args:
+#         segment_id: Segment ID (required).
+#     """
+#     return await _segment_post(f"/segments/{segment_id}/evaluate", {})
 
 
 # ---------------------------------------------------------------------------
@@ -2193,15 +2193,15 @@ async def segment_admin_get(project_id: str, segment_id: str) -> str:
     return await _segment_get(f"/admin/projects/{project_id}/{segment_id}")
 
 
-@mcp.tool()
-async def segment_admin_evaluate(project_id: str, segment_id: str) -> str:
-    """Queue a background evaluation of a segment (admin/system auth).
+# @mcp.tool()
+# async def segment_admin_evaluate(project_id: str, segment_id: str) -> str:
+#     """Queue a background evaluation of a segment (admin/system auth).
 
-    Args:
-        project_id: Project ID (required).
-        segment_id: Segment ID (required).
-    """
-    return await _segment_post(f"/admin/projects/{project_id}/{segment_id}/evaluate", {})
+#     Args:
+#         project_id: Project ID (required).
+#         segment_id: Segment ID (required).
+#     """
+#     return await _segment_post(f"/admin/projects/{project_id}/{segment_id}/evaluate", {})
 
 
 @mcp.tool()
@@ -2244,39 +2244,39 @@ async def segment_admin_list_derived_rules(project_id: str) -> str:
     return await _segment_get(f"/admin/projects/{project_id}/derived-rules")
 
 
-@mcp.tool()
-async def segment_admin_update_derived_rule(
-    project_id: str,
-    rule_id: str,
-    name: str | None = None,
-    sql: str | None = None,
-    parameters_json: str | None = None,
-) -> str:
-    """Partially update an admin-authored derived rule (system auth).
+# @mcp.tool()
+# async def segment_admin_update_derived_rule(
+#     project_id: str,
+#     rule_id: str,
+#     name: str | None = None,
+#     sql: str | None = None,
+#     parameters_json: str | None = None,
+# ) -> str:
+#     """Partially update an admin-authored derived rule (system auth).
 
-    Args:
-        project_id: Project ID (required).
-        rule_id: Derived rule ID (required).
-        name: New rule name.
-        sql: New SQL template (full replacement).
-        parameters_json: New parameters array as JSON string (full replacement), e.g.
-            '[{"key": "min_amount", "type": "number"}]'.
-    """
-    body: dict[str, Any] = {"name": name, "sql": sql}
-    if parameters_json is not None:
-        body["parameters"] = json.loads(parameters_json)
-    return await _segment_patch(f"/admin/projects/{project_id}/derived-rules/{rule_id}", body)
+#     Args:
+#         project_id: Project ID (required).
+#         rule_id: Derived rule ID (required).
+#         name: New rule name.
+#         sql: New SQL template (full replacement).
+#         parameters_json: New parameters array as JSON string (full replacement), e.g.
+#             '[{"key": "min_amount", "type": "number"}]'.
+#     """
+#     body: dict[str, Any] = {"name": name, "sql": sql}
+#     if parameters_json is not None:
+#         body["parameters"] = json.loads(parameters_json)
+#     return await _segment_patch(f"/admin/projects/{project_id}/derived-rules/{rule_id}", body)
 
 
-@mcp.tool()
-async def segment_admin_delete_derived_rule(project_id: str, rule_id: str) -> str:
-    """Delete an admin-authored derived rule (system auth).
+# @mcp.tool()
+# async def segment_admin_delete_derived_rule(project_id: str, rule_id: str) -> str:
+#     """Delete an admin-authored derived rule (system auth).
 
-    Args:
-        project_id: Project ID (required).
-        rule_id: Derived rule ID (required).
-    """
-    return await _segment_delete(f"/admin/projects/{project_id}/derived-rules/{rule_id}")
+#     Args:
+#         project_id: Project ID (required).
+#         rule_id: Derived rule ID (required).
+#     """
+#     return await _segment_delete(f"/admin/projects/{project_id}/derived-rules/{rule_id}")
 
 
 # ---------------------------------------------------------------------------
@@ -2378,94 +2378,94 @@ async def campaign_get(project_id: str, campaign_id: str) -> str:
     return await _campaign_get(f"/projects/{project_id}/{campaign_id}")
 
 
-@mcp.tool()
-async def campaign_update(
-    project_id: str,
-    campaign_id: str,
-    name: str | None = None,
-    tags: str | None = None,
-    objective: str | None = None,
-    audience_json: str | None = None,
-    channel_json: str | None = None,
-    delivery_json: str | None = None,
-) -> str:
-    """Partially update a campaign (only draft campaigns can be edited).
+# @mcp.tool()
+# async def campaign_update(
+#     project_id: str,
+#     campaign_id: str,
+#     name: str | None = None,
+#     tags: str | None = None,
+#     objective: str | None = None,
+#     audience_json: str | None = None,
+#     channel_json: str | None = None,
+#     delivery_json: str | None = None,
+# ) -> str:
+#     """Partially update a campaign (only draft campaigns can be edited).
 
-    Args:
-        project_id: Project ID (required).
-        campaign_id: Campaign ID (required).
-        name: New campaign name.
-        tags: New tags string.
-        objective: New objective description.
-        audience_json: JSON audience definition to replace (optional). Example:
-            '{"segment_id": "seg_xyz", "all": false, "target_platforms": []}'.
-        channel_json: JSON channel definition to replace (optional). Example:
-            '{"type": "email", "template_id": "tmpl_xyz"}'.
-        delivery_json: JSON delivery configuration to replace (optional).
-    """
-    body: dict[str, Any] = {"name": name, "tags": tags, "objective": objective}
-    if audience_json is not None:
-        body["audience"] = json.loads(audience_json)
-    if channel_json is not None:
-        body["channel"] = json.loads(channel_json)
-    if delivery_json is not None:
-        body["delivery"] = json.loads(delivery_json)
-    return await _campaign_patch(f"/projects/{project_id}/{campaign_id}", body)
-
-
-@mcp.tool()
-async def campaign_delete(project_id: str, campaign_id: str) -> str:
-    """Delete a campaign (only draft or cancelled campaigns can be deleted).
-
-    Args:
-        project_id: Project ID (required).
-        campaign_id: Campaign ID (required).
-    """
-    return await _campaign_delete(f"/projects/{project_id}/{campaign_id}")
+#     Args:
+#         project_id: Project ID (required).
+#         campaign_id: Campaign ID (required).
+#         name: New campaign name.
+#         tags: New tags string.
+#         objective: New objective description.
+#         audience_json: JSON audience definition to replace (optional). Example:
+#             '{"segment_id": "seg_xyz", "all": false, "target_platforms": []}'.
+#         channel_json: JSON channel definition to replace (optional). Example:
+#             '{"type": "email", "template_id": "tmpl_xyz"}'.
+#         delivery_json: JSON delivery configuration to replace (optional).
+#     """
+#     body: dict[str, Any] = {"name": name, "tags": tags, "objective": objective}
+#     if audience_json is not None:
+#         body["audience"] = json.loads(audience_json)
+#     if channel_json is not None:
+#         body["channel"] = json.loads(channel_json)
+#     if delivery_json is not None:
+#         body["delivery"] = json.loads(delivery_json)
+#     return await _campaign_patch(f"/projects/{project_id}/{campaign_id}", body)
 
 
-@mcp.tool()
-async def campaign_activate(project_id: str, campaign_id: str) -> str:
-    """Activate a draft campaign, moving it to scheduled or running state.
+# @mcp.tool()
+# async def campaign_delete(project_id: str, campaign_id: str) -> str:
+#     """Delete a campaign (only draft or cancelled campaigns can be deleted).
 
-    Args:
-        project_id: Project ID (required).
-        campaign_id: Campaign ID (required).
-    """
-    return await _campaign_post(f"/projects/{project_id}/{campaign_id}/activate", {})
-
-
-@mcp.tool()
-async def campaign_pause(project_id: str, campaign_id: str) -> str:
-    """Pause a running campaign.
-
-    Args:
-        project_id: Project ID (required).
-        campaign_id: Campaign ID (required).
-    """
-    return await _campaign_post(f"/projects/{project_id}/{campaign_id}/pause", {})
+#     Args:
+#         project_id: Project ID (required).
+#         campaign_id: Campaign ID (required).
+#     """
+#     return await _campaign_delete(f"/projects/{project_id}/{campaign_id}")
 
 
-@mcp.tool()
-async def campaign_resume(project_id: str, campaign_id: str) -> str:
-    """Resume a paused campaign.
+# @mcp.tool()
+# async def campaign_activate(project_id: str, campaign_id: str) -> str:
+#     """Activate a draft campaign, moving it to scheduled or running state.
 
-    Args:
-        project_id: Project ID (required).
-        campaign_id: Campaign ID (required).
-    """
-    return await _campaign_post(f"/projects/{project_id}/{campaign_id}/resume", {})
+#     Args:
+#         project_id: Project ID (required).
+#         campaign_id: Campaign ID (required).
+#     """
+#     return await _campaign_post(f"/projects/{project_id}/{campaign_id}/activate", {})
 
 
-@mcp.tool()
-async def campaign_cancel(project_id: str, campaign_id: str) -> str:
-    """Cancel a campaign (cannot cancel if already completed or cancelled).
+# @mcp.tool()
+# async def campaign_pause(project_id: str, campaign_id: str) -> str:
+#     """Pause a running campaign.
 
-    Args:
-        project_id: Project ID (required).
-        campaign_id: Campaign ID (required).
-    """
-    return await _campaign_post(f"/projects/{project_id}/{campaign_id}/cancel", {})
+#     Args:
+#         project_id: Project ID (required).
+#         campaign_id: Campaign ID (required).
+#     """
+#     return await _campaign_post(f"/projects/{project_id}/{campaign_id}/pause", {})
+
+
+# @mcp.tool()
+# async def campaign_resume(project_id: str, campaign_id: str) -> str:
+#     """Resume a paused campaign.
+
+#     Args:
+#         project_id: Project ID (required).
+#         campaign_id: Campaign ID (required).
+#     """
+#     return await _campaign_post(f"/projects/{project_id}/{campaign_id}/resume", {})
+
+
+# @mcp.tool()
+# async def campaign_cancel(project_id: str, campaign_id: str) -> str:
+#     """Cancel a campaign (cannot cancel if already completed or cancelled).
+
+#     Args:
+#         project_id: Project ID (required).
+#         campaign_id: Campaign ID (required).
+#     """
+#     return await _campaign_post(f"/projects/{project_id}/{campaign_id}/cancel", {})
 
 
 # ---------------------------------------------------------------------------
@@ -2515,36 +2515,36 @@ async def campaign_get_template(project_id: str, template_id: str) -> str:
     return await _campaign_get(f"/projects/{project_id}/templates/{template_id}")
 
 
-@mcp.tool()
-async def campaign_update_template(
-    project_id: str,
-    template_id: str,
-    name: str | None = None,
-    body_json: str | None = None,
-) -> str:
-    """Partially update a notification template.
+# @mcp.tool()
+# async def campaign_update_template(
+#     project_id: str,
+#     template_id: str,
+#     name: str | None = None,
+#     body_json: str | None = None,
+# ) -> str:
+#     """Partially update a notification template.
 
-    Args:
-        project_id: Project ID (required).
-        template_id: Template ID (required).
-        name: New template name.
-        body_json: New message body as JSON string (full replacement).
-    """
-    body: dict[str, Any] = {"name": name}
-    if body_json is not None:
-        body["body"] = json.loads(body_json)
-    return await _campaign_patch(f"/projects/{project_id}/templates/{template_id}", body)
+#     Args:
+#         project_id: Project ID (required).
+#         template_id: Template ID (required).
+#         name: New template name.
+#         body_json: New message body as JSON string (full replacement).
+#     """
+#     body: dict[str, Any] = {"name": name}
+#     if body_json is not None:
+#         body["body"] = json.loads(body_json)
+#     return await _campaign_patch(f"/projects/{project_id}/templates/{template_id}", body)
 
 
-@mcp.tool()
-async def campaign_delete_template(project_id: str, template_id: str) -> str:
-    """Delete a notification template.
+# @mcp.tool()
+# async def campaign_delete_template(project_id: str, template_id: str) -> str:
+#     """Delete a notification template.
 
-    Args:
-        project_id: Project ID (required).
-        template_id: Template ID (required).
-    """
-    return await _campaign_delete(f"/projects/{project_id}/templates/{template_id}")
+#     Args:
+#         project_id: Project ID (required).
+#         template_id: Template ID (required).
+#     """
+#     return await _campaign_delete(f"/projects/{project_id}/templates/{template_id}")
 
 
 # ---------------------------------------------------------------------------
@@ -2678,22 +2678,22 @@ async def campaign_get_boosts(project_id: str) -> str:
     return await _campaign_get(f"/projects/{project_id}/dashboard/boosts")
 
 
-@mcp.tool()
-async def campaign_set_boosts(project_id: str, boosts_json: str) -> str:
-    """Set dashboard boost values and analytics overrides for a project.
+# @mcp.tool()
+# async def campaign_set_boosts(project_id: str, boosts_json: str) -> str:
+#     """Set dashboard boost values and analytics overrides for a project.
 
-    Args:
-        project_id: Project ID (required).
-        boosts_json: JSON string with "boosts" and/or "analytics" dicts, e.g.
-            '{"boosts": {"quick_stats.live_campaigns": 5, "player_health.healthy": 1000},
-              "analytics": {"daily_avg_sent": 5000, "avg_open_rate": 0.22, "avg_ctr": 0.04}}'.
-            Valid boost fields: quick_stats.reachable_players, quick_stats.active_this_week,
-            quick_stats.live_campaigns, quick_stats.active_segments, quick_stats.messages_sent,
-            player_health.total_users, player_health.new, player_health.healthy,
-            player_health.at_risk, player_health.churned, channel_optin.push,
-            channel_optin.email, channel_optin.sms, quick_stats.opt_outs.
-    """
-    return await _campaign_put(f"/projects/{project_id}/dashboard/boosts", json.loads(boosts_json))
+#     Args:
+#         project_id: Project ID (required).
+#         boosts_json: JSON string with "boosts" and/or "analytics" dicts, e.g.
+#             '{"boosts": {"quick_stats.live_campaigns": 5, "player_health.healthy": 1000},
+#               "analytics": {"daily_avg_sent": 5000, "avg_open_rate": 0.22, "avg_ctr": 0.04}}'.
+#             Valid boost fields: quick_stats.reachable_players, quick_stats.active_this_week,
+#             quick_stats.live_campaigns, quick_stats.active_segments, quick_stats.messages_sent,
+#             player_health.total_users, player_health.new, player_health.healthy,
+#             player_health.at_risk, player_health.churned, channel_optin.push,
+#             channel_optin.email, channel_optin.sms, quick_stats.opt_outs.
+#     """
+#     return await _campaign_put(f"/projects/{project_id}/dashboard/boosts", json.loads(boosts_json))
 
 
 @mcp.tool()
@@ -2715,22 +2715,22 @@ async def campaign_get_daily_boosts(
     )
 
 
-@mcp.tool()
-async def campaign_upsert_daily_boosts(project_id: str, daily_boosts_json: str) -> str:
-    """Upsert per-date daily boost data (merges by date key, does not wipe existing dates).
+# @mcp.tool()
+# async def campaign_upsert_daily_boosts(project_id: str, daily_boosts_json: str) -> str:
+#     """Upsert per-date daily boost data (merges by date key, does not wipe existing dates).
 
-    Args:
-        project_id: Project ID (required).
-        daily_boosts_json: JSON string with "daily_boosts" keyed by YYYY-MM-DD dates, e.g.
-            '{"daily_boosts": {"2025-06-01": {"messages_sent": 5000, "new_users": 120,
-              "opt_outs": 15, "channel": {"email": {"sent": 2000, "delivered": 1950, "failed": 50}},
-              "snapshot": {"total_users": 50000, "reachable_players": 32000, "active_users": 8000,
-              "optin_push": 15000, "optin_email": 40000, "optin_sms": 12000}}}}'.
-    """
-    return await _campaign_put(
-        f"/projects/{project_id}/dashboard/boosts/daily",
-        json.loads(daily_boosts_json),
-    )
+#     Args:
+#         project_id: Project ID (required).
+#         daily_boosts_json: JSON string with "daily_boosts" keyed by YYYY-MM-DD dates, e.g.
+#             '{"daily_boosts": {"2025-06-01": {"messages_sent": 5000, "new_users": 120,
+#               "opt_outs": 15, "channel": {"email": {"sent": 2000, "delivered": 1950, "failed": 50}},
+#               "snapshot": {"total_users": 50000, "reachable_players": 32000, "active_users": 8000,
+#               "optin_push": 15000, "optin_email": 40000, "optin_sms": 12000}}}}'.
+#     """
+#     return await _campaign_put(
+#         f"/projects/{project_id}/dashboard/boosts/daily",
+#         json.loads(daily_boosts_json),
+#     )
 
 
 # ---------------------------------------------------------------------------
@@ -2790,53 +2790,53 @@ async def campaign_get_report(project_id: str, report_id: str) -> str:
     return await _campaign_get(f"/projects/{project_id}/reports/{report_id}")
 
 
-@mcp.tool()
-async def campaign_update_report(
-    project_id: str,
-    report_id: str,
-    name: str | None = None,
-    metrics: list[str] | None = None,
-    date_range: str | None = None,
-    channel: str | None = None,
-    segment_id: str | None = None,
-) -> str:
-    """Partially update a custom report's name, metrics, or filters.
+# @mcp.tool()
+# async def campaign_update_report(
+#     project_id: str,
+#     report_id: str,
+#     name: str | None = None,
+#     metrics: list[str] | None = None,
+#     date_range: str | None = None,
+#     channel: str | None = None,
+#     segment_id: str | None = None,
+# ) -> str:
+#     """Partially update a custom report's name, metrics, or filters.
 
-    Args:
-        project_id: Project ID (required).
-        report_id: Report ID (required).
-        name: New report name.
-        metrics: New list of metric keys (full replacement).
-        date_range: New date range: last_7_days, last_30_days, or last_90_days.
-        channel: New channel filter: all, push, email, sms, webhook.
-        segment_id: New segment ID filter (optional).
-    """
-    body: dict[str, Any] = {}
-    if name is not None:
-        body["name"] = name
-    if metrics is not None:
-        body["metrics"] = metrics
-    filters: dict[str, Any] = {}
-    if date_range is not None:
-        filters["date_range"] = date_range
-    if channel is not None:
-        filters["channel"] = channel
-    if segment_id is not None:
-        filters["segment_id"] = segment_id
-    if filters:
-        body["filters"] = filters
-    return await _campaign_patch(f"/projects/{project_id}/reports/{report_id}", body)
+#     Args:
+#         project_id: Project ID (required).
+#         report_id: Report ID (required).
+#         name: New report name.
+#         metrics: New list of metric keys (full replacement).
+#         date_range: New date range: last_7_days, last_30_days, or last_90_days.
+#         channel: New channel filter: all, push, email, sms, webhook.
+#         segment_id: New segment ID filter (optional).
+#     """
+#     body: dict[str, Any] = {}
+#     if name is not None:
+#         body["name"] = name
+#     if metrics is not None:
+#         body["metrics"] = metrics
+#     filters: dict[str, Any] = {}
+#     if date_range is not None:
+#         filters["date_range"] = date_range
+#     if channel is not None:
+#         filters["channel"] = channel
+#     if segment_id is not None:
+#         filters["segment_id"] = segment_id
+#     if filters:
+#         body["filters"] = filters
+#     return await _campaign_patch(f"/projects/{project_id}/reports/{report_id}", body)
 
 
-@mcp.tool()
-async def campaign_delete_report(project_id: str, report_id: str) -> str:
-    """Delete a custom report.
+# @mcp.tool()
+# async def campaign_delete_report(project_id: str, report_id: str) -> str:
+#     """Delete a custom report.
 
-    Args:
-        project_id: Project ID (required).
-        report_id: Report ID (required).
-    """
-    return await _campaign_delete(f"/projects/{project_id}/reports/{report_id}")
+#     Args:
+#         project_id: Project ID (required).
+#         report_id: Report ID (required).
+#     """
+#     return await _campaign_delete(f"/projects/{project_id}/reports/{report_id}")
 
 
 @mcp.tool()
@@ -2961,30 +2961,30 @@ async def campaign_get_fcm_settings(project_id: str) -> str:
     return await _campaign_get(f"/projects/{project_id}/settings/fcm")
 
 
-@mcp.tool()
-async def campaign_update_fcm_settings(
-    project_id: str,
-    service_account_json: str,
-    server_key: str = "",
-    sender_id: str = "",
-) -> str:
-    """Update FCM push notification settings for a project.
+# @mcp.tool()
+# async def campaign_update_fcm_settings(
+#     project_id: str,
+#     service_account_json: str,
+#     server_key: str = "",
+#     sender_id: str = "",
+# ) -> str:
+#     """Update FCM push notification settings for a project.
 
-    Args:
-        project_id: Project ID (required).
-        service_account_json: FCM service account credentials as JSON string (required).
-            Must contain: type ("service_account"), project_id, private_key_id, private_key, client_email.
-        server_key: FCM legacy server key (default empty string).
-        sender_id: FCM sender ID (default empty string).
-    """
-    return await _campaign_put(
-        f"/projects/{project_id}/settings/fcm",
-        {
-            "server_key": server_key,
-            "sender_id": sender_id,
-            "service_account_json": json.loads(service_account_json),
-        },
-    )
+#     Args:
+#         project_id: Project ID (required).
+#         service_account_json: FCM service account credentials as JSON string (required).
+#             Must contain: type ("service_account"), project_id, private_key_id, private_key, client_email.
+#         server_key: FCM legacy server key (default empty string).
+#         sender_id: FCM sender ID (default empty string).
+#     """
+#     return await _campaign_put(
+#         f"/projects/{project_id}/settings/fcm",
+#         {
+#             "server_key": server_key,
+#             "sender_id": sender_id,
+#             "service_account_json": json.loads(service_account_json),
+#         },
+#     )
 
 
 # ---------------------------------------------------------------------------
