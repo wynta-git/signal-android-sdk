@@ -10,6 +10,15 @@ Owned by `notifications-engine`. Each channel has a different provider, payload 
 | `email` | SES, SendGrid (configurable) | per-account quota | Bounce/complaint webhooks must feed back into suppression list. |
 | `sms` | Twilio, MessageBird | strict per-number TPS | Expensive — be careful with rate limits and retries. |
 | `webhook` | customer-defined HTTPS endpoint | customer-defined | Used by customers to integrate with their own systems. |
+| `in_app` | none — no external provider, no device token | n/a | Renders once per user into `notification_inbox` (MongoDB) instead of calling a provider. Client fetches on demand via api-service. See `docs/in-app-notifications-explained.md` and `docs/in-app-backend-design.md`. |
+
+## `in_app` — different delivery model, same pipeline shape
+
+Unlike every other channel, `in_app` doesn't call an external provider or fan out per device token. `handle_send_job` branches to `_handle_in_app()` right after the suppression check and template/user load — it renders the assigned variant (see below) and writes a single document to `notification_inbox`, reusing the same `notification_deliveries` audit write and `DeliveryEvent` Kafka emit as every other channel so reporting doesn't need to special-case it. No `ChannelProvider` implementation exists for `in_app` — there's nothing to call.
+
+**Variant assignment**: `notification_templates.variants[]` supports weighted A/B testing. `pick_variant()` in `notifications-engine/app/renderer.py` deterministically hashes `(campaign_id, user_id)` to pick a variant — same user always gets the same variant for a given campaign, so recurring sends stay stable, and Kafka at-least-once redelivery doesn't reshuffle anyone.
+
+**Availability vs. visibility**: writing to `notification_inbox` only makes a notification *available* — the SDK fetches on session start (`GET /v1/notifications/inbox` via api-service) and decides when to actually show it based on `trigger_type`. There's no delivery receipt from a device the way push has one.
 
 ## Provider abstraction
 

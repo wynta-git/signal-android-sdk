@@ -16,7 +16,9 @@ import { createCampaign, updateCampaign, activateCampaign } from '../../store/sl
 import type {
   Campaign, CampaignPayload, CampaignChannel, TriggerCriteria,
   CampaignSchedule, CampaignDeliveryControls, ContentBlock,
+  Variant, Cta, InAppTemplateType,
 } from '../../services/campaignApi';
+import { uploadCampaignImage } from '../../services/campaignApi';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                              */
@@ -90,6 +92,7 @@ interface Step1State {
   objective:          string;
   platforms:          string[];
   trigger_criteria:   TriggerCriteria;
+  expires_in_hours:   string;   // in_app only — blank = never expires
   segment_id:         string;   // selected segment ID
   segment_name:       string;
   segment_conditions: unknown;
@@ -106,6 +109,7 @@ const DEFAULT_S1: Step1State = {
   name: '', tags: '', objective: 'Retention',
   platforms: ['android', 'ios'],
   trigger_criteria: 'on_session_start',
+  expires_in_hours: '',
   segment_id: '', segment_name: '', segment_conditions: null,
   estimated_reach: 0,
   global_control: true, campaign_control: false,
@@ -121,10 +125,59 @@ interface Step2State {
   push_title:     string;
   push_content:   string;
   push_deep_link: string;
+  in_app_variants: Variant[];
 }
 
 const DEFAULT_BLOCK = (type: ContentBlock['type']): ContentBlock => ({
   id: `${type}-${Date.now()}`, type, data: {},
+});
+
+/* ------------------------------------------------------------------ */
+/* In-app template — variant defaults & per-type layout shapes        */
+/* ------------------------------------------------------------------ */
+const IN_APP_FLAT_TYPES = new Set<InAppTemplateType>(['modal', 'popup_image', 'fullscreen', 'nudge']);
+
+/* Loose local shapes for the layout editors below — the wire contract is a
+   plain dict (see Variant['layout'] in campaignApi.ts); these interfaces
+   exist purely so the authoring UI can narrow on template_type. */
+interface CarouselSlide     { image_url?: string; title?: string; body?: string; }
+interface CarouselLayout    { slides: CarouselSlide[]; }
+interface SurveyQuestion    { question_text: string; options: string[]; }
+interface SurveyLayout      { questions: SurveyQuestion[]; }
+interface LeadGenField      { name: string; type: 'text' | 'email' | 'phone' | 'number'; required: boolean; }
+interface LeadGenSubmit     { action: string; value?: string; }
+interface LeadGenLayout     { fields: LeadGenField[]; submit_action: LeadGenSubmit; }
+interface GamificationSeg   { label: string; value: string; }
+interface GamificationLayout{ game_type: string; segments: GamificationSeg[]; }
+interface RatingLayout      { max_stars: number; prompt: string; }
+interface HtmlNudgeLayout   { html?: string; hosted_url?: string; }
+
+function defaultLayoutFor(type: InAppTemplateType): Record<string, any> | null {
+  switch (type) {
+    case 'carousel':     return { slides: [{ image_url: '', title: '', body: '' }] } as CarouselLayout;
+    case 'survey':       return { questions: [{ question_text: '', options: [''] }] } as SurveyLayout;
+    case 'lead_gen':     return { fields: [{ name: '', type: 'text', required: false }], submit_action: { action: 'dismiss', value: '' } } as LeadGenLayout;
+    case 'gamification': return { game_type: '', segments: [{ label: '', value: '' }] } as GamificationLayout;
+    case 'rating':       return { max_stars: 5, prompt: '' } as RatingLayout;
+    case 'html_nudge':   return { html: '', hosted_url: '' } as HtmlNudgeLayout;
+    default:             return null;
+  }
+}
+
+const DEFAULT_VARIANT = (): Variant => ({
+  variant_id:              `var_${Math.random().toString(36).slice(2, 8)}`,
+  weight:                  100,
+  // Template type + background styling are locked to these defaults for now
+  // (category/template dropdowns are read-only, bg color/opacity hidden).
+  template_type:           'popup_image',
+  render_engine:           'native',
+  title:                   '',
+  body:                    '',
+  media:                   {},
+  cta:                     [{ role: 'primary', label: '', action: 'dismiss', value: '' }],
+  close_button_visibility: 'always',
+  layout:                  null,
+  web_view_url:            undefined, // hidden for now — stays unset
 });
 
 /* ------------------------------------------------------------------ */
@@ -218,6 +271,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     objective:          campaign.objective           ?? '',   // blank if API omits it
     platforms:          campaign.platforms           ?? [],   // empty if API omits it
     trigger_criteria:   campaign.trigger_criteria   ?? 'on_session_start',
+    expires_in_hours:   campaign.expires_in_hours != null ? String(campaign.expires_in_hours) : '',
     segment_id:         campaign.segment_id         ?? '',
     segment_name:       campaign.segment_name       ?? '',
     segment_conditions: null,
@@ -235,20 +289,24 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     push_title:     campaign?.title     ?? '',
     push_content:   campaign?.content   ?? '',
     push_deep_link: campaign?.deep_link ?? '',
+    in_app_variants: campaign?.variants?.length ? campaign.variants : [DEFAULT_VARIANT()],
   }));
 
-  /* Sync s2 push fields whenever campaign prop delivers push content.
-     Handles the case where toCampaign returns title/content/deep_link
-     after the initial mount (or lazy-init ran before the prop was set). */
+  /* Sync s2 push fields / in-app variants whenever campaign prop delivers
+     content. Handles the case where toCampaign returns title/content/
+     deep_link/variants after the initial mount (or lazy-init ran before
+     the prop was set). */
   useEffect(() => {
     if (!campaign) return;
-    const hasContent = campaign.title || campaign.content || campaign.deep_link;
-    if (!hasContent) return;
+    const hasContent  = campaign.title || campaign.content || campaign.deep_link;
+    const hasVariants = campaign.variants && campaign.variants.length > 0;
+    if (!hasContent && !hasVariants) return;
     setS2(prev => ({
       ...prev,
-      push_title:     campaign.title     ?? prev.push_title,
-      push_content:   campaign.content   ?? prev.push_content,
-      push_deep_link: campaign.deep_link ?? prev.push_deep_link,
+      push_title:      campaign.title     ?? prev.push_title,
+      push_content:    campaign.content   ?? prev.push_content,
+      push_deep_link:  campaign.deep_link ?? prev.push_deep_link,
+      in_app_variants: hasVariants ? campaign.variants! : prev.in_app_variants,
     }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign?.id]); // re-run only when a different campaign is loaded
@@ -292,7 +350,8 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
 
   /* ── Build API payload ── */
   function buildPayload(asDraft = false): CampaignPayload {
-    const isPush = channel === 'push';
+    const isPush  = channel === 'push';
+    const isInApp = channel === 'in_app';
 
     /* ── Schedule payload ── */
     let schedule: CampaignSchedule;
@@ -343,13 +402,17 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
       platforms:        s1.platforms,
       /* Push omits trigger_criteria */
       ...(isPush ? {} : { trigger_criteria: s1.trigger_criteria }),
+      /* in_app only — blank input means "never expires" */
+      ...(isInApp && s1.expires_in_hours.trim() ? { expires_in_hours: Number(s1.expires_in_hours) } : {}),
       segment_id:       s1.segment_id || undefined,
       segment_name:     s1.segment_name,
-      /* Push-specific content fields */
+      /* Push-specific content fields / in-app template variants / block canvas */
       ...(isPush ? {
         title:     s2.push_title.trim()     || undefined,
         content:   s2.push_content.trim()   || undefined,
         deep_link: s2.push_deep_link.trim() || undefined,
+      } : isInApp ? {
+        variants: s2.in_app_variants,
       } : {
         content_blocks: s2.blocks,
       }),
@@ -375,6 +438,57 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     if (channel === 'push') {
       if (!s2.push_title.trim())   errs.push({ key: 'push_title',   message: 'Push title is required.' });
       if (!s2.push_content.trim()) errs.push({ key: 'push_content', message: 'Push content is required.' });
+    } else if (channel === 'in_app') {
+      const variants = s2.in_app_variants ?? [];
+      if (variants.length === 0) {
+        errs.push({ key: 'in_app_variants', message: 'At least one variant is required.' });
+      }
+      const totalWeight = variants.reduce((sum, v) => sum + (Number(v.weight) || 0), 0);
+      if (variants.length > 0 && totalWeight !== 100) {
+        errs.push({ key: 'in_app_weights', message: `Variant weights must sum to exactly 100% (currently ${totalWeight}%).` });
+      }
+      variants.forEach((v, i) => {
+        const label = `Variant ${i + 1}`;
+        if (IN_APP_FLAT_TYPES.has(v.template_type)) {
+          if (!v.title?.trim() || !v.body?.trim()) {
+            errs.push({ key: `in_app_variant_${i}`, message: `${label}: title and body are required.` });
+          }
+        } else {
+          const layout = v.layout as Record<string, any> | null;
+          let layoutValid = false;
+          switch (v.template_type) {
+            case 'carousel':     layoutValid = !!layout?.slides?.length; break;
+            case 'survey':       layoutValid = !!layout?.questions?.length; break;
+            case 'lead_gen':     layoutValid = !!layout?.fields?.length; break;
+            case 'gamification': layoutValid = !!layout?.segments?.length; break;
+            case 'rating':       layoutValid = !!layout?.max_stars && !!String(layout?.prompt ?? '').trim(); break;
+            case 'html_nudge': {
+              const hasHtml = !!String(layout?.html ?? '').trim();
+              const hasUrl  = !!String(layout?.hosted_url ?? '').trim();
+              layoutValid   = hasHtml !== hasUrl; // exactly one
+              break;
+            }
+          }
+          if (!layoutValid) {
+            errs.push({ key: `in_app_variant_${i}`, message: `${label}: ${v.template_type.replace('_', ' ')} layout content is required.` });
+          }
+        }
+        const cta = v.cta ?? [];
+        if (!cta.some(c => c.role === 'primary')) {
+          errs.push({ key: `in_app_variant_${i}_cta`, message: `${label}: at least one primary CTA is required.` });
+        }
+        // Backend requires a non-empty `value` whenever action !== 'dismiss' —
+        // catch it here so the user gets an inline message instead of a raw 422.
+        cta.forEach(c => {
+          if (c.action !== 'dismiss' && !c.value?.trim()) {
+            const roleLabel = c.role === 'primary' ? 'Primary CTA' : 'Secondary CTA';
+            errs.push({
+              key: `in_app_variant_${i}_cta`,
+              message: `${label}: ${roleLabel} needs a value (deep link / URL) since its action isn't "Dismiss".`,
+            });
+          }
+        });
+      });
     }
     return errs;
   }
@@ -467,7 +581,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
       setValidationErrors(errs.map(e => e.message));
       /* Jump back to the earliest step that has a missing field */
       if (keys.has('name') || keys.has('platforms') || keys.has('segment')) setStep(1);
-      else if (keys.has('push_title') || keys.has('push_content')) setStep(2);
+      else if (keys.has('push_title') || keys.has('push_content') || [...keys].some(k => k.startsWith('in_app'))) setStep(2);
       return;
     }
     setFieldErrors(new Set());
@@ -894,18 +1008,44 @@ function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
       {!isPush && <div className="cwiz-card">
         <div className="cwiz-card-title">Trigger criteria <span className="cwiz-req">*</span></div>
         <div className="cwiz-trigger-grid">
-          {TRIGGERS.map(t => (
-            <button
-              key={t.id}
-              type="button"
-              className={'cwiz-trigger-card' + (s.trigger_criteria === t.id ? ' selected' : '')}
-              onClick={() => set({ trigger_criteria: t.id as TriggerCriteria })}
-            >
-              <Icon name={t.id === 'on_session_start' ? 'users' : t.id === 'on_screen_load' ? 'monitor' : 'zap'} size={20} strokeWidth={1.5} />
-              <strong>{t.label}</strong>
-              <span>{t.desc}</span>
-            </button>
-          ))}
+          {TRIGGERS.map(t => {
+            /* in_app only supports on_session_start this phase — the other
+               two triggers are shown but disabled with a "Coming soon" tag.
+               Other channels sharing this card are unaffected. */
+            const comingSoon = channel === 'in_app' && t.id !== 'on_session_start';
+            return (
+              <button
+                key={t.id}
+                type="button"
+                disabled={comingSoon}
+                className={'cwiz-trigger-card' + (s.trigger_criteria === t.id ? ' selected' : '') + (comingSoon ? ' disabled' : '')}
+                onClick={() => { if (!comingSoon) set({ trigger_criteria: t.id as TriggerCriteria }); }}
+              >
+                <Icon name={t.id === 'on_session_start' ? 'users' : t.id === 'on_screen_load' ? 'monitor' : 'zap'} size={20} strokeWidth={1.5} />
+                <strong>{t.label}{comingSoon && <span className="cwiz-trigger-soon">Coming soon</span>}</strong>
+                <span>{t.desc}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>}
+
+      {/* Notification expiry — in_app only */}
+      {channel === 'in_app' && <div className="cwiz-card">
+        <div className="cwiz-card-title">Notification expiry</div>
+        <div className="cwiz-field" style={{ maxWidth: 260 }}>
+          <label className="cwiz-label">Expires after (hours)</label>
+          <input
+            className="cwiz-input"
+            type="number"
+            min={1}
+            placeholder="Leave blank for no expiry"
+            value={s.expires_in_hours}
+            onChange={e => set({ expires_in_hours: e.target.value })}
+          />
+          <span style={{ fontSize: 11, color: 'var(--crm-fg4)', marginTop: 4, display: 'block' }}>
+            After this many hours, the notification stops appearing in the user's inbox even if unread. Leave blank to never expire.
+          </span>
         </div>
       </div>}
 
@@ -1260,7 +1400,12 @@ function Step2({ s, onChange, channel, errors, errorTick }: Step2Props) {
     );
   }
 
-  /* ── Block builder (non-push channels) ── */
+  /* ── In-app template authoring (variants) ── */
+  if (channel === 'in_app') {
+    return <InAppEditor s={s} onChange={onChange} errors={errors} errorTick={errorTick} />;
+  }
+
+  /* ── Block builder (non-push, non-in_app channels) ── */
   const addBlock = (type: ContentBlock['type']) => onChange({ ...s, blocks: [...s.blocks, DEFAULT_BLOCK(type)] });
   const removeBlock = (id: string) => onChange({ ...s, blocks: s.blocks.filter(b => b.id !== id) });
   const updateBlock = (id: string, data: Record<string, string>) =>
@@ -1304,6 +1449,542 @@ function Step2({ s, onChange, channel, errors, errorTick }: Step2Props) {
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/* In-App template authoring — variant tabs, template picker,          */
+/* common fields, and per-type layout editors                         */
+/* ================================================================== */
+const IN_APP_NATIVE_TYPES: { type: InAppTemplateType; label: string }[] = [
+  { type: 'modal',        label: 'Modal' },
+  { type: 'popup_image',  label: 'Popup Image' },
+  { type: 'rating',       label: 'Rating' },
+  { type: 'fullscreen',   label: 'Fullscreen' },
+  { type: 'nudge',        label: 'Nudge' },
+  { type: 'carousel',     label: 'Carousel' },
+  { type: 'survey',       label: 'Survey' },
+  { type: 'lead_gen',     label: 'Lead Gen' },
+  { type: 'gamification', label: 'Gamification' },
+];
+const IN_APP_HTML_TYPES: { type: InAppTemplateType; label: string }[] = [
+  { type: 'html_nudge', label: 'HTML Nudge' },
+];
+const IN_APP_TYPE_LABEL: Record<InAppTemplateType, string> =
+  Object.fromEntries([...IN_APP_NATIVE_TYPES, ...IN_APP_HTML_TYPES].map(t => [t.type, t.label])) as Record<InAppTemplateType, string>;
+
+interface InAppEditorProps { s: Step2State; onChange: (s: Step2State) => void; errors?: Set<string>; errorTick?: number; }
+
+function InAppEditor({ s, onChange, errors, errorTick }: InAppEditorProps) {
+  // Multi-variant A/B authoring is deferred — always exactly one variant,
+  // weight locked at 100. Re-introduce variant tabs when that ships.
+  const variants = s.in_app_variants;
+  const idx    = 0;
+  const active = variants[0] ?? DEFAULT_VARIANT();
+
+  const projectId = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const setVariants   = (next: Variant[]) => onChange({ ...s, in_app_variants: next });
+  const updateVariant = (i: number, patch: Partial<Variant>) =>
+    setVariants(variants.map((v, vi) => vi === i ? { ...v, ...patch } : v));
+
+  const handleImageFile = async (file: File) => {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const url = await uploadCampaignImage(projectId, file);
+      updateVariant(idx, { media: { ...active.media, image_url: url } });
+    } catch {
+      setUploadError('Image upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const setTemplateType = (type: InAppTemplateType) => {
+    updateVariant(idx, {
+      template_type: type,
+      render_engine: type === 'html_nudge' ? 'html' : 'native',
+      layout:        IN_APP_FLAT_TYPES.has(type) ? null : defaultLayoutFor(type),
+    });
+  };
+
+  const category = IN_APP_HTML_TYPES.some(t => t.type === active.template_type) ? 'html' : 'native';
+  const setCategory = (next: 'native' | 'html') => {
+    if (next === category) return;
+    setTemplateType(next === 'html' ? IN_APP_HTML_TYPES[0].type : IN_APP_NATIVE_TYPES[0].type);
+  };
+
+  const cta          = active.cta ?? [];
+  const primaryCta    = cta.find(c => c.role === 'primary');
+  const secondaryCta  = cta.find(c => c.role === 'secondary');
+  const isFlat        = IN_APP_FLAT_TYPES.has(active.template_type);
+
+  const setPrimaryCta = (patch: Partial<Cta>) => {
+    const pIdx = cta.findIndex(c => c.role === 'primary');
+    const next = pIdx >= 0
+      ? cta.map((c, i) => i === pIdx ? { ...c, ...patch } : c)
+      : [...cta, { role: 'primary' as const, label: '', action: 'dismiss' as const, value: '', ...patch }];
+    updateVariant(idx, { cta: next });
+  };
+  const setSecondaryCta = (patch: Partial<Cta>) => {
+    const sIdx = cta.findIndex(c => c.role === 'secondary');
+    const next = sIdx >= 0
+      ? cta.map((c, i) => i === sIdx ? { ...c, ...patch } : c)
+      : [...cta, { role: 'secondary' as const, label: '', action: 'dismiss' as const, value: '', ...patch }];
+    updateVariant(idx, { cta: next });
+  };
+  const removeSecondaryCta = () => updateVariant(idx, { cta: cta.filter(c => c.role !== 'secondary') });
+
+  return (
+    <div className="cwiz-step-body">
+
+      {/* Template type picker hidden for now — locked to Native Templates /
+          Popup Image via DEFAULT_VARIANT() until multi-template authoring
+          is re-introduced. */}
+
+      {/* Common fields */}
+      <div className="cwiz-card">
+        <div className="cwiz-card-title">Content</div>
+        {isFlat && errors?.has(`in_app_variant_${idx}`) && (
+          <span className="cwiz-field-error" style={{ display: 'block', marginBottom: 10 }}>
+            Title and body are both required.
+          </span>
+        )}
+
+        <div className="cwiz-field" style={{ marginBottom: 14 }}>
+          <label className="cwiz-label">Title</label>
+          <input
+            className={'cwiz-input' + (isFlat && errors?.has(`in_app_variant_${idx}`) && !active.title?.trim() ? ' cwiz-input--error' : '')}
+            value={active.title ?? ''}
+            placeholder="e.g. Don't miss out!"
+            onChange={e => updateVariant(idx, { title: e.target.value })}
+          />
+          <span className={'cwiz-char-counter' + ((active.title?.length ?? 0) > 60 ? ' over' : '')}>
+            {active.title?.length ?? 0}/60
+          </span>
+        </div>
+
+        <div className="cwiz-field" style={{ marginBottom: 14 }}>
+          <label className="cwiz-label">Body</label>
+          <textarea
+            className={'cwiz-textarea' + (isFlat && errors?.has(`in_app_variant_${idx}`) && !active.body?.trim() ? ' cwiz-input--error' : '')}
+            value={active.body ?? ''}
+            placeholder="Message body…"
+            onChange={e => updateVariant(idx, { body: e.target.value })}
+          />
+          <span className={'cwiz-char-counter' + ((active.body?.length ?? 0) > 200 ? ' over' : '')}>
+            {active.body?.length ?? 0}/200
+          </span>
+        </div>
+
+        <div className="cwiz-form-grid" style={{ marginBottom: 14 }}>
+          <div className="cwiz-field">
+            <label className="cwiz-label">Image URL</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="cwiz-input"
+                value={active.media?.image_url ?? ''}
+                placeholder="https://… or upload a file"
+                onChange={e => updateVariant(idx, { media: { ...active.media, image_url: e.target.value } })}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                hidden
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageFile(file);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                className="asm-btn asm-btn--secondary"
+                style={{ fontSize: 12, height: 34, padding: '0 12px', whiteSpace: 'nowrap' }}
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+            {uploadError && <span className="cwiz-field-error">{uploadError}</span>}
+          </div>
+          {/* Background color/opacity hidden for now — always sent as null/absent. */}
+          <div className="cwiz-field">
+            <label className="cwiz-label">Close button</label>
+            <select className="cwiz-select" value="always" disabled>
+              <option value="always">Always</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Primary CTA */}
+        <div className="cwiz-cta-block">
+          <div className="cwiz-cta-block-head">
+            <strong style={{ fontSize: 12.5 }}>Primary CTA <span className="cwiz-req">*</span></strong>
+          </div>
+          <div className="cwiz-form-grid">
+            <div className="cwiz-field">
+              <label className="cwiz-label">Label</label>
+              <input className="cwiz-input" value={primaryCta?.label ?? ''} onChange={e => setPrimaryCta({ label: e.target.value })} />
+            </div>
+            <div className="cwiz-field">
+              <label className="cwiz-label">Action</label>
+              <select
+                className="cwiz-select"
+                value={primaryCta?.action ?? 'dismiss'}
+                onChange={e => setPrimaryCta({ action: e.target.value as Cta['action'] })}
+              >
+                <option value="deep_link">Deep link</option>
+                <option value="external_url">External URL</option>
+                <option value="dismiss">Dismiss</option>
+              </select>
+            </div>
+            {primaryCta && primaryCta.action !== 'dismiss' && (
+              <div className="cwiz-field">
+                <label className="cwiz-label">Value</label>
+                <input
+                  className={'cwiz-input' + (errors?.has(`in_app_variant_${idx}_cta`) && !primaryCta.value?.trim() ? ' cwiz-input--error' : '')}
+                  placeholder="e.g. myapp://offer or https://…"
+                  value={primaryCta?.value ?? ''}
+                  onChange={e => setPrimaryCta({ value: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
+          {errors?.has(`in_app_variant_${idx}_cta`) && (
+            <span className="cwiz-field-error" style={{ display: 'block', marginTop: 6 }}>
+              {!(cta.some(c => c.role === 'primary'))
+                ? 'A primary CTA is required.'
+                : 'This CTA needs a value (deep link / URL) since its action isn\'t "Dismiss".'}
+            </span>
+          )}
+        </div>
+
+        {/* Secondary CTA */}
+        {secondaryCta ? (
+          <div className="cwiz-cta-block">
+            <div className="cwiz-cta-block-head">
+              <strong style={{ fontSize: 12.5 }}>Secondary CTA</strong>
+              <button type="button" className="cwiz-block-remove" onClick={removeSecondaryCta} aria-label="Remove secondary CTA">
+                <Icon name="x" size={13} />
+              </button>
+            </div>
+            <div className="cwiz-form-grid">
+              <div className="cwiz-field">
+                <label className="cwiz-label">Label</label>
+                <input className="cwiz-input" value={secondaryCta.label ?? ''} onChange={e => setSecondaryCta({ label: e.target.value })} />
+              </div>
+              <div className="cwiz-field">
+                <label className="cwiz-label">Action</label>
+                <select
+                  className="cwiz-select"
+                  value={secondaryCta.action}
+                  onChange={e => setSecondaryCta({ action: e.target.value as Cta['action'] })}
+                >
+                  <option value="deep_link">Deep link</option>
+                  <option value="external_url">External URL</option>
+                  <option value="dismiss">Dismiss</option>
+                </select>
+              </div>
+              {secondaryCta.action !== 'dismiss' && (
+                <div className="cwiz-field">
+                  <label className="cwiz-label">Value</label>
+                  <input
+                    className={'cwiz-input' + (errors?.has(`in_app_variant_${idx}_cta`) && !secondaryCta.value?.trim() ? ' cwiz-input--error' : '')}
+                    placeholder="e.g. myapp://offer or https://…"
+                    value={secondaryCta.value ?? ''}
+                    onChange={e => setSecondaryCta({ value: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="asm-btn asm-btn--secondary"
+            style={{ fontSize: 12, height: 30, padding: '0 12px', marginBottom: 14 }}
+            onClick={() => setSecondaryCta({})}
+          >
+            <Icon name="plus" size={12} /> Add Secondary CTA
+          </button>
+        )}
+
+        {/* Web view override hidden for now — web_view_url stays unset. */}
+      </div>
+
+      {/* Per-type layout editor — only for the 6 non-flat types */}
+      {!isFlat && (
+        <div className="cwiz-card">
+          <div className="cwiz-card-title">Layout — {IN_APP_TYPE_LABEL[active.template_type]}</div>
+          {errors?.has(`in_app_variant_${idx}`) && (
+            <span className="cwiz-field-error" style={{ display: 'block', marginBottom: 10 }}>
+              This template type needs at least one item filled in below.
+            </span>
+          )}
+          {active.template_type === 'carousel'     && <CarouselLayoutEditor     variant={active} onUpdate={patch => updateVariant(idx, patch)} />}
+          {active.template_type === 'survey'       && <SurveyLayoutEditor       variant={active} onUpdate={patch => updateVariant(idx, patch)} />}
+          {active.template_type === 'lead_gen'     && <LeadGenLayoutEditor      variant={active} onUpdate={patch => updateVariant(idx, patch)} />}
+          {active.template_type === 'gamification' && <GamificationLayoutEditor variant={active} onUpdate={patch => updateVariant(idx, patch)} />}
+          {active.template_type === 'rating'       && <RatingLayoutEditor      variant={active} onUpdate={patch => updateVariant(idx, patch)} />}
+          {active.template_type === 'html_nudge'   && <HtmlNudgeLayoutEditor   variant={active} onUpdate={patch => updateVariant(idx, patch)} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface LayoutEditorProps { variant: Variant; onUpdate: (patch: Partial<Variant>) => void; }
+
+function CarouselLayoutEditor({ variant, onUpdate }: LayoutEditorProps) {
+  const layout = (variant.layout as CarouselLayout | null) ?? { slides: [] };
+  const slides = layout.slides ?? [];
+  const setSlides = (next: CarouselSlide[]) => onUpdate({ layout: { slides: next } });
+  return (
+    <div className="cwiz-list-group">
+      {slides.map((slide, i) => (
+        <div className="cwiz-list-item" key={i}>
+          {slides.length > 1 && (
+            <button type="button" className="cwiz-list-item-remove" onClick={() => setSlides(slides.filter((_, si) => si !== i))} aria-label="Remove slide">
+              <Icon name="x" size={13} />
+            </button>
+          )}
+          <div className="cwiz-form-grid">
+            <div className="cwiz-field">
+              <label className="cwiz-label">Image URL</label>
+              <input className="cwiz-input" value={slide.image_url ?? ''}
+                onChange={e => setSlides(slides.map((sl, si) => si === i ? { ...sl, image_url: e.target.value } : sl))} />
+            </div>
+            <div className="cwiz-field">
+              <label className="cwiz-label">Title</label>
+              <input className="cwiz-input" value={slide.title ?? ''}
+                onChange={e => setSlides(slides.map((sl, si) => si === i ? { ...sl, title: e.target.value } : sl))} />
+            </div>
+          </div>
+          <div className="cwiz-field">
+            <label className="cwiz-label">Body</label>
+            <textarea className="cwiz-textarea" value={slide.body ?? ''}
+              onChange={e => setSlides(slides.map((sl, si) => si === i ? { ...sl, body: e.target.value } : sl))} />
+          </div>
+        </div>
+      ))}
+      <button type="button" className="asm-btn asm-btn--secondary" style={{ fontSize: 12, height: 30, padding: '0 12px', alignSelf: 'flex-start' }}
+        onClick={() => setSlides([...slides, { image_url: '', title: '', body: '' }])}>
+        <Icon name="plus" size={12} /> Add Slide
+      </button>
+    </div>
+  );
+}
+
+function SurveyLayoutEditor({ variant, onUpdate }: LayoutEditorProps) {
+  const layout = (variant.layout as SurveyLayout | null) ?? { questions: [] };
+  const questions = layout.questions ?? [];
+  const setQuestions = (next: SurveyQuestion[]) => onUpdate({ layout: { questions: next } });
+  return (
+    <div className="cwiz-list-group">
+      {questions.map((q, qi) => (
+        <div className="cwiz-list-item" key={qi}>
+          {questions.length > 1 && (
+            <button type="button" className="cwiz-list-item-remove" onClick={() => setQuestions(questions.filter((_, i) => i !== qi))} aria-label="Remove question">
+              <Icon name="x" size={13} />
+            </button>
+          )}
+          <div className="cwiz-field">
+            <label className="cwiz-label">Question</label>
+            <input className="cwiz-input" value={q.question_text ?? ''}
+              onChange={e => setQuestions(questions.map((qq, i) => i === qi ? { ...qq, question_text: e.target.value } : qq))} />
+          </div>
+          <div className="cwiz-field">
+            <label className="cwiz-label">Options</label>
+            {(q.options ?? []).map((opt, oi) => (
+              <div className="cwiz-option-row" key={oi}>
+                <input className="cwiz-input" value={opt}
+                  onChange={e => setQuestions(questions.map((qq, i) => i === qi
+                    ? { ...qq, options: qq.options.map((o, oo) => oo === oi ? e.target.value : o) } : qq))} />
+                {q.options.length > 1 && (
+                  <button type="button" className="cwiz-block-remove" aria-label="Remove option"
+                    onClick={() => setQuestions(questions.map((qq, i) => i === qi
+                      ? { ...qq, options: qq.options.filter((_, oo) => oo !== oi) } : qq))}>
+                    <Icon name="x" size={13} />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button" className="asm-btn asm-btn--secondary" style={{ fontSize: 11, height: 26, padding: '0 10px', marginTop: 4 }}
+              onClick={() => setQuestions(questions.map((qq, i) => i === qi ? { ...qq, options: [...qq.options, ''] } : qq))}>
+              <Icon name="plus" size={11} /> Add Option
+            </button>
+          </div>
+        </div>
+      ))}
+      <button type="button" className="asm-btn asm-btn--secondary" style={{ fontSize: 12, height: 30, padding: '0 12px', alignSelf: 'flex-start' }}
+        onClick={() => setQuestions([...questions, { question_text: '', options: [''] }])}>
+        <Icon name="plus" size={12} /> Add Question
+      </button>
+    </div>
+  );
+}
+
+function LeadGenLayoutEditor({ variant, onUpdate }: LayoutEditorProps) {
+  const layout = (variant.layout as LeadGenLayout | null) ?? { fields: [], submit_action: { action: 'dismiss', value: '' } };
+  const fields = layout.fields ?? [];
+  const submitAction = layout.submit_action ?? { action: 'dismiss', value: '' };
+  const setFields       = (next: LeadGenField[])        => onUpdate({ layout: { ...layout, fields: next, submit_action: submitAction } });
+  const setSubmitAction = (patch: Partial<LeadGenSubmit>) => onUpdate({ layout: { ...layout, fields, submit_action: { ...submitAction, ...patch } } });
+  return (
+    <div className="cwiz-list-group">
+      {fields.map((f, fi) => (
+        <div className="cwiz-list-item" key={fi}>
+          {fields.length > 1 && (
+            <button type="button" className="cwiz-list-item-remove" onClick={() => setFields(fields.filter((_, i) => i !== fi))} aria-label="Remove field">
+              <Icon name="x" size={13} />
+            </button>
+          )}
+          <div className="cwiz-form-grid">
+            <div className="cwiz-field">
+              <label className="cwiz-label">Field name</label>
+              <input className="cwiz-input" value={f.name ?? ''}
+                onChange={e => setFields(fields.map((ff, i) => i === fi ? { ...ff, name: e.target.value } : ff))} />
+            </div>
+            <div className="cwiz-field">
+              <label className="cwiz-label">Type</label>
+              <select className="cwiz-select" value={f.type}
+                onChange={e => setFields(fields.map((ff, i) => i === fi ? { ...ff, type: e.target.value as LeadGenField['type'] } : ff))}>
+                <option value="text">Text</option>
+                <option value="email">Email</option>
+                <option value="phone">Phone</option>
+                <option value="number">Number</option>
+              </select>
+            </div>
+          </div>
+          <label className="cwiz-checkbox-label">
+            <input type="checkbox" checked={f.required}
+              onChange={e => setFields(fields.map((ff, i) => i === fi ? { ...ff, required: e.target.checked } : ff))} />
+            Required
+          </label>
+        </div>
+      ))}
+      <button type="button" className="asm-btn asm-btn--secondary" style={{ fontSize: 12, height: 30, padding: '0 12px', alignSelf: 'flex-start' }}
+        onClick={() => setFields([...fields, { name: '', type: 'text', required: false }])}>
+        <Icon name="plus" size={12} /> Add Field
+      </button>
+
+      <div className="cwiz-card-title" style={{ marginTop: 6, marginBottom: 8 }}>Submit action</div>
+      <div className="cwiz-form-grid">
+        <div className="cwiz-field">
+          <label className="cwiz-label">Action</label>
+          <select className="cwiz-select" value={submitAction.action} onChange={e => setSubmitAction({ action: e.target.value })}>
+            <option value="deep_link">Deep link</option>
+            <option value="external_url">External URL</option>
+            <option value="dismiss">Dismiss</option>
+          </select>
+        </div>
+        {submitAction.action !== 'dismiss' && (
+          <div className="cwiz-field">
+            <label className="cwiz-label">Value</label>
+            <input className="cwiz-input" value={submitAction.value ?? ''} onChange={e => setSubmitAction({ value: e.target.value })} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GamificationLayoutEditor({ variant, onUpdate }: LayoutEditorProps) {
+  const layout = (variant.layout as GamificationLayout | null) ?? { game_type: '', segments: [] };
+  const segments = layout.segments ?? [];
+  const setSegments = (next: GamificationSeg[]) => onUpdate({ layout: { ...layout, segments: next } });
+  return (
+    <div className="cwiz-list-group">
+      <div className="cwiz-field">
+        <label className="cwiz-label">Game type</label>
+        <input className="cwiz-input" value={layout.game_type ?? ''} placeholder="e.g. spin_wheel"
+          onChange={e => onUpdate({ layout: { ...layout, game_type: e.target.value } })} />
+      </div>
+      {segments.map((seg, si) => (
+        <div className="cwiz-list-item" key={si}>
+          {segments.length > 1 && (
+            <button type="button" className="cwiz-list-item-remove" onClick={() => setSegments(segments.filter((_, i) => i !== si))} aria-label="Remove segment">
+              <Icon name="x" size={13} />
+            </button>
+          )}
+          <div className="cwiz-form-grid">
+            <div className="cwiz-field">
+              <label className="cwiz-label">Label</label>
+              <input className="cwiz-input" value={seg.label ?? ''}
+                onChange={e => setSegments(segments.map((sg, i) => i === si ? { ...sg, label: e.target.value } : sg))} />
+            </div>
+            <div className="cwiz-field">
+              <label className="cwiz-label">Value</label>
+              <input className="cwiz-input" value={seg.value ?? ''}
+                onChange={e => setSegments(segments.map((sg, i) => i === si ? { ...sg, value: e.target.value } : sg))} />
+            </div>
+          </div>
+        </div>
+      ))}
+      <button type="button" className="asm-btn asm-btn--secondary" style={{ fontSize: 12, height: 30, padding: '0 12px', alignSelf: 'flex-start' }}
+        onClick={() => setSegments([...segments, { label: '', value: '' }])}>
+        <Icon name="plus" size={12} /> Add Segment
+      </button>
+    </div>
+  );
+}
+
+function RatingLayoutEditor({ variant, onUpdate }: LayoutEditorProps) {
+  const layout = (variant.layout as RatingLayout | null) ?? { max_stars: 5, prompt: '' };
+  return (
+    <div className="cwiz-form-grid">
+      <div className="cwiz-field">
+        <label className="cwiz-label">Max stars</label>
+        <input className="cwiz-input" type="number" min={1} max={10} value={layout.max_stars ?? 5}
+          onChange={e => onUpdate({ layout: { ...layout, max_stars: Number(e.target.value) || 5 } })} />
+      </div>
+      <div className="cwiz-field">
+        <label className="cwiz-label">Prompt</label>
+        <input className="cwiz-input" value={layout.prompt ?? ''} placeholder="How was your experience?"
+          onChange={e => onUpdate({ layout: { ...layout, prompt: e.target.value } })} />
+      </div>
+    </div>
+  );
+}
+
+function HtmlNudgeLayoutEditor({ variant, onUpdate }: LayoutEditorProps) {
+  const layout = (variant.layout as HtmlNudgeLayout | null) ?? {};
+  const mode: 'html' | 'hosted_url' = layout.hosted_url ? 'hosted_url' : 'html';
+  return (
+    <div className="cwiz-list-group">
+      <div className="cwiz-sched-sub-row">
+        <label className="cwiz-radio-label">
+          <input type="radio" name={`html-mode-${variant.variant_id}`} checked={mode === 'html'}
+            onChange={() => onUpdate({ layout: { html: layout.html ?? '' } })} />
+          Inline HTML
+        </label>
+        <label className="cwiz-radio-label">
+          <input type="radio" name={`html-mode-${variant.variant_id}`} checked={mode === 'hosted_url'}
+            onChange={() => onUpdate({ layout: { hosted_url: layout.hosted_url ?? '' } })} />
+          Hosted URL
+        </label>
+      </div>
+      {mode === 'html' ? (
+        <div className="cwiz-field">
+          <label className="cwiz-label">HTML</label>
+          <textarea className="cwiz-textarea" style={{ height: 140, fontFamily: 'monospace', fontSize: 12 }}
+            value={layout.html ?? ''} onChange={e => onUpdate({ layout: { html: e.target.value } })} />
+        </div>
+      ) : (
+        <div className="cwiz-field">
+          <label className="cwiz-label">Hosted URL</label>
+          <input className="cwiz-input" value={layout.hosted_url ?? ''} placeholder="https://…"
+            onChange={e => onUpdate({ layout: { hosted_url: e.target.value } })} />
+        </div>
+      )}
     </div>
   );
 }

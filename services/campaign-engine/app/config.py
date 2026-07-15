@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     clickhouse_username: str = "default"
     clickhouse_password: str = ""
 
+    # S3 — campaign media (in-app notification images)
+    s3_bucket: str = "pam-campaign-media"
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_region: str = "ap-south-1"
+    image_upload_max_bytes: int = 5_242_880   # 5 MB
+
     log_dir: str = ""
     log_level: str = "INFO"
 

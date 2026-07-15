@@ -93,7 +93,19 @@ async def create_campaign(
     # --- Resolve template ---
     channel_type = body.channel.type
     template_id = body.channel.template_id
-    if not template_id:
+    if not template_id and body.channel.template:
+        template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
+        await insert_template(db, {
+            "template_id": template_id,
+            "project_id": project_id,
+            "name": body.channel.template.name or f"{body.name} (inline)",
+            "channel": channel_type,
+            "body": {},
+            "variants": [v.model_dump() for v in body.channel.template.variants],
+            "created_at": now,
+            "updated_at": now,
+        })
+    elif not template_id:
         msg = body.channel.message  # guaranteed non-None by ChannelConfig validator
         template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
         inline_body: dict = {"title": msg.title, "body": msg.body}  # type: ignore[union-attr]
@@ -125,6 +137,8 @@ async def create_campaign(
         "audience": body.audience.model_dump(mode="json"),
         "channel": channel_type,
         "template_id": template_id,
+        "trigger_type": body.trigger_type,
+        "expires_in_hours": body.expires_in_hours,
         "rate_limit": dlv.rate_limit.model_dump(mode="json"),
         "delay": dlv.delay.model_dump(mode="json") if dlv.delay else None,
         "min_delay_between_sends_minutes": dlv.min_delay_between_sends_minutes,
@@ -167,6 +181,8 @@ async def get_campaign_route(
         template = await get_template(db, ctx.project_id, template_id)
         if template:
             doc["message"] = template.get("body", {})
+            if template.get("variants"):
+                doc["variants"] = template["variants"]
     return _to_api_format(doc)
 
 
@@ -196,10 +212,41 @@ async def update_campaign_route(
     if body.audience is not None:
         updates["audience"] = body.audience.model_dump(mode="json")
 
+    if body.trigger_type is not None:
+        if (
+            doc.get("channel") == "in_app"
+            and body.trigger_type != "on_session_start"
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    "trigger_type 'on_screen_load' and 'on_custom_event' are not yet "
+                    "supported for in_app campaigns — only 'on_session_start' is available "
+                    "this phase"
+                ),
+            )
+        updates["trigger_type"] = body.trigger_type
+
+    if body.expires_in_hours is not None:
+        updates["expires_in_hours"] = body.expires_in_hours
+
     if body.channel is not None:
         ch = body.channel
         if ch.template_id:
             updates["template_id"] = ch.template_id
+        elif ch.template:
+            template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
+            await insert_template(db, {
+                "template_id": template_id,
+                "project_id": project_id,
+                "name": ch.template.name or f"{doc['name']} (inline)",
+                "channel": doc["channel"],
+                "body": {},
+                "variants": [v.model_dump() for v in ch.template.variants],
+                "created_at": now,
+                "updated_at": now,
+            })
+            updates["template_id"] = template_id
         elif ch.message:
             template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
             await insert_template(db, {
