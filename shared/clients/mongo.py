@@ -714,6 +714,48 @@ async def create_notification_delivery_indexes(db: AsyncIOMotorDatabase) -> None
     )
 
 
+async def create_webhook_delivery_indexes(db: AsyncIOMotorDatabase) -> None:
+    """Shared collection for outbound-webhook delivery audit logs.
+
+    Any service that sends webhooks to third parties writes here via
+    record_webhook_delivery, tagged with its own `service` name — not just
+    bonus. Rows auto-expire after 90 days.
+    """
+    await db["webhook_deliveries"].create_index(
+        [("service", 1), ("site_id", 1), ("pam_user_id", 1)]
+    )
+    await db["webhook_deliveries"].create_index(
+        "sent_at",
+        expireAfterSeconds=90 * 86400,
+    )
+
+
+async def record_webhook_delivery(
+    db: AsyncIOMotorDatabase,
+    *,
+    service: str,
+    site_id: int,
+    pam_user_id: int,
+    transaction_type: str,
+    request: dict[str, Any],
+    response: dict[str, Any],
+    success: bool,
+    attempts: int,
+    sent_at: datetime,
+) -> None:
+    await db["webhook_deliveries"].insert_one({
+        "service": service,
+        "site_id": site_id,
+        "pam_user_id": pam_user_id,
+        "transaction_type": transaction_type,
+        "request": request,
+        "response": response,
+        "success": success,
+        "attempts": attempts,
+        "sent_at": sent_at,
+    })
+
+
 async def upsert_device_token(
     db: AsyncIOMotorDatabase,
     project_id: str,
@@ -752,6 +794,106 @@ async def update_notification_delivery_status(
         {"_id": ObjectId(delivery_id)},
         {"$set": updates},
     )
+
+
+# ---------------------------------------------------------------------------
+# Notification inbox helpers (in_app channel)
+# ---------------------------------------------------------------------------
+
+
+async def create_notification_inbox_indexes(db: AsyncIOMotorDatabase) -> None:
+    await db["notification_inbox"].create_index("notification_id", unique=True)
+    await db["notification_inbox"].create_index("send_id", unique=True)
+    await db["notification_inbox"].create_index(
+        [("project_id", 1), ("user_id", 1), ("created_at", -1)]
+    )
+    await db["notification_inbox"].create_index(
+        [("project_id", 1), ("user_id", 1), ("read", 1), ("created_at", -1)]
+    )
+    await db["notification_inbox"].create_index(
+        "created_at",
+        expireAfterSeconds=90 * 86400,
+    )
+
+
+async def insert_notification_inbox(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> str:
+    from pymongo.errors import DuplicateKeyError
+    try:
+        result = await db["notification_inbox"].insert_one(doc)
+        return str(result.inserted_id)
+    except DuplicateKeyError:
+        return ""
+
+
+async def list_notification_inbox(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    unread_only: bool = False,
+    before: datetime | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    now = datetime.now(timezone.utc)
+    query: dict[str, Any] = {
+        "project_id": project_id,
+        "user_id": user_id,
+        "$or": [{"expires_at": None}, {"expires_at": {"$gt": now}}],
+    }
+    if unread_only:
+        query["read"] = False
+    if before is not None:
+        query["created_at"] = {"$lt": before}
+    cursor = (
+        db["notification_inbox"]
+        .find(query, {"_id": 0})
+        .sort("created_at", -1)
+        .limit(limit + 1)
+    )
+    return await cursor.to_list(length=limit + 1)
+
+
+async def count_unread_notifications(
+    db: AsyncIOMotorDatabase, project_id: str, user_id: str
+) -> int:
+    now = datetime.now(timezone.utc)
+    return await db["notification_inbox"].count_documents(
+        {
+            "project_id": project_id,
+            "user_id": user_id,
+            "read": False,
+            "$or": [{"expires_at": None}, {"expires_at": {"$gt": now}}],
+        }
+    )
+
+
+async def mark_notifications_read(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    *,
+    notification_ids: list[str] | None = None,
+    mark_all: bool = False,
+) -> int:
+    query: dict[str, Any] = {"project_id": project_id, "user_id": user_id}
+    if mark_all:
+        query["read"] = False
+    else:
+        query["notification_id"] = {"$in": notification_ids or []}
+    result = await db["notification_inbox"].update_many(
+        query,
+        {"$set": {"read": True, "read_at": datetime.now(timezone.utc)}},
+    )
+    return result.modified_count
+
+
+async def delete_notification_inbox(
+    db: AsyncIOMotorDatabase, project_id: str, user_id: str, notification_id: str
+) -> bool:
+    result = await db["notification_inbox"].delete_one(
+        {"project_id": project_id, "user_id": user_id, "notification_id": notification_id}
+    )
+    return result.deleted_count > 0
 
 
 # ---------------------------------------------------------------------------

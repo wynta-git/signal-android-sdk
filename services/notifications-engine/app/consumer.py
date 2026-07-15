@@ -3,7 +3,8 @@
 import asyncio
 import hashlib
 import time
-from datetime import UTC, datetime
+import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -16,6 +17,7 @@ from shared.clients.mongo import (
     get_user,
     get_user_device_tokens,
     insert_notification_delivery,
+    insert_notification_inbox,
 )
 
 from app.circuit_breaker import get_breaker
@@ -23,7 +25,7 @@ from app.config import settings
 from app.models import DeliveryEvent, SendJob
 from app.providers.base import Recipient, RenderedPayload
 from app.providers.push import get_push_provider
-from app.renderer import TemplateRenderError, render_push
+from app.renderer import TemplateRenderError, render_in_app, render_push
 from app.suppression import is_suppressed
 
 log = structlog.get_logger()
@@ -116,6 +118,10 @@ async def handle_send_job(
 
     if not template_doc:
         log.error("consumer.template_not_found", template_id=job.template_id)
+        return
+
+    if job.channel == "in_app":
+        await _handle_in_app(job, template_doc, user_doc, db, producer, now)
         return
 
     # 3. Device tokens
@@ -242,6 +248,126 @@ async def handle_send_job(
         await _emit_delivery_event(producer, event)
 
     await asyncio.gather(*[_deliver_to_token(t) for t in tokens])
+
+
+async def _handle_in_app(
+    job: SendJob,
+    template_doc: dict[str, Any],
+    user_doc: dict[str, Any] | None,
+    db: AsyncIOMotorDatabase,
+    producer: AIOKafkaProducer,
+    now: datetime,
+) -> None:
+    """in_app has no device tokens and no external provider — render once,
+    write directly to the per-user inbox, and reuse the same delivery-log +
+    Kafka delivery-event pattern as push for uniform reporting."""
+
+    if not template_doc.get("variants"):
+        log.error("consumer.in_app_no_variants", template_id=job.template_id)
+        delivery_doc = {
+            "send_id": job.send_id,
+            "token_hash": "",
+            "project_id": job.project_id,
+            "campaign_id": job.campaign_id,
+            "campaign_run_id": job.campaign_run_id,
+            "user_id": job.user_id,
+            "channel": job.channel,
+            "status": "failed",
+            "provider": "in_app",
+            "provider_msg_id": None,
+            "attempted_at": now,
+            "error": {"code": "no_variants", "message": "Template has no variants"},
+        }
+        await insert_notification_delivery(db, delivery_doc)
+        return
+
+    try:
+        rendered = render_in_app(
+            template_doc, user_doc, job.context, job.campaign_id, job.user_id
+        )
+    except TemplateRenderError as exc:
+        log.error("consumer.render_failed", error=str(exc))
+        delivery_doc = {
+            "send_id": job.send_id,
+            "token_hash": "",
+            "project_id": job.project_id,
+            "campaign_id": job.campaign_id,
+            "campaign_run_id": job.campaign_run_id,
+            "user_id": job.user_id,
+            "channel": job.channel,
+            "status": "failed",
+            "provider": "in_app",
+            "provider_msg_id": None,
+            "attempted_at": now,
+            "error": {"code": "template_error", "message": str(exc)},
+        }
+        await insert_notification_delivery(db, delivery_doc)
+        return
+
+    notification_id = f"notif_{uuid.uuid4().hex}"
+    expires_at = (
+        now + timedelta(hours=job.expires_in_hours) if job.expires_in_hours else None
+    )
+
+    inbox_doc = {
+        "notification_id": notification_id,
+        "send_id": job.send_id,
+        "project_id": job.project_id,
+        "user_id": job.user_id,
+        "campaign_id": job.campaign_id,
+        "campaign_run_id": job.campaign_run_id,
+        "template_id": job.template_id,
+        "variant_id": rendered.variant_id,
+        "template_type": rendered.template_type,
+        "render_engine": rendered.render_engine,
+        "trigger_type": job.trigger_type,
+        "title": rendered.title,
+        "body": rendered.body,
+        "media": rendered.media,
+        "cta": rendered.cta,
+        "close_button_visibility": rendered.close_button_visibility,
+        "layout": rendered.layout,
+        "web_view_url": rendered.web_view_url,
+        "created_at": now,
+        "expires_at": expires_at,
+        "read": False,
+        "read_at": None,
+    }
+
+    inserted_id = await insert_notification_inbox(db, inbox_doc)
+    if not inserted_id:
+        log.info("consumer.in_app_duplicate", send_id=job.send_id)
+        return
+
+    delivery_doc = {
+        "send_id": job.send_id,
+        "token_hash": "",
+        "project_id": job.project_id,
+        "campaign_id": job.campaign_id,
+        "campaign_run_id": job.campaign_run_id,
+        "user_id": job.user_id,
+        "channel": job.channel,
+        "status": "sent",
+        "provider": "in_app",
+        "provider_msg_id": notification_id,
+        "attempted_at": now,
+        "error": None,
+    }
+    await insert_notification_delivery(db, delivery_doc)
+
+    event = DeliveryEvent(
+        send_id=job.send_id,
+        project_id=job.project_id,
+        campaign_id=job.campaign_id,
+        campaign_run_id=job.campaign_run_id,
+        user_id=job.user_id,
+        channel=job.channel,
+        provider="in_app",
+        provider_msg_id=notification_id,
+        status="sent",
+        attempted_at=now,
+    )
+    await _emit_delivery_event(producer, event)
 
 
 # ---------------------------------------------------------------------------

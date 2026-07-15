@@ -28,6 +28,8 @@ async def emit_send_job(
         brand_id=campaign.brand_id,
         channel=campaign.channel,
         template_id=campaign.template_id,
+        trigger_type=campaign.trigger_type,
+        expires_in_hours=campaign.expires_in_hours,
         context=context or {},
         deliver_at=deliver_at,
         auto_dismiss_seconds=campaign.auto_dismiss_seconds,
