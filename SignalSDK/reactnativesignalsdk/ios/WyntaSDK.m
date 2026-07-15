@@ -1,9 +1,11 @@
 #import "WyntaSDK.h"
+#import "WyntaInAppPopupWindow.h"
 #import <objc/runtime.h>
 #import <React/RCTLog.h>
 
 static WyntaSDKModule *sharedInstance = nil;
 static NSDictionary *coldStartNotification = nil;
+static WyntaInAppPopupWindow *currentPopup = nil;
 
 @implementation WyntaSDKModule
 
@@ -22,7 +24,41 @@ RCT_EXPORT_MODULE(WyntaSDKModule);
 }
 
 - (NSArray<NSString *> *)supportedEvents {
-    return @[@"wynta_push_interaction"];
+    return @[@"wynta_push_interaction", @"wynta_inapp_interaction"];
+}
+
+RCT_EXPORT_METHOD(showInAppPopup:(NSString *)notificationId
+                       campaignId:(NSString *)campaignId
+                         imageUrl:(NSString *)imageUrl
+                         ctaLabel:(NSString *)ctaLabel
+                        ctaAction:(NSString *)ctaAction
+                         ctaValue:(NSString *)ctaValue) {
+    if (currentPopup) {
+        // A popup is already showing — checkInboxThunk already guards this on the JS
+        // side, but guard here too since this method could in principle be called directly.
+        return;
+    }
+
+    currentPopup = [[WyntaInAppPopupWindow alloc] init];
+    [currentPopup presentWithImageURL:imageUrl
+                              ctaAction:ctaAction
+                               ctaValue:ctaValue
+                               ctaLabel:ctaLabel
+                     interactionHandler:^(NSString *interactionType, NSString *label) {
+        NSMutableDictionary *params = [NSMutableDictionary dictionary];
+        params[@"interaction_type"] = interactionType;
+        params[@"notification_id"] = notificationId;
+        params[@"campaign_id"] = campaignId;
+        params[@"cta_label"] = label ?: [NSNull null];
+
+        if (sharedInstance) {
+            [sharedInstance sendEventWithName:@"wynta_inapp_interaction" body:params];
+        }
+
+        if (![interactionType isEqualToString:@"shown"]) {
+            currentPopup = nil;
+        }
+    }];
 }
 
 // Automatically swizzle setDelegate: on UNUserNotificationCenter when the module class loads

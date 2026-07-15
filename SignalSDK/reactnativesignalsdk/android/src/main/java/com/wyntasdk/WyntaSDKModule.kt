@@ -18,12 +18,40 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
     companion object {
         // Must match the default_notification_channel_id declared in the host app's AndroidManifest.xml
         const val CHANNEL_ID = "signal_default"
+
+        // Latest constructed module instance — InAppPopupActivity calls back into this to
+        // emit events to JS, mirroring the iOS module's static `sharedInstance` pattern.
+        private var instance: WyntaSDKModule? = null
+
+        // True while an InAppPopupActivity is on screen — guards against launching a
+        // second one before the first resolves (JS also guards this, but this method
+        // could in principle be called directly).
+        private var popupShowing = false
+
+        fun notifyInAppInteraction(
+            interactionType: String,
+            notificationId: String,
+            campaignId: String,
+            ctaLabel: String?,
+        ) {
+            if (interactionType != "shown") {
+                popupShowing = false
+            }
+            val params = Arguments.createMap().apply {
+                putString("interaction_type", interactionType)
+                putString("notification_id", notificationId)
+                putString("campaign_id", campaignId)
+                putString("cta_label", ctaLabel)
+            }
+            instance?.sendEvent("wynta_inapp_interaction", params)
+        }
     }
 
     private var coldStartNotification: WritableMap? = null
 
     init {
         reactContext.addActivityEventListener(this)
+        instance = this
     }
 
     override fun getName(): String {
@@ -222,6 +250,30 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
             .apply { pendingIntent?.let { setContentIntent(it) } }
 
         notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
+    }
+
+    @ReactMethod
+    fun showInAppPopup(
+        notificationId: String,
+        campaignId: String,
+        imageUrl: String,
+        ctaLabel: String?,
+        ctaAction: String,
+        ctaValue: String?,
+    ) {
+        if (popupShowing) return
+        val activity = reactApplicationContext.currentActivity ?: return
+        popupShowing = true
+        val intent = Intent(activity, InAppPopupActivity::class.java).apply {
+            putExtra(InAppPopupActivity.EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(InAppPopupActivity.EXTRA_CAMPAIGN_ID, campaignId)
+            putExtra(InAppPopupActivity.EXTRA_IMAGE_URL, imageUrl)
+            putExtra(InAppPopupActivity.EXTRA_CTA_LABEL, ctaLabel)
+            putExtra(InAppPopupActivity.EXTRA_CTA_ACTION, ctaAction)
+            putExtra(InAppPopupActivity.EXTRA_CTA_VALUE, ctaValue)
+        }
+        activity.startActivity(intent)
+        activity.overridePendingTransition(0, 0)
     }
 
     private fun sendEvent(eventName: String, params: WritableMap?) {
