@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     kafka_group_id: str = "pam-bonus-consumer"
     kafka_security_protocol: str = "SASL_PLAINTEXT"
     kafka_sasl_mechanism: str = "PLAIN"
-    kafka_sasl_username: str = "ddf"
-    kafka_sasl_password: str= "787"
+    kafka_sasl_username: str = ""
+    kafka_sasl_password: str= ""
     kafka_dlq_topic: str = "pam.bonus.invalid.v1"
     kafka_batch_size: int = 100
     kafka_batch_timeout_ms: int = 1_000
