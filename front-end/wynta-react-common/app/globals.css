@@ -4662,10 +4662,10 @@ body {
    ============================================================ */
 .copilot-panel {
   position: fixed;
-  right: 0; top: var(--wynta-dj-header-height, 0px);
+  right: 0; top: 50px;
   width: 400px;
   max-width: 100vw;
-  height: calc(100vh - var(--wynta-dj-header-height, 0px));
+  height: calc(100vh - 50px);
   background: #fff;
   border-left: 1px solid var(--g200);
   box-shadow: var(--shm);
