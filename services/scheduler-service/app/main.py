@@ -46,12 +46,10 @@ async def main() -> None:
 
     redis = make_redis_client(settings.redis_url)
 
-    send_producer: AIOKafkaProducer = await make_kafka_producer(settings.kafka_bootstrap_servers)
-    dlq_producer: AIOKafkaProducer = await make_kafka_producer(settings.kafka_bootstrap_servers)
-    # Scheduler topic producer (used by poller)
-    scheduler_producer: AIOKafkaProducer = await make_kafka_producer(
-        settings.kafka_bootstrap_servers
-    )
+    _sasl = {"sasl_username": settings.kafka_sasl_username, "sasl_password": settings.kafka_sasl_password}
+    send_producer: AIOKafkaProducer = await make_kafka_producer(settings.kafka_bootstrap_servers, **_sasl)
+    dlq_producer: AIOKafkaProducer = await make_kafka_producer(settings.kafka_bootstrap_servers, **_sasl)
+    scheduler_producer: AIOKafkaProducer = await make_kafka_producer(settings.kafka_bootstrap_servers, **_sasl)
 
     stop_event = asyncio.Event()
 

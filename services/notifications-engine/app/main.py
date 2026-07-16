@@ -2,7 +2,11 @@ import asyncio
 
 import structlog
 from shared.clients.kafka import make_kafka_producer
-from shared.clients.mongo import create_notification_delivery_indexes, make_mongo_client
+from shared.clients.mongo import (
+    create_notification_delivery_indexes,
+    create_notification_inbox_indexes,
+    make_mongo_client,
+)
 from shared.clients.redis import make_redis_client
 from shared.logging_config import configure_logging
 
@@ -40,9 +44,14 @@ async def main() -> None:
     mongo_client = make_mongo_client(settings.mongo_url)
     db = mongo_client[settings.mongo_database]
     await create_notification_delivery_indexes(db)
+    await create_notification_inbox_indexes(db)
 
     redis = make_redis_client(settings.redis_url)
-    producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+    producer = await make_kafka_producer(
+        settings.kafka_bootstrap_servers,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
+    )
 
     stop_event = asyncio.Event()
 

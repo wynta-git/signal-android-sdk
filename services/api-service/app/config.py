@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     kafka_bootstrap_servers: str = "localhost:9093"
     kafka_events_topic: str = "pam.events.raw.v1"
+    kafka_sasl_username: str = ""
+    kafka_sasl_password: str = ""
 
     common_db_host: str = "localhost"
     common_db_port: int = 3306

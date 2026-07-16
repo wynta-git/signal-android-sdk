@@ -14,6 +14,7 @@ from shared.logging_config import configure_logging
 from app.routes.admin import router as admin_router
 from app.routes.alias import router as alias_router
 from app.routes.identify import router as identify_router
+from app.routes.notifications import router as notifications_router
 from app.routes.ready import router as ready_router
 from app.routes.track import router as track_router
 from shared.clients.kafka import make_kafka_producer
@@ -52,7 +53,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     raw_producer = None
     try:
-        raw_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+        raw_producer = await make_kafka_producer(
+            settings.kafka_bootstrap_servers,
+            sasl_username=settings.kafka_sasl_username,
+            sasl_password=settings.kafka_sasl_password,
+        )
         app.state.producer = KafkaEventProducer(raw_producer, settings.kafka_events_topic)
     except Exception as exc:
         log.warning("kafka_unavailable_at_startup", error=str(exc))
@@ -66,7 +71,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             routes = await load_event_routes(app.state.mongo[settings.mongo_db])
             unique_topics = {doc["topic"] for doc in routes}
             for topic in unique_topics:
-                raw = await make_kafka_producer(settings.kafka_bootstrap_servers)
+                raw = await make_kafka_producer(
+                    settings.kafka_bootstrap_servers,
+                    sasl_username=settings.kafka_sasl_username,
+                    sasl_password=settings.kafka_sasl_password,
+                )
                 app.state.topic_producers[topic] = KafkaEventProducer(raw, topic)
             log.info("startup_complete", version=settings.version, fanout_topics=list(unique_topics))
         except Exception as exc:
@@ -133,6 +142,7 @@ app.include_router(track_router, prefix=route_prefix)
 app.include_router(identify_router, prefix=route_prefix)
 app.include_router(alias_router, prefix=route_prefix)
 app.include_router(ready_router, prefix=route_prefix)
+app.include_router(notifications_router, prefix=route_prefix)
 
 
 @app.get("/api/v1/events/health", include_in_schema=False)

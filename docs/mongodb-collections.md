@@ -16,8 +16,9 @@ Database: `pam`
 | `trait_schemas` | shared (`upsert_user_profile`) | segmentation-engine | Per-project trait type registry. Written on first trait occurrence, locked after. |
 | `campaigns` | campaign-engine | notifications-engine | Campaign definitions, schedule, audience, channel, template. |
 | `campaign_runs` | campaign-engine | notifications-engine | Each execution of a campaign. |
-| `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook templates. |
+| `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook / in_app templates. |
 | `notification_deliveries` | notifications-engine | analytics | Per-user, per-campaign delivery status. |
+| `notification_inbox` | notifications-engine | api-service | Per-user delivered in_app notifications — the client's inbox. Read/updated by api-service on behalf of the client SDK. |
 | `device_tokens` | api-service | notifications-engine | Push device tokens (FCM/APNs) per user. |
 | `dashboard_boosts` | campaign-engine admin API | campaign-engine | Per-project (or per-brand) additive offsets applied to dashboard summary counts. |
 
@@ -123,8 +124,12 @@ Database: `pam`
     cron: "...",                       // if type=scheduled
   },
   audience: { segment_id: "seg_xxx" } | { all: true },
-  channel: "push" | "email" | "sms" | "webhook",
+  channel: "push" | "email" | "sms" | "webhook" | "in_app",
   template_id: "tmpl_abc",
+  trigger_type: "on_session_start" | "on_screen_load" | "on_custom_event" | null,
+  // ^ in_app only — when the SDK should display an already-fetched notification.
+  //   Distinct from `trigger` above (which governs when the backend fires the campaign).
+  //   Only "on_session_start" is functionally supported today; the other two are reserved.
   rate_limit: { per_user_per_day: 1 },
   created_at: ISODate,
   updated_at: ISODate
@@ -132,6 +137,72 @@ Database: `pam`
 // Indexes:
 //   { project_id: 1, campaign_id: 1 } unique
 //   { project_id: 1, status: 1 }
+```
+
+### `notification_templates`
+```js
+{
+  _id: ObjectId,
+  template_id: "tmpl_abc",
+  project_id: "proj_abc123",
+  name: "Welcome bonus",
+  channel: "push" | "email" | "sms" | "webhook" | "in_app",
+  body: { /* channel-specific, e.g. {title, body, deep_link} for push */ },
+  // in_app only — variants replace `body` (body stays {} for in_app):
+  variants: [
+    {
+      variant_id: "var_a",
+      weight: 100,                    // all variants' weights must sum to 100
+      template_type: "modal" | "popup_image" | "rating" | "fullscreen" | "nudge" |
+                     "carousel" | "survey" | "lead_gen" | "gamification" | "html_nudge",
+      render_engine: "native" | "html",
+      title: "...", body: "...",       // has merge tags, unrendered
+      media: { image_url, background_color, background_opacity } | null,
+      cta: [ { role: "primary" | "secondary", label, action: "deep_link" | "external_url" | "dismiss", value } ],
+      close_button_visibility: "always",
+      layout: null | { /* shape depends on template_type — see docs/in-app-backend-design.md */ },
+      web_view_url: "..." | null       // optional, any template_type — overrides native rendering
+    }
+  ] | null,
+  created_at: ISODate,
+  updated_at: ISODate
+}
+// Indexes: { project_id: 1, template_id: 1 } unique
+```
+
+### `notification_inbox`
+```js
+{
+  _id: ObjectId,
+  notification_id: "notif_abc123",   // UUID, exposed to client
+  send_id: "send_xyz",               // from SendJob — idempotency key
+  project_id: "proj_abc123",
+  user_id: "user_42",
+  campaign_id: "camp_xyz",
+  campaign_run_id: "run_456",
+  template_id: "tmpl_abc",
+  variant_id: "var_a",               // which variant this user was assigned
+  template_type: "modal",
+  render_engine: "native",
+  trigger_type: "on_session_start",  // copied from the campaign doc at send time
+  title: "...", body: "...",          // merge tags already resolved
+  media: { ... } | null,
+  cta: [ { role, label, action, value } ],
+  close_button_visibility: "always",
+  layout: null | { ... },
+  web_view_url: "..." | null,
+  created_at: ISODate,
+  expires_at: ISODate | null,
+  read: false,
+  read_at: ISODate | null
+}
+// Indexes:
+//   { notification_id: 1 } unique
+//   { send_id: 1 } unique  ← idempotency key (Kafka at-least-once redelivery)
+//   { project_id: 1, user_id: 1, created_at: -1 }
+//   { project_id: 1, user_id: 1, read: 1, created_at: -1 }
+//   TTL on created_at after 90 days
+// Owner: notifications-engine (writes). Read/updated by: api-service, on behalf of the client SDK.
 ```
 
 ### `notification_deliveries`
@@ -144,9 +215,9 @@ Database: `pam`
   campaign_id: "camp_xyz",
   campaign_run_id: "...",
   user_id: "user_42",
-  channel: "push",
+  channel: "push" | "email" | "sms" | "webhook" | "in_app",
   status: "sent" | "failed" | "suppressed",
-  provider: "fcm_stub" | "apns_stub",
+  provider: "fcm_stub" | "apns_stub" | "in_app",
   provider_msg_id: "...",
   attempted_at: ISODate,
   error: null | { code: str, message: str }

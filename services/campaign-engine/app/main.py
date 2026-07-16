@@ -12,6 +12,7 @@ from app.routes.dashboard import router as dashboard_router
 from app.routes.reports import router as reports_router
 from app.routes.settings import router as settings_router
 from app.routes.templates import router as templates_router
+from app.routes.uploads import router as uploads_router
 from app.jobs import health_classifier
 from app.triggers.event import run_consumer
 from shared.clients.clickhouse import make_clickhouse_client
@@ -47,7 +48,11 @@ async def lifespan(app: FastAPI):
     )
     app.state.ch = ch
 
-    producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+    producer = await make_kafka_producer(
+        settings.kafka_bootstrap_servers,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
+    )
     app.state.producer = producer
 
     health_classifier.start(db, ch)
@@ -94,6 +99,7 @@ app.include_router(reports_router, prefix=route_prefix)
 app.include_router(campaigns_router, prefix=route_prefix)
 app.include_router(dashboard_router, prefix=route_prefix)
 app.include_router(settings_router, prefix=route_prefix)
+app.include_router(uploads_router, prefix=route_prefix)
 
 
 @app.get("/health", include_in_schema=False)
