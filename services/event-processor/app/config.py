@@ -6,10 +6,11 @@ class Settings(BaseSettings):
 
 
     kafka_bootstrap_servers: str = "localhost:9092"
-
     kafka_events_topic: str = "pam.events.raw.v1"
     kafka_dlq_topic: str = "pam.events.invalid.v1"
     kafka_consumer_group: str = "event-processor"
+    kafka_sasl_username: str = ""
+    kafka_sasl_password: str = ""
 
     clickhouse_host: str = "localhost"
     clickhouse_port: int = 8123

@@ -2,7 +2,7 @@ import asyncio
 import json
 
 import structlog
-from aiokafka import AIOKafkaConsumer
+from shared.clients.kafka import make_kafka_consumer
 from clickhouse_connect.driver.asyncclient import AsyncClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
@@ -21,15 +21,15 @@ async def run_consumer(
     redis: Redis,
     stop_event: asyncio.Event,
 ) -> None:
-    consumer = AIOKafkaConsumer(
-        settings.kafka_events_topic,
-        bootstrap_servers=settings.kafka_bootstrap_servers,
-        group_id=settings.kafka_consumer_group,
+    consumer = await make_kafka_consumer(
+        [settings.kafka_events_topic],
+        settings.kafka_bootstrap_servers,
+        settings.kafka_consumer_group,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
         auto_offset_reset="latest",
-        enable_auto_commit=False,
         value_deserializer=lambda b: json.loads(b.decode("utf-8")),
     )
-    await consumer.start()
     log.info("event_consumer.started", topic=settings.kafka_events_topic)
 
     try:

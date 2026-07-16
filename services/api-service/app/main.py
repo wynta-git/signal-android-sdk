@@ -53,7 +53,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     raw_producer = None
     try:
-        raw_producer = await make_kafka_producer(settings.kafka_bootstrap_servers)
+        raw_producer = await make_kafka_producer(
+            settings.kafka_bootstrap_servers,
+            sasl_username=settings.kafka_sasl_username,
+            sasl_password=settings.kafka_sasl_password,
+        )
         app.state.producer = KafkaEventProducer(raw_producer, settings.kafka_events_topic)
     except Exception as exc:
         log.warning("kafka_unavailable_at_startup", error=str(exc))
@@ -67,7 +71,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             routes = await load_event_routes(app.state.mongo[settings.mongo_db])
             unique_topics = {doc["topic"] for doc in routes}
             for topic in unique_topics:
-                raw = await make_kafka_producer(settings.kafka_bootstrap_servers)
+                raw = await make_kafka_producer(
+                    settings.kafka_bootstrap_servers,
+                    sasl_username=settings.kafka_sasl_username,
+                    sasl_password=settings.kafka_sasl_password,
+                )
                 app.state.topic_producers[topic] = KafkaEventProducer(raw, topic)
             log.info("startup_complete", version=settings.version, fanout_topics=list(unique_topics))
         except Exception as exc:

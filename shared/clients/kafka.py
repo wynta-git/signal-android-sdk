@@ -6,9 +6,45 @@ from typing import Any
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, ConsumerRecord
 
 
+def _sasl_kwargs(sasl_username: str, sasl_password: str) -> dict[str, Any]:
+    if sasl_username and sasl_password:
+        return {
+            "security_protocol": "SASL_PLAINTEXT",
+            "sasl_mechanism": "SCRAM-SHA-256",
+            "sasl_plain_username": sasl_username,
+            "sasl_plain_password": sasl_password,
+        }
+    return {}
+
+
+async def make_kafka_consumer(
+    topics: list[str],
+    bootstrap_servers: str,
+    group_id: str,
+    *,
+    sasl_username: str = "",
+    sasl_password: str = "",
+    auto_offset_reset: str = "earliest",
+    **kwargs: Any,
+) -> AIOKafkaConsumer:
+    consumer = AIOKafkaConsumer(
+        *topics,
+        bootstrap_servers=bootstrap_servers,
+        group_id=group_id,
+        enable_auto_commit=False,
+        auto_offset_reset=auto_offset_reset,
+        **_sasl_kwargs(sasl_username, sasl_password),
+        **kwargs,
+    )
+    await consumer.start()
+    return consumer
+
+
 async def make_kafka_producer(
     bootstrap_servers: str,
     *,
+    sasl_username: str = "",
+    sasl_password: str = "",
     acks: str | int = "all",
     compression_type: str = "gzip",
 ) -> AIOKafkaProducer:
@@ -16,6 +52,7 @@ async def make_kafka_producer(
         bootstrap_servers=bootstrap_servers,
         acks=acks,
         compression_type=compression_type,
+        **_sasl_kwargs(sasl_username, sasl_password),
     )
     await producer.start()
     return producer
@@ -42,6 +79,8 @@ class KafkaConsumer:
         group_id: str,
         callback: BatchCallback,
         *,
+        sasl_username: str = "",
+        sasl_password: str = "",
         batch_size: int = 100,
         batch_timeout_ms: int = 1_000,
         auto_offset_reset: str = "earliest",
@@ -51,6 +90,8 @@ class KafkaConsumer:
         self._bootstrap_servers = bootstrap_servers
         self._group_id = group_id
         self._callback = callback
+        self._sasl_username = sasl_username
+        self._sasl_password = sasl_password
         self._batch_size = batch_size
         self._batch_timeout_ms = batch_timeout_ms
         self._auto_offset_reset = auto_offset_reset
@@ -65,6 +106,7 @@ class KafkaConsumer:
             group_id=self._group_id,
             enable_auto_commit=False,
             auto_offset_reset=self._auto_offset_reset,
+            **_sasl_kwargs(self._sasl_username, self._sasl_password),
             **self._consumer_kwargs,
         )
         await self._consumer.start()

@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+import aiomysql
 import structlog
 from redis.asyncio import Redis
 
@@ -160,11 +161,23 @@ async def get_or_create_pam_user(
                 pam_id: int = row[0]
                 log.debug("get_or_create_pam_user.found", site_id=site_id, user_id=user_id, pam_id=pam_id)
             else:
-                await cur.execute(_SQL_INSERT, (site_id, user_id))
-                pam_id = cur.lastrowid  # type: ignore[assignment]
-                await conn.commit()
-                created = True
-                log.info("get_or_create_pam_user.created", site_id=site_id, user_id=user_id, pam_id=pam_id)
+                try:
+                    await cur.execute(_SQL_INSERT, (site_id, user_id))
+                    pam_id = cur.lastrowid  # type: ignore[assignment]
+                    await conn.commit()
+                    created = True
+                    log.info("get_or_create_pam_user.created", site_id=site_id, user_id=user_id, pam_id=pam_id)
+                except aiomysql.IntegrityError as exc:
+                    if exc.args[0] != 1062:
+                        raise
+                    # Lost the race to a concurrent insert for the same (site_id, user_id) — re-read it.
+                    await cur.execute(_SQL_GET, (site_id, user_id))
+                    row = await cur.fetchone()
+                    pam_id = row[0]
+                    log.info(
+                        "get_or_create_pam_user.race_resolved",
+                        site_id=site_id, user_id=user_id, pam_id=pam_id,
+                    )
 
     if cached is None and mongo_db is not None:
         await _upsert_new_user_profile(redis, mongo_db, site_id, user_id, pam_id)
