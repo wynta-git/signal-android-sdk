@@ -73,6 +73,10 @@ const ChatPage = dynamic(
   () => import("wynta-react-common/components/chat/ChatPage"),
   { ssr: false },
 );
+const BonusDashboardPage = dynamic(
+  () => import("./dashboard/BonusDashboardPage"),
+  { ssr: false },
+);
 
 interface ContextItem {
   icon?: string;
@@ -477,6 +481,8 @@ function BonusShell() {
         <WorkspaceSettingsPage />
       ) : sidebarActive === "billing" ? (
         <BillingPricingPage />
+      ) : sidebarActive === "dashboard" ? (
+        <BonusDashboardPage brandId={selectedBrand ?? undefined} />
       ) : sidebarActive === "segments" ? (
         <SegmentsPage brandId={selectedBrand ?? undefined} />
       ) : sidebarActive === "events" ? (

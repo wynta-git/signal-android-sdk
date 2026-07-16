@@ -173,6 +173,114 @@ export interface KpiSnapshot {
   monthly_pct: number;
 }
 
+// ── Bonus Dashboard ────────────────────────────────────────────────────────────
+
+export interface TrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface BonusDashboardSummary {
+  window_days: number;
+  active_promo_codes: number;
+  promo_codes_created_this_period: number;
+  active_configures: number;
+  active_configures_paused: number;
+  active_heads: number;
+  active_subheads: number;
+  redemptions: number;
+  redemptions_change_pct: number | null;
+  avg_payout: number;
+  active_players: number;
+  active_players_change_pct: number | null;
+  monthly_granted: number;
+  monthly_limit: number;
+  monthly_pct: number;
+  monthly_released: number;
+  monthly_consumed: number;
+  monthly_pending: number;
+  monthly_forfeit: number;
+  monthly_expiring: number;
+  released_pct: number;
+  pending_pct: number;
+  consumed_pct: number;
+  expiry_pct: number;
+  forfeit_pct: number;
+  promo_codes_trend: TrendPoint[];
+}
+
+export interface TopBonusItem {
+  configure_id: number;
+  name: string;
+  subtitle: string | null;
+  type: string;
+  trend: TrendPoint[];
+  redemptions: number;
+  players: number;
+  avg_payout: number;
+  status: string;
+}
+
+export interface BonusDashboardTopBonusesResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  bonuses: TopBonusItem[];
+}
+
+export interface ActivityItem {
+  event_type: string;
+  pam_user_id: string;
+  configure_id: number;
+  configure_name: string;
+  amount: number;
+  occurred_at: string;
+}
+
+export interface BonusDashboardActivityResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  activities: ActivityItem[];
+}
+
+export interface AlertItem {
+  severity: string;
+  title: string;
+  subtitle: string;
+  entity_type: string;
+  entity_id: number;
+}
+
+export interface BonusDashboardAlertsResponse {
+  alerts: AlertItem[];
+}
+
+export interface BudgetHealthProgram {
+  entity_type: string;
+  entity_id: number;
+  name: string;
+  owner: string | null;
+  monthly_used: number;
+  monthly_limit: number | null;
+  monthly_pct: number | null;
+  daily_used: number;
+  daily_limit: number | null;
+  daily_pct: number | null;
+}
+
+export interface BonusDashboardBudgetHealthResponse {
+  programs: BudgetHealthProgram[];
+}
+
+export interface DashboardDateWindow {
+  windowDays: number;
+  startDate?: string;
+  endDate?: string;
+  compareStart?: string;
+  compareEnd?: string;
+}
+
 // ── Segments & Players ────────────────────────────────────────────────────────
 
 export interface Segment {
