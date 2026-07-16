@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     trigger_cache_ttl: int = 300  # seconds
     dedup_event_ttl: int = 604800  # 7 days
 
+    auth_service_url: str = "https://qa-app.fozilpartners.com"
+    segmentation_service_url: str = "https://qa-app.fozilpartners.com"
+
     scheduler_interval_minutes: int = 60
     scheduler_batch_size: int = 500
 
