@@ -3,7 +3,8 @@ import json
 from typing import Any
 
 import structlog
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka import AIOKafkaProducer
+from shared.clients.kafka import make_kafka_consumer, make_kafka_producer
 from redis.asyncio import Redis
 
 from app.config import settings
@@ -57,20 +58,19 @@ async def _send_to_dlq(
 
 
 async def run_consumer(redis: Redis) -> None:
-    consumer = AIOKafkaConsumer(
-        settings.kafka_topic,
-        bootstrap_servers=settings.kafka_bootstrap_servers,
-        group_id=settings.kafka_group_id,
-        enable_auto_commit=False,
-        auto_offset_reset="earliest",
+    consumer = await make_kafka_consumer(
+        [settings.kafka_topic],
+        settings.kafka_bootstrap_servers,
+        settings.kafka_group_id,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
     )
-    dlq_producer = AIOKafkaProducer(
-        bootstrap_servers=settings.kafka_bootstrap_servers,
+    dlq_producer = await make_kafka_producer(
+        settings.kafka_bootstrap_servers,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
         acks="all",
     )
-
-    await consumer.start()
-    await dlq_producer.start()
     log.info(
         "bonus_consumer_started",
         topic=settings.kafka_topic,

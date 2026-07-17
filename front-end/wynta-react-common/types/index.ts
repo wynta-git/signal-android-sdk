@@ -39,6 +39,22 @@ export interface AuthResponse {
 /** Flat key-value UI settings for the current system_user, from GET /users/me/settings */
 export type UserSettings = Record<string, string>;
 
+// ── AI Co-pilot ───────────────────────────────────────────────────────────────
+
+export interface CopilotMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  ts: number;
+}
+
+export type CopilotTab = 'thread' | 'copilot';
+
+export interface CopilotContext {
+  module: string;
+  site_id: number | null;
+}
+
 // ── Segments & Players ────────────────────────────────────────────────────────
 
 export interface UploadHistoryEntry {

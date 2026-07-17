@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import dynamic       from 'next/dynamic';
 import { store }     from '../store';
-import { getToken }  from 'wynta-react-common/services/tokenRegistry';
+import { getToken, setBrandId }  from 'wynta-react-common/services/tokenRegistry';
 import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import { fetchBrands } from 'wynta-react-common/store/slices/brandsSlice';
 import { fetchUserSettings } from 'wynta-react-common/store/slices/settingsSlice';
@@ -14,7 +14,9 @@ declare global {
     __WYNTA_HEADER_FRAGMENT_FOUND__?: boolean;
   }
 }
+import { setCopilotModule } from 'wynta-react-common/store/slices/copilotSlice';
 import BrandSwitcher from 'wynta-react-common/components/BrandSwitcher';
+import CopilotPanel  from 'wynta-react-common/components/copilot/CopilotPanel';
 import CrmSidebar    from './CrmSidebar';
 import { listReports, createReport as createReportApi } from '../services/reportsApi';
 import type { ReportFilters, CustomReport } from '../services/reportsApi';
@@ -101,6 +103,18 @@ function CrmShell() {
   useEffect(() => { dispatch(fetchUserSettings()); }, [dispatch]);
 
   useEffect(() => {
+    dispatch(setCopilotModule('crm'));
+  }, [dispatch]);
+
+  // Keep the shared tokenRegistry site id in sync with this app's own brand
+  // selection (manual switch or the default-brand fallback in uiSlice) so
+  // shared code like copilotSlice, which has no access to `ui.selectedBrand`,
+  // still sees the correct site_id.
+  useEffect(() => {
+    if (selectedBrand != null) setBrandId(selectedBrand);
+  }, [selectedBrand]);
+
+  useEffect(() => {
     // DjHeaderSlot may be rendered by a host layout (e.g. wynta-web's root
     // layout) that has no knowledge of this app's Redux store, so it reports
     // the header-fragment fetch outcome via a window global + CustomEvent
@@ -165,15 +179,16 @@ function CrmShell() {
       <main className="crm-main">
         {headerFragmentFound === false && (
           <div className="crm-topbar">
-            <BrandSwitcher
-              value={selectedBrand}
-              onChange={(id) => {
-                dispatch(setSelectedBrand(id));
-                window.__fireBrandChange__?.(id);
-              }}
-              compact
-            />
-          </div>
+          <BrandSwitcher
+            value={selectedBrand}
+            onChange={(id) => {
+              dispatch(setSelectedBrand(id));
+              window.__fireBrandChange__?.(id);
+            }}
+            compact
+          />
+          <div style={{ flex: 1 }} />
+        </div>
         )}
         <div className="crm-content">
           {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} brandId={brandId} /> :
@@ -211,6 +226,7 @@ function CrmShell() {
           )}
         </div>
       </main>
+      <CopilotPanel />
     </div>
   );
 }

@@ -417,6 +417,8 @@ async def consumer_loop(
         bootstrap_servers=settings.kafka_bootstrap_servers,
         group_id=settings.kafka_consumer_group,
         callback=_callback,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
         batch_size=settings.kafka_batch_size,
         batch_timeout_ms=settings.kafka_batch_timeout_ms,
     )

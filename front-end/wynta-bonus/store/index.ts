@@ -20,6 +20,7 @@ import usersReducer, {
 } from "wynta-react-common/store/slices/usersSlice";
 import eventsReducer from "wynta-react-common/store/slices/eventsSlice";
 import settingsReducer from "wynta-react-common/store/slices/settingsSlice";
+import copilotReducer from "wynta-react-common/store/slices/copilotSlice";
 import type { SelectedNode } from "../types";
 
 
@@ -61,6 +62,7 @@ export const store = configureStore({
     users: usersReducer,
     events: eventsReducer,
     settings: settingsReducer,
+    copilot: copilotReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(initOnAuthMiddleware),

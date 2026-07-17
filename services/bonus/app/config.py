@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     kafka_group_id: str = "pam-bonus-consumer"
     kafka_security_protocol: str = "SASL_PLAINTEXT"
     kafka_sasl_mechanism: str = "PLAIN"
-    kafka_sasl_username: str = "ddf"
-    kafka_sasl_password: str= "787"
+    kafka_sasl_username: str = ""
+    kafka_sasl_password: str= ""
     kafka_dlq_topic: str = "pam.bonus.invalid.v1"
     kafka_batch_size: int = 100
     kafka_batch_timeout_ms: int = 1_000
@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     trigger_cache_ttl: int = 300  # seconds
     dedup_event_ttl: int = 604800  # 7 days
+
+    auth_service_url: str = "https://qa-app.fozilpartners.com"
+    segmentation_service_url: str = "https://qa-app.fozilpartners.com"
 
     scheduler_interval_minutes: int = 60
     scheduler_batch_size: int = 500
