@@ -43,7 +43,6 @@ const BONUS_NAV_SECTIONS: NavSection[] = [
           { id: 'churn',     label: 'Churn & Retention' },
         ],
       },
-      { id: 'chat', label: 'Chat', icon: 'message-circle' },
     ],
   },
 ];

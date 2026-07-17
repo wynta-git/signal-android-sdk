@@ -10,6 +10,8 @@ interface WorkspaceItem {
 
 const DEFAULT_ITEMS: WorkspaceItem[] = [
   { id: 'workspace-settings', label: 'Workspace Settings', icon: 'layers'      },
+   { id: 'chat',               label: 'Chat',               icon: 'message-circle' },
+ 
   { id: 'logs',               label: 'Logs',               icon: 'file-text'   },
   { id: 'marketplace',        label: 'Marketplace',        icon: 'store',       locked: true },
   { id: 'billing',            label: 'Billing & Pricing',  icon: 'credit-card' },
