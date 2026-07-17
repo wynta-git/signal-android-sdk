@@ -91,6 +91,8 @@ export default function ChatPage() {
         ref={iframeRef}
         src={CHAT_URL}
         title="Chat"
+          allow="camera; microphone; fullscreen; display-capture"
+          allowFullScreen 
         style={{ flex: 1, border: "none", width: "100%" }}
       />
     </div>

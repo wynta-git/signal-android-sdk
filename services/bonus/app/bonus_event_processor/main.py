@@ -7,6 +7,7 @@ import os
 import signal
 
 import structlog
+from redis.asyncio import Redis
 
 from app.config import settings
 from app.db import close_pool, init_pool
@@ -14,6 +15,7 @@ from app.bonus_event_processor.consumer import run_consumer
 from app.bonus_event_processor.manual_bonus_consumer import run_manual_bonus_consumer
 from app.bonus_event_processor.chunk_expiry_job import run_chunk_expiry_job
 from app.bonus_event_processor.bonus_forfeit_job import run_bonus_forfeit_job
+from app.bonus_event_processor.webhook_sender import close_webhook_audit, init_webhook_audit
 from shared.clients.redis import make_redis_client
 
 
@@ -54,7 +56,7 @@ structlog.configure(
 log = structlog.get_logger()
 
 
-async def _run_scheduler(stop_event: asyncio.Event) -> None:
+async def _run_scheduler(stop_event: asyncio.Event, redis: Redis) -> None:
     log.info(
         "bonus_scheduler.starting",
         interval_minutes=settings.scheduler_interval_minutes,
@@ -63,8 +65,8 @@ async def _run_scheduler(stop_event: asyncio.Event) -> None:
     while not stop_event.is_set():
         try:
             await asyncio.gather(
-                run_chunk_expiry_job(settings.scheduler_batch_size),
-                run_bonus_forfeit_job(settings.scheduler_batch_size),
+                run_chunk_expiry_job(settings.scheduler_batch_size, redis),
+                run_bonus_forfeit_job(settings.scheduler_batch_size, redis),
             )
         except Exception:
             log.exception("bonus_scheduler.job_error")
@@ -91,10 +93,15 @@ async def main() -> None:
     redis = make_redis_client(settings.redis_url)
     log.info("bonus_consumer_redis_ready", url=settings.redis_url)
 
+    await init_webhook_audit(
+        settings.mongo_url, settings.mongo_db, settings.mongo_min_pool_size, settings.mongo_max_pool_size,
+    )
+    log.info("bonus_consumer_webhook_audit_ready")
+
     stop_event            = asyncio.Event()
     consumer_task         = asyncio.create_task(run_consumer(redis))
     manual_bonus_task     = asyncio.create_task(run_manual_bonus_consumer(redis))
-    scheduler_task        = asyncio.create_task(_run_scheduler(stop_event))
+    scheduler_task        = asyncio.create_task(_run_scheduler(stop_event, redis))
 
     loop = asyncio.get_running_loop()
 
@@ -114,6 +121,7 @@ async def main() -> None:
     finally:
         await close_pool()
         await redis.aclose()
+        await close_webhook_audit()
 
 
 if __name__ == "__main__":

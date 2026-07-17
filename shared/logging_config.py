@@ -35,13 +35,17 @@ def configure_logging(
     backup_count: int = 7,
     log_to_stdout: bool = True,
     log_to_file: bool = True,
+    service_name: str | None = None,
 ) -> None:
     if debug:
         level = logging.DEBUG
     else:
         level = getattr(logging, log_level.upper(), logging.INFO)
 
-    service_name = _detect_service_name()
+    # Auto-detection walks the call stack for a services/<name> path segment —
+    # override it explicitly for tools nested deeper than services/<name>/
+    # (e.g. services/bonus/test/webhook-receiver would otherwise misdetect as "bonus").
+    service_name = service_name or _detect_service_name()
 
     # Default to {project_root}/logs/; override with log_dir env var
     log_folder = Path(log_dir) if log_dir else _project_root() / "logs"
