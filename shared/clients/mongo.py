@@ -119,6 +119,9 @@ async def create_campaign_indexes(db: AsyncIOMotorDatabase) -> None:
     )
     await db["custom_reports"].create_index([("user_id", 1), ("project_id", 1)])
     await db["custom_reports"].create_index([("report_id", 1)], unique=True)
+    await db["screen_catalog"].create_index(
+        [("project_id", 1), ("brand_id", 1), ("screen_name", 1)], unique=True
+    )
 
 
 async def insert_campaign(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> str:
@@ -213,6 +216,25 @@ async def get_due_oneoff_campaigns(
         {"_id": 0},
     )
     return await cursor.to_list(length=None)
+
+
+# ---------------------------------------------------------------------------
+# Screen catalog helpers (campaign-engine only)
+# ---------------------------------------------------------------------------
+
+
+async def list_screen_catalog(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> list[str]:
+    query: dict[str, Any] = {"project_id": project_id}
+    if brand_id:
+        # Brand-scoped screens for this brand + project-wide screens (brand_id null/missing)
+        query["$or"] = [{"brand_id": brand_id}, {"brand_id": None}]
+    else:
+        query["brand_id"] = None
+    cursor = db["screen_catalog"].find(query, {"_id": 0, "screen_name": 1})
+    docs = await cursor.to_list(length=None)
+    return sorted({d["screen_name"] for d in docs})
 
 
 # ---------------------------------------------------------------------------

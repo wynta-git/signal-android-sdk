@@ -453,6 +453,21 @@ export async function uploadCampaignImage(projectId: string, file: File): Promis
   return data.image_url as string;
 }
 
+/**
+ * Fetches the marketer-configured "on_screen_load" target screen catalog
+ * (campaign-engine's screen_catalog collection, Redis-cached). Optionally
+ * scoped to a brand — returns brand-specific + project-wide screens.
+ */
+export async function fetchScreenCatalog(projectId: string, brandId?: number): Promise<string[]> {
+  const url = brandId
+    ? `${campaignRoot(projectId)}/screens?brand_id=${brandId}`
+    : `${campaignRoot(projectId)}/screens`;
+  const res = await fetch(url, { headers: authHeader() });
+  if (!res.ok) throw new Error(`fetchScreenCatalog failed: ${res.status}`);
+  const data = await res.json();
+  return data.screens as string[];
+}
+
 export async function deleteCampaign(projectId: string, campaignId: string): Promise<void> {
   const res = await fetch(`${campaignRoot(projectId)}/${campaignId}`, {
     method: "DELETE",

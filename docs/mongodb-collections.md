@@ -17,6 +17,7 @@ Database: `pam`
 | `campaigns` | campaign-engine | notifications-engine | Campaign definitions, schedule, audience, channel, template. |
 | `campaign_runs` | campaign-engine | notifications-engine | Each execution of a campaign. |
 | `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook / in_app templates. |
+| `screen_catalog` | campaign-engine (hand-seeded via MongoDB — no write API yet) | campaign-engine (CRM wizard, Redis-cached) | Marketer-curated app screen names for the `on_screen_load` in_app trigger's target_screens picker. |
 | `notification_deliveries` | notifications-engine | analytics | Per-user, per-campaign delivery status. |
 | `notification_inbox` | notifications-engine | api-service | Per-user delivered in_app notifications — the client's inbox. Read/updated by api-service on behalf of the client SDK. |
 | `device_tokens` | api-service | notifications-engine | Push device tokens (FCM/APNs) per user. |
@@ -168,6 +169,24 @@ Database: `pam`
   updated_at: ISODate
 }
 // Indexes: { project_id: 1, template_id: 1 } unique
+```
+
+### `screen_catalog`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  brand_id: "brand_1" | null,   // null = project-wide (visible regardless of campaign's brand)
+  screen_name: "home",
+  created_at: ISODate
+}
+// Indexes: { project_id: 1, brand_id: 1, screen_name: 1 } unique
+//
+// Read via GET /projects/{project_id}/screens?brand_id=... (campaign-engine, Redis-cached,
+// see docs/redis-usage.md). When brand_id is given, returns that brand's screens PLUS
+// project-wide (brand_id: null) screens, deduped — mirrors how brand-scoped campaigns
+// already resolve against project-wide ones. No write API yet — seed/manage documents
+// directly in MongoDB.
 ```
 
 ### `notification_inbox`
