@@ -21,7 +21,7 @@ import type {
   CampaignSchedule, CampaignDeliveryControls, ContentBlock,
   Variant, Cta, InAppTemplateType,
 } from '../../services/campaignApi';
-import { uploadCampaignImage } from '../../services/campaignApi';
+import { uploadCampaignImage, fetchScreenCatalog } from '../../services/campaignApi';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                              */
@@ -95,7 +95,7 @@ interface Step1State {
   objective:          string;
   platforms:          string[];
   trigger_criteria:   TriggerCriteria;
-  target_screens:     string;   // in_app + on_screen_load only — comma-separated screen names
+  target_screens:     string[]; // in_app + on_screen_load only — screen names, any-of
   target_events:      string[]; // in_app + on_custom_event only — event names, any-of
   expires_in_hours:   string;   // in_app only — blank = never expires
   segment_id:         string;   // selected segment ID
@@ -114,7 +114,7 @@ const DEFAULT_S1: Step1State = {
   name: '', tags: '', objective: 'Retention',
   platforms: ['android', 'ios'],
   trigger_criteria: 'on_session_start',
-  target_screens: '',
+  target_screens: [],
   target_events: [],
   expires_in_hours: '',
   segment_id: '', segment_name: '', segment_conditions: null,
@@ -280,7 +280,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     objective:          campaign.objective           ?? '',   // blank if API omits it
     platforms:          campaign.platforms           ?? [],   // empty if API omits it
     trigger_criteria:   campaign.trigger_criteria   ?? 'on_session_start',
-    target_screens:     campaign.target_screens?.join(', ') ?? '',
+    target_screens:     campaign.target_screens ?? [],
     target_events:      campaign.target_events ?? [],
     expires_in_hours:   campaign.expires_in_hours != null ? String(campaign.expires_in_hours) : '',
     segment_id:         campaign.segment_id         ?? '',
@@ -413,9 +413,9 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
       platforms:        s1.platforms,
       /* Push omits trigger_criteria */
       ...(isPush ? {} : { trigger_criteria: s1.trigger_criteria }),
-      /* in_app + on_screen_load only — comma-separated screen names */
-      ...(isInApp && s1.trigger_criteria === 'on_screen_load' && s1.target_screens.trim()
-        ? { target_screens: s1.target_screens.split(',').map(t => t.trim()).filter(Boolean) }
+      /* in_app + on_screen_load only — screen names, any-of */
+      ...(isInApp && s1.trigger_criteria === 'on_screen_load' && s1.target_screens.length
+        ? { target_screens: s1.target_screens }
         : {}),
       /* in_app + on_custom_event only — event names, any-of */
       ...(isInApp && s1.trigger_criteria === 'on_custom_event' && s1.target_events.length
@@ -912,6 +912,18 @@ function Step1({ s, onChange, channel, errors, errorTick, brandId }: Step1Props)
     .filter((e: MetaEventItem) => e.source === 'raw_event')
     .map((e: MetaEventItem) => e.id);
 
+  const [screenOptions, setScreenOptions] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isInApp) return;
+    let cancelled = false;
+    fetchScreenCatalog(projectId, brandId).then(screens => {
+      if (!cancelled) setScreenOptions(screens);
+    }).catch(() => {
+      /* leave screenOptions as-is on failure */
+    });
+    return () => { cancelled = true; };
+  }, [isInApp, projectId, brandId]);
+
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewing, setPreviewing]     = useState(false);
 
@@ -1056,13 +1068,12 @@ function Step1({ s, onChange, channel, errors, errorTick, brandId }: Step1Props)
           })}
         </div>
         {channel === 'in_app' && s.trigger_criteria === 'on_screen_load' && (
-          <div className="cwiz-field" style={{ marginTop: 12 }}>
+          <div className="cwiz-field" style={{ marginTop: 12, maxWidth: 320 }}>
             <label className="cwiz-label">Target screens</label>
-            <input
-              className="cwiz-input"
-              placeholder="Comma-separated screen names, e.g. home, wallet"
+            <MultiSelect
+              options={screenOptions}
               value={s.target_screens}
-              onChange={e => set({ target_screens: e.target.value })}
+              onChange={v => set({ target_screens: v })}
             />
           </div>
         )}

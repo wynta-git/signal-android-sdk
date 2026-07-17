@@ -10,6 +10,7 @@ from app.routes.admin import router as admin_router
 from app.routes.campaigns import router as campaigns_router
 from app.routes.dashboard import router as dashboard_router
 from app.routes.reports import router as reports_router
+from app.routes.screens import router as screens_router
 from app.routes.settings import router as settings_router
 from app.routes.templates import router as templates_router
 from app.routes.uploads import router as uploads_router
@@ -92,6 +93,7 @@ route_prefix = "/api/v1/campaign"
 app.include_router(admin_router, prefix=route_prefix)
 app.include_router(templates_router, prefix=route_prefix)
 app.include_router(reports_router, prefix=route_prefix)
+app.include_router(screens_router, prefix=route_prefix)
 app.include_router(campaigns_router, prefix=route_prefix)
 app.include_router(dashboard_router, prefix=route_prefix)
 app.include_router(settings_router, prefix=route_prefix)
