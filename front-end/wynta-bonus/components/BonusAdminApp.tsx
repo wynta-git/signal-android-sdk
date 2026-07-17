@@ -77,6 +77,22 @@ const BonusDashboardPage = dynamic(
   () => import("./dashboard/BonusDashboardPage"),
   { ssr: false },
 );
+const BonusPerformanceReport = dynamic(
+  () => import("./reports/BonusPerformanceReport"),
+  { ssr: false },
+);
+const BudgetSpendReport = dynamic(
+  () => import("./reports/BudgetSpendReport"),
+  { ssr: false },
+);
+const PlayerActivityReport = dynamic(
+  () => import("./reports/PlayerActivityReport"),
+  { ssr: false },
+);
+const CustomReportBuilder = dynamic(
+  () => import("./reports/CustomReportBuilder"),
+  { ssr: false },
+);
 
 interface ContextItem {
   icon?: string;
@@ -483,6 +499,14 @@ function BonusShell() {
         <BillingPricingPage />
       ) : sidebarActive === "dashboard" ? (
         <BonusDashboardPage brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "reports:performance" ? (
+        <BonusPerformanceReport brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "reports:budget-spend" ? (
+        <BudgetSpendReport brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "reports:player-activity" ? (
+        <PlayerActivityReport brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "reports:custom" ? (
+        <CustomReportBuilder brandId={selectedBrand ?? undefined} />
       ) : sidebarActive === "segments" ? (
         <SegmentsPage brandId={selectedBrand ?? undefined} />
       ) : sidebarActive === "events" ? (

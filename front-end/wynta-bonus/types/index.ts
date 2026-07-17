@@ -281,6 +281,103 @@ export interface DashboardDateWindow {
   compareEnd?: string;
 }
 
+// ── Reports ────────────────────────────────────────────────────────────────
+
+export interface TrackedValue {
+  // Decimal-typed fields (avg_payout, avg_cost_per_redemption, budget_used, ...)
+  // serialize as JSON strings via Pydantic v2 — only float-typed fields
+  // (percentages) arrive as real numbers. Always read via trackedCell().
+  value: number | string | null;
+  tracked: boolean;
+}
+
+export interface BonusPerformanceRow {
+  configure_id: number;
+  name: string;
+  programme: string;
+  type: string;
+  redemptions: number;
+  players: number;
+  avg_payout: number;
+  redeem_rate: TrackedValue;
+  status: string;
+}
+
+export interface BonusPerformanceResponse {
+  window_days: number;
+  redemptions: number;
+  unique_players: number;
+  avg_payout: number;
+  ggr_vs_cost: TrackedValue;
+  total: number;
+  limit: number;
+  offset: number;
+  rows: BonusPerformanceRow[];
+}
+
+export interface BudgetSpendRow {
+  subhead_id: number;
+  name: string;
+  description: string | null;
+  programme: string;
+  bonuses: number;
+  budget_limit: number | null;
+  used: number;
+  utilisation_pct: number | null;
+  bonus_cost: number;
+  ggr: TrackedValue;
+  avg_cost_per_redeem: number;
+}
+
+export interface BudgetSpendResponse {
+  window_days: number;
+  total_bonus_cost: number;
+  avg_cost_per_redemption: number;
+  budget_utilisation_pct: number;
+  total: number;
+  limit: number;
+  offset: number;
+  rows: BudgetSpendRow[];
+}
+
+export interface PlayerActivityRow {
+  pam_user_id: string;
+  external_user_id: string;
+  bonuses_received: number;
+  redeemed_count: number;
+  total_value: number;
+  wagering_completion_pct: number;
+}
+
+export interface PlayerActivityResponse {
+  total_players: number;
+  total_bonus_value: number;
+  avg_wagering_pct: number;
+  total: number;
+  limit: number;
+  offset: number;
+  rows: PlayerActivityRow[];
+}
+
+export interface ReportDateRange {
+  startDate: string;
+  endDate: string;
+}
+
+export interface CustomReportRow {
+  dimension_label: string;
+  values: Record<string, TrackedValue>;
+}
+
+export interface CustomReportResponse {
+  dimension: string;
+  columns: string[];
+  total: number;
+  limit: number;
+  offset: number;
+  rows: CustomReportRow[];
+}
+
 // ── Segments & Players ────────────────────────────────────────────────────────
 
 export interface Segment {

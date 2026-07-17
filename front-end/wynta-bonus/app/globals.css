@@ -1796,6 +1796,8 @@ a { color: inherit; text-decoration: none; }
 }
 .badge.active   { background: rgba(16,185,129,0.12); color: var(--ok); }
 .badge.inactive { background: var(--g100); color: var(--g500); }
+.badge.expired  { background: rgba(239,68,68,0.12); color: var(--err); }
+.badge.paused   { background: var(--g100); color: var(--g500); }
 .badge.priority { background: var(--bp); color: var(--blue); }
 .badge.frequency.ONCE      { background: rgba(245,158,11,0.15); color: var(--warn); }
 .badge.frequency.EVERYTIME { background: rgba(0,145,224,0.13);   color: var(--blue); }
@@ -3770,9 +3772,15 @@ a { color: inherit; text-decoration: none; }
 .crm-nav-label { white-space: nowrap; flex: 1; }
 .crm-nav-chev { margin-left: auto; color: var(--crm-fg4); display: inline-flex; }
 .crm-nav-children { background: var(--crm-bg); padding: 4px 0 6px; }
-.crm-nav-child { padding: 6px 20px 6px 52px; font-size: 13px; color: var(--crm-fg2); cursor: pointer; user-select: none; transition: color 0.12s; }
+.crm-nav-child {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 20px 6px 52px; font-size: 13px; color: var(--crm-fg2);
+  cursor: pointer; user-select: none; transition: color 0.12s;
+}
+.crm-nav-child svg { flex-shrink: 0; color: var(--crm-fg4); }
 .crm-nav-child:hover { color: var(--crm-fg1); }
 .crm-nav-child.active { color: var(--crm-blue); font-weight: 500; }
+.crm-nav-child.active svg { color: var(--crm-blue); }
 .crm-mobile-cta { border-top: 1px solid var(--crm-border); padding: 12px 14px 4px; display: flex; flex-direction: column; gap: 8px; text-align: center; flex-shrink: 0; }
 .crm-mobile-cta__caption { font-size: 11px; color: var(--crm-fg3); margin: 0; }
 .crm-mobile-cta__badges { display: flex; gap: 6px; }
@@ -4734,6 +4742,27 @@ a { color: inherit; text-decoration: none; }
   font-weight: 700;
   color: var(--g900);
   margin: 0;
+}
+.dq-title-desc { font-size: 12.5px; color: var(--g500); margin-top: 2px; }
+
+/* ── Report page controls (From/To + Export CSV + search) ────────────────── */
+
+.dq-report-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.dq-report-date-group { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--g500); }
+.dq-report-date-input {
+  height: 30px; padding: 0 8px; border: 1px solid var(--g200); border-radius: 6px;
+  font-size: 12.5px; font-family: inherit; color: var(--g900); background: #fff;
+}
+.dq-export-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px; border: 1px solid var(--g200); border-radius: 6px;
+  background: #fff; font-size: 12.5px; font-weight: 500; color: var(--g700); cursor: pointer;
+}
+.dq-export-btn:hover { border-color: var(--g300); }
+.dq-export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dq-search-input {
+  width: 280px; height: 32px; padding: 0 10px; border: 1px solid var(--g200); border-radius: 6px;
+  font-size: 12.5px; font-family: inherit; color: var(--g900); margin-bottom: 12px;
 }
 
 /* ── Quick Stats grid ────────────────────────────────────────────────────── */

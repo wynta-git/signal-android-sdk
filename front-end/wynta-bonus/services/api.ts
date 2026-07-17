@@ -41,6 +41,11 @@ import type {
   BonusDashboardAlertsResponse,
   BonusDashboardBudgetHealthResponse,
   DashboardDateWindow,
+  BonusPerformanceResponse,
+  BudgetSpendResponse,
+  PlayerActivityResponse,
+  ReportDateRange,
+  CustomReportResponse,
 } from "../types";
 
 const delay = (ms = 180): Promise<void> =>
@@ -233,6 +238,53 @@ export const api = {
       headers: authHeaders(),
     });
     if (!res.ok) throw new Error("Failed to fetch budget health");
+    return res.json();
+  },
+  async fetchBonusPerformanceReport(
+    siteId: string | number, range: ReportDateRange, limit = 50, offset = 0,
+  ): Promise<BonusPerformanceResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), start_date: range.startDate, end_date: range.endDate,
+      limit: String(limit), offset: String(offset),
+    });
+    const res = await fetch(`${BONUS_API}/reports/bonus-performance?${params}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch bonus performance report");
+    return res.json();
+  },
+  async fetchBudgetSpendReport(
+    siteId: string | number, range: ReportDateRange, limit = 50, offset = 0,
+  ): Promise<BudgetSpendResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), start_date: range.startDate, end_date: range.endDate,
+      limit: String(limit), offset: String(offset),
+    });
+    const res = await fetch(`${BONUS_API}/reports/budget-spend?${params}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch budget & spend report");
+    return res.json();
+  },
+  async fetchPlayerActivityReport(
+    siteId: string | number, range: ReportDateRange, search?: string, limit = 50, offset = 0,
+  ): Promise<PlayerActivityResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), start_date: range.startDate, end_date: range.endDate,
+      limit: String(limit), offset: String(offset),
+    });
+    if (search) params.set("search", search);
+    const res = await fetch(`${BONUS_API}/reports/player-activity?${params}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch player activity report");
+    return res.json();
+  },
+  async fetchCustomReport(
+    siteId: string | number, dimension: string, metrics: string[], status: string,
+    range: ReportDateRange, limit = 50, offset = 0,
+  ): Promise<CustomReportResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), dimension, metrics: metrics.join(","), status,
+      start_date: range.startDate, end_date: range.endDate,
+      limit: String(limit), offset: String(offset),
+    });
+    const res = await fetch(`${BONUS_API}/reports/custom?${params}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch custom report");
     return res.json();
   },
   getSiteConfigure(siteId: string | number): Promise<Record<string, string>> {
