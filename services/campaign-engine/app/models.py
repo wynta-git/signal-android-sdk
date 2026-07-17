@@ -113,6 +113,7 @@ class Campaign(BaseModel):
     template_id: str
     trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
     target_screens: list[str] | None = None
+    target_events: list[str] | None = None
     expires_in_hours: int | None = None
     rate_limit: RateLimit = Field(default_factory=RateLimit)
     delay: Delay | None = None
@@ -151,6 +152,7 @@ class SendJob(BaseModel):
     template_id: str
     trigger_type: str | None = None
     target_screens: list[str] | None = None
+    target_events: list[str] | None = None
     expires_in_hours: int | None = None
     context: dict[str, Any] = Field(default_factory=dict)
     deliver_at: datetime
@@ -365,6 +367,7 @@ class CreateCampaignRequest(BaseModel):
     channel: ChannelConfig
     trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
     target_screens: list[str] | None = None
+    target_events: list[str] | None = None
     expires_in_hours: int | None = Field(default=None, ge=1)
     delivery: DeliveryConfig = Field(default_factory=DeliveryConfig)
 
@@ -372,15 +375,15 @@ class CreateCampaignRequest(BaseModel):
     def check_trigger_type_supported(self) -> "CreateCampaignRequest":
         if self.channel.type != "in_app" or self.trigger_type is None:
             return self
-        if self.trigger_type == "on_custom_event":
-            raise ValueError(
-                "trigger_type 'on_custom_event' is not yet supported for in_app "
-                "campaigns — event-name selection isn't available this phase"
-            )
         if self.trigger_type == "on_screen_load" and not self.target_screens:
             raise ValueError(
                 "target_screens is required (at least one screen name) when "
                 "trigger_type is 'on_screen_load'"
+            )
+        if self.trigger_type == "on_custom_event" and not self.target_events:
+            raise ValueError(
+                "target_events is required (at least one event name) when "
+                "trigger_type is 'on_custom_event'"
             )
         return self
 
@@ -393,6 +396,7 @@ class UpdateCampaignRequest(BaseModel):
     channel: ChannelConfig | None = None
     trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
     target_screens: list[str] | None = None
+    target_events: list[str] | None = None
     expires_in_hours: int | None = Field(default=None, ge=1)
     delivery: DeliveryConfig | None = None
 

@@ -322,6 +322,7 @@ async def _handle_in_app(
         "render_engine": rendered.render_engine,
         "trigger_type": job.trigger_type,
         "target_screens": job.target_screens,
+        "target_events": job.target_events,
         "title": rendered.title,
         "body": rendered.body,
         "media": rendered.media,

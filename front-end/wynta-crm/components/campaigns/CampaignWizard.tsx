@@ -9,9 +9,12 @@ import {
   selectAllSegments,
   selectSegmentsStatus,
   evaluateSegment,
+  fetchMetaEvents,
+  selectMetaEvents,
 } from 'wynta-react-common/store/slices/segmentsSlice';
-import type { Segment } from 'wynta-react-common/types';
+import type { Segment, MetaEventItem } from 'wynta-react-common/types';
 import AddSegmentModal from 'wynta-react-common/components/segments/AddSegmentModal';
+import MultiSelect from 'wynta-react-common/components/MultiSelect';
 import { createCampaign, updateCampaign, activateCampaign } from '../../store/slices/campaignsSlice';
 import type {
   Campaign, CampaignPayload, CampaignChannel, TriggerCriteria,
@@ -93,6 +96,7 @@ interface Step1State {
   platforms:          string[];
   trigger_criteria:   TriggerCriteria;
   target_screens:     string;   // in_app + on_screen_load only — comma-separated screen names
+  target_events:      string[]; // in_app + on_custom_event only — event names, any-of
   expires_in_hours:   string;   // in_app only — blank = never expires
   segment_id:         string;   // selected segment ID
   segment_name:       string;
@@ -111,6 +115,7 @@ const DEFAULT_S1: Step1State = {
   platforms: ['android', 'ios'],
   trigger_criteria: 'on_session_start',
   target_screens: '',
+  target_events: [],
   expires_in_hours: '',
   segment_id: '', segment_name: '', segment_conditions: null,
   estimated_reach: 0,
@@ -276,6 +281,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     platforms:          campaign.platforms           ?? [],   // empty if API omits it
     trigger_criteria:   campaign.trigger_criteria   ?? 'on_session_start',
     target_screens:     campaign.target_screens?.join(', ') ?? '',
+    target_events:      campaign.target_events ?? [],
     expires_in_hours:   campaign.expires_in_hours != null ? String(campaign.expires_in_hours) : '',
     segment_id:         campaign.segment_id         ?? '',
     segment_name:       campaign.segment_name       ?? '',
@@ -410,6 +416,10 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
       /* in_app + on_screen_load only — comma-separated screen names */
       ...(isInApp && s1.trigger_criteria === 'on_screen_load' && s1.target_screens.trim()
         ? { target_screens: s1.target_screens.split(',').map(t => t.trim()).filter(Boolean) }
+        : {}),
+      /* in_app + on_custom_event only — event names, any-of */
+      ...(isInApp && s1.trigger_criteria === 'on_custom_event' && s1.target_events.length
+        ? { target_events: s1.target_events }
         : {}),
       /* in_app only — blank input means "never expires" */
       ...(isInApp && s1.expires_in_hours.trim() ? { expires_in_hours: Number(s1.expires_in_hours) } : {}),
@@ -680,7 +690,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
 
       {/* ── Scrollable step content ── */}
       <div className="cwiz-body">
-        {step === 1 && <Step1 s={s1} onChange={setS1} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
+        {step === 1 && <Step1 s={s1} onChange={setS1} channel={channel} errors={fieldErrors} errorTick={errorTick} brandId={brandId} />}
         {step === 2 && <Step2 s={s2} onChange={setS2} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
         {step === 3 && <Step3 s={s3} onChange={setS3} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
       </div>
@@ -883,12 +893,24 @@ function SegmentPicker({ selectedId, selectedName, onSelect }: SegmentPickerProp
 /* ================================================================== */
 /* STEP 1 — Target Segment                                             */
 /* ================================================================== */
-interface Step1Props { s: Step1State; onChange: (s: Step1State) => void; channel: string; errors?: Set<string>; errorTick?: number; }
+interface Step1Props { s: Step1State; onChange: (s: Step1State) => void; channel: string; errors?: Set<string>; errorTick?: number; brandId?: number; }
 
-function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
+function Step1({ s, onChange, channel, errors, errorTick, brandId }: Step1Props) {
   const dispatch = useDispatch<any>();
   const set      = (patch: Partial<Step1State>) => onChange({ ...s, ...patch });
   const isPush   = channel === 'push';
+  const isInApp  = channel === 'in_app';
+
+  const projectId  = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
+  const metaEvents = useCommonSelector(selectMetaEvents);
+  useEffect(() => {
+    if (!isInApp) return;
+    dispatch(fetchMetaEvents({ projectId, brandId }) as any);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInApp, projectId, brandId]);
+  const eventOptions = (metaEvents ?? [])
+    .filter((e: MetaEventItem) => e.source === 'raw_event')
+    .map((e: MetaEventItem) => e.id);
 
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewing, setPreviewing]     = useState(false);
@@ -1015,11 +1037,9 @@ function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
         <div className="cwiz-card-title">Trigger criteria <span className="cwiz-req">*</span></div>
         <div className="cwiz-trigger-grid">
           {TRIGGERS.map(t => {
-            /* in_app: on_custom_event needs an event-name picker that doesn't
-               exist yet, so it stays disabled with a "Coming soon" tag.
-               on_screen_load is fully supported. Other channels sharing this
-               card are unaffected. */
-            const comingSoon = channel === 'in_app' && t.id === 'on_custom_event';
+            /* All three in_app trigger types are now fully supported —
+               on_session_start, on_screen_load, and on_custom_event. */
+            const comingSoon = false;
             return (
               <button
                 key={t.id}
@@ -1043,6 +1063,16 @@ function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
               placeholder="Comma-separated screen names, e.g. home, wallet"
               value={s.target_screens}
               onChange={e => set({ target_screens: e.target.value })}
+            />
+          </div>
+        )}
+        {channel === 'in_app' && s.trigger_criteria === 'on_custom_event' && (
+          <div className="cwiz-field" style={{ marginTop: 12, maxWidth: 320 }}>
+            <label className="cwiz-label">Target events</label>
+            <MultiSelect
+              options={eventOptions}
+              value={s.target_events}
+              onChange={v => set({ target_events: v })}
             />
           </div>
         )}

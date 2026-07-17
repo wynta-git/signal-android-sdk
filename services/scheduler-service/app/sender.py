@@ -93,6 +93,8 @@ async def _emit_send_job(
         "channel": campaign["channel"],
         "template_id": campaign["template_id"],
         "trigger_type": campaign.get("trigger_type"),
+        "target_screens": campaign.get("target_screens"),
+        "target_events": campaign.get("target_events"),
         "expires_in_hours": campaign.get("expires_in_hours"),
         "context": {},
         "deliver_at": deliver_at.isoformat(),

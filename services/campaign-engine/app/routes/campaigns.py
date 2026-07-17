@@ -139,6 +139,7 @@ async def create_campaign(
         "template_id": template_id,
         "trigger_type": body.trigger_type,
         "target_screens": body.target_screens,
+        "target_events": body.target_events,
         "expires_in_hours": body.expires_in_hours,
         "rate_limit": dlv.rate_limit.model_dump(mode="json"),
         "delay": dlv.delay.model_dump(mode="json") if dlv.delay else None,
@@ -215,14 +216,6 @@ async def update_campaign_route(
 
     if body.trigger_type is not None:
         if doc.get("channel") == "in_app":
-            if body.trigger_type == "on_custom_event":
-                raise HTTPException(
-                    status_code=422,
-                    detail=(
-                        "trigger_type 'on_custom_event' is not yet supported for in_app "
-                        "campaigns — event-name selection isn't available this phase"
-                    ),
-                )
             if body.trigger_type == "on_screen_load" and not body.target_screens:
                 raise HTTPException(
                     status_code=422,
@@ -231,10 +224,21 @@ async def update_campaign_route(
                         "trigger_type is 'on_screen_load'"
                     ),
                 )
+            if body.trigger_type == "on_custom_event" and not body.target_events:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "target_events is required (at least one event name) when "
+                        "trigger_type is 'on_custom_event'"
+                    ),
+                )
         updates["trigger_type"] = body.trigger_type
 
     if body.target_screens is not None:
         updates["target_screens"] = body.target_screens
+
+    if body.target_events is not None:
+        updates["target_events"] = body.target_events
 
     if body.expires_in_hours is not None:
         updates["expires_in_hours"] = body.expires_in_hours

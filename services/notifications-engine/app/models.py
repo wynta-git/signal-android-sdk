@@ -15,6 +15,7 @@ class SendJob(BaseModel):
     template_id: str
     trigger_type: str | None = None
     target_screens: list[str] | None = None
+    target_events: list[str] | None = None
     expires_in_hours: int | None = None
     context: dict[str, Any] = {}
     deliver_at: datetime

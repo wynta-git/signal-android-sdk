@@ -30,6 +30,7 @@ async def emit_send_job(
         template_id=campaign.template_id,
         trigger_type=campaign.trigger_type,
         target_screens=campaign.target_screens,
+        target_events=campaign.target_events,
         expires_in_hours=campaign.expires_in_hours,
         context=context or {},
         deliver_at=deliver_at,
