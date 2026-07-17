@@ -138,6 +138,7 @@ async def create_campaign(
         "channel": channel_type,
         "template_id": template_id,
         "trigger_type": body.trigger_type,
+        "target_screens": body.target_screens,
         "expires_in_hours": body.expires_in_hours,
         "rate_limit": dlv.rate_limit.model_dump(mode="json"),
         "delay": dlv.delay.model_dump(mode="json") if dlv.delay else None,
@@ -213,19 +214,27 @@ async def update_campaign_route(
         updates["audience"] = body.audience.model_dump(mode="json")
 
     if body.trigger_type is not None:
-        if (
-            doc.get("channel") == "in_app"
-            and body.trigger_type != "on_session_start"
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    "trigger_type 'on_screen_load' and 'on_custom_event' are not yet "
-                    "supported for in_app campaigns — only 'on_session_start' is available "
-                    "this phase"
-                ),
-            )
+        if doc.get("channel") == "in_app":
+            if body.trigger_type == "on_custom_event":
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "trigger_type 'on_custom_event' is not yet supported for in_app "
+                        "campaigns — event-name selection isn't available this phase"
+                    ),
+                )
+            if body.trigger_type == "on_screen_load" and not body.target_screens:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "target_screens is required (at least one screen name) when "
+                        "trigger_type is 'on_screen_load'"
+                    ),
+                )
         updates["trigger_type"] = body.trigger_type
+
+    if body.target_screens is not None:
+        updates["target_screens"] = body.target_screens
 
     if body.expires_in_hours is not None:
         updates["expires_in_hours"] = body.expires_in_hours

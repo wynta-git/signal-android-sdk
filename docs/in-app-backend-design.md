@@ -44,7 +44,9 @@ One document per template, with variants nested for A/B testing (matches the bui
 }
 ```
 
-The campaign document (`campaigns` collection, owned by campaign-engine) carries a sibling top-level field `trigger_type: "on_session_start" | "on_screen_load" | "on_custom_event" | null` — distinct from the existing `trigger` field (which governs *when the backend fires the campaign*: event/scheduled/cron). `trigger_type` instead governs *when the SDK should display* an already-fetched notification. Only `on_session_start` is functionally supported this phase — the campaign-creation API rejects the other two values for `channel: "in_app"` today; they remain valid enum values so no future migration is needed once business defines `target_screens` (for `on_screen_load`) and an event-name selector (for `on_custom_event`).
+The campaign document (`campaigns` collection, owned by campaign-engine) carries a sibling top-level field `trigger_type: "on_session_start" | "on_screen_load" | "on_custom_event" | null` — distinct from the existing `trigger` field (which governs *when the backend fires the campaign*: event/scheduled/cron). `trigger_type` instead governs *when the SDK should display* an already-fetched notification. `on_session_start` and `on_screen_load` are functionally supported; `on_custom_event` is still rejected by the campaign-creation API for `channel: "in_app"` — it needs an event-name selector that doesn't exist yet, but remains a valid enum value so no future migration is needed once that's built.
+
+When `trigger_type` is `"on_screen_load"`, the campaign document also carries a sibling top-level field `target_screens: string[]` — the screen names the marketer entered in the wizard (e.g. `["home", "wallet"]`). It's required (at least one entry) whenever `trigger_type` is `"on_screen_load"`, and `null`/omitted otherwise. It rides the send job (`SendJob.target_screens`) from campaign-engine to notifications-engine unchanged, and is copied onto the per-user `notification_inbox` record at send time — see below.
 
 `layout` is where the ten template types diverge — same document shape, different nested content depending on `template_type`:
 
@@ -90,6 +92,7 @@ Written once per user when the campaign fires; this is what `GET /v1/notificatio
   layout: null,                       // resolved layout content, same shape as template
   web_view_url: null,                 // literal passthrough from the variant, never rendered
   trigger_type: "on_session_start",   // copied from the campaign doc at send time, not from the template
+  target_screens: null,               // copied from the campaign doc; string[] when trigger_type is "on_screen_load", else null
   created_at: ISODate,
   expires_at: ISODate,
   read: false,

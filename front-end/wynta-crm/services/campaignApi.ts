@@ -113,6 +113,9 @@ export interface Campaign {
   trigger_type?:        string;
   trigger_event_name?:  string;
   trigger_criteria?:    TriggerCriteria;
+  // in_app only — screen names to show on when trigger_criteria is
+  // 'on_screen_load'. undefined/omitted otherwise.
+  target_screens?:      string[];
   // in_app only — hours until a delivered notification stops appearing in the
   // inbox even if unread. undefined/omitted = never expires.
   expires_in_hours?:    number;
@@ -170,6 +173,9 @@ interface RawCampaign {
   // Top-level trigger_type (in_app channel only) — sibling of `trigger`,
   // e.g. "on_session_start" | "on_screen_load" | "on_custom_event".
   trigger_type?: string;
+  // in_app only — sibling of trigger_type above, populated when trigger_type
+  // is "on_screen_load".
+  target_screens?: string[] | null;
   // in_app only — sibling of trigger_type above, same "top-level, not nested" shape.
   expires_in_hours?: number | null;
   // Nested trigger
@@ -323,6 +329,7 @@ function toCampaign(r: RawCampaign): Campaign {
     // in_app trigger selector (on_session_start | on_screen_load | on_custom_event) —
     // sent/returned as a top-level `trigger_type` field, distinct from `trigger.type` above.
     trigger_criteria:   (r.trigger_type as TriggerCriteria) ?? undefined,
+    target_screens:     r.target_screens ?? undefined,
     expires_in_hours:   r.expires_in_hours ?? undefined,
     // Audience
     segment_id:    r.audience?.segment_id,
@@ -364,6 +371,7 @@ function mergePayload(from: Campaign, payload: Partial<CampaignPayload>): Campai
     segment_id:        payload.segment_id  ?? from.segment_id,
     segment_name:      payload.segment_name?? from.segment_name,
     trigger_criteria:  payload.trigger_criteria ?? from.trigger_criteria,
+    target_screens:    payload.target_screens   ?? from.target_screens,
     expires_in_hours:  payload.expires_in_hours ?? from.expires_in_hours,
     // Push notification content — critical: always prefer payload over response
     title:             payload.title       ?? from.title,
@@ -531,6 +539,11 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
     // in_app trigger selector — top-level field, sibling of `trigger` above
     // (NOT nested inside it). Only meaningful for the in_app channel today.
     ...(p.channel === 'in_app' && p.trigger_criteria ? { trigger_type: p.trigger_criteria } : {}),
+    // in_app screen targeting — only meaningful (and only sent) when the
+    // trigger selector above is 'on_screen_load'.
+    ...(p.channel === 'in_app' && p.trigger_criteria === 'on_screen_load' && p.target_screens?.length
+      ? { target_screens: p.target_screens }
+      : {}),
     // in_app notification expiry — same top-level, sibling-of-trigger shape.
     ...(p.channel === 'in_app' && p.expires_in_hours != null ? { expires_in_hours: p.expires_in_hours } : {}),
     channel: channelObj,

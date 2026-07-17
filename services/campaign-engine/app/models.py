@@ -112,6 +112,7 @@ class Campaign(BaseModel):
     channel: Literal["push", "email", "sms", "webhook", "in_app"]
     template_id: str
     trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
+    target_screens: list[str] | None = None
     expires_in_hours: int | None = None
     rate_limit: RateLimit = Field(default_factory=RateLimit)
     delay: Delay | None = None
@@ -149,6 +150,7 @@ class SendJob(BaseModel):
     channel: Literal["push", "email", "sms", "webhook", "in_app"]
     template_id: str
     trigger_type: str | None = None
+    target_screens: list[str] | None = None
     expires_in_hours: int | None = None
     context: dict[str, Any] = Field(default_factory=dict)
     deliver_at: datetime
@@ -362,19 +364,23 @@ class CreateCampaignRequest(BaseModel):
     audience: Audience
     channel: ChannelConfig
     trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
+    target_screens: list[str] | None = None
     expires_in_hours: int | None = Field(default=None, ge=1)
     delivery: DeliveryConfig = Field(default_factory=DeliveryConfig)
 
     @model_validator(mode="after")
     def check_trigger_type_supported(self) -> "CreateCampaignRequest":
-        if (
-            self.channel.type == "in_app"
-            and self.trigger_type is not None
-            and self.trigger_type != "on_session_start"
-        ):
+        if self.channel.type != "in_app" or self.trigger_type is None:
+            return self
+        if self.trigger_type == "on_custom_event":
             raise ValueError(
-                "trigger_type 'on_screen_load' and 'on_custom_event' are not yet supported "
-                "for in_app campaigns — only 'on_session_start' is available this phase"
+                "trigger_type 'on_custom_event' is not yet supported for in_app "
+                "campaigns — event-name selection isn't available this phase"
+            )
+        if self.trigger_type == "on_screen_load" and not self.target_screens:
+            raise ValueError(
+                "target_screens is required (at least one screen name) when "
+                "trigger_type is 'on_screen_load'"
             )
         return self
 
@@ -386,6 +392,7 @@ class UpdateCampaignRequest(BaseModel):
     audience: Audience | None = None
     channel: ChannelConfig | None = None
     trigger_type: Literal["on_session_start", "on_screen_load", "on_custom_event"] | None = None
+    target_screens: list[str] | None = None
     expires_in_hours: int | None = Field(default=None, ge=1)
     delivery: DeliveryConfig | None = None
 

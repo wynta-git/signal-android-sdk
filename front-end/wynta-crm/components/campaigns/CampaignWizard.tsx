@@ -92,6 +92,7 @@ interface Step1State {
   objective:          string;
   platforms:          string[];
   trigger_criteria:   TriggerCriteria;
+  target_screens:     string;   // in_app + on_screen_load only — comma-separated screen names
   expires_in_hours:   string;   // in_app only — blank = never expires
   segment_id:         string;   // selected segment ID
   segment_name:       string;
@@ -109,6 +110,7 @@ const DEFAULT_S1: Step1State = {
   name: '', tags: '', objective: 'Retention',
   platforms: ['android', 'ios'],
   trigger_criteria: 'on_session_start',
+  target_screens: '',
   expires_in_hours: '',
   segment_id: '', segment_name: '', segment_conditions: null,
   estimated_reach: 0,
@@ -273,6 +275,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     objective:          campaign.objective           ?? '',   // blank if API omits it
     platforms:          campaign.platforms           ?? [],   // empty if API omits it
     trigger_criteria:   campaign.trigger_criteria   ?? 'on_session_start',
+    target_screens:     campaign.target_screens?.join(', ') ?? '',
     expires_in_hours:   campaign.expires_in_hours != null ? String(campaign.expires_in_hours) : '',
     segment_id:         campaign.segment_id         ?? '',
     segment_name:       campaign.segment_name       ?? '',
@@ -404,6 +407,10 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
       platforms:        s1.platforms,
       /* Push omits trigger_criteria */
       ...(isPush ? {} : { trigger_criteria: s1.trigger_criteria }),
+      /* in_app + on_screen_load only — comma-separated screen names */
+      ...(isInApp && s1.trigger_criteria === 'on_screen_load' && s1.target_screens.trim()
+        ? { target_screens: s1.target_screens.split(',').map(t => t.trim()).filter(Boolean) }
+        : {}),
       /* in_app only — blank input means "never expires" */
       ...(isInApp && s1.expires_in_hours.trim() ? { expires_in_hours: Number(s1.expires_in_hours) } : {}),
       segment_id:       s1.segment_id || undefined,
@@ -1008,10 +1015,11 @@ function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
         <div className="cwiz-card-title">Trigger criteria <span className="cwiz-req">*</span></div>
         <div className="cwiz-trigger-grid">
           {TRIGGERS.map(t => {
-            /* in_app only supports on_session_start this phase — the other
-               two triggers are shown but disabled with a "Coming soon" tag.
-               Other channels sharing this card are unaffected. */
-            const comingSoon = channel === 'in_app' && t.id !== 'on_session_start';
+            /* in_app: on_custom_event needs an event-name picker that doesn't
+               exist yet, so it stays disabled with a "Coming soon" tag.
+               on_screen_load is fully supported. Other channels sharing this
+               card are unaffected. */
+            const comingSoon = channel === 'in_app' && t.id === 'on_custom_event';
             return (
               <button
                 key={t.id}
@@ -1027,6 +1035,17 @@ function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
             );
           })}
         </div>
+        {channel === 'in_app' && s.trigger_criteria === 'on_screen_load' && (
+          <div className="cwiz-field" style={{ marginTop: 12 }}>
+            <label className="cwiz-label">Target screens</label>
+            <input
+              className="cwiz-input"
+              placeholder="Comma-separated screen names, e.g. home, wallet"
+              value={s.target_screens}
+              onChange={e => set({ target_screens: e.target.value })}
+            />
+          </div>
+        )}
       </div>}
 
       {/* Notification expiry — in_app only */}

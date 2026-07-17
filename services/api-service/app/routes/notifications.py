@@ -59,6 +59,7 @@ def _to_client_notification(doc: dict[str, Any]) -> dict[str, Any]:
         "template_type": doc.get("template_type"),
         "render_engine": doc.get("render_engine"),
         "trigger_type": doc.get("trigger_type"),
+        "target_screens": doc.get("target_screens"),
         "title": doc.get("title"),
         "body": doc.get("body"),
         "media": doc.get("media"),

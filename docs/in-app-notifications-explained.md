@@ -74,6 +74,7 @@ The important thing for anyone scheduling a campaign on this channel to understa
       "layout": null,
       "web_view_url": null,
       "trigger_type": "on_session_start",
+      "target_screens": null,
       "created_at": "2026-07-08T10:00:00.000Z",
       "expires_at": "2026-07-15T10:00:00.000Z",
       "read": false
@@ -105,7 +106,8 @@ The important thing for anyone scheduling a campaign on this channel to understa
 - `close_button_visibility` — *new.* Controls the explicit "X" close icon on the notification chrome, independent of the CTA buttons. Only `"always"` (visible) is confirmed from the builder screenshot — the dropdown implies other states (e.g. delayed/hidden) worth confirming.
 - `layout` — *new.* `null` for the four flat templates (`modal`, `popup_image`, `fullscreen`, `nudge`) that fully use `title`/`body`/`media`/`cta`. Populated for everything else: `slides[]` for `carousel`, `questions[]` for `survey`, `fields[]` + `submit_action` for `lead_gen`, `game_type`/`segments[]` for `gamification`, `max_stars`/`prompt` for `rating`, and inline or hosted `html` for `html_nudge` and the rest of the HTML Templates row.
 - `web_view_url` — *new.* Generic, top-level, independent of `template_type`. If set, the client should load this full URL in a webview instead of rendering natively — an override available on any template type, not just `html_nudge`. `null` when not used. Never has merge tags resolved into it beyond what's already literal (never Jinja-rendered server-side, to avoid template injection into a URL).
-- `trigger_type` — *new.* `"on_session_start"` | `"on_screen_load"` | `"on_custom_event"` — tells the client *when* to display this already-fetched notification. **Only `on_session_start` is functionally supported this phase** — `on_screen_load`/`on_custom_event` are reserved in the schema for a later phase (pending `target_screens` / event-name selector design) and are rejected by the campaign-creation API for `channel: "in_app"` today.
+- `trigger_type` — *new.* `"on_session_start"` | `"on_screen_load"` | `"on_custom_event"` — tells the client *when* to display this already-fetched notification. `on_session_start` and `on_screen_load` are functionally supported; `on_custom_event` is reserved in the schema for a later phase (pending an event-name selector design) and is still rejected by the campaign-creation API for `channel: "in_app"`.
+- `target_screens` — *new.* `string[]` | `null` — populated only when `trigger_type` is `"on_screen_load"`, e.g. `["home", "wallet"]`; the client should only display the notification when the user navigates to a screen whose name appears in this list. `null` for every other `trigger_type`. **Note:** this field is delivered by the backend but nothing on the client SDK reads or acts on it yet — SDK-side consumption (matching the current screen against this list) is a separate, not-yet-started workstream.
 - `created_at` — when the backend made this notification available (i.e. when the campaign fired) — "sent at," not "seen at."
 - `expires_at` — after this time the client should stop showing it, even if unread.
 - `read` — whether the user has already marked it read, so the client can render unread items differently without tracking state locally.
