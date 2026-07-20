@@ -87,9 +87,23 @@ export default function SubheadForm({
     [daily, weekly, monthly, headLimits, mode], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  const DESCRIPTION_MAX = 250;
+  const NAME_PATTERN = /^[A-Za-z0-9 _-]*$/;
+  const namePatternInvalid = name !== "" && !NAME_PATTERN.test(name);
+  const nameError = namePatternInvalid
+    ? "Only letters, numbers, spaces, - and _ are allowed."
+    : !name.trim()
+      ? "This field is required."
+      : null;
+  const nameVisibleError = namePatternInvalid || (nameError && showErrors) ? nameError : null;
+
+  const ownerError = !owner ? "This field is required." : null;
+  const ownerVisibleError = ownerError && showErrors ? ownerError : null;
+
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === "new" && Object.keys(errors).length > 0) {
+    const hasBudgetErrors = mode === "new" && Object.keys(errors).length > 0;
+    if (hasBudgetErrors || nameError || ownerError) {
       setShowErrors(true);
       return;
     }
@@ -133,7 +147,7 @@ export default function SubheadForm({
           step="any"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={cap != null ? `up to ₹${cap}` : "leave empty for ∞"}
+          placeholder={cap != null ? `up to ₹${cap}` : "leave empty for unlimited"}
           style={visibleError ? { borderColor: "#D64545" } : undefined}
         />
         {visibleError ? (
@@ -143,7 +157,7 @@ export default function SubheadForm({
         ) : (
           (parentHead?.budget?.length ?? 0) > 0 && (
             <div className="helper">
-              Head cap: {cap != null ? `₹${cap}` : "∞ (uncapped)"}
+              Head cap: {cap != null ? `₹${cap}` : "Uncapped"}
               {pct != null && (
                 <span
                   style={{
@@ -163,7 +177,7 @@ export default function SubheadForm({
   };
 
   return (
-    <form onSubmit={handle} style={{ display: "contents" }}>
+    <form onSubmit={handle} noValidate style={{ display: "contents" }}>
       <div className="drawer-body">
         {parentHead && (
           <div className="field-group">
@@ -179,23 +193,32 @@ export default function SubheadForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. First Deposit Match"
-            required
+            style={nameVisibleError ? { borderColor: "#D64545" } : undefined}
           />
+          {nameVisibleError && (
+            <div className="helper" style={{ color: "#D64545" }}>
+              {nameVisibleError}
+            </div>
+          )}
         </div>
         <div className="field-group">
           <label>Description</label>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => setDescription(e.target.value.slice(0, DESCRIPTION_MAX))}
             placeholder="Short summary"
+            maxLength={DESCRIPTION_MAX}
           />
+          <div className="helper">
+            {description.length}/{DESCRIPTION_MAX}
+          </div>
         </div>
         <div className="field-group">
           <label>Owner</label>
           <select
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
-            required
+            style={ownerVisibleError ? { borderColor: "#D64545" } : undefined}
           >
             <option value="" disabled>
               Select owner…
@@ -206,6 +229,11 @@ export default function SubheadForm({
               </option>
             ))}
           </select>
+          {ownerVisibleError && (
+            <div className="helper" style={{ color: "#D64545" }}>
+              {ownerVisibleError}
+            </div>
+          )}
         </div>
         {mode === "new" && (
           <>

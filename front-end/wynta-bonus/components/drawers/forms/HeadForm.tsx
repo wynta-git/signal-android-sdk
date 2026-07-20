@@ -42,6 +42,7 @@ export default function HeadForm({
   const [daily, setDaily] = useState("");
   const [weekly, setWeekly] = useState("");
   const [monthly, setMonthly] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
 
   const inputs = { daily, weekly, monthly };
   const errors = useMemo(
@@ -49,9 +50,29 @@ export default function HeadForm({
     [daily, weekly, monthly, mode], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  const DESCRIPTION_MAX = 250;
+  const NAME_PATTERN = /^[A-Za-z0-9 _-]*$/;
+  const namePatternInvalid = name !== "" && !NAME_PATTERN.test(name);
+  const nameError = namePatternInvalid
+    ? "Only letters, numbers, spaces, - and _ are allowed."
+    : !name.trim()
+      ? "This field is required."
+      : null;
+  const nameVisibleError = namePatternInvalid || (nameError && showErrors) ? nameError : null;
+
+  const ownerError = !owner ? "This field is required." : null;
+  const ownerVisibleError = ownerError && showErrors ? ownerError : null;
+
+  const brandError = mode === "new" && !selectedBrand ? "This field is required." : null;
+  const brandVisibleError = brandError && showErrors ? brandError : null;
+
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === "new" && Object.keys(errors).length > 0) return;
+    const hasBudgetErrors = mode === "new" && Object.keys(errors).length > 0;
+    if (hasBudgetErrors || nameError || ownerError || brandError) {
+      setShowErrors(true);
+      return;
+    }
     onSubmit({
       name,
       description,
@@ -78,7 +99,7 @@ export default function HeadForm({
           step="any"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="leave empty for ∞"
+          placeholder="leave empty for unlimited"
           style={error ? { borderColor: "#D64545" } : undefined}
         />
         {error && (
@@ -91,29 +112,47 @@ export default function HeadForm({
   };
 
   return (
-    <form onSubmit={handle} style={{ display: "contents" }}>
+    <form onSubmit={handle} noValidate style={{ display: "contents" }}>
       <div className="drawer-body">
         <div className="field-group">
           <label>Name</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Welcome Bonus Program"
-            required
+            placeholder="Enter head name"
+            style={nameVisibleError ? { borderColor: "#D64545" } : undefined}
           />
+          {nameVisibleError && (
+            <div className="helper" style={{ color: "#D64545" }}>
+              {nameVisibleError}
+            </div>
+          )}
         </div>
         <div className="field-group">
           <label>Description</label>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => setDescription(e.target.value.slice(0, DESCRIPTION_MAX))}
             placeholder="What does this program do?"
+            maxLength={DESCRIPTION_MAX}
           />
+          <div className="helper">
+            {description.length}/{DESCRIPTION_MAX}
+          </div>
         </div>
         {mode === "new" && (
           <div className="field-group">
             <label>Brand</label>
-            <input value={brandName} readOnly />
+            <input
+              value={brandName}
+              readOnly
+              style={brandVisibleError ? { borderColor: "#D64545" } : undefined}
+            />
+            {brandVisibleError && (
+              <div className="helper" style={{ color: "#D64545" }}>
+                {brandVisibleError}
+              </div>
+            )}
           </div>
         )}
         <div className="field-group">
@@ -121,7 +160,7 @@ export default function HeadForm({
           <select
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
-            required
+            style={ownerVisibleError ? { borderColor: "#D64545" } : undefined}
           >
             <option value="" disabled>
               Select owner…
@@ -132,6 +171,11 @@ export default function HeadForm({
               </option>
             ))}
           </select>
+          {ownerVisibleError && (
+            <div className="helper" style={{ color: "#D64545" }}>
+              {ownerVisibleError}
+            </div>
+          )}
         </div>
         {mode === "new" && (
           <>
