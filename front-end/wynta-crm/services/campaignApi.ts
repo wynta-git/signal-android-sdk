@@ -493,6 +493,50 @@ export async function fetchScreenCatalog(projectId: string, brandId?: number): P
   return data.screens as string[];
 }
 
+/**
+ * Adds a screen name to the catalog (project-wide, or scoped to `brandId` if
+ * given), returning the refreshed catalog. Adding a name that already exists
+ * is a no-op on the backend (unique-index upsert), not an error.
+ */
+export async function createScreen(projectId: string, screenName: string, brandId?: number): Promise<string[]> {
+  const res = await fetch(`${campaignRoot(projectId)}/screens`, {
+    method: 'POST',
+    headers: { ...authHeader(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ screen_name: screenName, ...(brandId ? { brand_id: String(brandId) } : {}) }),
+  });
+  if (!res.ok) throw new Error(`createScreen failed: ${res.status}`);
+  const data = await res.json();
+  return data.screens as string[];
+}
+
+export async function deleteScreen(projectId: string, screenName: string, brandId?: number): Promise<string[]> {
+  const url = brandId
+    ? `${campaignRoot(projectId)}/screens/${encodeURIComponent(screenName)}?brand_id=${brandId}`
+    : `${campaignRoot(projectId)}/screens/${encodeURIComponent(screenName)}`;
+  const res = await fetch(url, { method: 'DELETE', headers: authHeader() });
+  if (!res.ok) throw new Error(`deleteScreen failed: ${res.status}`);
+  const data = await res.json();
+  return data.screens as string[];
+}
+
+export interface ScreenCatalogEntry { screen_name: string; brand_id: string | null; }
+
+/**
+ * Full catalog entries (name + scope) for the Screen Catalog admin page —
+ * unlike `fetchScreenCatalog`'s cached/deduplicated flat list (the wizard's
+ * autocomplete), this always reads live so add/edit/delete show up
+ * immediately.
+ */
+export async function fetchScreenCatalogDetailed(projectId: string, brandId?: number): Promise<ScreenCatalogEntry[]> {
+  const url = brandId
+    ? `${campaignRoot(projectId)}/screens/detailed?brand_id=${brandId}`
+    : `${campaignRoot(projectId)}/screens/detailed`;
+  const res = await fetch(url, { headers: authHeader() });
+  if (!res.ok) throw new Error(`fetchScreenCatalogDetailed failed: ${res.status}`);
+  const data = await res.json();
+  return data.screens as ScreenCatalogEntry[];
+}
+
 export async function deleteCampaign(projectId: string, campaignId: string): Promise<void> {
   const res = await fetch(`${campaignRoot(projectId)}/${campaignId}`, {
     method: "DELETE",

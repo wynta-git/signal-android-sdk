@@ -26,7 +26,7 @@ import type {
   CampaignSchedule, CampaignDeliveryControls, ContentBlock,
   Variant, Cta, InAppTemplateType,
 } from '../../services/campaignApi';
-import { uploadCampaignImage, fetchScreenCatalog } from '../../services/campaignApi';
+import { uploadCampaignImage, fetchScreenCatalog, createScreen } from '../../services/campaignApi';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                              */
@@ -945,6 +945,29 @@ function Step1({ s, onChange, channel, errors, errorTick, brandId }: Step1Props)
     return () => { cancelled = true; };
   }, [isInApp, projectId, brandId]);
 
+  const [showAddScreen, setShowAddScreen] = useState(false);
+  const [newScreenName, setNewScreenName] = useState('');
+  const [addingScreen, setAddingScreen]   = useState(false);
+  const [addScreenError, setAddScreenError] = useState<string | null>(null);
+
+  const handleAddScreen = async () => {
+    const name = newScreenName.trim();
+    if (!name) return;
+    setAddingScreen(true);
+    setAddScreenError(null);
+    try {
+      const screens = await createScreen(projectId, name, brandId);
+      setScreenOptions(screens);
+      if (!s.target_screens.includes(name)) set({ target_screens: [...s.target_screens, name] });
+      setNewScreenName('');
+      setShowAddScreen(false);
+    } catch {
+      setAddScreenError('Could not add screen. Please try again.');
+    } finally {
+      setAddingScreen(false);
+    }
+  };
+
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewing, setPreviewing]     = useState(false);
 
@@ -1097,6 +1120,48 @@ function Step1({ s, onChange, channel, errors, errorTick, brandId }: Step1Props)
               value={s.target_screens}
               onChange={v => set({ target_screens: v })}
             />
+            {!showAddScreen && (
+              <button
+                type="button"
+                className="cwiz-seg-add-btn"
+                style={{ marginTop: 6 }}
+                onClick={() => setShowAddScreen(true)}
+              >
+                + Add new screen
+              </button>
+            )}
+            {showAddScreen && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <input
+                    className="cwiz-input"
+                    type="text"
+                    placeholder="e.g. checkout_screen"
+                    value={newScreenName}
+                    disabled={addingScreen}
+                    onChange={e => setNewScreenName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddScreen(); } }}
+                  />
+                  {addScreenError && <span className="cwiz-field-error">{addScreenError}</span>}
+                </div>
+                <button
+                  type="button"
+                  className="cwiz-ph-chip"
+                  disabled={addingScreen || !newScreenName.trim()}
+                  title={!newScreenName.trim() ? 'Type a screen name first' : undefined}
+                  onClick={handleAddScreen}
+                >
+                  {addingScreen ? 'Adding…' : 'Add'}
+                </button>
+                <button
+                  type="button"
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--crm-fg4,#9AA0A6)', padding: '8px 2px' }}
+                  onClick={() => { setShowAddScreen(false); setNewScreenName(''); setAddScreenError(null); }}
+                >
+                  <Icon name="x" size={16} />
+                </button>
+              </div>
+            )}
           </div>
         )}
         {channel === 'in_app' && s.trigger_criteria === 'on_custom_event' && (

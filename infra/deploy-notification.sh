@@ -116,7 +116,7 @@ Type=simple
 User=$APP_USER
 WorkingDirectory=$SERVICE_DIR
 Environment="PYTHONPATH=$SERVICE_DIR:$REPO"
-ExecStart=$VENV/bin/python -m app.main
+ExecStart=$VENV/bin/uvicorn app.main:app --host 0.0.0.0 --port $PORT
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
