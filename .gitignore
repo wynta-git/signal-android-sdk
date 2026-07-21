@@ -56,6 +56,9 @@ CLAUDE.local.md
 .env.*.local
 *.env
 
+# Local one-off test scripts
+scripts/test_sendgrid_setup.py
+
 # Logs
 *.log
 logs/

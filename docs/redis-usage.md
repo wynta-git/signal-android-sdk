@@ -10,6 +10,7 @@ Redis is used for ephemeral state and segment membership. Most keys are caches t
 | Token validation cache | api-service | yes |
 | Idempotency keys (recent `event_id`s) | api-service | yes |
 | Per-user campaign send dedupe | notifications-engine | yes |
+| Screen catalog cache (for `on_screen_load` targeting) | campaign-engine | yes, re-read from MongoDB |
 | Segment membership (primary store) | segmentation-engine | rebuilt on next eval |
 | Pub/Sub for real-time triggers (optional) | various | yes |
 
@@ -25,6 +26,7 @@ Redis is used for ephemeral state and segment membership. Most keys are caches t
 - `pam:campaign:sent:{campaign_id}:{user_id}` — TTL = campaign rate-limit window
 - `pam:seg:{project_id}:{segment_id}:members` — **Set** of user_ids; written by segmentation-engine on every evaluation; no TTL (managed explicitly via delete + re-insert on each run)
 - `pam:seg:{project_id}:{segment_id}:joined` — **Hash** of `{user_id: ISO-timestamp}`; records when each user first joined the segment; cleared together with `:members` on segment delete or full re-evaluation
+- `pam:screens:{project_id}:{brand_id or "all"}` — JSON array of screen names for the `on_screen_load` target-screen picker (campaign-engine, `app/screens.py`); simple cache-aside (not invalidated on write — there's no write API yet, screens are seeded directly in MongoDB), TTL 300s
 
 ## TTLs (always set them)
 
@@ -35,6 +37,7 @@ Common TTLs:
 - Token cache: 300 seconds
 - Idempotency: 86400 seconds (24h)
 - Segment membership cache: 6 hours
+- Screen catalog cache: 300 seconds
 
 ## Data structures
 

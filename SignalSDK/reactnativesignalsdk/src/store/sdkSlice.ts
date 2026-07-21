@@ -14,6 +14,10 @@ export interface SDKState {
   fcmToken: string | null;
   initialized: boolean;
   appOpenTracked: boolean;
+  // In-app notification IDs already shown this session — prevents re-showing the same
+  // notification if a spurious app_foreground fires right after dismissing it (launching/
+  // finishing the native popup Activity can itself trigger a foreground transition).
+  handledInAppNotificationIds: string[];
 }
 
 const initialState: SDKState = {
@@ -25,6 +29,7 @@ const initialState: SDKState = {
   fcmToken: null,
   initialized: false,
   appOpenTracked: false,
+  handledInAppNotificationIds: [],
 };
 
 const sdkSlice = createSlice({
@@ -64,6 +69,11 @@ const sdkSlice = createSlice({
     clearIdentity(state) {
       state.userId = null;
       // fcmToken is device-level — intentionally kept on logout
+    },
+    markInAppNotificationHandled(state, action: PayloadAction<string>) {
+      if (!state.handledInAppNotificationIds.includes(action.payload)) {
+        state.handledInAppNotificationIds.push(action.payload);
+      }
     },
   },
 });

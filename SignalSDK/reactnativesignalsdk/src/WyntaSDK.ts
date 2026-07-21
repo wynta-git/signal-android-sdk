@@ -4,6 +4,8 @@ import { sdkActions } from './store/sdkSlice';
 import { sendEventThunk, setIdentityThunk } from './store/thunks';
 import { getSessionId } from './services/SessionService';
 import { lifecycleService } from './services/LifecycleService';
+import { buildEvent, trackEvent } from './services/EventService';
+import { markNotificationsRead } from './services/NotificationInboxService';
 import { storage, STORAGE_KEYS } from './utils/storage';
 import { logger } from './utils/logger';
 import { setApiLogCallback } from './utils/apiLogger';
@@ -43,6 +45,36 @@ class WyntaSDKClass {
       });
   }
 
+  private processInAppInteraction(payload: any): void {
+    if (!payload?.notification_id) return;
+
+    const { clientId, clientSecret, baseUrl, userId } = store.getState().sdk;
+    if (!clientId || !clientSecret || !userId) return;
+
+    const { interaction_type: interactionType, notification_id: notificationId, campaign_id: campaignId, cta_label: ctaLabel } = payload;
+
+    if (interactionType === 'shown') {
+      // Viewed = read — fire both the moment it renders, per the in-app notifications spec
+      trackEvent(
+        buildEvent('in_app_notification_viewed', { notification_id: notificationId, campaign_id: campaignId }, userId),
+        clientId, clientSecret, baseUrl,
+      ).catch((err) => logger.log(`[WyntaSDK] in_app_notification_viewed failed: ${err}`));
+
+      markNotificationsRead([notificationId], userId, clientId, clientSecret, baseUrl)
+        .catch((err) => logger.log(`[WyntaSDK] markNotificationsRead failed: ${err}`));
+    } else if (interactionType === 'clicked') {
+      trackEvent(
+        buildEvent('in_app_notification_clicked', { notification_id: notificationId, campaign_id: campaignId, cta_label: ctaLabel ?? null }, userId),
+        clientId, clientSecret, baseUrl,
+      ).catch((err) => logger.log(`[WyntaSDK] in_app_notification_clicked failed: ${err}`));
+    } else if (interactionType === 'dismissed') {
+      trackEvent(
+        buildEvent('in_app_notification_dismissed', { notification_id: notificationId, campaign_id: campaignId }, userId),
+        clientId, clientSecret, baseUrl,
+      ).catch((err) => logger.log(`[WyntaSDK] in_app_notification_dismissed failed: ${err}`));
+    }
+  }
+
   async initSDK(config: InitSDKConfig): Promise<void> {
     if (!config.clientId || !config.clientSecret) {
       throw new Error('initSDK requires clientId and clientSecret');
@@ -74,6 +106,13 @@ class WyntaSDKClass {
       wyntaEventEmitter.addListener('wynta_push_interaction', (payload) => {
         logger.log('[WyntaSDK] Native interaction event received (warm start):', payload);
         this.processPushInteraction(payload);
+      });
+
+      // In-app notification popup interactions (shown/clicked/dismissed) — the popup
+      // itself is rendered entirely natively; this just reports back for tracking.
+      wyntaEventEmitter.addListener('wynta_inapp_interaction', (payload) => {
+        logger.log('[WyntaSDK] In-app notification interaction received:', payload);
+        this.processInAppInteraction(payload);
       });
 
       // Cold start (app launched by clicking push)

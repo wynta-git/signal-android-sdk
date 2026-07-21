@@ -43,7 +43,6 @@ const BONUS_NAV_SECTIONS: NavSection[] = [
           // { id: 'custom',         label: 'Custom Report',     icon: 'sliders'     },
         ],
       },
-      { id: 'chat', label: 'Chat', icon: 'message-circle' },
     ],
   },
 ];

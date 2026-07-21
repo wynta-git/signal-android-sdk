@@ -113,6 +113,12 @@ export interface Campaign {
   trigger_type?:        string;
   trigger_event_name?:  string;
   trigger_criteria?:    TriggerCriteria;
+  // in_app only — screen names to show on when trigger_criteria is
+  // 'on_screen_load'. undefined/omitted otherwise.
+  target_screens?:      string[];
+  // in_app only — event names that show the notification (any-of) when
+  // trigger_criteria is 'on_custom_event'. undefined/omitted otherwise.
+  target_events?:       string[];
   // in_app only — hours until a delivered notification stops appearing in the
   // inbox even if unread. undefined/omitted = never expires.
   expires_in_hours?:    number;
@@ -124,6 +130,14 @@ export interface Campaign {
   title?:               string;
   content?:             string;
   deep_link?:           string;
+  // Email content (email channel only) — subject/HTML plain textarea inputs,
+  // no rich-text editor. HTML may contain both real Jinja2 ({{ project.x }},
+  // shared across all recipients) and literal -user.x-/-ctx.x-/
+  // -unsubscribe_url- substitution tokens (per-recipient, filled in by
+  // SendGrid at send time) — see notifications-engine's render_email_shared.
+  email_subject?:       string;
+  email_html?:          string;
+  email_text?:          string;
   // Rich content blocks (non-push channels)
   content_blocks?:      ContentBlock[];
   // In-app template variants (in_app channel only)
@@ -170,6 +184,12 @@ interface RawCampaign {
   // Top-level trigger_type (in_app channel only) — sibling of `trigger`,
   // e.g. "on_session_start" | "on_screen_load" | "on_custom_event".
   trigger_type?: string;
+  // in_app only — sibling of trigger_type above, populated when trigger_type
+  // is "on_screen_load".
+  target_screens?: string[] | null;
+  // in_app only — sibling of trigger_type above, populated when trigger_type
+  // is "on_custom_event".
+  target_events?: string[] | null;
   // in_app only — sibling of trigger_type above, same "top-level, not nested" shape.
   expires_in_hours?: number | null;
   // Nested trigger
@@ -270,6 +290,14 @@ function toCampaign(r: RawCampaign): Campaign {
   const msgBody     = message?.body      ?? r.body      ?? rAny['notification_body'] ?? rAny['content'];
   const msgDeepLink = message?.deep_link ?? r.deep_link ?? rAny['deeplink'];
 
+  // Email content — campaign-engine's GET route echoes the resolved template
+  // body back as `doc.message` for every channel (not just push), so for
+  // channel="email" that same `message` object actually holds
+  // {subject, html, text} rather than {title, body, deep_link}.
+  const emailSubject = chType === 'email' ? (message?.subject as string | undefined) : undefined;
+  const emailHtml    = chType === 'email' ? (message?.html    as string | undefined) : undefined;
+  const emailText    = chType === 'email' ? (message?.text    as string | undefined) : undefined;
+
   /* ── Schedule ── */
   const sc       = r.trigger?.schedule;
   const scType   = sc?.type ?? 'immediate';    // 'immediate' | 'once' | 'daily' | 'weekly' | 'monthly'
@@ -323,6 +351,8 @@ function toCampaign(r: RawCampaign): Campaign {
     // in_app trigger selector (on_session_start | on_screen_load | on_custom_event) —
     // sent/returned as a top-level `trigger_type` field, distinct from `trigger.type` above.
     trigger_criteria:   (r.trigger_type as TriggerCriteria) ?? undefined,
+    target_screens:     r.target_screens ?? undefined,
+    target_events:      r.target_events ?? undefined,
     expires_in_hours:   r.expires_in_hours ?? undefined,
     // Audience
     segment_id:    r.audience?.segment_id,
@@ -332,6 +362,11 @@ function toCampaign(r: RawCampaign): Campaign {
     title:      msgTitle,
     content:    msgBody,
     deep_link:  msgDeepLink,
+    // Email content (email channel only) — resolved from the same `message`
+    // object above, which for channel="email" actually holds {subject,html,text}
+    email_subject: emailSubject,
+    email_html:    emailHtml,
+    email_text:    emailText,
     // In-app template variants (in_app channel only)
     variants:   r.variants ?? undefined,
     // Schedule & delivery
@@ -364,11 +399,17 @@ function mergePayload(from: Campaign, payload: Partial<CampaignPayload>): Campai
     segment_id:        payload.segment_id  ?? from.segment_id,
     segment_name:      payload.segment_name?? from.segment_name,
     trigger_criteria:  payload.trigger_criteria ?? from.trigger_criteria,
+    target_screens:    payload.target_screens   ?? from.target_screens,
+    target_events:     payload.target_events    ?? from.target_events,
     expires_in_hours:  payload.expires_in_hours ?? from.expires_in_hours,
     // Push notification content — critical: always prefer payload over response
     title:             payload.title       ?? from.title,
     content:           payload.content     ?? from.content,
     deep_link:         payload.deep_link   ?? from.deep_link,
+    // Email content — same rationale as push content above
+    email_subject:     payload.email_subject ?? from.email_subject,
+    email_html:        payload.email_html    ?? from.email_html,
+    email_text:        payload.email_text    ?? from.email_text,
     // In-app template variants — same rationale as push content above
     variants:          payload.variants    ?? from.variants,
     schedule:          payload.schedule    ?? from.schedule,
@@ -435,6 +476,21 @@ export async function uploadCampaignImage(projectId: string, file: File): Promis
   if (!res.ok) throw new Error(`uploadCampaignImage failed: ${res.status}`);
   const data = await res.json();
   return data.image_url as string;
+}
+
+/**
+ * Fetches the marketer-configured "on_screen_load" target screen catalog
+ * (campaign-engine's screen_catalog collection, Redis-cached). Optionally
+ * scoped to a brand — returns brand-specific + project-wide screens.
+ */
+export async function fetchScreenCatalog(projectId: string, brandId?: number): Promise<string[]> {
+  const url = brandId
+    ? `${campaignRoot(projectId)}/screens?brand_id=${brandId}`
+    : `${campaignRoot(projectId)}/screens`;
+  const res = await fetch(url, { headers: authHeader() });
+  if (!res.ok) throw new Error(`fetchScreenCatalog failed: ${res.status}`);
+  const data = await res.json();
+  return data.screens as string[];
 }
 
 export async function deleteCampaign(projectId: string, campaignId: string): Promise<void> {
@@ -507,6 +563,12 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
       body:      p.content   ?? '',
       deep_link: p.deep_link ?? '',
     };
+  } else if (p.channel === 'email') {
+    channelObj.email = {
+      subject: p.email_subject ?? '',
+      html:    p.email_html    ?? '',
+      ...(p.email_text ? { text: p.email_text } : {}),
+    };
   }
 
   return {
@@ -531,6 +593,16 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
     // in_app trigger selector — top-level field, sibling of `trigger` above
     // (NOT nested inside it). Only meaningful for the in_app channel today.
     ...(p.channel === 'in_app' && p.trigger_criteria ? { trigger_type: p.trigger_criteria } : {}),
+    // in_app screen targeting — only meaningful (and only sent) when the
+    // trigger selector above is 'on_screen_load'.
+    ...(p.channel === 'in_app' && p.trigger_criteria === 'on_screen_load' && p.target_screens?.length
+      ? { target_screens: p.target_screens }
+      : {}),
+    // in_app event targeting — only meaningful (and only sent) when the
+    // trigger selector above is 'on_custom_event'.
+    ...(p.channel === 'in_app' && p.trigger_criteria === 'on_custom_event' && p.target_events?.length
+      ? { target_events: p.target_events }
+      : {}),
     // in_app notification expiry — same top-level, sibling-of-trigger shape.
     ...(p.channel === 'in_app' && p.expires_in_hours != null ? { expires_in_hours: p.expires_in_hours } : {}),
     channel: channelObj,

@@ -11,7 +11,7 @@ from redis.asyncio import Redis
 
 from app.config import settings
 from app.models import ExecutionEvent
-from app.sender import run_campaign
+from app.sender import run_campaign, run_campaign_grouped
 from shared.clients.mongo import (
     complete_oneoff_campaign,
     get_campaign,
@@ -21,6 +21,12 @@ from shared.clients.mongo import (
 )
 
 log = structlog.get_logger()
+
+# Channels whose provider can batch many recipients into one API call — these
+# use the grouped fan-out path (run_campaign_grouped) instead of one SendJob
+# per user. Push/in_app are not in this set and keep using run_campaign
+# unchanged.
+_GROUPED_CHANNELS = {"email", "sms", "whatsapp", "telegram"}
 
 
 def _utcnow() -> datetime:
@@ -90,9 +96,11 @@ async def handle_execution(
         log.info("executor.duplicate_skipped", campaign_id=campaign_id, run_id=run_id)
         return True
 
-    # 3. Execute
+    # 3. Execute — grouped fan-out for batchable channels, unchanged per-user
+    # fan-out for everything else (push/in_app).
     try:
-        await run_campaign(
+        run_fn = run_campaign_grouped if campaign.get("channel") in _GROUPED_CHANNELS else run_campaign
+        await run_fn(
             campaign_id=campaign_id,
             project_id=project_id,
             run_id=run_id,

@@ -1,11 +1,15 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
+import { NativeModules } from 'react-native';
 import { buildEvent, trackEvent } from '../services/EventService';
 import { identifyPlayer } from '../services/IdentityService';
+import { fetchInbox } from '../services/NotificationInboxService';
 import { SDKResponse, IdentityPayload, IdentifyRequest } from '../types';
 import { storage, STORAGE_KEYS } from '../utils/storage';
 import { sdkActions } from './sdkSlice';
 import { RootState } from './index';
 import { logger } from '../utils/logger';
+
+const { WyntaSDKModule } = NativeModules;
 
 export const sendEventThunk = createAsyncThunk<
   SDKResponse,
@@ -93,11 +97,64 @@ export const setIdentityThunk = createAsyncThunk<
       trackEvent(buildEvent('app_opened', {}, userId), clientId, clientSecret, baseUrl).catch((err) => {
         logger.log(`[WyntaSDK] app_opened auto-track failed: ${err}`);
       });
+
+      // Cold-start in-app notification check — mirrors the app_foreground check in
+      // LifecycleService, since app_foreground never fires on a fresh launch (there's
+      // no prior 'background' state to transition from).
+      dispatch(checkInboxThunk());
     }
 
     return { success: true };
   } catch (err: unknown) {
     const error = err as Error;
     return rejectWithValue(error.name === 'AbortError' ? 'Request timed out.' : (error.message ?? 'Unknown error'));
+  }
+});
+
+export const checkInboxThunk = createAsyncThunk<
+  void,
+  void,
+  { state: RootState }
+>('wynta/checkInbox', async (_arg, { getState, dispatch }) => {
+  const { initialized, userId, clientId, clientSecret, baseUrl, handledInAppNotificationIds } = getState().sdk;
+
+  if (!initialized || !userId || !clientId || !clientSecret) {
+    logger.log('[WyntaSDK] checkInbox skipped — no active identity');
+    return;
+  }
+
+  try {
+    const inbox = await fetchInbox(userId, clientId, clientSecret, baseUrl);
+    logger.log(`[WyntaSDK] checkInbox → ${inbox.notifications.length} notification(s)`);
+
+    // No filtering on the `read` field — whatever the API returns gets shown. The only
+    // guard is session-level: skip a notification already handled this session, so a
+    // spurious app_foreground firing right as the native popup Activity finishes (closing
+    // it can itself trigger a foreground transition) doesn't immediately show it again.
+    const notification = inbox.notifications.find(
+      (n) => !handledInAppNotificationIds.includes(n.notification_id),
+    );
+    const imageUrl = notification?.media?.image_url;
+    if (!notification || !imageUrl) return;
+
+    dispatch(sdkActions.markInAppNotificationHandled(notification.notification_id));
+
+    const cta = notification.cta?.[0];
+
+    // Rendering happens entirely natively (a transparent overlay Activity on Android, an
+    // overlay UIWindow on iOS) — no JS component to mount, no host app changes required.
+    // The native side calls back via the 'wynta_inapp_interaction' event (see WyntaSDK.ts)
+    // for the viewed/clicked/dismissed tracking calls.
+    WyntaSDKModule?.showInAppPopup(
+      notification.notification_id,
+      notification.campaign_id,
+      imageUrl,
+      cta?.label ?? null,
+      cta?.action ?? 'dismiss',
+      cta?.value ?? null,
+    );
+  } catch (err: unknown) {
+    const error = err as Error;
+    logger.log(`[WyntaSDK] checkInbox failed: ${error.message ?? error}`);
   }
 });

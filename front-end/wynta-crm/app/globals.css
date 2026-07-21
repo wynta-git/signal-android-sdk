@@ -1394,6 +1394,50 @@ html, body {
 }
 .cwiz-ph-chip:hover { background:var(--crm-blue,#0091E0); color:#fff; }
 
+/* Email rich-text editor (TipTap) */
+.cwiz-richtext-wrap {
+  display:flex; flex-direction:column;
+  border:2px solid var(--crm-fg1,#1F2430); border-radius:8px;
+  overflow:hidden; background:#fff;
+  transition:border-color .12s;
+}
+.cwiz-richtext-wrap:focus-within { border-color:var(--crm-blue,#0091E0); }
+.cwiz-rt-toolbar {
+  display:flex; align-items:center; flex-wrap:wrap; gap:6px;
+  padding:8px 10px; border-bottom:1px solid var(--crm-border,#E9EBEE);
+  background:var(--crm-bg,#F7F8FA);
+}
+.cwiz-rt-divider { width:1px; height:22px; background:var(--crm-border-md,#DDE0E4); margin:0 2px; }
+.cwiz-rt-btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  height:32px; min-width:32px; padding:0 8px;
+  border:1px solid transparent; border-radius:6px;
+  background:transparent;
+  color:var(--crm-fg2,#3F4652);
+  cursor:pointer; user-select:none;
+  transition:background .12s, border-color .12s, color .12s;
+}
+.cwiz-rt-btn:hover { background:#fff; border-color:var(--crm-border-md,#DDE0E4); }
+.cwiz-rt-btn.active { background:var(--crm-blue,#0091E0); border-color:var(--crm-blue,#0091E0); color:#fff; }
+.cwiz-richtext {
+  min-height:130px; padding:14px 16px;
+  font-size:14px; line-height:1.6; font-family:inherit; color:var(--crm-fg1,#1F2430); background:#fff;
+  cursor:text;
+}
+.cwiz-richtext .tiptap { outline:none; min-height:100px; }
+.cwiz-richtext .tiptap p { margin:0 0 .75em; }
+.cwiz-richtext .tiptap p:last-child { margin-bottom:0; }
+.cwiz-richtext .tiptap ul, .cwiz-richtext .tiptap ol { padding-left:1.4em; margin:0 0 .75em; }
+.cwiz-richtext .tiptap h1 { font-size:1.5em; font-weight:700; margin:0 0 .5em; line-height:1.3; }
+.cwiz-richtext .tiptap h2 { font-size:1.2em; font-weight:700; margin:0 0 .5em; line-height:1.3; }
+.cwiz-richtext .tiptap hr { border:none; border-top:1px solid var(--crm-border-md,#DDE0E4); margin:1em 0; }
+.cwiz-richtext .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float:left; height:0; pointer-events:none;
+  color:var(--crm-fg4,#9AA0A6);
+}
+.cwiz-richtext-wrap--error { border-color:var(--crm-negative,#D64545) !important; }
+
 
 /* ── Step-3 Schedule Enhancements ── */
 .cwiz-sched-type-row {

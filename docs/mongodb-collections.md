@@ -17,6 +17,7 @@ Database: `pam`
 | `campaigns` | campaign-engine | notifications-engine | Campaign definitions, schedule, audience, channel, template. |
 | `campaign_runs` | campaign-engine | notifications-engine | Each execution of a campaign. |
 | `notification_templates` | campaign-engine | notifications-engine | Push / email / SMS / webhook / in_app templates. |
+| `screen_catalog` | campaign-engine (hand-seeded via MongoDB — no write API yet) | campaign-engine (CRM wizard, Redis-cached) | Marketer-curated app screen names for the `on_screen_load` in_app trigger's target_screens picker. |
 | `notification_deliveries` | notifications-engine | analytics | Per-user, per-campaign delivery status. |
 | `notification_inbox` | notifications-engine | api-service | Per-user delivered in_app notifications — the client's inbox. Read/updated by api-service on behalf of the client SDK. |
 | `device_tokens` | api-service | notifications-engine | Push device tokens (FCM/APNs) per user. |
@@ -49,7 +50,20 @@ Database: `pam`
   settings: {
     pii_salt: "<random, never expose>",
     timezone: "Asia/Kolkata",
-    retention_months: 13
+    retention_months: 13,
+    batch_size_overrides: { "email": 300 },   // optional; per-channel override for
+                                               // scheduler-service's run_campaign_grouped,
+                                               // falls back to its static per-channel default
+    email_provider: "sendgrid",               // "sendgrid" | "mailgun" — which adapter this
+                                               // project uses; defaults to "sendgrid" if unset.
+                                               // See notifications-channels.md "email provider registry"
+    sendgrid_api_key: "SG.xxxxx",             // optional project-level fallback if no
+    sendgrid_from_email: "hello@acme.com",    // brand-specific brand_settings credential exists
+    sendgrid_from_name: "Acme",
+    mailgun_api_key: "key-xxxxx",             // reserved — Mailgun adapter not yet implemented
+    mailgun_domain: "mg.acme.com",
+    mailgun_from_email: "hello@acme.com",
+    mailgun_from_name: "Acme"
   }
 }
 // Indexes: { project_id: 1 } unique
@@ -79,6 +93,8 @@ Database: `pam`
   user_id: "user_42",
   anonymous_ids: ["anon_xxx", "anon_yyy"],
   traits: {
+    email: "asha@example.com",      // plaintext — approved exception to the PII-vault
+                                     // policy for email only, see notifications-engine/CLAUDE.md
     email_hash: "<sha256>",
     phone_hash: "<sha256>",
     name: "Asha",                   // non-PII traits OK to store raw
@@ -147,7 +163,8 @@ Database: `pam`
   project_id: "proj_abc123",
   name: "Welcome bonus",
   channel: "push" | "email" | "sms" | "webhook" | "in_app",
-  body: { /* channel-specific, e.g. {title, body, deep_link} for push */ },
+  body: { /* channel-specific — {title, body, deep_link} for push, {subject, html, text}
+             for email (schema-validated by campaign-engine's EmailTemplateBody) */ },
   // in_app only — variants replace `body` (body stays {} for in_app):
   variants: [
     {
@@ -168,6 +185,24 @@ Database: `pam`
   updated_at: ISODate
 }
 // Indexes: { project_id: 1, template_id: 1 } unique
+```
+
+### `screen_catalog`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  brand_id: "brand_1" | null,   // null = project-wide (visible regardless of campaign's brand)
+  screen_name: "home",
+  created_at: ISODate
+}
+// Indexes: { project_id: 1, brand_id: 1, screen_name: 1 } unique
+//
+// Read via GET /projects/{project_id}/screens?brand_id=... (campaign-engine, Redis-cached,
+// see docs/redis-usage.md). When brand_id is given, returns that brand's screens PLUS
+// project-wide (brand_id: null) screens, deduped — mirrors how brand-scoped campaigns
+// already resolve against project-wide ones. No write API yet — seed/manage documents
+// directly in MongoDB.
 ```
 
 ### `notification_inbox`
@@ -217,7 +252,7 @@ Database: `pam`
   user_id: "user_42",
   channel: "push" | "email" | "sms" | "webhook" | "in_app",
   status: "sent" | "failed" | "suppressed",
-  provider: "fcm_stub" | "apns_stub" | "in_app",
+  provider: "fcm_stub" | "apns_stub" | "in_app" | "sendgrid" | "sendgrid_stub",
   provider_msg_id: "...",
   attempted_at: ISODate,
   error: null | { code: str, message: str }
@@ -322,12 +357,38 @@ Database: `pam`
   project_id: "proj_abc123",
   brand_id: "brand_01",
   fcm_service_account_json: "<stringified JSON>",  // FCM service account for this brand
+  email_provider: "sendgrid",                      // "sendgrid" | "mailgun" — brand-level override,
+                                                    // falls back to projects.settings.email_provider
+  sendgrid_api_key: "SG.xxxxx",                    // SendGrid API key for this brand
+  sendgrid_from_email: "hello@acme.com",
+  sendgrid_from_name: "Acme",
+  mailgun_api_key: "key-xxxxx",                     // reserved — Mailgun adapter not yet implemented
+  mailgun_domain: "mg.acme.com",
+  mailgun_from_email: "hello@acme.com",
+  mailgun_from_name: "Acme",
   created_at: ISODate,
   updated_at: ISODate
 }
 // Indexes: { project_id: 1, brand_id: 1 } unique
 // Owner: campaign-engine settings API (writes). Read by: notifications-engine.
-// Falls back to projects.settings.fcm_service_account_json if no brand-specific credential found.
+// Falls back to projects.settings.{fcm_service_account_json,sendgrid_*} if no
+// brand-specific credential found.
+```
+
+### `suppressed_recipients`
+```js
+{
+  _id: ObjectId,
+  project_id: "proj_abc123",
+  user_id: "user_42",
+  channel: "email",   // channel-scoped — suppressing email does not suppress push
+  reason: "hard_bounce" | "spamreport" | "unsubscribe" | "group_unsubscribe" | "user_unsubscribe",
+  created_at: ISODate
+}
+// Indexes: { project_id: 1, user_id: 1, channel: 1 } unique
+// Owner: notifications-engine (app/callbacks.py — SendGrid Event Webhook + unsubscribe route).
+// Durable audit trail. The hot-path check before every send is the mirrored Redis key
+// pam:suppress:{project_id}:{user_id}:{channel} (see app/suppression.py), not this collection.
 ```
 
 ### `dashboard_boosts`
