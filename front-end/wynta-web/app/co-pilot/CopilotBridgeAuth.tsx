@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { setBridgeData, authenticateWithBridgeToken } from 'wynta-react-common/store/slices/usersSlice';
 import { setCopilotModule } from 'wynta-react-common/store/slices/copilotSlice';
@@ -8,6 +8,15 @@ import { setBrandId } from 'wynta-react-common/services/tokenRegistry';
 export default function CopilotBridgeAuth() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dispatch = useDispatch<any>();
+
+  // Bridge tokens are single-use server-side (see setBridgeData's comment in
+  // usersSlice.ts). If the parent re-posts WYNTA_BRIDGE with the SAME token
+  // (retry, refocus, etc.), re-exchanging it gets rejected server-side and
+  // authenticateWithBridgeToken.rejected nulls out the perfectly good
+  // authToken from the first exchange. Dedupe by token VALUE rather than a
+  // DjHeaderSlot-style one-time didInit boolean, since a genuinely new token
+  // later (refresh, brand/page change) must still be honored.
+  const exchangedTokensRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     console.log('[co-pilot] CopilotBridgeAuth mounted, listening for WYNTA_BRIDGE messages');
@@ -38,11 +47,21 @@ export default function CopilotBridgeAuth() {
       // came through) — fall back to `page` so context isn't null either way.
       dispatch(setCopilotModule(brand ?? page ?? null));
 
+      if (exchangedTokensRef.current.has(token)) {
+        console.log('[co-pilot] bridge token already exchanged this session, skipping duplicate authenticateWithBridgeToken dispatch', token);
+        return;
+      }
+      exchangedTokensRef.current.add(token);
+
       console.log('[co-pilot] dispatching authenticateWithBridgeToken');
       dispatch(authenticateWithBridgeToken({ token }))
         .unwrap()
         .then((result: unknown) => console.log('[co-pilot] bridge auth succeeded', result))
-        .catch((err: unknown) => console.error('[co-pilot] bridge auth failed', err));
+        .catch((err: unknown) => {
+          console.error('[co-pilot] bridge auth failed', err);
+          exchangedTokensRef.current.delete(token);
+          console.log('[co-pilot] removed failed token from exchanged set, retry allowed if re-posted', token);
+        });
     }
 
     window.addEventListener('message', handleMessage);

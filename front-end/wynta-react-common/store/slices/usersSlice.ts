@@ -110,7 +110,12 @@ const usersSlice = createSlice({
       .addCase(authenticateWithBridgeToken.rejected, (state, action) => {
         state.authStatus = "failed";
         state.authError = action.error.message ?? null;
-        state.authToken = null;
+        // Don't clobber an authToken already obtained from an earlier
+        // successful exchange (e.g. a stale/reused bridge token being
+        // rejected on a later, redundant exchange attempt).
+        if (!state.authToken) {
+          state.authToken = null;
+        }
       });
   },
 });
