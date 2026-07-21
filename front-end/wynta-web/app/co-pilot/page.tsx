@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import CopilotPanel from 'wynta-react-common/components/copilot/CopilotPanel';
 import { openCopilot } from 'wynta-react-common/store/slices/copilotSlice';
 import { useCommonSelector } from 'wynta-react-common/store/hooks';
@@ -17,7 +17,7 @@ export default function CopilotPage() {
   // tokenRegistry singleton) means this flips immediately/synchronously the
   // moment authenticateWithBridgeToken resolves, and correctly starts `true`
   // on mount if the token was already exchanged earlier in this session.
-  const ready = useCommonSelector(selectIsLoggedIn);
+  const ready = useSelector(selectIsLoggedIn);
 
   useEffect(() => {
     console.log('[co-pilot] page mounted, opening panel');
@@ -30,23 +30,23 @@ export default function CopilotPage() {
     window.parent.postMessage({ event: 'copilot_load_completed'  }, '*');
   }, [dispatch]);
 
-  if (!ready) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          width: '100vw',
-          color: 'var(--g600)',
-          fontSize: 13.5,
-        }}
-      >
-        Connecting…
-      </div>
-    );
-  }
+  // if (!ready) {
+  //   return (
+  //     <div
+  //       style={{
+  //         display: 'flex',
+  //         alignItems: 'center',
+  //         justifyContent: 'center',
+  //         height: '100vh',
+  //         width: '100vw',
+  //         color: 'var(--g600)',
+  //         fontSize: 13.5,
+  //       }}
+  //     >
+  //       Connecting…
+  //     </div>
+  //   );
+  // }
 
   return <CopilotPanel />;
 }
