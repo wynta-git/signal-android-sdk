@@ -22,6 +22,7 @@ class InvalidExternalTokenError(Exception):
 class ExternalTokenContext:
     sub: str
     project_id: str
+    program_id: str
     email: str
 
 
@@ -95,4 +96,9 @@ async def validate_external_jwt(
         log.warning("external_jwt_unmapped_program_id", program_id=raw_project_id)
         raise InvalidExternalTokenError()
 
-    return ExternalTokenContext(sub=str(sub), project_id=project_id, email=str(email))
+    return ExternalTokenContext(
+        sub=str(sub),
+        project_id=project_id,
+        email=str(email),
+        program_id=str(raw_project_id),
+    )
