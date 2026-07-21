@@ -11,9 +11,8 @@ import { trackedCell } from './trackedValue';
 
 function defaultRange(): ReportDateRange {
   const now = new Date();
-  const yearStart = new Date(now.getFullYear(), 0, 1);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: iso(yearStart), endDate: iso(now) };
+  return { startDate: iso(now), endDate: iso(now) };
 }
 
 function statusBadgeKind(status: string): string {
@@ -83,7 +82,7 @@ export default function BonusPerformanceReport({ brandId }: Props) {
       <ReportKpiRow
         loading={loading}
         items={[
-          { label: 'Redemptions · 7d', value: data?.redemptions ?? 0, sub: '— all bonuses' },
+          { label: 'Redemptions', value: data?.redemptions ?? 0, sub: '— all bonuses' },
           { label: 'Unique players', value: data?.unique_players ?? 0, sub: '— across all bonuses' },
           { label: 'Avg payout', value: formatINR(data?.avg_payout ?? 0), sub: '— per player' },
           {
@@ -101,7 +100,7 @@ export default function BonusPerformanceReport({ brandId }: Props) {
               <th>Bonus</th>
               <th>Programme</th>
               <th>Type</th>
-              <th>Redemptions · 7d</th>
+              <th>Redemptions</th>
               <th>Players</th>
               <th>Avg Payout</th>
               <th>Redeem Rate</th>

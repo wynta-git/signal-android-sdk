@@ -27,10 +27,9 @@ async def bonus_performance_report(
     offset: int = Query(default=0, ge=0),
 ) -> BonusPerformanceResponse:
     """Redemption and payout metrics across all bonus configurations."""
-    table_since, table_until, _ = resolve_window(start_date, end_date, 365)
-    kpi_since, kpi_until, _ = resolve_window(None, None, window_days)
+    since, until, effective_days = resolve_window(start_date, end_date, window_days)
     return await get_bonus_performance_report(
-        site_id, table_since, table_until, kpi_since, kpi_until, window_days, limit, offset,
+        site_id, since, until, since, until, effective_days, limit, offset,
     )
 
 
