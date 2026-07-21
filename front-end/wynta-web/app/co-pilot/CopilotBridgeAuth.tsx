@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { setBridgeData, authenticateWithBridgeToken } from 'wynta-react-common/store/slices/usersSlice';
+import { setCopilotModule } from 'wynta-react-common/store/slices/copilotSlice';
 import { setBrandId } from 'wynta-react-common/services/tokenRegistry';
 
 export default function CopilotBridgeAuth() {
@@ -30,6 +31,10 @@ export default function CopilotBridgeAuth() {
 
       setBrandId(null);
       dispatch(setBridgeData({ token, brand, page }));
+      // `module` drives the /ask context ({ module, site_id }) built in
+      // copilotSlice's sendMessage thunk — without this it stays null since
+      // co-pilot never goes through BonusAdminApp/CrmApp's setCopilotModule call.
+      dispatch(setCopilotModule(brand ?? null));
 
       console.log('[co-pilot] dispatching authenticateWithBridgeToken');
       dispatch(authenticateWithBridgeToken({ token }))

@@ -10,7 +10,7 @@ import type {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-interface UsersState {
+export interface UsersState {
   items: SystemUser[];
   status: AsyncStatus;
   error: string | null;

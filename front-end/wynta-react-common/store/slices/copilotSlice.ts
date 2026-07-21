@@ -3,6 +3,7 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { sendCopilotMessage } from '../../services/copilotApi';
 import { getBrandId } from '../../services/tokenRegistry';
 import type { CopilotMessage, CopilotTab } from '../../types';
+import type { UsersState } from './usersSlice';
 
 interface CopilotState {
   isOpen: boolean;
@@ -20,12 +21,18 @@ const initialState: CopilotState = {
   module: null,
 };
 
-export const sendMessage = createAsyncThunk<string, string, { state: { copilot: CopilotState } }>(
+export const sendMessage = createAsyncThunk<
+  string,
+  string,
+  { state: { copilot: CopilotState; users: UsersState } }
+>(
   'copilot/sendMessage',
   (text, thunkAPI) => {
-    const module = thunkAPI.getState().copilot.module;
+    const state = thunkAPI.getState();
+    const module = state.copilot.module;
     const context = module ? { module, site_id: getBrandId() } : null;
-    return sendCopilotMessage(text, context);
+    const token = state.users.authToken;
+    return sendCopilotMessage(text, context, token);
   },
 );
 
