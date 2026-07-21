@@ -8,6 +8,7 @@ import UpgradeCTA from 'wynta-react-common/components/UpgradeCTA';
 interface NavChild {
   id: string;
   label: string;
+  icon?: string;
 }
 
 interface NavItem {
@@ -34,13 +35,12 @@ const BONUS_NAV_SECTIONS: NavSection[] = [
       { id: 'segments',      label: 'Segments',     icon: 'users-round'  },
       { id: 'events',        label: 'Events',       icon: 'zap'          },
       {
-        id: 'reports', label: 'Reports', icon: 'bar-chart-2', locked: true,
+        id: 'reports', label: 'Reports', icon: 'bar-chart-2',
         children: [
-          { id: 'campaign',  label: 'Campaign Stats'    },
-          { id: 'segment',   label: 'Segment Analysis'  },
-          { id: 'channel',   label: 'Channel Delivery'  },
-          { id: 'lifecycle', label: 'Player Lifecycle'  },
-          { id: 'churn',     label: 'Churn & Retention' },
+          { id: 'performance',    label: 'Bonus Performance', icon: 'trending-up' },
+          { id: 'budget-spend',   label: 'Budget & Spend',    icon: 'wallet'      },
+          { id: 'player-activity', label: 'Player Activity',  icon: 'users'       },
+          // { id: 'custom',         label: 'Custom Report',     icon: 'sliders'     },
         ],
       },
       { id: 'chat', label: 'Chat', icon: 'message-circle' },
@@ -127,6 +127,7 @@ export default function BonusSidebar({ activeNav, onNavChange }: BonusSidebarPro
                             }
                           }}
                         >
+                          {child.icon && <Icon name={child.icon} size={14} strokeWidth={2} />}
                           {child.label}
                         </div>
                       ))}

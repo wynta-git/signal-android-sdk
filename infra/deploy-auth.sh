@@ -28,8 +28,8 @@
 
 set -euo pipefail
 
-INSTANCE1_IP="172.31.6.243"
-INSTANCE2_IP="172.31.44.32"
+INSTANCE1_IP="172.31.40.172"
+INSTANCE2_IP="172.31.44.218"
 REPO="/home/ubuntu/pam"
 APP_USER="ubuntu"
 SERVICE_DIR="$REPO/services/auth-service"
@@ -97,14 +97,23 @@ section "3. Writing .env"
 PRIVKEY_ESCAPED=$(sed ':a;N;$!ba;s/\n/\\n/g' "$PRIVKEY_FILE")
 
 cat > "$SERVICE_DIR/.env" <<EOF
-MONGO_URL=mongodb://admin:glgpam2026@$INSTANCE1_IP:27017/?authSource=admin
+MONGO_URL=mongodb://admin:${MONGO_PASS:?MONGO_PASS must be set}@$INSTANCE1_IP:${MONGO_PORT:-27018}/?authSource=admin
 MONGO_DB=pam
+
+REDIS_URL=redis://:${REDIS_PASS:?REDIS_PASS must be set}@$INSTANCE1_IP:${REDIS_PORT:-6380}/0
 
 JWT_PRIVATE_KEY="$PRIVKEY_ESCAPED"
 JWT_TOKEN_TTL=3600
 
 # HS256 secret used to validate external JWTs (e.g. Wynta) in /exchange_token
-EXTERNAL_JWT_SECRET_KEY="${EXTERNAL_JWT_SECRET_KEY:-}"
+EXTERNAL_JWT_SECRET_KEY="${EXTERNAL_JWT_SECRET_KEY:?EXTERNAL_JWT_SECRET_KEY must be set}"
+
+# Wynta common MySQL DB (used to resolve program_id → project_key)
+COMMON_DB_HOST="${COMMON_DB_HOST:-43.204.90.164}"
+COMMON_DB_PORT="${COMMON_DB_PORT:-3306}"
+COMMON_DB_USER="${COMMON_DB_USER:?COMMON_DB_USER must be set}"
+COMMON_DB_PASSWORD="${COMMON_DB_PASSWORD:?COMMON_DB_PASSWORD must be set}"
+COMMON_DB_NAME="${COMMON_DB_NAME:-wynta_common}"
 
 DEBUG=true
 VERSION=0.1.0
