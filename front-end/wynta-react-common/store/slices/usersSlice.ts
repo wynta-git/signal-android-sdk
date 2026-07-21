@@ -145,6 +145,10 @@ export const selectProjectId = (state: { users: UsersState }): string | null => 
 };
 export const selectSiteId = (state: { users: UsersState }) =>
   state.users.bridgeData?.site_id ?? null;
+export const selectBrand = (state: { users: UsersState }) =>
+  state.users.bridgeData?.brand ?? null;
+export const selectPage = (state: { users: UsersState }) =>
+  state.users.bridgeData?.page ?? null;
 export const selectIsAdmin = (state: { users: UsersState }) =>
   state.users.bridgeData?.is_admin ?? false;
 export const selectAllowed = (state: { users: UsersState }) =>

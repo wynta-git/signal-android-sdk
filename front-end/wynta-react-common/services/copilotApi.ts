@@ -3,10 +3,13 @@ import type { CopilotContext } from '../types';
 
 const COPILOT_API_BASE = process.env.NEXT_PUBLIC_COPILOT_API_URL as string;
 
-const authHeader = () => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${getToken()}`,
-});
+const authHeader = () => {
+  const token = getToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
 
 interface CopilotAskResponse {
   answer: string;

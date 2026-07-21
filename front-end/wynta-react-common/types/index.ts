@@ -13,6 +13,10 @@ export interface WyntaBridge {
   allowed?: string[];
   is_admin?: boolean;
   site_id?: number;
+  /** String product slug (e.g. 'bonus'/'crm'/'affiliate') sent by an embedding parent — distinct from the numeric site_id brand. */
+  brand?: string;
+  /** Current page/section slug sent by an embedding parent. */
+  page?: string;
 }
 
 export type AsyncStatus = 'idle' | 'loading' | 'succeeded' | 'failed';

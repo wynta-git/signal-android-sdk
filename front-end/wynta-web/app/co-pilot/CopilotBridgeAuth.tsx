@@ -24,10 +24,12 @@ export default function CopilotBridgeAuth() {
       }
 
       const token: string = data.bridge_token;
-      console.log('[co-pilot] bridge token received', token);
+      const brand: string | undefined = data.product;
+      const page: string | undefined = data.page;
+      console.log('[co-pilot] bridge token received', token, { brand, page });
 
       setBrandId(null);
-      dispatch(setBridgeData({ token }));
+      dispatch(setBridgeData({ token, brand, page }));
 
       console.log('[co-pilot] dispatching authenticateWithBridgeToken');
       dispatch(authenticateWithBridgeToken({ token }))
