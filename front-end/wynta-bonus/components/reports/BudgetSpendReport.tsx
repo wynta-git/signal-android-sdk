@@ -10,9 +10,8 @@ import { trackedCell } from './trackedValue';
 
 function defaultRange(): ReportDateRange {
   const now = new Date();
-  const yearStart = new Date(now.getFullYear(), 0, 1);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: iso(yearStart), endDate: iso(now) };
+  return { startDate: iso(now), endDate: iso(now) };
 }
 
 function utilBarClass(pct: number | null): string {
@@ -81,7 +80,7 @@ export default function BudgetSpendReport({ brandId }: Props) {
       <ReportKpiRow
         loading={loading}
         items={[
-          { label: 'Total bonus cost · 7d', value: formatINRCompact(data?.total_bonus_cost ?? 0), sub: '— not tracked (GGR)' },
+          { label: 'Total bonus cost', value: formatINRCompact(data?.total_bonus_cost ?? 0), sub: '— not tracked (GGR)' },
           { label: 'Avg cost / redemption', value: formatINR(data?.avg_cost_per_redemption ?? 0), sub: '— across all bonuses' },
           { label: 'Budget utilisation', value: `${(data?.budget_utilisation_pct ?? 0).toFixed(2)}%`, sub: '— of monthly budget' },
         ]}
@@ -97,7 +96,7 @@ export default function BudgetSpendReport({ brandId }: Props) {
               <th>Budget Limit</th>
               <th>Used</th>
               <th>Utilisation</th>
-              <th>Bonus Cost · 7d</th>
+              <th>Bonus Cost</th>
               <th>GGR</th>
               <th>Avg Cost / Redeem</th>
             </tr>

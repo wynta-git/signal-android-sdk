@@ -9,9 +9,8 @@ import ReportKpiRow from './ReportKpiRow';
 
 function defaultRange(): ReportDateRange {
   const now = new Date();
-  const yearStart = new Date(now.getFullYear(), 0, 1);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
-  return { startDate: iso(yearStart), endDate: iso(now) };
+  return { startDate: iso(now), endDate: iso(now) };
 }
 
 const AVATAR_COLORS = ['#0ea5a4', '#3b82f6', '#a3b117', '#f59e0b', '#d946ef', '#6366f1', '#ef4444', '#10b981'];
