@@ -9,7 +9,7 @@ export NEXT_PUBLIC_CHAT_URL="https://qa-chat.fozilpartners.com/chat/"
 # Prod endpoint
 # QA_BASE="https://api.wynta.com"
 # export NEXT_PUBLIC_COPILOT_API_URL="https://ai-agents.wynta.com"
-# export NEXT_PUBLIC_CHAT_URL="https://qa-chat.fozilpartners.com/chat/"
+# export NEXT_PUBLIC_CHAT_URL="https://chat.wynta.com/chat"
 
 export NEXT_PUBLIC_BONUS_API_URL="$QA_BASE"
 export NEXT_PUBLIC_AUTH_API_URL="$QA_BASE"
