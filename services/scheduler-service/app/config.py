@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     kafka_send_topic: str = "pam.campaigns.send.v1"
     kafka_send_topic_grouped_email: str = "pam.campaigns.send.grouped.email.v1"
     kafka_consumer_group: str = "scheduler-service"
+    kafka_sasl_username: str = ""
+    kafka_sasl_password: str = ""
 
     # Per-channel batch size for grouped sends (run_campaign_grouped) — how many
     # user_ids get embedded in one GroupedSendJob message. Overridable per-project

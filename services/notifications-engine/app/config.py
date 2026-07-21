@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     kafka_consumer_group: str = "notif-sender"
     kafka_batch_size: int = 10_000
     kafka_batch_timeout_ms: int = 1_000
+    kafka_sasl_username: str = ""
+    kafka_sasl_password: str = ""
 
     template_cache_ttl_seconds: int = 300
 

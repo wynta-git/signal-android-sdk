@@ -3,7 +3,8 @@ import json
 from datetime import datetime, timezone
 
 import structlog
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+from aiokafka import AIOKafkaProducer
+from shared.clients.kafka import make_kafka_consumer
 from croniter import croniter
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
@@ -149,15 +150,14 @@ async def executor_loop(
     dlq_producer: AIOKafkaProducer,
     stop_event: asyncio.Event,
 ) -> None:
-    consumer = AIOKafkaConsumer(
-        settings.kafka_scheduler_topic,
-        bootstrap_servers=settings.kafka_bootstrap_servers,
-        group_id=settings.kafka_consumer_group,
-        enable_auto_commit=False,
-        auto_offset_reset="earliest",
+    consumer = await make_kafka_consumer(
+        [settings.kafka_scheduler_topic],
+        settings.kafka_bootstrap_servers,
+        settings.kafka_consumer_group,
+        sasl_username=settings.kafka_sasl_username,
+        sasl_password=settings.kafka_sasl_password,
         value_deserializer=lambda b: b,
     )
-    await consumer.start()
     log.info("executor.started", topic=settings.kafka_scheduler_topic)
 
     try:

@@ -2,6 +2,7 @@ export { default as ActionBar } from './ActionBar';
 export { default as Badge } from './Badge';
 export { default as BudgetRing } from './BudgetRing';
 export { default as ContextMenu } from './ContextMenu';
+export { default as CopilotPanel } from './copilot/CopilotPanel';
 export { default as CountUp, useCountUp } from './CountUp';
 export { default as EmptyState } from './EmptyState';
 export { default as Icon } from './Icon';

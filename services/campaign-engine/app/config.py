@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     kafka_events_topic: str = "pam.events.raw.v1"
     kafka_send_topic: str = "pam.campaigns.send.v1"
     kafka_consumer_group: str = "campaign-trigger"
+    kafka_sasl_username: str = ""
+    kafka_sasl_password: str = ""
 
     mongo_url: str = "mongodb://localhost:27017"
     mongo_database: str = "pam"

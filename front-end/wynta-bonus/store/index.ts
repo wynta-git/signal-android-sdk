@@ -15,11 +15,13 @@ import segmentsReducer, {
 } from "wynta-react-common/store/slices/segmentsSlice";
 import kpiReducer, { fetchKpiSnapshot } from "./slices/kpiSlice";
 import spendReducer from "./slices/spendSlice";
+import bonusDashboardReducer from "./slices/bonusDashboardSlice";
 import usersReducer, {
   authenticateWithBridgeToken,
 } from "wynta-react-common/store/slices/usersSlice";
 import eventsReducer from "wynta-react-common/store/slices/eventsSlice";
 import settingsReducer from "wynta-react-common/store/slices/settingsSlice";
+import copilotReducer from "wynta-react-common/store/slices/copilotSlice";
 import type { SelectedNode } from "../types";
 
 
@@ -58,9 +60,11 @@ export const store = configureStore({
     segments: segmentsReducer,
     kpi: kpiReducer,
     spend: spendReducer,
+    bonusDashboard: bonusDashboardReducer,
     users: usersReducer,
     events: eventsReducer,
     settings: settingsReducer,
+    copilot: copilotReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(initOnAuthMiddleware),
