@@ -16,7 +16,7 @@ export default function CopilotPage() {
       '[co-pilot] posting pam_load_completed to parent',
       window.parent === window ? '(no parent iframe detected)' : '',
     );
-    window.parent.postMessage({ event: 'pam_load_completed' }, '*');
+    window.parent.postMessage({ event: 'load_completed' }, '*');
   }, [dispatch]);
 
   return <CopilotPanel />;
