@@ -35,12 +35,12 @@ const PROVIDER_TO_ID: Record<string, string> = {
 };
 
 const FCM_BRAND_KEY = 'pam_fcm_brand_id';
+const SG_BRAND_KEY  = 'pam_sendgrid_brand_id';
 
 type FilterType = 'all' | 'connected' | 'disconnected';
 
 const CATEGORIES = ['Email', 'Push'] as const;
-// TODO: Email connector UI is temporarily hidden until it's ready to ship.
-const VISIBLE_CATEGORIES = CATEGORIES.filter(cat => cat !== 'Email');
+const VISIBLE_CATEGORIES = CATEGORIES;
 
 /* ── Brand icons ─────────────────────────────────────────────────────────────── */
 function ConnectorIcon({ connector }: { connector: Connector }) {
@@ -133,6 +133,11 @@ export default function ConnectorSettings() {
   const [exPassword, setExPassword]       = useState('');
   const [sgEmail, setSgEmail]             = useState('');
   const [sgApiKey, setSgApiKey]           = useState('');
+  // SendGrid is brand-scoped (campaign-engine), unlike the other Email
+  // connectors above which go through the generic workspace endpoint.
+  const [sgBrandId, setSgBrandId]                 = useState('');
+  const [sgConnectedBrandId, setSgConnectedBrandId] = useState<string | null>(null);
+  const [sgApiData, setSgApiData]                 = useState<Record<string, unknown> | null>(null);
 
   // ── FCM / Push state ──────────────────────────────────────────────────────────
   const [fcmBrandId, setFcmBrandId]               = useState('');
@@ -163,13 +168,35 @@ export default function ConnectorSettings() {
         const provider: string = ((d.current_provider as string) ?? '').toLowerCase();
         const connectedId = PROVIDER_TO_ID[provider] ?? null;
         setConnectors(cs => cs.map(c =>
-          c.category === 'Email'
+          // sendgrid-em's status comes from loadSgStatus (brand-scoped campaign-engine
+          // route) instead — this generic workspace endpoint doesn't know about it.
+          c.category === 'Email' && c.id !== 'sendgrid-em'
             ? { ...c, status: c.id === connectedId ? 'connected' : 'disconnected' }
             : c
         ));
         setConnectorApiData(d);
       })
       .catch(() => {});
+  }
+
+  // ── Load SendGrid status for a given brand (campaign-engine, brand-scoped) ───
+  function loadSgStatus(brandId: string) {
+    if (!brandId || !PROJECT_ID) return;
+    fetch(
+      `${CAMPAIGN_API_BASE}/api/v1/campaign/projects/${PROJECT_ID}/settings/sendgrid/brands/${encodeURIComponent(brandId)}`,
+      { headers: campaignGetHeaders() },
+    )
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+      .then(data => {
+        setSgApiData(data);
+        setSgConnectedBrandId(brandId);
+        setConnectors(cs => cs.map(c => c.id === 'sendgrid-em' ? { ...c, status: 'connected' } : c));
+        try { localStorage.setItem(SG_BRAND_KEY, brandId); } catch { /* ignore */ }
+      })
+      .catch(() => {
+        setConnectors(cs => cs.map(c => c.id === 'sendgrid-em' ? { ...c, status: 'disconnected' } : c));
+        try { localStorage.removeItem(SG_BRAND_KEY); } catch { /* ignore */ }
+      });
   }
 
   // ── Load FCM status for a given brand ────────────────────────────────────────
@@ -200,6 +227,10 @@ export default function ConnectorSettings() {
       const stored = localStorage.getItem(FCM_BRAND_KEY);
       if (stored) loadFcmStatus(stored);
     } catch { /* ignore */ }
+    try {
+      const storedSg = localStorage.getItem(SG_BRAND_KEY);
+      if (storedSg) loadSgStatus(storedSg);
+    } catch { /* ignore */ }
   }, []);
 
   // ── Filtered + searched list ──────────────────────────────────────────────────
@@ -221,7 +252,7 @@ export default function ConnectorSettings() {
     setModalEmail(''); setModalPassword('');
     setMgDomain(''); setMgApiKey(''); setMgRegion('');
     setExEmail(''); setExPassword('');
-    setSgEmail(''); setSgApiKey('');
+    setSgEmail(''); setSgApiKey(''); setSgBrandId('');
     setFcmBrandId(''); setFcmFile(null); setFcmJson(null); setFcmParseError('');
     setVerifyResult(null); setVerifyMsg('');
     setSaveError('');
@@ -238,7 +269,12 @@ export default function ConnectorSettings() {
     setModalEmail(emailVal); setModalPassword('');
     setMgDomain(domainVal); setMgApiKey(''); setMgRegion(regionVal);
     setExEmail(emailVal); setExPassword('');
-    setSgEmail(emailVal); setSgApiKey('');
+    // SendGrid is brand-scoped (campaign-engine) — prefill from its own status
+    // data, not the generic workspace connectorApiData, and never re-populate
+    // the secret API key input (write-only, same convention as FCM's fcmJson).
+    setSgEmail(id === 'sendgrid-em' ? ((sgApiData?.from_email as string) || '') : emailVal);
+    setSgApiKey('');
+    setSgBrandId(sgConnectedBrandId ?? '');
     // FCM manage: pre-fill brand from stored state
     setFcmBrandId(fcmConnectedBrandId ?? '');
     setFcmFile(null); setFcmJson(null); setFcmParseError('');
@@ -387,6 +423,79 @@ export default function ConnectorSettings() {
       .catch(() => {
         // reload status to get real state
         if (fcmConnectedBrandId) loadFcmStatus(fcmConnectedBrandId);
+      });
+  }
+
+  // ── SendGrid verify / save / disconnect (campaign-engine, brand-scoped) ──────
+  function verifySgCredentials() {
+    if (!sgApiKey.trim()) return;
+    setVerifying(true);
+    setVerifyResult(null);
+    setVerifyMsg('');
+    fetch(
+      `${CAMPAIGN_API_BASE}/api/v1/campaign/projects/${PROJECT_ID}/settings/sendgrid/verify`,
+      {
+        method: 'POST',
+        headers: campaignHeaders(),
+        body: JSON.stringify({ api_key: sgApiKey, from_email: sgEmail, from_name: '' }),
+      },
+    )
+      .then(res => res.json().then(d => ({ ok: res.ok, d })))
+      .then(({ ok, d }) => {
+        if (ok) {
+          setVerifyResult('success');
+          setVerifyMsg(d?.message ?? 'SendGrid connection verified.');
+        } else {
+          setVerifyResult('error');
+          setVerifyMsg(d?.detail ?? d?.message ?? 'Verification failed.');
+        }
+      })
+      .catch(() => { setVerifyResult('error'); setVerifyMsg('Network error.'); })
+      .finally(() => setVerifying(false));
+  }
+
+  function saveSgConnection() {
+    if (!sgApiKey.trim() || !sgEmail.trim() || !sgBrandId.trim()) return;
+    setSaving(true);
+    setSaveError('');
+    fetch(
+      `${CAMPAIGN_API_BASE}/api/v1/campaign/projects/${PROJECT_ID}/settings/sendgrid/brands/${encodeURIComponent(sgBrandId.trim())}`,
+      {
+        method: 'PUT',
+        headers: campaignHeaders(),
+        body: JSON.stringify({ api_key: sgApiKey, from_email: sgEmail, from_name: '' }),
+      },
+    )
+      .then(res => res.json().then(d => ({ ok: res.ok, d })))
+      .then(({ ok, d }) => {
+        if (ok) {
+          const brandId = sgBrandId.trim();
+          closeModal();
+          loadSgStatus(brandId);
+        } else {
+          setSaveError(d?.detail ?? d?.message ?? 'Failed to save SendGrid settings.');
+        }
+      })
+      .catch(() => setSaveError('Network error.'))
+      .finally(() => setSaving(false));
+  }
+
+  function disconnectSg() {
+    if (!sgConnectedBrandId) return;
+    const brandId = sgConnectedBrandId;
+    closeModal();
+    fetch(
+      `${CAMPAIGN_API_BASE}/api/v1/campaign/projects/${PROJECT_ID}/settings/sendgrid/brands/${encodeURIComponent(brandId)}`,
+      { method: 'DELETE', headers: campaignGetHeaders() },
+    )
+      .then(() => {
+        setSgConnectedBrandId(null);
+        setSgApiData(null);
+        setConnectors(cs => cs.map(c => c.id === 'sendgrid-em' ? { ...c, status: 'disconnected' } : c));
+        try { localStorage.removeItem(SG_BRAND_KEY); } catch { /* ignore */ }
+      })
+      .catch(() => {
+        if (sgConnectedBrandId) loadSgStatus(sgConnectedBrandId);
       });
   }
 
@@ -767,6 +876,17 @@ export default function ConnectorSettings() {
               <button type="button" onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#9ca3af', lineHeight: 1, padding: 2 }}>×</button>
             </div>
             <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>Brand ID</label>
+              <input
+                type="text"
+                value={sgBrandId}
+                onChange={e => setSgBrandId(e.target.value)}
+                placeholder="e.g. brand_01"
+                readOnly={isManage && !!sgConnectedBrandId}
+                style={{ ...inputStyle, background: isManage && !!sgConnectedBrandId ? '#f9fafb' : '#fff', color: '#374151' }}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', fontSize: 13, color: '#374151', marginBottom: 6 }}>From Email Address</label>
               <input type="email" value={sgEmail} onChange={e => setSgEmail(e.target.value)} placeholder="noreply@yourdomain.com" style={inputStyle} />
             </div>
@@ -778,18 +898,18 @@ export default function ConnectorSettings() {
             {saveError && <div style={{ marginBottom: 8, fontSize: 12, color: '#ef4444' }}>{saveError}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               {isManage && (
-                <button type="button" onClick={() => handleDisconnectFromModal('sendgrid-em')} style={disconnectBtnStyle}>
+                <button type="button" onClick={disconnectSg} style={disconnectBtnStyle}>
                   {disconnectIcon} Disconnect
                 </button>
               )}
-              <button type="button" disabled={verifying}
-                onClick={() => verifyCredentials({ emailclient: 'sendgrid', emailaddress: sgEmail, gridapikey: sgApiKey })}
-                style={{ flex: 1, height: 40, border: '1px solid #d1d5db', borderRadius: 20, background: '#fff', fontSize: 13, color: '#374151', cursor: verifying ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: verifying ? 0.7 : 1 }}>
+              <button type="button" disabled={verifying || !sgApiKey.trim()}
+                onClick={verifySgCredentials}
+                style={{ flex: 1, height: 40, border: '1px solid #d1d5db', borderRadius: 20, background: '#fff', fontSize: 13, color: '#374151', cursor: verifying || !sgApiKey.trim() ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: verifying || !sgApiKey.trim() ? 0.7 : 1 }}>
                 {verifying ? 'Testing…' : 'Test'}
               </button>
-              <button type="button" disabled={saving}
-                onClick={() => saveConnection('sendgrid-em', { emailclient: 'sendgrid', emailaddress: sgEmail, gridapikey: sgApiKey }, { email: sgEmail })}
-                style={{ flex: 1, height: 40, border: 'none', borderRadius: 20, background: '#0091E0', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+              <button type="button" disabled={saving || !sgApiKey.trim() || !sgBrandId.trim()}
+                onClick={saveSgConnection}
+                style={{ flex: 1, height: 40, border: 'none', borderRadius: 20, background: '#0091E0', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving || !sgApiKey.trim() || !sgBrandId.trim() ? 'not-allowed' : 'pointer', opacity: saving || !sgApiKey.trim() || !sgBrandId.trim() ? 0.7 : 1 }}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>

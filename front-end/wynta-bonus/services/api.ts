@@ -35,6 +35,17 @@ import type {
   Segment,
   OwnerEntry,
   SpendPeriod,
+  BonusDashboardSummary,
+  BonusDashboardTopBonusesResponse,
+  BonusDashboardActivityResponse,
+  BonusDashboardAlertsResponse,
+  BonusDashboardBudgetHealthResponse,
+  DashboardDateWindow,
+  BonusPerformanceResponse,
+  BudgetSpendResponse,
+  PlayerActivityResponse,
+  ReportDateRange,
+  CustomReportResponse,
 } from "../types";
 
 const delay = (ms = 180): Promise<void> =>
@@ -169,6 +180,35 @@ const BONUS_API =
 // mount effects firing close together) so only one network request goes out.
 const _siteConfigureCache = new Map<string, Promise<Record<string, string>>>();
 
+// Same dedup pattern for report fetches — keyed by the full request URL, so
+// two mount effects firing close together with identical params collapse
+// into one network request instead of double-hitting the report queries.
+const _reportCache = new Map<string, Promise<unknown>>();
+
+function _dedupedJsonFetch<T>(url: string, errorMessage: string): Promise<T> {
+  const cached = _reportCache.get(url) as Promise<T> | undefined;
+  if (cached) return cached;
+
+  const promise = (async () => {
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) throw new Error(errorMessage);
+    return res.json();
+  })();
+  promise.finally(() => _reportCache.delete(url));
+  _reportCache.set(url, promise);
+  return promise;
+}
+
+function _dashboardWindowParams(siteId: string | number, window?: DashboardDateWindow): URLSearchParams {
+  const params = new URLSearchParams({ site_id: String(siteId) });
+  if (window?.windowDays) params.set("window_days", String(window.windowDays));
+  if (window?.startDate) params.set("start_date", window.startDate);
+  if (window?.endDate) params.set("end_date", window.endDate);
+  if (window?.compareStart) params.set("compare_start", window.compareStart);
+  if (window?.compareEnd) params.set("compare_end", window.compareEnd);
+  return params;
+}
+
 export const api = {
   async fetchKpiSnapshot(siteId: string | number) {
     const res = await fetch(`${BONUS_API}/bonus-summary?site_id=${siteId}`, {
@@ -176,6 +216,87 @@ export const api = {
     });
     if (!res.ok) throw new Error("Failed to fetch bonus summary");
     return res.json();
+  },
+  async fetchDashboardSummary(
+    siteId: string | number, window?: DashboardDateWindow,
+  ): Promise<BonusDashboardSummary> {
+    const params = _dashboardWindowParams(siteId, window);
+    const res = await fetch(`${BONUS_API}/bonus-dashboard/summary?${params}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch dashboard summary");
+    return res.json();
+  },
+  async fetchTopBonuses(
+    siteId: string | number, window?: DashboardDateWindow, limit = 10, offset = 0,
+  ): Promise<BonusDashboardTopBonusesResponse> {
+    const params = _dashboardWindowParams(siteId, window);
+    params.set("limit", String(limit));
+    params.set("offset", String(offset));
+    const res = await fetch(`${BONUS_API}/bonus-dashboard/top-bonuses?${params}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch top bonuses");
+    return res.json();
+  },
+  async fetchRecentActivity(
+    siteId: string | number, limit = 20, offset = 0,
+  ): Promise<BonusDashboardActivityResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), limit: String(limit), offset: String(offset),
+    });
+    const res = await fetch(`${BONUS_API}/bonus-dashboard/recent-activity?${params}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch recent activity");
+    return res.json();
+  },
+  async fetchDashboardAlerts(siteId: string | number): Promise<BonusDashboardAlertsResponse> {
+    const res = await fetch(`${BONUS_API}/bonus-dashboard/alerts?site_id=${siteId}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to fetch dashboard alerts");
+    return res.json();
+  },
+  async fetchBudgetHealth(siteId: string | number): Promise<BonusDashboardBudgetHealthResponse> {
+    const res = await fetch(`${BONUS_API}/bonus-dashboard/budget-health?site_id=${siteId}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to fetch budget health");
+    return res.json();
+  },
+  async fetchBonusPerformanceReport(
+    siteId: string | number, range: ReportDateRange, limit = 50, offset = 0,
+  ): Promise<BonusPerformanceResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), start_date: range.startDate, end_date: range.endDate,
+      limit: String(limit), offset: String(offset),
+    });
+    return _dedupedJsonFetch(`${BONUS_API}/reports/bonus-performance?${params}`, "Failed to fetch bonus performance report");
+  },
+  async fetchBudgetSpendReport(
+    siteId: string | number, range: ReportDateRange, limit = 50, offset = 0,
+  ): Promise<BudgetSpendResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), start_date: range.startDate, end_date: range.endDate,
+      limit: String(limit), offset: String(offset),
+    });
+    return _dedupedJsonFetch(`${BONUS_API}/reports/budget-spend?${params}`, "Failed to fetch budget & spend report");
+  },
+  async fetchPlayerActivityReport(
+    siteId: string | number, range: ReportDateRange, search?: string, limit = 50, offset = 0,
+  ): Promise<PlayerActivityResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), start_date: range.startDate, end_date: range.endDate,
+      limit: String(limit), offset: String(offset),
+    });
+    if (search) params.set("search", search);
+    return _dedupedJsonFetch(`${BONUS_API}/reports/player-activity?${params}`, "Failed to fetch player activity report");
+  },
+  async fetchCustomReport(
+    siteId: string | number, dimension: string, metrics: string[], status: string,
+    range: ReportDateRange, limit = 50, offset = 0,
+  ): Promise<CustomReportResponse> {
+    const params = new URLSearchParams({
+      site_id: String(siteId), dimension, metrics: metrics.join(","), status,
+      start_date: range.startDate, end_date: range.endDate,
+      limit: String(limit), offset: String(offset),
+    });
+    return _dedupedJsonFetch(`${BONUS_API}/reports/custom?${params}`, "Failed to fetch custom report");
   },
   getSiteConfigure(siteId: string | number): Promise<Record<string, string>> {
     const key = String(siteId);

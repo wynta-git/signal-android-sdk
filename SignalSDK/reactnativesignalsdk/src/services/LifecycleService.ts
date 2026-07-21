@@ -22,6 +22,7 @@
 import { AppState, AppStateStatus, NativeModules, NativeEventEmitter } from 'react-native';
 import { store } from '../store';
 import { buildEvent, trackEvent } from './EventService';
+import { checkInboxThunk } from '../store/thunks';
 import { logger } from '../utils/logger';
 
 const { WyntaSDKModule } = NativeModules;
@@ -86,6 +87,9 @@ class LifecycleService {
       this.emit('session_ended');
     } else if (to === 'active' && from === 'background') {
       this.emit('app_foreground');
+      // In-app notification check — app_foreground never fires on a fresh launch, so
+      // the cold-start case is covered separately in setIdentityThunk.
+      store.dispatch(checkInboxThunk());
     }
 
     this.previousState = nextState;
