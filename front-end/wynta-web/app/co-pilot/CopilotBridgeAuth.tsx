@@ -2,8 +2,7 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { setBridgeData, authenticateWithBridgeToken } from 'wynta-react-common/store/slices/usersSlice';
-import { setCopilotModule } from 'wynta-react-common/store/slices/copilotSlice';
-import { setBrandId } from 'wynta-react-common/services/tokenRegistry';
+import { setBrandId, setCopilotModule } from 'wynta-react-common/store/slices/copilotSlice';
 
 export default function CopilotBridgeAuth() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,18 +33,18 @@ export default function CopilotBridgeAuth() {
       }
 
       const token: string = data.bridge_token;
-      const brand: string | undefined = data.product;
+      const site_id:number = data.site_id;
+      const module: string | undefined = data.module;
       const page: string | undefined = data.page;
-      console.log('[co-pilot] bridge token received', token, { brand, page });
+      console.log('[co-pilot] bridge token received', token, { module, page });
 
-      setBrandId(null);
-      dispatch(setBridgeData({ token, brand, page }));
+      setBrandId(site_id);
+      dispatch(setBridgeData({ token,  site_id, page }));
       // `module` drives the /ask context ({ module, site_id }) built in
-      // copilotSlice's sendMessage thunk — without this it stays null since
-      // co-pilot never goes through BonusAdminApp/CrmApp's setCopilotModule call.
-      // Real parents don't always send `product` (seen in staging: only `page`
-      // came through) — fall back to `page` so context isn't null either way.
-      dispatch(setCopilotModule(brand ?? page ?? null));
+      // copilotSlice's sendMessage thunk. Real parents don't always send
+      // `product` (seen in staging: only `page` came through) — fall back
+      // to `page` so context isn't null either way.
+      setCopilotModule(module ?? page ?? null);
 
       if (exchangedTokensRef.current.has(token)) {
         console.log('[co-pilot] bridge token already exchanged this session, skipping duplicate authenticateWithBridgeToken dispatch', token);
