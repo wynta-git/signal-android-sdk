@@ -329,6 +329,11 @@ html, body {
   white-space: nowrap;
 }
 .seg-btn-primary:hover { background: var(--crm-blue-600); }
+.seg-btn-primary:disabled {
+  background: var(--crm-border-md);
+  color: var(--crm-fg4);
+  cursor: not-allowed;
+}
 
 /* Secondary action button */
 .seg-btn-secondary {
@@ -351,6 +356,11 @@ html, body {
 .seg-btn-secondary:hover {
   background: var(--crm-bg);
   border-color: var(--crm-border-str);
+}
+.seg-btn-secondary:disabled {
+  background: var(--crm-white);
+  color: var(--crm-fg4);
+  cursor: not-allowed;
 }
 
 /* Stat cards row */
@@ -1393,6 +1403,10 @@ html, body {
   transition:background .1s, color .1s;
 }
 .cwiz-ph-chip:hover { background:var(--crm-blue,#0091E0); color:#fff; }
+.cwiz-ph-chip:disabled {
+  border-color:var(--crm-border-md,#DDE0E4); color:var(--crm-fg4,#9AA0A6);
+  cursor:not-allowed; background:#fff;
+}
 
 /* Email rich-text editor (TipTap) */
 .cwiz-richtext-wrap {

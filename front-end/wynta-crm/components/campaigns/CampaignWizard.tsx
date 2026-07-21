@@ -1148,6 +1148,7 @@ function Step1({ s, onChange, channel, errors, errorTick, brandId }: Step1Props)
                   type="button"
                   className="cwiz-ph-chip"
                   disabled={addingScreen || !newScreenName.trim()}
+                  title={!newScreenName.trim() ? 'Type a screen name first' : undefined}
                   onClick={handleAddScreen}
                 >
                   {addingScreen ? 'Adding…' : 'Add'}

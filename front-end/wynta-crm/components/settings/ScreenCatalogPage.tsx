@@ -137,6 +137,7 @@ export default function ScreenCatalogPage({ brandId }: Props) {
               type="button"
               className="seg-btn-primary"
               disabled={adding || !newScreenName.trim()}
+              title={!newScreenName.trim() ? 'Type a screen name first' : undefined}
               onClick={handleAdd}
             >
               <Icon name="plus" size={14} strokeWidth={2.2} />
