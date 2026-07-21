@@ -6,6 +6,7 @@ import { selectProjectId } from 'wynta-react-common/store/slices/usersSlice';
 import '../clients/clients.css';
 import type { ScreenCatalogEntry } from '../../services/campaignApi';
 import { fetchScreenCatalogDetailed, createScreen, deleteScreen } from '../../services/campaignApi';
+import CreateScreenModal from './CreateScreenModal';
 
 interface Props {
   brandId?: number;
@@ -25,9 +26,7 @@ export default function ScreenCatalogPage({ brandId }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState<string | null>(null);
 
-  const [newScreenName, setNewScreenName] = useState('');
-  const [adding, setAdding]               = useState(false);
-  const [addError, setAddError]           = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editValue, setEditValue]     = useState('');
@@ -49,20 +48,9 @@ export default function ScreenCatalogPage({ brandId }: Props) {
 
   useEffect(() => { load(); }, [projectId, brandId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleAdd() {
-    const name = newScreenName.trim();
-    if (!name) return;
-    setAdding(true);
-    setAddError(null);
-    try {
-      await createScreen(projectId, name, brandId);
-      setNewScreenName('');
-      await load();
-    } catch {
-      setAddError('Could not add screen. Please try again.');
-    } finally {
-      setAdding(false);
-    }
+  function handleCreated() {
+    setShowCreate(false);
+    load();
   }
 
   function startEdit(entry: ScreenCatalogEntry) {
@@ -113,37 +101,19 @@ export default function ScreenCatalogPage({ brandId }: Props) {
           <div className="cl-page-title">Screen Catalog</div>
           <div className="cl-page-subtitle">Screen names available for in-app campaigns' "On screen load" targeting</div>
         </div>
+        <div>
+          <button type="button" className="seg-btn-primary" onClick={() => setShowCreate(true)}>
+            <Icon name="plus" size={14} strokeWidth={2.2} />
+            Add Screen
+          </button>
+        </div>
       </div>
 
       <div className="cl-table-section">
-        <div className="cl-table-toolbar" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <div className="cl-table-toolbar">
           <span className="cl-table-toolbar-title">
             {loading ? 'Loading…' : `${entries.length} screen${entries.length !== 1 ? 's' : ''}`}
           </span>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <div>
-              <input
-                className="cwiz-input"
-                type="text"
-                placeholder="e.g. checkout_screen"
-                value={newScreenName}
-                disabled={adding}
-                onChange={e => setNewScreenName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
-              />
-              {addError && <span className="cwiz-field-error">{addError}</span>}
-            </div>
-            <button
-              type="button"
-              className="seg-btn-primary"
-              disabled={adding || !newScreenName.trim()}
-              title={!newScreenName.trim() ? 'Type a screen name first' : undefined}
-              onClick={handleAdd}
-            >
-              <Icon name="plus" size={14} strokeWidth={2.2} />
-              {adding ? 'Adding…' : 'Add Screen'}
-            </button>
-          </div>
         </div>
 
         {error ? (
@@ -151,7 +121,7 @@ export default function ScreenCatalogPage({ brandId }: Props) {
         ) : loading ? (
           <div className="cl-loading">Loading…</div>
         ) : entries.length === 0 ? (
-          <div className="cl-empty">No screens yet. Add one above.</div>
+          <div className="cl-empty">No screens yet. Click "Add Screen" to add one.</div>
         ) : (
           <div className="cl-table-scroll">
             <table className="cl-table" style={{ minWidth: 480 }}>
@@ -227,6 +197,15 @@ export default function ScreenCatalogPage({ brandId }: Props) {
           </div>
         )}
       </div>
+
+      {showCreate && (
+        <CreateScreenModal
+          projectId={projectId}
+          brandId={brandId}
+          onClose={() => setShowCreate(false)}
+          onCreated={handleCreated}
+        />
+      )}
     </div>
   );
 }
