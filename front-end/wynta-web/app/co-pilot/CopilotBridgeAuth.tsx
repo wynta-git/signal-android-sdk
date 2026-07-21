@@ -34,7 +34,9 @@ export default function CopilotBridgeAuth() {
       // `module` drives the /ask context ({ module, site_id }) built in
       // copilotSlice's sendMessage thunk — without this it stays null since
       // co-pilot never goes through BonusAdminApp/CrmApp's setCopilotModule call.
-      dispatch(setCopilotModule(brand ?? null));
+      // Real parents don't always send `product` (seen in staging: only `page`
+      // came through) — fall back to `page` so context isn't null either way.
+      dispatch(setCopilotModule(brand ?? page ?? null));
 
       console.log('[co-pilot] dispatching authenticateWithBridgeToken');
       dispatch(authenticateWithBridgeToken({ token }))
