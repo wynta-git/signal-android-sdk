@@ -340,12 +340,13 @@ a { color: inherit; text-decoration: none; }
 
 /* Shared eyebrow label for each cell */
 .kpi-eyebrow {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--g400);
+  font-size: 12px;
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--g500);
   display: flex; align-items: center; gap: 6px;
+  margin-bottom: 5px;
 }
 .kpi-eyebrow .kpi-eyebrow-icon {
   color: var(--g400);
@@ -4825,16 +4826,21 @@ a { color: inherit; text-decoration: none; }
 }
 .dq-card:last-child { margin-bottom: 0; }
 .dq-card-header {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--g900);
+  font-size: 12px;
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--g500);
   display: flex;
   align-items: center;
   gap: 6px;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 5px;
 }
 .dq-card-icon { color: var(--g500); display: inline-flex; }
+.dq-bottom-grid .dq-card-header {
+  color: var(--g900);
+}
 .dq-lifecycle-hint, .dq-alert-count { font-size: 11px; font-weight: 400; color: var(--g400); }
 .dq-alert-count {
   background: #fef3e0; color: var(--warn); font-weight: 700;
