@@ -13,6 +13,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from redis.asyncio import Redis
 from shared.clients.kafka import KafkaConsumer
 from shared.clients.mongo import (
+    admin_get_project,
     get_template,
     get_user,
     get_user_device_tokens,
@@ -23,10 +24,18 @@ from shared.clients.mongo import (
 from app.circuit_breaker import get_breaker
 from app.config import settings
 from app.models import DeliveryEvent, SendJob
-from app.providers.base import Recipient, RenderedPayload
+from app.providers.base import EmailRecipient, Recipient, RenderedPayload
+from app.providers.email import get_email_provider
 from app.providers.push import get_push_provider
-from app.renderer import TemplateRenderError, render_in_app, render_push
+from app.renderer import (
+    TemplateRenderError,
+    build_email_substitutions,
+    render_email_shared,
+    render_in_app,
+    render_push,
+)
 from app.suppression import is_suppressed
+from app.unsubscribe import build_unsubscribe_url
 
 log = structlog.get_logger()
 
@@ -77,8 +86,9 @@ async def handle_send_job(
     )
     now = datetime.now(UTC)
 
-    # 1. Suppression check
-    if await is_suppressed(redis, job.project_id, job.user_id):
+    # 1. Suppression check (channel-scoped: suppressed for email doesn't
+    #    suppress push, and vice versa)
+    if await is_suppressed(redis, job.project_id, job.user_id, job.channel):
         log.info("consumer.suppressed")
         delivery_doc = {
             "send_id": job.send_id,
@@ -122,6 +132,10 @@ async def handle_send_job(
 
     if job.channel == "in_app":
         await _handle_in_app(job, template_doc, user_doc, db, producer, now)
+        return
+
+    if job.channel == "email":
+        await _handle_email(job, template_doc, user_doc, db, producer, now)
         return
 
     # 3. Device tokens
@@ -368,6 +382,124 @@ async def _handle_in_app(
         provider_msg_id=notification_id,
         status="sent",
         attempted_at=now,
+    )
+    await _emit_delivery_event(producer, event)
+
+
+async def _handle_email(
+    job: SendJob,
+    template_doc: dict[str, Any],
+    user_doc: dict[str, Any] | None,
+    db: AsyncIOMotorDatabase,
+    producer: AIOKafkaProducer,
+    now: datetime,
+) -> None:
+    """Single-recipient email send — the event-triggered path (campaign-engine
+    fires one user at a time). Uses the exact same renderer/provider
+    functions as the grouped path (app/grouped_email_consumer.py), just with
+    one recipient instead of many."""
+    email = (user_doc or {}).get("traits", {}).get("email")
+    if not email:
+        log.warning("consumer.no_email_address")
+        delivery_doc = {
+            "send_id": job.send_id,
+            "token_hash": "",
+            "project_id": job.project_id,
+            "campaign_id": job.campaign_id,
+            "campaign_run_id": job.campaign_run_id,
+            "user_id": job.user_id,
+            "channel": job.channel,
+            "status": "failed",
+            "provider": "",
+            "provider_msg_id": None,
+            "attempted_at": now,
+            "error": {"code": "no_email_address", "message": "User has no email address on file"},
+        }
+        await insert_notification_delivery(db, delivery_doc)
+        return
+
+    project_doc = await admin_get_project(db, job.project_id)
+
+    try:
+        rendered = render_email_shared(template_doc, project_doc)
+    except TemplateRenderError as exc:
+        log.error("consumer.render_failed", error=str(exc))
+        delivery_doc = {
+            "send_id": job.send_id,
+            "token_hash": "",
+            "project_id": job.project_id,
+            "campaign_id": job.campaign_id,
+            "campaign_run_id": job.campaign_run_id,
+            "user_id": job.user_id,
+            "channel": job.channel,
+            "status": "failed",
+            "provider": "",
+            "provider_msg_id": None,
+            "attempted_at": now,
+            "error": {"code": "template_error", "message": str(exc)},
+        }
+        await insert_notification_delivery(db, delivery_doc)
+        return
+
+    unsubscribe_url = build_unsubscribe_url(job.project_id, job.user_id)
+    substitutions = build_email_substitutions(user_doc, job.context, unsubscribe_url)
+
+    provider = await get_email_provider(job.project_id, db, brand_id=job.brand_id)
+    provider_name = getattr(provider, "name", "sendgrid_stub")
+    breaker = get_breaker(provider_name)
+
+    if not breaker.allow():
+        log.warning("consumer.circuit_open", provider=provider_name)
+        return
+
+    recipient = EmailRecipient(
+        email=email,
+        substitutions=substitutions,
+        custom_args={"project_id": job.project_id, "user_id": job.user_id, "send_id": job.send_id},
+    )
+    token_hash = hashlib.sha256(email.encode()).hexdigest()[:16]
+
+    try:
+        result = await provider.send_batch([recipient], rendered.subject, rendered.html, rendered.text)
+        breaker.record_success()
+        status = "sent" if result.status == "accepted" else "failed"
+        provider_msg_id = result.provider_msg_id
+        error = result.error
+    except Exception as exc:
+        breaker.record_failure()
+        log.exception("consumer.provider_error", provider=provider_name)
+        status = "failed"
+        provider_msg_id = None
+        error = {"code": "provider_error", "message": str(exc)}
+
+    delivery_doc = {
+        "send_id": job.send_id,
+        "token_hash": token_hash,
+        "project_id": job.project_id,
+        "campaign_id": job.campaign_id,
+        "campaign_run_id": job.campaign_run_id,
+        "user_id": job.user_id,
+        "channel": job.channel,
+        "status": status,
+        "provider": provider_name,
+        "provider_msg_id": provider_msg_id,
+        "attempted_at": now,
+        "error": error,
+    }
+    await insert_notification_delivery(db, delivery_doc)
+
+    event = DeliveryEvent(
+        send_id=job.send_id,
+        project_id=job.project_id,
+        campaign_id=job.campaign_id,
+        campaign_run_id=job.campaign_run_id,
+        user_id=job.user_id,
+        channel=job.channel,
+        provider=provider_name,
+        provider_msg_id=provider_msg_id,
+        status=status,
+        attempted_at=now,
+        error=error,
     )
     await _emit_delivery_event(producer, event)
 

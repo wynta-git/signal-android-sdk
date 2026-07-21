@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 _VALID_DOW = {"MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"}
 
@@ -279,6 +279,16 @@ class Variant(BaseModel):
             self.layout = model.model_validate(self.layout).model_dump()
         return self
 
+    @model_validator(mode="after")
+    def validate_content(self) -> "Variant":
+        if self.template_type in _FLAT_TEMPLATE_TYPES:
+            has_content = bool(self.title) or bool(self.body) or bool(self.media and self.media.image_url)
+            if not has_content:
+                raise ValueError(
+                    f"{self.template_type} requires at least a title, body, or media.image_url"
+                )
+        return self
+
 
 class InAppTemplateInput(BaseModel):
     name: str | None = None
@@ -316,18 +326,34 @@ class InlineMessage(BaseModel):
     deep_link: str | None = None
 
 
+class EmailTemplateBody(BaseModel):
+    """Shape required for channel='email' — both a template's stored `body`
+    and a campaign's inline `channel.email`. No merge-tag/token validation
+    here; that only happens at render time in notifications-engine
+    (render_email_shared), which distinguishes real Jinja2 (project.x, shared
+    across all recipients) from literal -user.x-/-ctx.x-/-unsubscribe_url-
+    substitution tokens (per-recipient)."""
+
+    subject: str
+    html: str
+    text: str | None = None
+
+
 class ChannelConfig(BaseModel):
     type: Literal["push", "email", "sms", "webhook", "in_app"]
     template_id: str | None = None
     message: InlineMessage | None = None
     template: InAppTemplateInput | None = None
+    email: EmailTemplateBody | None = None
 
     @model_validator(mode="after")
     def check_template_or_message(self) -> ChannelConfig:
-        if self.template and (self.template_id or self.message):
-            raise ValueError("template cannot be combined with template_id or message")
-        if not self.template_id and not self.message and not self.template:
-            raise ValueError("Provide either template_id, message, or template")
+        if self.template and (self.template_id or self.message or self.email):
+            raise ValueError("template cannot be combined with template_id, message, or email")
+        if self.email and (self.template_id or self.message or self.template):
+            raise ValueError("email cannot be combined with template_id, message, or template")
+        if not self.template_id and not self.message and not self.template and not self.email:
+            raise ValueError("Provide either template_id, message, template, or email")
         return self
 
 
@@ -412,6 +438,13 @@ class CreateTemplateRequest(BaseModel):
         if self.channel == "in_app":
             if not self.variants:
                 raise ValueError("variants is required for channel 'in_app'")
+        elif self.channel == "email":
+            if not self.body:
+                raise ValueError("body is required for channel 'email'")
+            try:
+                EmailTemplateBody.model_validate(self.body)
+            except ValidationError as exc:
+                raise ValueError(f"invalid email body: {exc}") from exc
         elif not self.body:
             raise ValueError(f"body is required for channel '{self.channel}'")
         return self
@@ -453,6 +486,18 @@ class BrandFcmSettingsRequest(BaseModel):
         if v.get("type") != "service_account":
             raise ValueError("service_account_json.type must be 'service_account'")
         return v
+
+
+class SendgridSettingsRequest(BaseModel):
+    api_key: str
+    from_email: str
+    from_name: str = ""
+
+
+class BrandSendgridSettingsRequest(BaseModel):
+    api_key: str
+    from_email: str
+    from_name: str = ""
 
 
 # ---------------------------------------------------------------------------

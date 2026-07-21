@@ -130,6 +130,14 @@ export interface Campaign {
   title?:               string;
   content?:             string;
   deep_link?:           string;
+  // Email content (email channel only) — subject/HTML plain textarea inputs,
+  // no rich-text editor. HTML may contain both real Jinja2 ({{ project.x }},
+  // shared across all recipients) and literal -user.x-/-ctx.x-/
+  // -unsubscribe_url- substitution tokens (per-recipient, filled in by
+  // SendGrid at send time) — see notifications-engine's render_email_shared.
+  email_subject?:       string;
+  email_html?:          string;
+  email_text?:          string;
   // Rich content blocks (non-push channels)
   content_blocks?:      ContentBlock[];
   // In-app template variants (in_app channel only)
@@ -282,6 +290,14 @@ function toCampaign(r: RawCampaign): Campaign {
   const msgBody     = message?.body      ?? r.body      ?? rAny['notification_body'] ?? rAny['content'];
   const msgDeepLink = message?.deep_link ?? r.deep_link ?? rAny['deeplink'];
 
+  // Email content — campaign-engine's GET route echoes the resolved template
+  // body back as `doc.message` for every channel (not just push), so for
+  // channel="email" that same `message` object actually holds
+  // {subject, html, text} rather than {title, body, deep_link}.
+  const emailSubject = chType === 'email' ? (message?.subject as string | undefined) : undefined;
+  const emailHtml    = chType === 'email' ? (message?.html    as string | undefined) : undefined;
+  const emailText    = chType === 'email' ? (message?.text    as string | undefined) : undefined;
+
   /* ── Schedule ── */
   const sc       = r.trigger?.schedule;
   const scType   = sc?.type ?? 'immediate';    // 'immediate' | 'once' | 'daily' | 'weekly' | 'monthly'
@@ -346,6 +362,11 @@ function toCampaign(r: RawCampaign): Campaign {
     title:      msgTitle,
     content:    msgBody,
     deep_link:  msgDeepLink,
+    // Email content (email channel only) — resolved from the same `message`
+    // object above, which for channel="email" actually holds {subject,html,text}
+    email_subject: emailSubject,
+    email_html:    emailHtml,
+    email_text:    emailText,
     // In-app template variants (in_app channel only)
     variants:   r.variants ?? undefined,
     // Schedule & delivery
@@ -385,6 +406,10 @@ function mergePayload(from: Campaign, payload: Partial<CampaignPayload>): Campai
     title:             payload.title       ?? from.title,
     content:           payload.content     ?? from.content,
     deep_link:         payload.deep_link   ?? from.deep_link,
+    // Email content — same rationale as push content above
+    email_subject:     payload.email_subject ?? from.email_subject,
+    email_html:        payload.email_html    ?? from.email_html,
+    email_text:        payload.email_text    ?? from.email_text,
     // In-app template variants — same rationale as push content above
     variants:          payload.variants    ?? from.variants,
     schedule:          payload.schedule    ?? from.schedule,
@@ -537,6 +562,12 @@ function toApiPayload(p: Partial<CampaignPayload>): Record<string, unknown> {
       title:     p.title     ?? '',
       body:      p.content   ?? '',
       deep_link: p.deep_link ?? '',
+    };
+  } else if (p.channel === 'email') {
+    channelObj.email = {
+      subject: p.email_subject ?? '',
+      html:    p.email_html    ?? '',
+      ...(p.email_text ? { text: p.email_text } : {}),
     };
   }
 

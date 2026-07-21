@@ -105,8 +105,8 @@ async def create_campaign(
             "created_at": now,
             "updated_at": now,
         })
-    elif not template_id:
-        msg = body.channel.message  # guaranteed non-None by ChannelConfig validator
+    elif not template_id and body.channel.message:
+        msg = body.channel.message
         template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
         inline_body: dict = {"title": msg.title, "body": msg.body}  # type: ignore[union-attr]
         if msg.deep_link:  # type: ignore[union-attr]
@@ -117,6 +117,21 @@ async def create_campaign(
             "name": f"{body.name} (inline)",
             "channel": channel_type,
             "body": inline_body,
+            "created_at": now,
+            "updated_at": now,
+        })
+    elif not template_id and body.channel.email:
+        email = body.channel.email
+        template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
+        email_body: dict = {"subject": email.subject, "html": email.html}  # type: ignore[union-attr]
+        if email.text:  # type: ignore[union-attr]
+            email_body["text"] = email.text  # type: ignore[union-attr]
+        await insert_template(db, {
+            "template_id": template_id,
+            "project_id": project_id,
+            "name": f"{body.name} (inline)",
+            "channel": channel_type,
+            "body": email_body,
             "created_at": now,
             "updated_at": now,
         })
@@ -271,6 +286,22 @@ async def update_campaign_route(
                     "title": ch.message.title,
                     "body": ch.message.body,
                     **({"deep_link": ch.message.deep_link} if ch.message.deep_link else {}),
+                },
+                "created_at": now,
+                "updated_at": now,
+            })
+            updates["template_id"] = template_id
+        elif ch.email:
+            template_id = f"tmpl_{uuid.uuid4().hex[:12]}"
+            await insert_template(db, {
+                "template_id": template_id,
+                "project_id": project_id,
+                "name": f"{doc['name']} (inline)",
+                "channel": doc["channel"],
+                "body": {
+                    "subject": ch.email.subject,
+                    "html": ch.email.html,
+                    **({"text": ch.email.text} if ch.email.text else {}),
                 },
                 "created_at": now,
                 "updated_at": now,
