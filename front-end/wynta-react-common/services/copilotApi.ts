@@ -8,18 +8,6 @@ const authHeader = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-export interface CopilotSuggestion {
-  emoji: string;
-  text: string;
-}
-
-export const COPILOT_SUGGESTIONS: CopilotSuggestion[] = [
-  { emoji: '📊', text: "What's the status of the Q3 campaign?" },
-  { emoji: '⚠️', text: 'Any alerts I should know about today?' },
-  { emoji: '🎯', text: 'Who are our top VIPs at risk this week?' },
-  { emoji: '💰', text: 'How is the bonus budget tracking this month?' },
-];
-
 interface CopilotAskResponse {
   answer: string;
 }

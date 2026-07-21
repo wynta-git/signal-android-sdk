@@ -6,7 +6,6 @@ import Icon from '../Icon';
 import EmptyState from '../EmptyState';
 import { useCommonSelector } from '../../store/hooks';
 import {
-  openCopilot,
   closeCopilot,
   sendMessage,
   selectCopilotOpen,
@@ -14,7 +13,6 @@ import {
   selectCopilotMessages,
   selectCopilotStatus,
 } from '../../store/slices/copilotSlice';
-import { COPILOT_SUGGESTIONS } from '../../services/copilotApi';
 
 export default function CopilotPanel() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,15 +66,6 @@ export default function CopilotPanel() {
 
   return (
     <>
-      {!isOpen && (
-        <button
-          className="copilot-fab"
-          title="Wynta AI"
-          onClick={() => dispatch(openCopilot())}
-        >
-          <Icon name="sparkles" size={22} />
-        </button>
-      )}
       <aside className={'copilot-panel' + (isOpen ? ' open' : '')} aria-hidden={!isOpen}>
       <div className="copilot-header">
         <Icon name="message-square" size={18} />
@@ -106,14 +95,6 @@ export default function CopilotPanel() {
                     Ask me anything about campaigns, bonuses, player segments, or what&apos;s
                     happening across your products.
                   </div>
-                </div>
-                <div className="copilot-suggestions">
-                  {COPILOT_SUGGESTIONS.map((s) => (
-                    <button key={s.text} className="copilot-suggestion" onClick={() => send(s.text)}>
-                      <span className="emoji">{s.emoji}</span>
-                      <span>{s.text}</span>
-                    </button>
-                  ))}
                 </div>
               </>
             ) : (
