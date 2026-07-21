@@ -13,10 +13,10 @@ export default function CopilotPage() {
     dispatch(openCopilot());
 
     console.log(
-      '[co-pilot] posting pam_load_completed to parent',
+      '[co-pilot] posting copilot_load_completed to parent',
       window.parent === window ? '(no parent iframe detected)' : '',
     );
-    window.parent.postMessage({ event: 'load_completed' }, '*');
+    window.parent.postMessage({ event: 'copilot_load_completed' }, '*');
   }, [dispatch]);
 
   return <CopilotPanel />;

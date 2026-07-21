@@ -15,7 +15,7 @@ export default function CopilotBridgeAuth() {
       const data = event.data;
 
       if (!data || typeof data !== 'object') return;
-      console.log('[co-pilot] message received', { origin: event.origin, type: data.type });
+      console.log('[co-pilot] message received', { origin: event.origin, type: data.type }, event );
 
       if (data.type !== 'WYNTA_BRIDGE') return;
       if (!data.bridge_token) {
@@ -24,7 +24,7 @@ export default function CopilotBridgeAuth() {
       }
 
       const token: string = data.bridge_token;
-      console.log('[co-pilot] bridge token received', { tokenTail: token.slice(-4), length: token.length });
+      console.log('[co-pilot] bridge token received', token);
 
       setBrandId(null);
       dispatch(setBridgeData({ token }));
