@@ -40,7 +40,7 @@ const BONUS_NAV_SECTIONS: NavSection[] = [
           { id: 'performance',    label: 'Bonus Performance', icon: 'trending-up' },
           { id: 'budget-spend',   label: 'Budget & Spend',    icon: 'wallet'      },
           { id: 'player-activity', label: 'Player Activity',  icon: 'users'       },
-          { id: 'custom',         label: 'Custom Report',     icon: 'sliders'     },
+          // { id: 'custom',         label: 'Custom Report',     icon: 'sliders'     },
         ],
       },
       { id: 'chat', label: 'Chat', icon: 'message-circle' },
