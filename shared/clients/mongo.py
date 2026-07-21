@@ -237,6 +237,38 @@ async def list_screen_catalog(
     return sorted({d["screen_name"] for d in docs})
 
 
+async def list_screen_catalog_entries(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {"project_id": project_id}
+    if brand_id:
+        query["$or"] = [{"brand_id": brand_id}, {"brand_id": None}]
+    else:
+        query["brand_id"] = None
+    cursor = db["screen_catalog"].find(query, {"_id": 0, "screen_name": 1, "brand_id": 1})
+    docs = await cursor.to_list(length=None)
+    return sorted(docs, key=lambda d: d["screen_name"])
+
+
+async def upsert_screen_catalog_entry(
+    db: AsyncIOMotorDatabase, project_id: str, screen_name: str, brand_id: str | None = None
+) -> None:
+    await db["screen_catalog"].update_one(
+        {"project_id": project_id, "brand_id": brand_id, "screen_name": screen_name},
+        {"$setOnInsert": {"project_id": project_id, "brand_id": brand_id, "screen_name": screen_name}},
+        upsert=True,
+    )
+
+
+async def delete_screen_catalog_entry(
+    db: AsyncIOMotorDatabase, project_id: str, screen_name: str, brand_id: str | None = None
+) -> bool:
+    result = await db["screen_catalog"].delete_one(
+        {"project_id": project_id, "brand_id": brand_id, "screen_name": screen_name}
+    )
+    return result.deleted_count > 0
+
+
 # ---------------------------------------------------------------------------
 # Scheduler-service helpers — atomic locking, recovery, completion
 # ---------------------------------------------------------------------------

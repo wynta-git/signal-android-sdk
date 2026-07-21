@@ -37,6 +37,7 @@ const ChurnRetentionReport    = dynamic(() => import('./reports/ChurnRetentionRe
 const CustomReportBuilder     = dynamic(() => import('./reports/CustomReportBuilder'), { ssr: false });
 const CustomReportView        = dynamic(() => import('./reports/CustomReportView'), { ssr: false });
 const ClientsPage             = dynamic(() => import('./clients/ClientsPage'),      { ssr: false });
+const SettingsPage             = dynamic(() => import('./settings/SettingsPage'),    { ssr: false });
 const ChatPage                = dynamic(() => import('wynta-react-common/components/chat/ChatPage'), { ssr: false });
 
 /**
@@ -196,7 +197,7 @@ function CrmShell() {
            activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} brandId={brandId} /> :
            activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
-           activeNav === 'clients'          ? <ClientsPage brandId={brandId} /> :
+           activeNav === 'clients'          ? <SettingsPage brandId={brandId} /> :
            activeNav === 'chat'             ? <ChatPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :

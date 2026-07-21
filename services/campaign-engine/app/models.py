@@ -500,6 +500,18 @@ class BrandSendgridSettingsRequest(BaseModel):
     from_name: str = ""
 
 
+class CreateScreenRequest(BaseModel):
+    screen_name: str
+    brand_id: str | None = None
+
+    @model_validator(mode="after")
+    def strip_and_require_screen_name(self) -> "CreateScreenRequest":
+        self.screen_name = self.screen_name.strip()
+        if not self.screen_name:
+            raise ValueError("screen_name is required")
+        return self
+
+
 # ---------------------------------------------------------------------------
 # Custom reports
 # ---------------------------------------------------------------------------
