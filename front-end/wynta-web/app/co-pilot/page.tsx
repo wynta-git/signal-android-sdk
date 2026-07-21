@@ -9,7 +9,13 @@ export default function CopilotPage() {
   const dispatch = useDispatch<any>();
 
   useEffect(() => {
+    console.log('[co-pilot] page mounted, opening panel');
     dispatch(openCopilot());
+
+    console.log(
+      '[co-pilot] posting pam_load_completed to parent',
+      window.parent === window ? '(no parent iframe detected)' : '',
+    );
     window.parent.postMessage({ event: 'pam_load_completed' }, '*');
   }, [dispatch]);
 
