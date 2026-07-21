@@ -31,6 +31,7 @@ export async function sendCopilotMessage(text: string, context: CopilotContext |
   const res = await fetch(`${COPILOT_API_BASE}/ask`, {
     method: 'POST',
     headers: authHeader(),
+    credentials: 'include',
     body: JSON.stringify({ question: text, context }),
   });
 
