@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { InboxNotification } from '../types';
 
 const PROD_BASE_URL = 'https://api.wynta.com/api/v1';
 const QA_BASE_URL   = 'https://qa-app.fozilpartners.com/api/v1';
@@ -18,6 +19,14 @@ export interface SDKState {
   // notification if a spurious app_foreground fires right after dismissing it (launching/
   // finishing the native popup Activity can itself trigger a foreground transition).
   handledInAppNotificationIds: string[];
+  // Full last-fetched inbox response, cached so trackScreen() can evaluate triggers
+  // locally without an extra network call per screen change.
+  notificationCache: InboxNotification[];
+  currentScreen: string | null;
+  previousScreen: string | null;
+  // True while a native in-app popup is on screen — prevents a second trackScreen()
+  // call from stacking another popup before the first is dismissed.
+  isInAppPopupVisible: boolean;
 }
 
 const initialState: SDKState = {
@@ -30,6 +39,10 @@ const initialState: SDKState = {
   initialized: false,
   appOpenTracked: false,
   handledInAppNotificationIds: [],
+  notificationCache: [],
+  currentScreen: null,
+  previousScreen: null,
+  isInAppPopupVisible: false,
 };
 
 const sdkSlice = createSlice({
@@ -74,6 +87,16 @@ const sdkSlice = createSlice({
       if (!state.handledInAppNotificationIds.includes(action.payload)) {
         state.handledInAppNotificationIds.push(action.payload);
       }
+    },
+    setNotificationCache(state, action: PayloadAction<InboxNotification[]>) {
+      state.notificationCache = action.payload;
+    },
+    setCurrentScreen(state, action: PayloadAction<string>) {
+      state.previousScreen = state.currentScreen;
+      state.currentScreen = action.payload;
+    },
+    setInAppPopupVisible(state, action: PayloadAction<boolean>) {
+      state.isInAppPopupVisible = action.payload;
     },
   },
 });

@@ -1,7 +1,7 @@
 import { InitSDKConfig, SDKResponse, IdentityPayload } from './types';
 import { store } from './store';
 import { sdkActions } from './store/sdkSlice';
-import { sendEventThunk, setIdentityThunk } from './store/thunks';
+import { sendEventThunk, setIdentityThunk, trackScreenThunk } from './store/thunks';
 import { getSessionId } from './services/SessionService';
 import { lifecycleService } from './services/LifecycleService';
 import { buildEvent, trackEvent } from './services/EventService';
@@ -67,11 +67,13 @@ class WyntaSDKClass {
         buildEvent('in_app_notification_clicked', { notification_id: notificationId, campaign_id: campaignId, cta_label: ctaLabel ?? null }, userId),
         clientId, clientSecret, baseUrl,
       ).catch((err) => logger.log(`[WyntaSDK] in_app_notification_clicked failed: ${err}`));
+      store.dispatch(sdkActions.setInAppPopupVisible(false));
     } else if (interactionType === 'dismissed') {
       trackEvent(
         buildEvent('in_app_notification_dismissed', { notification_id: notificationId, campaign_id: campaignId }, userId),
         clientId, clientSecret, baseUrl,
       ).catch((err) => logger.log(`[WyntaSDK] in_app_notification_dismissed failed: ${err}`));
+      store.dispatch(sdkActions.setInAppPopupVisible(false));
     }
   }
 
@@ -255,6 +257,27 @@ class WyntaSDKClass {
       return result.payload;
     }
     return { success: false, error: (result.payload as string) ?? 'Unknown error' };
+  }
+
+  /**
+   * Call this whenever a screen becomes visible to the user. The SDK stores the
+   * current screen, fires the screen_viewed analytics event, and evaluates any
+   * cached in-app notifications targeting this screen — all without making a
+   * network request from this call itself.
+   */
+  trackScreen(screenName: string): void {
+    if (!screenName || typeof screenName !== 'string') {
+      logger.log('[WyntaSDK] trackScreen: screenName must be a non-empty string');
+      return;
+    }
+
+    const { initialized } = store.getState().sdk;
+    if (!initialized) {
+      logger.log('[WyntaSDK] trackScreen skipped — SDK not initialized');
+      return;
+    }
+
+    store.dispatch(trackScreenThunk(screenName));
   }
 }
 

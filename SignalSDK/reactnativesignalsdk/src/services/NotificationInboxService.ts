@@ -10,6 +10,7 @@ export async function fetchInbox(
   baseUrl: string,
 ): Promise<InboxResponse> {
   const INBOX_URL = `${baseUrl}/events/notifications/inbox?user_id=${encodeURIComponent(userId)}&unread_only=true`;
+  //const INBOX_URL = `${baseUrl}/events/notifications/inbox?user_id=${encodeURIComponent(userId)}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 

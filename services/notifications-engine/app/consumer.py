@@ -120,14 +120,26 @@ async def handle_send_job(
         await _emit_delivery_event(producer, event)
         return
 
-    # 2. Template + user (run concurrently)
+    # 2. Template + user (run concurrently). inline_content is a
+    # flow-authored, self-contained alternative to template_id — treat it as
+    # a synthetic template doc so render_push/_handle_in_app need no changes.
+    async def _resolve_template() -> dict[str, Any] | None:
+        if job.template_id:
+            return await _get_cached_template(db, job.project_id, job.template_id)
+        if job.inline_content:
+            return {"body": job.inline_content}
+        return None
+
     template_doc, user_doc = await asyncio.gather(
-        _get_cached_template(db, job.project_id, job.template_id),
+        _resolve_template(),
         get_user(db, job.project_id, job.user_id, job.brand_id),
     )
 
     if not template_doc:
-        log.error("consumer.template_not_found", template_id=job.template_id)
+        log.error(
+            "consumer.template_not_found_or_missing_content",
+            template_id=job.template_id,
+        )
         return
 
     if job.channel == "in_app":
@@ -181,11 +193,14 @@ async def handle_send_job(
         await insert_notification_delivery(db, delivery_doc)
         return
 
+    extra: dict[str, Any] = {"campaign_id": job.campaign_id, "campaign_run_id": job.campaign_run_id}
+    if job.inline_content and job.inline_content.get("deep_link"):
+        extra["deep_link"] = job.inline_content["deep_link"]
     payload = RenderedPayload(
         title=rendered.title,
         body=rendered.body,
         image_url=rendered.image_url,
-        extra={"campaign_id": job.campaign_id, "campaign_run_id": job.campaign_run_id},
+        extra=extra,
     )
 
     # 5. Fan-out: one delivery per device token
