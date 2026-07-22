@@ -255,7 +255,9 @@ Database: `pam`
   provider: "fcm_stub" | "apns_stub" | "in_app" | "sendgrid" | "sendgrid_stub",
   provider_msg_id: "...",
   attempted_at: ISODate,
-  error: null | { code: str, message: str }
+  error: null | { code: str, message: str },
+  last_webhook_event: "delivered" | "open" | "click" | "bounce" | "spamreport" | "unsubscribe" | "group_unsubscribe",  // optional — set by notifications-engine's SendGrid Event Webhook handler (app/callbacks.py); does not affect `status`
+  last_webhook_event_at: ISODate                                          // optional — timestamp of the above
 }
 // Indexes:
 //   { project_id: 1, campaign_id: 1, user_id: 1 }

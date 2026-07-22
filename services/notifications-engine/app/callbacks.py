@@ -6,6 +6,7 @@ here SendGrid is the sender and we're the verifier, using SendGrid's own
 ECDSA "Signed Event Webhook" scheme.
 """
 import base64
+import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -80,6 +81,22 @@ async def sendgrid_events(request: Request) -> Response:
     return Response(status_code=200)
 
 
+async def _record_webhook_event(
+    request: Request, project_id: str, send_id: str, email: str, event_type: str
+) -> None:
+    db = request.app.state.db
+    token_hash = hashlib.sha256(email.encode()).hexdigest()[:16]
+    result = await db["notification_deliveries"].update_one(
+        {"project_id": project_id, "send_id": send_id, "token_hash": token_hash},
+        {"$set": {"last_webhook_event": event_type, "last_webhook_event_at": datetime.now(UTC)}},
+    )
+    if result.matched_count == 0:
+        log.warning(
+            "callbacks.delivery_record_not_found",
+            event_type=event_type, project_id=project_id, send_id=send_id,
+        )
+
+
 async def _handle_event(request: Request, evt: dict[str, Any]) -> None:
     event_type = evt.get("event")
     project_id = evt.get("project_id")
@@ -87,6 +104,13 @@ async def _handle_event(request: Request, evt: dict[str, Any]) -> None:
     if not project_id or not user_id:
         log.warning("callbacks.missing_custom_args", event_type=event_type)
         return
+
+    log.info("callbacks.event_received", event_type=event_type, project_id=project_id, user_id=user_id)
+
+    send_id = evt.get("send_id")
+    email = evt.get("email")
+    if send_id and email:
+        await _record_webhook_event(request, project_id, send_id, email, event_type)
 
     if event_type == "bounce" and evt.get("type") == "bounce":
         await _suppress(request, project_id, user_id, "email", "hard_bounce")
