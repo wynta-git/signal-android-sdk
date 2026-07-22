@@ -171,6 +171,7 @@ create_topic "pam.campaigns.send.v1"          12
 create_topic "pam.campaigns.schedule.v1"      4
 create_topic "pam.campaigns.schedule.dlq.v1"  1
 create_topic "pam.notifications.delivery.v1"  12
+create_topic "pam.campaigns.send.grouped.email.v1" 12
 
 # ── 6. verify mongodb ─────────────────────────────────────────────────────────
 section "6. Verifying MongoDB"

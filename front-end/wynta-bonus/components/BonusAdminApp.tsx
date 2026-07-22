@@ -72,6 +72,26 @@ const ChatPage = dynamic(
   () => import("wynta-react-common/components/chat/ChatPage"),
   { ssr: false },
 );
+const BonusDashboardPage = dynamic(
+  () => import("./dashboard/BonusDashboardPage"),
+  { ssr: false },
+);
+const BonusPerformanceReport = dynamic(
+  () => import("./reports/BonusPerformanceReport"),
+  { ssr: false },
+);
+const BudgetSpendReport = dynamic(
+  () => import("./reports/BudgetSpendReport"),
+  { ssr: false },
+);
+const PlayerActivityReport = dynamic(
+  () => import("./reports/PlayerActivityReport"),
+  { ssr: false },
+);
+const CustomReportBuilder = dynamic(
+  () => import("./reports/CustomReportBuilder"),
+  { ssr: false },
+);
 
 interface ContextItem {
   icon?: string;
@@ -158,6 +178,7 @@ function BonusShell() {
 
   const prevBrandRef = useRef<number | null>(null);
   const prevKpiStatusRef = useRef(kpiStatus);
+
 
   // kpiSlice flips status back to 'idle' after any head/subhead/configure/promo
   // code create or edit so the header stats don't go stale — refetch here.
@@ -464,6 +485,16 @@ function BonusShell() {
         <WorkspaceSettingsPage />
       ) : sidebarActive === "billing" ? (
         <BillingPricingPage />
+      ) : sidebarActive === "dashboard" ? (
+        <BonusDashboardPage brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "reports:performance" ? (
+        <BonusPerformanceReport brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "reports:budget-spend" ? (
+        <BudgetSpendReport brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "reports:player-activity" ? (
+        <PlayerActivityReport brandId={selectedBrand ?? undefined} />
+      ) : sidebarActive === "reports:custom" ? (
+        <CustomReportBuilder brandId={selectedBrand ?? undefined} />
       ) : sidebarActive === "segments" ? (
         <SegmentsPage brandId={selectedBrand ?? undefined} />
       ) : sidebarActive === "events" ? (

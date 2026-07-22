@@ -11,10 +11,29 @@ APScheduler from `campaign-engine`. campaign-engine now only owns CRUD/state rou
 - Kafka `pam.campaigns.schedule.v1` (executor consumer group)
 
 ## Outputs
-- Kafka `pam.campaigns.send.v1` (per-user send jobs → notifications-engine)
+- Kafka `pam.campaigns.send.v1` (per-user send jobs → notifications-engine) — push, in_app
+- Kafka `pam.campaigns.send.grouped.email.v1` (grouped send jobs, many user_ids per
+  message → notifications-engine) — email, and future sms/whatsapp/telegram
 - Kafka `pam.campaigns.schedule.dlq.v1` (failed campaigns after MAX_RETRY_COUNT)
 - MongoDB `campaigns` (updates picked, next_run_at, status, retry_count)
 - MongoDB `campaign_runs` (inserts and updates)
+
+## Grouped fan-out (email, and future batchable channels)
+
+`app/sender.py` has two fan-out functions: `run_campaign()` (unchanged, push/in_app —
+one `SendJob` per user) and `run_campaign_grouped()` (email/sms/whatsapp/telegram —
+same audience/rate-limit checks per user, but accumulates passing user_ids and emits
+one `GroupedSendJob` per batch instead). `app/executor.py`'s `handle_execution()` picks
+which one to call based on `campaign["channel"]`. Grouping happens here, upstream of
+Kafka, specifically so batch quality is independent of unrelated concurrent campaign
+traffic elsewhere on the platform — see `docs/notifications-channels.md` for the full
+rationale. **NEVER fetch user profile data or do template rendering here** —
+`run_campaign_grouped` only ever accumulates and emits bare `user_id`s; personalization
+happens entirely in notifications-engine.
+
+Batch size per channel is `batch_size_{email,sms,whatsapp}` in `app/config.py` (falls
+back to `batch_size_default`), overridable per-project via
+`projects.settings.batch_size_overrides` in MongoDB.
 
 ## Three async loops (all run in every pod)
 

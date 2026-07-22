@@ -15,6 +15,7 @@ declare global {
   }
 }
 import BrandSwitcher from 'wynta-react-common/components/BrandSwitcher';
+import CopilotPanel  from 'wynta-react-common/components/copilot/CopilotPanel';
 import CrmSidebar    from './CrmSidebar';
 import { listReports, createReport as createReportApi } from '../services/reportsApi';
 import type { ReportFilters, CustomReport } from '../services/reportsApi';
@@ -35,6 +36,7 @@ const ChurnRetentionReport    = dynamic(() => import('./reports/ChurnRetentionRe
 const CustomReportBuilder     = dynamic(() => import('./reports/CustomReportBuilder'), { ssr: false });
 const CustomReportView        = dynamic(() => import('./reports/CustomReportView'), { ssr: false });
 const ClientsPage             = dynamic(() => import('./clients/ClientsPage'),      { ssr: false });
+const SettingsPage             = dynamic(() => import('./settings/SettingsPage'),    { ssr: false });
 const ChatPage                = dynamic(() => import('wynta-react-common/components/chat/ChatPage'), { ssr: false });
 
 /**
@@ -165,15 +167,16 @@ function CrmShell() {
       <main className="crm-main">
         {headerFragmentFound === false && (
           <div className="crm-topbar">
-            <BrandSwitcher
-              value={selectedBrand}
-              onChange={(id) => {
-                dispatch(setSelectedBrand(id));
-                window.__fireBrandChange__?.(id);
-              }}
-              compact
-            />
-          </div>
+          <BrandSwitcher
+            value={selectedBrand}
+            onChange={(id) => {
+              dispatch(setSelectedBrand(id));
+              window.__fireBrandChange__?.(id);
+            }}
+            compact
+          />
+          <div style={{ flex: 1 }} />
+        </div>
         )}
         <div className="crm-content">
           {activeNav === 'dashboard'        ? <DashboardPage onNavChange={handleNavChange} brandId={brandId} /> :
@@ -181,7 +184,7 @@ function CrmShell() {
            activeNav === 'campaigns'        ? <CampaignsPage autoOpenAdd={campaignAutoAdd} brandId={brandId} /> :
            activeNav === 'events'           ? <EventsPage brandId={brandId} /> :
            activeNav === 'integrations'     ? <IntegrationsPage /> :
-           activeNav === 'clients'          ? <ClientsPage brandId={brandId} /> :
+           activeNav === 'clients'          ? <SettingsPage brandId={brandId} /> :
            activeNav === 'chat'             ? <ChatPage /> :
            activeNav === 'workspace-settings' ? <WorkspaceSettingsPage /> :
            activeNav === 'billing'            ? <BillingPricingPage />      :
@@ -211,6 +214,7 @@ function CrmShell() {
           )}
         </div>
       </main>
+      <CopilotPanel />
     </div>
   );
 }

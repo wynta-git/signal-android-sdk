@@ -54,7 +54,12 @@ async def get_or_create_producer(
         if producer is not None:
             return producer
         from shared.clients.kafka import make_kafka_producer
-        raw = await make_kafka_producer(bootstrap_servers)
+        from app.config import settings as _settings
+        raw = await make_kafka_producer(
+            bootstrap_servers,
+            sasl_username=_settings.kafka_sasl_username,
+            sasl_password=_settings.kafka_sasl_password,
+        )
         producer = KafkaEventProducer(raw, topic)
         producers[topic] = producer
         log.info("fanout_producer_created", topic=topic)

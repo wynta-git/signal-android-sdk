@@ -15,6 +15,12 @@ class RenderedPush(BaseModel):
     image_url: str | None = None
 
 
+class RenderedEmail(BaseModel):
+    subject: str
+    html: str
+    text: str | None = None
+
+
 class RenderedInApp(BaseModel):
     variant_id: str
     template_type: str
@@ -160,3 +166,48 @@ def render_push(
     body = _render(push.get("body", ""), render_ctx)
     image_url = push.get("image_url")
     return RenderedPush(title=title, body=body, image_url=image_url)
+
+
+def render_email_shared(
+    template_doc: dict[str, Any], project_doc: dict[str, Any] | None
+) -> RenderedEmail:
+    """Renders only the shared, non-personalized parts of an email template —
+    once per batch (1 recipient or many), using Jinja2 against `project`
+    context only. Anything that varies per recipient (name, campaign context
+    values, the unsubscribe link) must be written in the template as a literal
+    SendGrid substitution token — e.g. `-user.name-`, `-ctx.cart_value-`,
+    `-unsubscribe_url-` — which is NOT Jinja syntax and passes through
+    untouched here; SendGrid fills those in per-recipient at send time from
+    the dict build_email_substitutions() produces. A template that mistakenly
+    uses real Jinja syntax for a per-user value (e.g. `{{ user.name }}`) will
+    raise TemplateRenderError, since `user`/`ctx` are deliberately not part of
+    this render context."""
+    email = template_doc.get("body") or {}
+    render_ctx = {"project": project_doc or {}}
+    subject = _render(email.get("subject", ""), render_ctx)
+    html = _render(email.get("html", ""), render_ctx)
+    text = _render_opt(email.get("text"), render_ctx)
+    return RenderedEmail(subject=subject, html=html, text=text)
+
+
+def _flatten_to_tokens(prefix: str, value: Any, out: dict[str, str]) -> None:
+    if isinstance(value, dict):
+        for key, sub_value in value.items():
+            _flatten_to_tokens(f"{prefix}.{key}", sub_value, out)
+    else:
+        out[f"-{prefix}-"] = "" if value is None else str(value)
+
+
+def build_email_substitutions(
+    user_doc: dict[str, Any] | None,
+    ctx: dict[str, Any],
+    unsubscribe_url: str,
+) -> dict[str, str]:
+    """Per-recipient substitution values for one SendGrid personalization —
+    flattens user.traits/ctx into dotted-path tokens (`-user.name-`,
+    `-ctx.cart_value-`) plus `-unsubscribe_url-`."""
+    out: dict[str, str] = {}
+    _flatten_to_tokens("user", (user_doc or {}).get("traits", {}), out)
+    _flatten_to_tokens("ctx", ctx, out)
+    out["-unsubscribe_url-"] = unsubscribe_url
+    return out

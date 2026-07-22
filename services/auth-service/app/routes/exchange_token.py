@@ -74,6 +74,7 @@ async def exchange_token(body: ExchangeTokenRequest, request: Request) -> Exchan
         "iss": PORTAL_JWT_ISSUER,
         "type": PORTAL_TOKEN_TYPE,
         "project_id": ext_ctx.project_id,
+        "program_id": ext_ctx.program_id,
         "user_id": ext_ctx.sub,
         "dn": display_name,
         "iat": now,

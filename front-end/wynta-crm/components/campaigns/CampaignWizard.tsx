@@ -1,5 +1,10 @@
 'use client';
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useEditor, useEditorState, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
+import TextAlign from '@tiptap/extension-text-align';
 import { useDispatch } from 'react-redux';
 import Icon from 'wynta-react-common/components/Icon';
 import { useCommonSelector } from 'wynta-react-common/store/hooks';
@@ -9,16 +14,19 @@ import {
   selectAllSegments,
   selectSegmentsStatus,
   evaluateSegment,
+  fetchMetaEvents,
+  selectMetaEvents,
 } from 'wynta-react-common/store/slices/segmentsSlice';
-import type { Segment } from 'wynta-react-common/types';
+import type { Segment, MetaEventItem } from 'wynta-react-common/types';
 import AddSegmentModal from 'wynta-react-common/components/segments/AddSegmentModal';
+import MultiSelect from 'wynta-react-common/components/MultiSelect';
 import { createCampaign, updateCampaign, activateCampaign } from '../../store/slices/campaignsSlice';
 import type {
   Campaign, CampaignPayload, CampaignChannel, TriggerCriteria,
   CampaignSchedule, CampaignDeliveryControls, ContentBlock,
   Variant, Cta, InAppTemplateType,
 } from '../../services/campaignApi';
-import { uploadCampaignImage } from '../../services/campaignApi';
+import { uploadCampaignImage, fetchScreenCatalog, createScreen } from '../../services/campaignApi';
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                              */
@@ -92,6 +100,8 @@ interface Step1State {
   objective:          string;
   platforms:          string[];
   trigger_criteria:   TriggerCriteria;
+  target_screens:     string[]; // in_app + on_screen_load only — screen names, any-of
+  target_events:      string[]; // in_app + on_custom_event only — event names, any-of
   expires_in_hours:   string;   // in_app only — blank = never expires
   segment_id:         string;   // selected segment ID
   segment_name:       string;
@@ -109,6 +119,8 @@ const DEFAULT_S1: Step1State = {
   name: '', tags: '', objective: 'Retention',
   platforms: ['android', 'ios'],
   trigger_criteria: 'on_session_start',
+  target_screens: [],
+  target_events: [],
   expires_in_hours: '',
   segment_id: '', segment_name: '', segment_conditions: null,
   estimated_reach: 0,
@@ -126,6 +138,9 @@ interface Step2State {
   push_content:   string;
   push_deep_link: string;
   in_app_variants: Variant[];
+  email_subject: string;
+  email_html:    string;
+  email_text:    string;
 }
 
 const DEFAULT_BLOCK = (type: ContentBlock['type']): ContentBlock => ({
@@ -273,6 +288,8 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     objective:          campaign.objective           ?? '',   // blank if API omits it
     platforms:          campaign.platforms           ?? [],   // empty if API omits it
     trigger_criteria:   campaign.trigger_criteria   ?? 'on_session_start',
+    target_screens:     campaign.target_screens ?? [],
+    target_events:      campaign.target_events ?? [],
     expires_in_hours:   campaign.expires_in_hours != null ? String(campaign.expires_in_hours) : '',
     segment_id:         campaign.segment_id         ?? '',
     segment_name:       campaign.segment_name       ?? '',
@@ -292,6 +309,9 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
     push_content:   campaign?.content   ?? '',
     push_deep_link: campaign?.deep_link ?? '',
     in_app_variants: campaign?.variants?.length ? campaign.variants : [DEFAULT_VARIANT()],
+    email_subject:  campaign?.email_subject ?? '',
+    email_html:     campaign?.email_html    ?? '',
+    email_text:     campaign?.email_text    ?? '',
   }));
 
   /* Sync s2 push fields / in-app variants whenever campaign prop delivers
@@ -354,6 +374,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
   function buildPayload(asDraft = false): CampaignPayload {
     const isPush  = channel === 'push';
     const isInApp = channel === 'in_app';
+    const isEmail = channel === 'email';
 
     /* ── Schedule payload ── */
     let schedule: CampaignSchedule;
@@ -402,19 +423,33 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
       objective:        s1.objective,
       tags:             s1.tags ? s1.tags.split(',').map(t => t.trim()) : [],
       platforms:        s1.platforms,
-      /* Push omits trigger_criteria */
-      ...(isPush ? {} : { trigger_criteria: s1.trigger_criteria }),
+      /* trigger_criteria is an in_app-only SDK-display concept — meaningless
+         for push, email, or any other channel */
+      ...(isInApp ? { trigger_criteria: s1.trigger_criteria } : {}),
+      /* in_app + on_screen_load only — screen names, any-of */
+      ...(isInApp && s1.trigger_criteria === 'on_screen_load' && s1.target_screens.length
+        ? { target_screens: s1.target_screens }
+        : {}),
+      /* in_app + on_custom_event only — event names, any-of */
+      ...(isInApp && s1.trigger_criteria === 'on_custom_event' && s1.target_events.length
+        ? { target_events: s1.target_events }
+        : {}),
       /* in_app only — blank input means "never expires" */
       ...(isInApp && s1.expires_in_hours.trim() ? { expires_in_hours: Number(s1.expires_in_hours) } : {}),
       segment_id:       s1.segment_id || undefined,
       segment_name:     s1.segment_name,
-      /* Push-specific content fields / in-app template variants / block canvas */
+      /* Push-specific content fields / in-app template variants / email
+         content / block canvas (fallback for any other channel) */
       ...(isPush ? {
         title:     s2.push_title.trim()     || undefined,
         content:   s2.push_content.trim()   || undefined,
         deep_link: s2.push_deep_link.trim() || undefined,
       } : isInApp ? {
         variants: s2.in_app_variants,
+      } : isEmail ? {
+        email_subject: s2.email_subject.trim() || undefined,
+        email_html:    s2.email_html.trim()    || undefined,
+        email_text:    s2.email_text.trim()    || undefined,
       } : {
         content_blocks: s2.blocks,
       }),
@@ -488,6 +523,9 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
           }
         });
       });
+    } else if (channel === 'email') {
+      if (!s2.email_subject.trim())        errs.push({ key: 'email_subject', message: 'Email subject is required.' });
+      if (isEmailHtmlEmpty(s2.email_html)) errs.push({ key: 'email_html',    message: 'A message is required.' });
     }
     return errs;
   }
@@ -673,7 +711,7 @@ export default function CampaignWizard({ channel, campaign, viewMode = false, on
 
       {/* ── Scrollable step content ── */}
       <div className="cwiz-body">
-        {step === 1 && <Step1 s={s1} onChange={setS1} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
+        {step === 1 && <Step1 s={s1} onChange={setS1} channel={channel} errors={fieldErrors} errorTick={errorTick} brandId={brandId} />}
         {step === 2 && <Step2 s={s2} onChange={setS2} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
         {step === 3 && <Step3 s={s3} onChange={setS3} channel={channel} errors={fieldErrors} errorTick={errorTick} />}
       </div>
@@ -876,12 +914,59 @@ function SegmentPicker({ selectedId, selectedName, onSelect }: SegmentPickerProp
 /* ================================================================== */
 /* STEP 1 — Target Segment                                             */
 /* ================================================================== */
-interface Step1Props { s: Step1State; onChange: (s: Step1State) => void; channel: string; errors?: Set<string>; errorTick?: number; }
+interface Step1Props { s: Step1State; onChange: (s: Step1State) => void; channel: string; errors?: Set<string>; errorTick?: number; brandId?: number; }
 
-function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
+function Step1({ s, onChange, channel, errors, errorTick, brandId }: Step1Props) {
   const dispatch = useDispatch<any>();
   const set      = (patch: Partial<Step1State>) => onChange({ ...s, ...patch });
   const isPush   = channel === 'push';
+  const isInApp  = channel === 'in_app';
+
+  const projectId  = useCommonSelector(selectProjectId) ?? process.env.NEXT_PUBLIC_PROJECT_ID ?? 'proj_demo';
+  const metaEvents = useCommonSelector(selectMetaEvents);
+  useEffect(() => {
+    if (!isInApp) return;
+    dispatch(fetchMetaEvents({ projectId, brandId }) as any);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInApp, projectId, brandId]);
+  const eventOptions = (metaEvents ?? [])
+    .filter((e: MetaEventItem) => e.source === 'raw_event')
+    .map((e: MetaEventItem) => e.id);
+
+  const [screenOptions, setScreenOptions] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isInApp) return;
+    let cancelled = false;
+    fetchScreenCatalog(projectId, brandId).then(screens => {
+      if (!cancelled) setScreenOptions(screens);
+    }).catch(() => {
+      /* leave screenOptions as-is on failure */
+    });
+    return () => { cancelled = true; };
+  }, [isInApp, projectId, brandId]);
+
+  const [showAddScreen, setShowAddScreen] = useState(false);
+  const [newScreenName, setNewScreenName] = useState('');
+  const [addingScreen, setAddingScreen]   = useState(false);
+  const [addScreenError, setAddScreenError] = useState<string | null>(null);
+
+  const handleAddScreen = async () => {
+    const name = newScreenName.trim();
+    if (!name) return;
+    setAddingScreen(true);
+    setAddScreenError(null);
+    try {
+      const screens = await createScreen(projectId, name, brandId);
+      setScreenOptions(screens);
+      if (!s.target_screens.includes(name)) set({ target_screens: [...s.target_screens, name] });
+      setNewScreenName('');
+      setShowAddScreen(false);
+    } catch {
+      setAddScreenError('Could not add screen. Please try again.');
+    } finally {
+      setAddingScreen(false);
+    }
+  };
 
   const [previewCount, setPreviewCount] = useState<number | null>(null);
   const [previewing, setPreviewing]     = useState(false);
@@ -1003,15 +1088,15 @@ function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
         {errors?.has('platforms') && <span className="cwiz-field-error">Select at least one target platform.</span>}
       </div>
 
-      {/* Trigger criteria — hidden for Push */}
-      {!isPush && <div className="cwiz-card">
+      {/* Trigger criteria — in_app only (an SDK-display concept; meaningless
+          for push, email, or any other channel) */}
+      {isInApp && <div className="cwiz-card">
         <div className="cwiz-card-title">Trigger criteria <span className="cwiz-req">*</span></div>
         <div className="cwiz-trigger-grid">
           {TRIGGERS.map(t => {
-            /* in_app only supports on_session_start this phase — the other
-               two triggers are shown but disabled with a "Coming soon" tag.
-               Other channels sharing this card are unaffected. */
-            const comingSoon = channel === 'in_app' && t.id !== 'on_session_start';
+            /* All three in_app trigger types are now fully supported —
+               on_session_start, on_screen_load, and on_custom_event. */
+            const comingSoon = false;
             return (
               <button
                 key={t.id}
@@ -1027,6 +1112,68 @@ function Step1({ s, onChange, channel, errors, errorTick }: Step1Props) {
             );
           })}
         </div>
+        {channel === 'in_app' && s.trigger_criteria === 'on_screen_load' && (
+          <div className="cwiz-field" style={{ marginTop: 12, maxWidth: 320 }}>
+            <label className="cwiz-label">Target screens</label>
+            <MultiSelect
+              options={screenOptions}
+              value={s.target_screens}
+              onChange={v => set({ target_screens: v })}
+            />
+            {!showAddScreen && (
+              <button
+                type="button"
+                className="cwiz-seg-add-btn"
+                style={{ marginTop: 6 }}
+                onClick={() => setShowAddScreen(true)}
+              >
+                + Add new screen
+              </button>
+            )}
+            {showAddScreen && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <input
+                    className="cwiz-input"
+                    type="text"
+                    placeholder="e.g. checkout_screen"
+                    value={newScreenName}
+                    disabled={addingScreen}
+                    onChange={e => setNewScreenName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddScreen(); } }}
+                  />
+                  {addScreenError && <span className="cwiz-field-error">{addScreenError}</span>}
+                </div>
+                <button
+                  type="button"
+                  className="cwiz-ph-chip"
+                  disabled={addingScreen || !newScreenName.trim()}
+                  title={!newScreenName.trim() ? 'Type a screen name first' : undefined}
+                  onClick={handleAddScreen}
+                >
+                  {addingScreen ? 'Adding…' : 'Add'}
+                </button>
+                <button
+                  type="button"
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--crm-fg4,#9AA0A6)', padding: '8px 2px' }}
+                  onClick={() => { setShowAddScreen(false); setNewScreenName(''); setAddScreenError(null); }}
+                >
+                  <Icon name="x" size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {channel === 'in_app' && s.trigger_criteria === 'on_custom_event' && (
+          <div className="cwiz-field" style={{ marginTop: 12, maxWidth: 320 }}>
+            <label className="cwiz-label">Target events</label>
+            <MultiSelect
+              options={eventOptions}
+              value={s.target_events}
+              onChange={v => set({ target_events: v })}
+            />
+          </div>
+        )}
       </div>}
 
       {/* Notification expiry — in_app only */}
@@ -1404,6 +1551,11 @@ function Step2({ s, onChange, channel, errors, errorTick }: Step2Props) {
     return <InAppEditor s={s} onChange={onChange} errors={errors} errorTick={errorTick} />;
   }
 
+  /* ── Email content authoring ── */
+  if (channel === 'email') {
+    return <EmailContentEditor s={s} onChange={onChange} errors={errors} errorTick={errorTick} />;
+  }
+
   /* ── Block builder (non-push, non-in_app channels) ── */
   const addBlock = (type: ContentBlock['type']) => onChange({ ...s, blocks: [...s.blocks, DEFAULT_BLOCK(type)] });
   const removeBlock = (id: string) => onChange({ ...s, blocks: s.blocks.filter(b => b.id !== id) });
@@ -1472,6 +1624,238 @@ const IN_APP_HTML_TYPES: { type: InAppTemplateType; label: string }[] = [
 ];
 const IN_APP_TYPE_LABEL: Record<InAppTemplateType, string> =
   Object.fromEntries([...IN_APP_NATIVE_TYPES, ...IN_APP_HTML_TYPES].map(t => [t.type, t.label])) as Record<InAppTemplateType, string>;
+
+/* ------------------------------------------------------------------ */
+/* Email content authoring — plain subject/HTML/text inputs (no rich-  */
+/* text editor anywhere in this app yet). Personalization uses two     */
+/* syntaxes: real Jinja2 ({{ project.x }}) for content shared across    */
+/* every recipient, rendered once server-side; literal -token- strings  */
+/* (e.g. -user.name-, -unsubscribe_url-) for anything per-recipient,    */
+/* filled in by SendGrid at send time. See notifications-engine's       */
+/* render_email_shared()/build_email_substitutions() for the backend    */
+/* half of this contract.                                               */
+/* ------------------------------------------------------------------ */
+const EMAIL_TOKENS = ['-user.name-', '-user.email-', '-unsubscribe_url-'] as const;
+
+// Plain-text fallback authoring is hidden in the UI for now (not removed —
+// the field/state/payload wiring all still work, campaigns can still carry
+// email_text if set some other way). Flip back to true to re-show it.
+const SHOW_EMAIL_TEXT_FIELD = false;
+
+// TipTap renders a genuinely empty document as "<p></p>" (or "<p><br></p>"),
+// not "" — strip tags before checking for required-field emptiness.
+function isEmailHtmlEmpty(html: string): boolean {
+  return !html.replace(/<[^>]*>/g, '').trim();
+}
+
+interface EmailContentEditorProps { s: Step2State; onChange: (s: Step2State) => void; errors?: Set<string>; errorTick?: number; }
+
+function EmailContentEditor({ s, onChange, errors, errorTick }: EmailContentEditorProps) {
+  const set = (patch: Partial<Step2State>) => onChange({ ...s, ...patch });
+  // Kept current in a ref so the TipTap onUpdate closure (bound once at
+  // editor creation) always writes through the latest onChange, regardless
+  // of whether the parent passes a stable callback reference.
+  const setRef = useRef(set);
+  setRef.current = set;
+
+  const subjectRef      = useRef<HTMLInputElement>(null);
+  const richtextWrapRef = useRef<HTMLDivElement>(null);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Link.configure({ openOnClick: false, autolink: true }),
+      Placeholder.configure({ placeholder: 'Write your email message here…' }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    ],
+    content: s.email_html,
+    immediatelyRender: false,
+    onUpdate: ({ editor }) => {
+      setRef.current({ email_html: editor.getHTML() });
+    },
+  }, []);
+
+  // Explicit, granular subscription so the toolbar's pressed/active state
+  // (bold/italic/list/link) reliably updates on every keystroke or selection
+  // change — reading editor.isActive(...) directly in JSX is not guaranteed
+  // to re-render the component on every transaction.
+  const toolbarState = useEditorState({
+    editor,
+    selector: ctx => ({
+      bold:         ctx.editor?.isActive('bold') ?? false,
+      italic:       ctx.editor?.isActive('italic') ?? false,
+      underline:    ctx.editor?.isActive('underline') ?? false,
+      heading1:     ctx.editor?.isActive('heading', { level: 1 }) ?? false,
+      heading2:     ctx.editor?.isActive('heading', { level: 2 }) ?? false,
+      bulletList:   ctx.editor?.isActive('bulletList') ?? false,
+      orderedList:  ctx.editor?.isActive('orderedList') ?? false,
+      alignLeft:    ctx.editor?.isActive({ textAlign: 'left' }) ?? false,
+      alignCenter:  ctx.editor?.isActive({ textAlign: 'center' }) ?? false,
+      alignRight:   ctx.editor?.isActive({ textAlign: 'right' }) ?? false,
+      link:         ctx.editor?.isActive('link') ?? false,
+    }),
+  }) ?? {
+    bold: false, italic: false, underline: false, heading1: false, heading2: false,
+    bulletList: false, orderedList: false, alignLeft: false, alignCenter: false, alignRight: false,
+    link: false,
+  };
+
+  useEffect(() => {
+    if (!errors || errors.size === 0) return;
+    if (errors.has('email_subject') && subjectRef.current) {
+      subjectRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      subjectRef.current.focus();
+      return;
+    }
+    if (errors.has('email_html') && richtextWrapRef.current) {
+      richtextWrapRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      editor?.commands.focus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [errorTick]);
+
+  const insertToken = (token: string) => {
+    editor?.chain().focus().insertContent(token).run();
+  };
+
+  const setLink = () => {
+    const previousUrl = editor?.getAttributes('link').href as string | undefined;
+    const url = window.prompt('Link URL', previousUrl ?? 'https://');
+    if (url === null) return;
+    if (!url) { editor?.chain().focus().extendMarkRange('link').unsetLink().run(); return; }
+    editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  };
+
+  return (
+    <div className="cwiz-step-body">
+      <div className="cwiz-card">
+        <div className="cwiz-card-title">Email Content</div>
+
+        <div className="cwiz-field" style={{ marginBottom: 14 }}>
+          <label className="cwiz-label">
+            Subject <span className="cwiz-req">*</span>
+          </label>
+          <input
+            ref={subjectRef}
+            className={'cwiz-input' + (errors?.has('email_subject') ? ' cwiz-input--error' : '')}
+            type="text"
+            placeholder="e.g. Your weekly bonus is here"
+            value={s.email_subject}
+            onChange={e => set({ email_subject: e.target.value })}
+          />
+          {errors?.has('email_subject') && <span className="cwiz-field-error">Email subject is required.</span>}
+        </div>
+
+        <div className="cwiz-ph-row">
+          <span className="cwiz-ph-label">Insert token:</span>
+          {EMAIL_TOKENS.map(tok => (
+            <button
+              key={tok}
+              type="button"
+              className="cwiz-ph-chip"
+              onMouseDown={e => { e.preventDefault(); insertToken(tok); }}
+            >
+              {tok}
+            </button>
+          ))}
+        </div>
+        <div className="cwiz-field" style={{ marginBottom: 14 }}>
+          <label className="cwiz-label">
+            Message <span className="cwiz-req">*</span>
+          </label>
+          <div
+            ref={richtextWrapRef}
+            className={'cwiz-richtext-wrap' + (errors?.has('email_html') ? ' cwiz-richtext-wrap--error' : '')}
+          >
+            <div className="cwiz-rt-toolbar">
+              <button type="button" title="Bold (click again to turn off)" aria-label="Bold" aria-pressed={toolbarState.bold}
+                className={'cwiz-rt-btn' + (toolbarState.bold ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBold().run(); }}>
+                <Icon name="bold" size={16} />
+              </button>
+              <button type="button" title="Italic (click again to turn off)" aria-label="Italic" aria-pressed={toolbarState.italic}
+                className={'cwiz-rt-btn' + (toolbarState.italic ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleItalic().run(); }}>
+                <Icon name="italic" size={16} />
+              </button>
+              <button type="button" title="Underline (click again to turn off)" aria-label="Underline" aria-pressed={toolbarState.underline}
+                className={'cwiz-rt-btn' + (toolbarState.underline ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleUnderline().run(); }}>
+                <Icon name="underline" size={16} />
+              </button>
+              <span className="cwiz-rt-divider" />
+              <button type="button" title="Heading" aria-label="Heading 1" aria-pressed={toolbarState.heading1}
+                className={'cwiz-rt-btn' + (toolbarState.heading1 ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleHeading({ level: 1 }).run(); }}>
+                <Icon name="heading-1" size={16} />
+              </button>
+              <button type="button" title="Subheading" aria-label="Heading 2" aria-pressed={toolbarState.heading2}
+                className={'cwiz-rt-btn' + (toolbarState.heading2 ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleHeading({ level: 2 }).run(); }}>
+                <Icon name="heading-2" size={16} />
+              </button>
+              <span className="cwiz-rt-divider" />
+              <button type="button" title="Bullet list" aria-label="Bullet list" aria-pressed={toolbarState.bulletList}
+                className={'cwiz-rt-btn' + (toolbarState.bulletList ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBulletList().run(); }}>
+                <Icon name="list" size={16} />
+              </button>
+              <button type="button" title="Numbered list" aria-label="Numbered list" aria-pressed={toolbarState.orderedList}
+                className={'cwiz-rt-btn' + (toolbarState.orderedList ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleOrderedList().run(); }}>
+                <Icon name="list-ordered" size={16} />
+              </button>
+              <span className="cwiz-rt-divider" />
+              <button type="button" title="Align left" aria-label="Align left" aria-pressed={toolbarState.alignLeft}
+                className={'cwiz-rt-btn' + (toolbarState.alignLeft ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('left').run(); }}>
+                <Icon name="align-left" size={16} />
+              </button>
+              <button type="button" title="Align center" aria-label="Align center" aria-pressed={toolbarState.alignCenter}
+                className={'cwiz-rt-btn' + (toolbarState.alignCenter ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('center').run(); }}>
+                <Icon name="align-center" size={16} />
+              </button>
+              <button type="button" title="Align right" aria-label="Align right" aria-pressed={toolbarState.alignRight}
+                className={'cwiz-rt-btn' + (toolbarState.alignRight ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setTextAlign('right').run(); }}>
+                <Icon name="align-right" size={16} />
+              </button>
+              <span className="cwiz-rt-divider" />
+              <button type="button" title="Insert divider" aria-label="Insert divider"
+                className="cwiz-rt-btn"
+                onMouseDown={e => { e.preventDefault(); editor?.chain().focus().setHorizontalRule().run(); }}>
+                <Icon name="separator-horizontal" size={16} />
+              </button>
+              <button type="button" title="Insert link" aria-label="Insert link" aria-pressed={toolbarState.link}
+                className={'cwiz-rt-btn' + (toolbarState.link ? ' active' : '')}
+                onMouseDown={e => { e.preventDefault(); setLink(); }}>
+                <Icon name="link" size={16} />
+              </button>
+            </div>
+            <div className="cwiz-richtext" onClick={() => editor?.commands.focus()}>
+              <EditorContent editor={editor} />
+            </div>
+          </div>
+          {errors?.has('email_html') && <span className="cwiz-field-error">A message is required.</span>}
+        </div>
+
+        {SHOW_EMAIL_TEXT_FIELD && (
+          <div className="cwiz-field">
+            <label className="cwiz-label">Plain-text fallback</label>
+            <textarea
+              className="cwiz-textarea"
+              rows={4}
+              placeholder="Optional — shown by email clients that don't render HTML"
+              value={s.email_text}
+              onChange={e => set({ email_text: e.target.value })}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface InAppEditorProps { s: Step2State; onChange: (s: Step2State) => void; errors?: Set<string>; errorTick?: number; }
 

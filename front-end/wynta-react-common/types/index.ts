@@ -13,6 +13,10 @@ export interface WyntaBridge {
   allowed?: string[];
   is_admin?: boolean;
   site_id?: number;
+  /** String product slug (e.g. 'bonus'/'crm'/'affiliate') sent by an embedding parent — distinct from the numeric site_id brand. */
+  brand?: string;
+  /** Current page/section slug sent by an embedding parent. */
+  page?: string;
 }
 
 export type AsyncStatus = 'idle' | 'loading' | 'succeeded' | 'failed';
@@ -38,6 +42,22 @@ export interface AuthResponse {
 
 /** Flat key-value UI settings for the current system_user, from GET /users/me/settings */
 export type UserSettings = Record<string, string>;
+
+// ── AI Co-pilot ───────────────────────────────────────────────────────────────
+
+export interface CopilotMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  ts: number;
+}
+
+export type CopilotTab = 'thread' | 'copilot';
+
+export interface CopilotContext {
+  module: string;
+  site_id: number | null;
+}
 
 // ── Segments & Players ────────────────────────────────────────────────────────
 
