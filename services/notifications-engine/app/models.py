@@ -12,7 +12,12 @@ class SendJob(BaseModel):
     user_id: str
     brand_id: str | None = None
     channel: str
-    template_id: str
+    # Exactly one of template_id/inline_content is set. inline_content is
+    # for flow-authored, self-contained content with no real campaign or
+    # template behind it — rendered as if it were a template's `body` field
+    # (see handle_send_job in consumer.py).
+    template_id: str | None = None
+    inline_content: dict[str, Any] | None = None
     trigger_type: str | None = None
     target_screens: list[str] | None = None
     target_events: list[str] | None = None
