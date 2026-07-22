@@ -20,6 +20,8 @@ _CH_OP_MAP: dict[str, str] = {
     "gte": ">=",
     "lt": "<",
     "lte": "<=",
+    "before": "<",
+    "after": ">",
 }
 
 # Maps DSL trait operators to MongoDB comparison operators
@@ -30,6 +32,8 @@ _MONGO_OP_MAP: dict[str, str] = {
     "gte": "$gte",
     "lt": "$lt",
     "lte": "$lte",
+    "before": "$lt",
+    "after": "$gt",
     "in": "$in",
     "not_in": "$nin",
 }
