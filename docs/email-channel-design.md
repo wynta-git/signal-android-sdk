@@ -172,12 +172,12 @@ implication.
 PAM generates and signs its own one-click unsubscribe link (`app/unsubscribe.py`,
 HMAC-SHA256 over `project_id:user_id`), injected as the `-unsubscribe_url-` token —
 rather than relying on SendGrid's native Subscription Tracking feature. This keeps the
-link's format and landing page under PAM's own control (`GET /v1/email/unsubscribe`)
+link's format and landing page under PAM's own control (`GET /api/v1/email/unsubscribe`)
 rather than delegating it to SendGrid's account-level settings.
 
 ### 4.6 Bounce/complaint handling
 
-SendGrid's **Event Webhook** (`POST /v1/email/events`) is signed with SendGrid's own
+SendGrid's **Event Webhook** (`POST /api/v1/email/events`) is signed with SendGrid's own
 ECDSA scheme (`X-Twilio-Email-Event-Webhook-Signature`/`-Timestamp` headers) — this is
 distinct from PAM's outbound `webhook` channel's HMAC scheme (that one governs
 customer-facing webhooks PAM sends out; this one is inbound, from SendGrid to PAM).
@@ -270,12 +270,12 @@ notifications-engine, where it gets parsed/validated).
   `suppressed_user_ids()` (batch, one Redis pipeline) and `suppress()` (write path,
   used by `callbacks.py`).
 - **`app/unsubscribe.py`** (new): `build_unsubscribe_url()` / `verify_unsubscribe_token()`.
-- **`app/callbacks.py`** (new): `POST /v1/email/events` (SendGrid Event Webhook,
-  ECDSA-verified) and `GET /v1/email/unsubscribe` (HMAC-verified one-click landing page).
+- **`app/callbacks.py`** (new): `POST /api/v1/email/events` (SendGrid Event Webhook,
+  ECDSA-verified) and `GET /api/v1/email/unsubscribe` (HMAC-verified one-click landing page).
 - **`app/main.py`** (rewritten): raw-socket health server → FastAPI + `lifespan`,
   following `campaign-engine/app/main.py`'s established pattern. Starts **two**
   background consumer tasks (the original `consumer_loop` for push/in_app, plus the
-  new `grouped_email_consumer_loop`), serves `/health` and the new `/v1/email/*` routes.
+  new `grouped_email_consumer_loop`), serves `/health` and the new `/api/v1/email/*` routes.
 
 ## 6. Data Model Reference
 

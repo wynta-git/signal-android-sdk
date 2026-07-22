@@ -115,7 +115,7 @@ app = FastAPI(
     redoc_url=None,
 )
 
-app.include_router(callbacks_router, prefix="/v1/email")
+app.include_router(callbacks_router, prefix="/api/v1/email")
 
 
 @app.get("/health", include_in_schema=False)

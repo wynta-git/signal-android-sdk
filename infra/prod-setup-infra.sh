@@ -342,6 +342,7 @@ create_topic "pam.campaigns.send.v1"          12
 create_topic "pam.campaigns.schedule.v1"      4
 create_topic "pam.campaigns.schedule.dlq.v1"  1
 create_topic "pam.notifications.delivery.v1"  12
+create_topic "pam.campaigns.send.grouped.email.v1" 12
 
 # ── 3b. Kafka SASL/SCRAM-SHA-256 (optional — only runs when KAFKA_SASL_USER is set) ──
 if [ -n "$KAFKA_SASL_USER" ] && [ -n "$KAFKA_SASL_PASS" ]; then
@@ -494,6 +495,7 @@ echo "    pam.campaigns.send.v1             (12 partitions)"
 echo "    pam.campaigns.schedule.v1         (4 partitions)"
 echo "    pam.campaigns.schedule.dlq.v1     (1 partition)"
 echo "    pam.notifications.delivery.v1     (12 partitions)"
+echo "    pam.campaigns.send.grouped.email.v1 (12 partitions)"
 echo ""
 echo "  Next: on the app server, run:"
 echo "    git clone <repo> /home/ubuntu/pam"

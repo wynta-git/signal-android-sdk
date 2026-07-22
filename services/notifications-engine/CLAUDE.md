@@ -32,7 +32,7 @@ Deliver notifications. Render templates, call provider APIs, track delivery.
 
 - `app/main.py` — FastAPI app + lifespan; starts both the push/in_app consumer
   and the grouped-email consumer as background tasks, serves `/health` and the
-  `/v1/email/*` routes
+  `/api/v1/email/*` routes
 - `app/consumer.py` — push/in_app/single-recipient-email consumer (topic
   `pam.campaigns.send.v1`)
 - `app/grouped_email_consumer.py` — grouped-email consumer, its own topic

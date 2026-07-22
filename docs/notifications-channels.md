@@ -115,9 +115,9 @@ uses `{{ user.name }}` (real Jinja) instead of `-user.name-` will fail to render
 **Unsubscribe**: PAM generates and signs its own one-click unsubscribe link (HMAC,
 `app/unsubscribe.py`) injected as the `-unsubscribe_url-` token — not SendGrid's native
 Subscription Tracking — so the link is under our own control and lands on our own
-`GET /v1/email/unsubscribe` route.
+`GET /api/v1/email/unsubscribe` route.
 
-**Bounce/complaint webhook**: SendGrid's Event Webhook (`POST /v1/email/events`) is
+**Bounce/complaint webhook**: SendGrid's Event Webhook (`POST /api/v1/email/events`) is
 signed with SendGrid's own ECDSA scheme (`X-Twilio-Email-Event-Webhook-Signature`/
 `-Timestamp` headers) — distinct from the "Webhook security" HMAC scheme below, which
 governs PAM's own *outbound* `webhook` channel, not this *inbound* one. Each event
