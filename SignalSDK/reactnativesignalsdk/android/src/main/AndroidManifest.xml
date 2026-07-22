@@ -3,11 +3,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application>
         <activity
-            android:name=".InAppPopupActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:excludeFromRecents="true"
-            android:noHistory="true" />
-        <activity
             android:name=".InAppWebViewActivity"
             android:excludeFromRecents="true" />
     </application>

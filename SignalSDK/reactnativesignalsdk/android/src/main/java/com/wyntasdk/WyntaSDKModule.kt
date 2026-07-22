@@ -19,11 +19,11 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
         // Must match the default_notification_channel_id declared in the host app's AndroidManifest.xml
         const val CHANNEL_ID = "signal_default"
 
-        // Latest constructed module instance — InAppPopupActivity calls back into this to
+        // Latest constructed module instance — InAppPopupOverlay calls back into this to
         // emit events to JS, mirroring the iOS module's static `sharedInstance` pattern.
         private var instance: WyntaSDKModule? = null
 
-        // True while an InAppPopupActivity is on screen — guards against launching a
+        // True while an in-app popup overlay is on screen — guards against launching a
         // second one before the first resolves (JS also guards this, but this method
         // could in principle be called directly).
         private var popupShowing = false
@@ -264,16 +264,9 @@ class WyntaSDKModule(reactContext: ReactApplicationContext) :
         if (popupShowing) return
         val activity = reactApplicationContext.currentActivity ?: return
         popupShowing = true
-        val intent = Intent(activity, InAppPopupActivity::class.java).apply {
-            putExtra(InAppPopupActivity.EXTRA_NOTIFICATION_ID, notificationId)
-            putExtra(InAppPopupActivity.EXTRA_CAMPAIGN_ID, campaignId)
-            putExtra(InAppPopupActivity.EXTRA_IMAGE_URL, imageUrl)
-            putExtra(InAppPopupActivity.EXTRA_CTA_LABEL, ctaLabel)
-            putExtra(InAppPopupActivity.EXTRA_CTA_ACTION, ctaAction)
-            putExtra(InAppPopupActivity.EXTRA_CTA_VALUE, ctaValue)
+        activity.runOnUiThread {
+            InAppPopupOverlay.show(activity, notificationId, campaignId, imageUrl, ctaLabel, ctaAction, ctaValue)
         }
-        activity.startActivity(intent)
-        activity.overridePendingTransition(0, 0)
     }
 
     private fun sendEvent(eventName: String, params: WritableMap?) {

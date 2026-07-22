@@ -125,6 +125,9 @@ export interface InboxNotification {
   created_at: string;
   expires_at?: string;
   read: boolean;
+  trigger_type?: 'on_session_start' | 'on_screen_load' | 'on_custom_event' | null;
+  target_screens?: string[] | null;
+  target_events?: string[] | null;
 }
 
 export interface InboxResponse {

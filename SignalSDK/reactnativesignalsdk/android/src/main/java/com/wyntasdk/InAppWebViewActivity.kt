@@ -15,7 +15,7 @@ import android.widget.LinearLayout
 
 /**
  * Full-screen in-app browser for a notification CTA's `value` URL. Launched only from
- * InAppPopupActivity when a tapped CTA has a non-empty value — never declared or
+ * InAppPopupOverlay when a tapped CTA has a non-empty value — never declared or
  * referenced by the host app.
  */
 class InAppWebViewActivity : Activity() {
