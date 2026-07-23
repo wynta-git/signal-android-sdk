@@ -170,3 +170,76 @@ html, body {
 }
 .copilot-send:hover:not(:disabled) { background: var(--blue); }
 .copilot-send:disabled { opacity: 0.5; cursor: default; }
+
+/* ============================================================
+   Manual bridge-data prompt, shown only when /co-pilot is opened
+   outside its usual iframe embed (see CopilotBridgeAuth.tsx).
+   ============================================================ */
+.cba-overlay {
+  position: fixed; inset: 0;
+  background: rgba(17, 24, 39, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+
+.cba-modal {
+  width: 100%; max-width: 380px;
+  max-height: 90vh; overflow-y: auto;
+  background: #fff;
+  border-radius: var(--rxl);
+  box-shadow: var(--shm);
+  padding: 22px 24px;
+  font-family: var(--font);
+}
+
+.cba-modal__title {
+  margin: 0 0 8px;
+  font-size: 15px; font-weight: 700;
+  color: var(--g900);
+}
+
+.cba-modal__subtitle {
+  margin: 0 0 18px;
+  font-size: 12.5px; line-height: 1.5;
+  color: var(--g600);
+}
+
+.cba-form-field {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-bottom: 14px;
+}
+
+.cba-form-label {
+  font-size: 12.5px; font-weight: 600;
+  color: var(--g700);
+}
+
+.cba-form-input {
+  font-family: var(--font); font-size: 13.5px;
+  color: var(--g900);
+  padding: 8px 10px;
+  border: 1px solid var(--g300);
+  border-radius: var(--r);
+  outline: none;
+}
+.cba-form-input:focus { border-color: var(--blue); }
+
+.cba-form-hint {
+  font-size: 11.5px;
+  color: var(--g500);
+}
+
+.cba-modal__actions {
+  margin-top: 6px;
+  display: flex; justify-content: flex-end;
+}
+
+.cba-btn {
+  font-family: var(--font); font-size: 13.5px; font-weight: 600;
+  color: #fff;
+  background: var(--blue);
+  border: none; border-radius: var(--r);
+  padding: 9px 18px;
+  cursor: pointer;
+}
+.cba-btn:disabled { opacity: 0.5; cursor: default; }
