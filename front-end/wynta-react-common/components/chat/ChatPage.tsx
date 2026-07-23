@@ -14,7 +14,10 @@ export default function ChatPage() {
   const [token, setToken] = useState("");
   const [chatReady, setChatReady] = useState(false);
   const chatE2eeKey = useSelector(selectUserSetting("chat_e2ee_key"));
-  const siteId = useSelector(selectSiteId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const selectedBrand = useSelector((s: any) => s.ui?.selectedBrand as number | null);
+  const bridgeSiteId = useSelector(selectSiteId);
+  const siteId = selectedBrand ?? bridgeSiteId;
 
   useEffect(() => {
     const existing = getToken();
