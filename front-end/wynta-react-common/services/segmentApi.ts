@@ -113,10 +113,6 @@ type ExtendedRule = SegmentRule & {
   derivedParams?: Record<string, { op: string; value: string }>;
 };
 
-function toSnakeCase(s: string): string {
-  return s.trim().toLowerCase().replace(/[\s-]+/g, "_");
-}
-
 /**
  * Smart type coercion: converts string representations to their natural types.
  *   "true"/"false" → boolean
@@ -161,7 +157,7 @@ function mapRule(rule: ExtendedRule): object[] {
 
   // ── event ───────────────────────────────────────────────────────────────────
   if (field.startsWith("event:")) {
-    const eventName = toSnakeCase(field.replace(/^event:/, ""));
+    const eventName = field.replace(/^event:/, "");
     // Build where-conditions: always include the key even when empty
     const where: Record<string, { op: string; value: unknown }> = {};
     if (eventProp) {
