@@ -44,7 +44,16 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!token || !chatReady || !chatE2eeKey || !siteId) return;
+    if (!token || !chatReady || !chatE2eeKey || !siteId) {
+      const missing = [
+        !token && "token",
+        !chatReady && "chatReady",
+        !chatE2eeKey && "chatE2eeKey",
+        !siteId && "siteId",
+      ].filter(Boolean);
+      console.log("[ChatPage] waiting on:", missing.join(", "));
+      return;
+    }
     iframeRef.current?.contentWindow?.postMessage(
       { type: "AUTH_TOKEN", token, chat_e2ee_key: chatE2eeKey, site_id: siteId },
       CHAT_ORIGIN,
