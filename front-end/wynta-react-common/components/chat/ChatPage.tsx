@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { getToken } from "../../services/tokenRegistry";
 import { selectUserSetting } from "../../store/slices/settingsSlice";
+import { selectSiteId } from "../../store/slices/usersSlice";
 
 const CHAT_URL =
   process.env.NEXT_PUBLIC_CHAT_URL || "https://qa-chat.fozilpartners.com/chat/";
@@ -13,6 +14,7 @@ export default function ChatPage() {
   const [token, setToken] = useState("");
   const [chatReady, setChatReady] = useState(false);
   const chatE2eeKey = useSelector(selectUserSetting("chat_e2ee_key"));
+  const siteId = useSelector(selectSiteId);
 
   useEffect(() => {
     const existing = getToken();
@@ -42,12 +44,12 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!token || !chatReady || !chatE2eeKey) return;
+    if (!token || !chatReady || !chatE2eeKey || !siteId) return;
     iframeRef.current?.contentWindow?.postMessage(
-      { type: "AUTH_TOKEN", token, chat_e2ee_key: chatE2eeKey },
+      { type: "AUTH_TOKEN", token, chat_e2ee_key: chatE2eeKey, site_id: siteId },
       CHAT_ORIGIN,
     );
-  }, [token, chatReady, chatE2eeKey]);
+  }, [token, chatReady, chatE2eeKey, siteId]);
 
   return (
     <div
