@@ -27,7 +27,8 @@ import kotlinx.coroutines.launch
 internal class LifecycleService(
     private val scope: CoroutineScope,
     private val getState: () -> SDKState,
-    private val emit: suspend (eventName: String) -> Unit
+    private val emit: suspend (eventName: String) -> Unit,
+    private val checkInbox: suspend () -> Unit = {}
 ) : DefaultLifecycleObserver {
 
     @Volatile private var started = false
@@ -56,7 +57,10 @@ internal class LifecycleService(
         val s = getState()
         if (!s.initialized || !s.appOpenTracked) return
         Logger.log("Lifecycle → app_foreground")
-        scope.launch { emit("app_foreground") }
+        scope.launch {
+            emit("app_foreground")
+            checkInbox()
+        }
     }
 
     // Fires when all Activities are Stopped (app fully backgrounded)

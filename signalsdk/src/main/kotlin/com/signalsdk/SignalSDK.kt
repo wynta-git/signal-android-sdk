@@ -1,20 +1,28 @@
 package com.signalsdk
 
+import android.app.Activity
+import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.os.Bundle
 import com.signalsdk.config.SignalConfig
 import com.signalsdk.models.IdentifyRequest
 import com.signalsdk.models.IdentityPayload
+import com.signalsdk.models.InboxNotification
 import com.signalsdk.models.SDKResponse
 import com.signalsdk.services.DeviceService
 import com.signalsdk.services.EventService
 import com.signalsdk.services.IdentityService
 import com.signalsdk.services.LifecycleService
+import com.signalsdk.services.NotificationInboxService
 import com.signalsdk.services.SessionService
+import com.signalsdk.services.TriggerEngine
+import com.signalsdk.services.TriggerEvent
 import com.signalsdk.services.toJsonObject
 import com.signalsdk.store.SDKState
+import com.signalsdk.ui.InAppPopupOverlay
 import com.signalsdk.utils.ApiLogger
 import com.signalsdk.utils.Logger
 import com.signalsdk.utils.Storage
@@ -23,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.lang.ref.WeakReference
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -57,6 +66,7 @@ object SignalSDK {
     private lateinit var eventService: EventService
     private lateinit var identityService: IdentityService
     private lateinit var lifecycleService: LifecycleService
+    private lateinit var notificationInboxService: NotificationInboxService
 
     private val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
@@ -67,6 +77,35 @@ object SignalSDK {
     private const val QA_BASE_URL   = "https://qa-app.fozilpartners.com/api/v1"
     // Default FCM channel — must match default_notification_channel_id in host app's AndroidManifest.xml
     const val DEFAULT_CHANNEL_ID    = "signal_default"
+
+    // ── Current-Activity tracking (for in-app popup rendering) ─────────────────
+
+    @Volatile private var activityCallbacksRegistered = false
+    @Volatile private var currentActivityRef: WeakReference<Activity>? = null
+
+    // A notification that was marked handled + isInAppPopupVisible before any Activity was
+    // available to render it on (e.g. trackScreen()/sendEvent() called from a freshly-launched
+    // Activity's onCreate — the outgoing Activity has already paused, but the new one hasn't
+    // resumed yet). Flushed as soon as the next Activity resumes.
+    @Volatile private var pendingNotification: InboxNotification? = null
+
+    private val activityLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityResumed(activity: Activity) {
+            currentActivityRef = WeakReference(activity)
+            pendingNotification?.let { notification ->
+                pendingNotification = null
+                showOnActivity(activity, notification)
+            }
+        }
+        override fun onActivityPaused(activity: Activity) {
+            if (currentActivityRef?.get() === activity) currentActivityRef = null
+        }
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+        override fun onActivityStarted(activity: Activity) {}
+        override fun onActivityStopped(activity: Activity) {}
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+        override fun onActivityDestroyed(activity: Activity) {}
+    }
 
     // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -98,6 +137,12 @@ object SignalSDK {
         createDefaultChannel(context.applicationContext)
 
         appContext = context.applicationContext
+
+        if (!activityCallbacksRegistered) {
+            (appContext as? Application)?.registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
+            activityCallbacksRegistered = true
+        }
+
         val deviceService = DeviceService(appContext)
 
         // Restore persisted FCM token so it's available before setIdentity is called
@@ -105,10 +150,12 @@ object SignalSDK {
 
         eventService   = EventService(deviceService)
         identityService = IdentityService()
+        notificationInboxService = NotificationInboxService()
         lifecycleService = LifecycleService(
-            scope    = scope,
-            getState = { state },
-            emit     = { eventName -> emitLifecycleEvent(eventName) }
+            scope      = scope,
+            getState   = { state },
+            emit       = { eventName -> emitLifecycleEvent(eventName) },
+            checkInbox = { checkInbox() }
         )
 
         updateState { copy(
@@ -207,6 +254,14 @@ object SignalSDK {
                 listOf("sdk_init", "session_started", "app_opened").forEach { emitLifecycleEvent(it) }
             }
 
+            // Inbox is per-user — refetch whenever the identified user actually changes. This
+            // covers both the cold-start case (current.userId was null) and a later login that
+            // switches from an anonymous id to a real user id. app_foreground never fires on a
+            // fresh launch, so the cold-start case isn't otherwise covered.
+            if (result.success && userId != current.userId) {
+                checkInbox()
+            }
+
             callback?.invoke(result)
         }
     }
@@ -246,12 +301,62 @@ object SignalSDK {
         }
         require(eventName.isNotBlank()) { "eventName must not be blank" }
 
+        // on_custom_event evaluation — purely local, no network dependency, so it runs
+        // regardless of whether the /events/track call below succeeds.
+        if (!current.isInAppPopupVisible) {
+            val notification = TriggerEngine.findEligibleNotification(
+                current.notificationCache,
+                TriggerEvent.CustomEvent(eventName),
+                current.handledInAppNotificationIds
+            )
+            if (notification != null) displayNotification(notification)
+        }
+
         scope.launch {
             val event = eventService.buildEvent(eventName, properties, userId)
             Logger.log("sendEvent: $eventName | event_id=${event.event_id}")
             val result = eventService.trackEvent(event, current.clientId!!, current.clientSecret!!, current.baseUrl)
             callback?.invoke(result)
         }
+    }
+
+    // ── Screens & In-App Notifications ───────────────────────────────────────
+
+    /**
+     * Call this whenever a screen becomes visible to the user. The SDK stores the current
+     * screen, fires the `screen_viewed` analytics event, and evaluates any cached in-app
+     * notifications targeting this screen — all without making a network request from this
+     * call itself (the inbox is cached from the last [checkInbox] fetch).
+     */
+    fun trackScreen(screenName: String) {
+        if (screenName.isBlank()) {
+            Logger.log("trackScreen: screenName must not be blank")
+            return
+        }
+        val current = state
+        if (!current.initialized) {
+            Logger.log("trackScreen skipped — SDK not initialized")
+            return
+        }
+
+        val referrer = current.currentScreen
+        updateState { copy(previousScreen = current.currentScreen, currentScreen = screenName) }
+
+        val userId = current.userId
+        if (!userId.isNullOrBlank() && current.clientId != null && current.clientSecret != null) {
+            scope.launch {
+                trackDirectEvent("screen_viewed", mapOf("screen_name" to screenName, "referrer" to referrer), userId)
+            }
+        }
+
+        if (current.isInAppPopupVisible) return // don't stack a popup on rapid navigation
+
+        val notification = TriggerEngine.findEligibleNotification(
+            current.notificationCache,
+            TriggerEvent.ScreenLoad(screenName),
+            current.handledInAppNotificationIds
+        )
+        if (notification != null) displayNotification(notification)
     }
 
     // ── Notification Interaction Tracking ────────────────────────────────────
@@ -305,9 +410,131 @@ object SignalSDK {
         val current = state
         if (!current.initialized) return
         val userId = current.userId ?: return
-        val event = eventService.buildEvent(eventName, emptyMap(), userId)
-        Logger.log("Lifecycle event: $eventName | event_id=${event.event_id}")
+        trackDirectEvent(eventName, emptyMap(), userId)
+    }
+
+    // Sends an event straight through EventService, bypassing sendEvent()'s on_custom_event
+    // trigger check — used for interaction/lifecycle events that must not themselves be able
+    // to re-trigger an in-app popup.
+    private suspend fun trackDirectEvent(eventName: String, properties: Map<String, Any?>, userId: String) {
+        val current = state
+        val event = eventService.buildEvent(eventName, properties, userId)
+        Logger.log("trackDirectEvent: $eventName | event_id=${event.event_id}")
         eventService.trackEvent(event, current.clientId!!, current.clientSecret!!, current.baseUrl)
+    }
+
+    /**
+     * Fetches the notification inbox, caches it for [trackScreen]/[sendEvent] trigger checks,
+     * and — unless a popup is already showing — evaluates the on_session_start trigger and
+     * displays the first eligible match. Called after the first identity is set, whenever the
+     * identified user changes, and on every app_foreground.
+     */
+    private suspend fun checkInbox() {
+        val current = state
+        val userId = current.userId
+        if (!current.initialized || userId.isNullOrBlank() || current.clientId == null || current.clientSecret == null) {
+            Logger.log("checkInbox skipped — no active identity")
+            return
+        }
+
+        try {
+            val inbox = notificationInboxService.fetchInbox(userId, current.clientId, current.clientSecret, current.baseUrl)
+            Logger.log("checkInbox → ${inbox.notifications.size} notification(s)")
+            updateState { copy(notificationCache = inbox.notifications) }
+
+            if (state.isInAppPopupVisible) return // don't stack a popup on top of one already shown
+
+            val notification = TriggerEngine.findEligibleNotification(
+                inbox.notifications,
+                TriggerEvent.SessionStart,
+                state.handledInAppNotificationIds
+            )
+            if (notification != null) displayNotification(notification)
+        } catch (e: Exception) {
+            Logger.error("checkInbox failed", e)
+        }
+    }
+
+    // Shared by the session-start path (checkInbox) and the screen-load/custom-event paths
+    // (trackScreen, sendEvent) — marks the notification handled, guards further popups until
+    // this one is dismissed, and hands off to the native renderer.
+    private fun displayNotification(notification: InboxNotification) {
+        updateState {
+            copy(
+                handledInAppNotificationIds = handledInAppNotificationIds + notification.notification_id,
+                isInAppPopupVisible = true
+            )
+        }
+
+        val activity = currentActivityRef?.get()
+        if (activity == null || activity.isFinishing || activity.isDestroyed) {
+            // No Activity available right now (e.g. this fired from a new Activity's onCreate,
+            // between the outgoing Activity's onPause and this one's onResume) — show it as
+            // soon as the next Activity resumes instead of dropping it.
+            Logger.log("displayNotification: no current activity yet — queued ${notification.notification_id}")
+            pendingNotification = notification
+            return
+        }
+
+        showOnActivity(activity, notification)
+    }
+
+    private fun showOnActivity(activity: Activity, notification: InboxNotification) {
+        Logger.log("displayNotification: showing ${notification.notification_id}")
+        activity.runOnUiThread {
+            InAppPopupOverlay.show(activity, notification, ::onInAppInteraction)
+        }
+    }
+
+    // Reported back by InAppPopupOverlay for shown/clicked/dismissed. `shown` also marks the
+    // notification read; `clicked`/`dismissed` clear the popup-visible guard.
+    private fun onInAppInteraction(type: String, notificationId: String, campaignId: String, ctaLabel: String?) {
+        val current = state
+        val userId = current.userId
+        if (userId.isNullOrBlank() || current.clientId == null || current.clientSecret == null) return
+
+        Logger.log("onInAppInteraction: $type | notification=$notificationId")
+
+        when (type) {
+            "shown" -> {
+                scope.launch {
+                    trackDirectEvent(
+                        "in_app_notification_viewed",
+                        mapOf("notification_id" to notificationId, "campaign_id" to campaignId),
+                        userId
+                    )
+                }
+                scope.launch {
+                    try {
+                        notificationInboxService.markNotificationsRead(
+                            listOf(notificationId), userId, current.clientId, current.clientSecret, current.baseUrl
+                        )
+                    } catch (e: Exception) {
+                        Logger.error("markNotificationsRead failed", e)
+                    }
+                }
+            }
+            "clicked" -> {
+                scope.launch {
+                    trackDirectEvent(
+                        "in_app_notification_clicked",
+                        mapOf("notification_id" to notificationId, "campaign_id" to campaignId, "cta_label" to ctaLabel),
+                        userId
+                    )
+                }
+                updateState { copy(isInAppPopupVisible = false) }
+            }
+            "dismissed" -> {
+                scope.launch {
+                    trackDirectEvent(
+                        "in_app_notification_dismissed",
+                        mapOf("notification_id" to notificationId, "campaign_id" to campaignId),
+                        userId
+                    )
+                }
+                updateState { copy(isInAppPopupVisible = false) }
+            }
+        }
     }
 
     private fun createDefaultChannel(context: Context) {

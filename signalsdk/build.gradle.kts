@@ -52,6 +52,9 @@ dependencies {
 
     // Coroutines — async HTTP calls and internal scope
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // ComponentActivity / OnBackPressedCallback for the in-app popup overlay's back-press handling
+    implementation("androidx.activity:activity-ktx:1.8.2")
 }
 
 // ── Maven Central publishing ──────────────────────────────────────────────────
