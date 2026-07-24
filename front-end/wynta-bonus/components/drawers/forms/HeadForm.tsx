@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppSelector } from "../../../store/hooks";
 import { selectHeadById } from "../../../store/slices/headsSlice";
 import { selectAllUsers } from "wynta-react-common/store/slices/usersSlice";
@@ -19,6 +19,7 @@ interface HeadFormProps {
   submitting: boolean;
   onCancel: () => void;
   onSubmit: (data: Record<string, unknown>) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export default function HeadForm({
@@ -27,6 +28,7 @@ export default function HeadForm({
   submitting,
   onCancel,
   onSubmit,
+  onDirtyChange,
 }: HeadFormProps) {
   const head = useAppSelector(selectHeadById(state.id ?? 0));
   const users = useAppSelector(selectAllUsers);
@@ -44,6 +46,25 @@ export default function HeadForm({
   const [monthly, setMonthly] = useState("");
   const [showErrors, setShowErrors] = useState(false);
 
+  const initialRef = useRef({
+    name: head?.name || "",
+    description: head?.description || "",
+    owner: head?.owner || "",
+    active: head ? head.active : true,
+  });
+  const isDirty =
+    name !== initialRef.current.name ||
+    description !== initialRef.current.description ||
+    owner !== initialRef.current.owner ||
+    active !== initialRef.current.active ||
+    daily !== "" ||
+    weekly !== "" ||
+    monthly !== "";
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty]);
+
   const inputs = { daily, weekly, monthly };
   const errors = useMemo(
     () => (mode === "new" ? validateBudget(inputs) : {}),
@@ -51,13 +72,17 @@ export default function HeadForm({
   );
 
   const DESCRIPTION_MAX = 250;
+  const NAME_MIN = 3;
   const NAME_PATTERN = /^[A-Za-z0-9 _-]*$/;
   const namePatternInvalid = name !== "" && !NAME_PATTERN.test(name);
+  const trimmedNameLen = name.trim().length;
   const nameError = namePatternInvalid
     ? "Only letters, numbers, spaces, - and _ are allowed."
-    : !name.trim()
+    : trimmedNameLen === 0
       ? "This field is required."
-      : null;
+      : trimmedNameLen < NAME_MIN
+        ? `Must be at least ${NAME_MIN} characters.`
+        : null;
   const nameVisibleError = namePatternInvalid || (nameError && showErrors) ? nameError : null;
 
   const ownerError = !owner ? "This field is required." : null;

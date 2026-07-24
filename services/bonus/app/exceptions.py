@@ -17,7 +17,7 @@ class BonusHeadDuplicateError(BonusServiceError):
     def __init__(self, site_id: int, name: str) -> None:
         self.site_id = site_id
         self.name = name
-        super().__init__(f"Bonus head '{name}' already exists for site {site_id}")
+        super().__init__(f"Bonus head '{name}' already exists")
 
 
 class BonusHeadNotFoundError(BonusServiceError):
@@ -43,7 +43,7 @@ class BonusSubheadDuplicateError(BonusServiceError):
     def __init__(self, head_id: int, name: str) -> None:
         self.head_id = head_id
         self.name = name
-        super().__init__(f"Bonus subhead '{name}' already exists for head {head_id}")
+        super().__init__(f"Bonus subhead '{name}' already exists")
 
 
 class BonusSubheadNotFoundError(BonusServiceError):
