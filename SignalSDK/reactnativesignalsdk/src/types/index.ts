@@ -98,3 +98,40 @@ export interface IdentityPayload {
   unset_traits?: string[];
   timestamp?: string;
 }
+
+export interface NotificationCTA {
+  role: 'primary' | 'secondary';
+  label: string;
+  action: 'deep_link' | 'external_url' | 'dismiss';
+  value: string | null;
+}
+
+export interface InboxNotification {
+  notification_id: string;
+  campaign_id: string;
+  variant_id?: string;
+  template_type: string;
+  render_engine: string;
+  title?: string;
+  body?: string;
+  media?: {
+    image_url?: string;
+    background_color?: string;
+    background_opacity?: string;
+  };
+  cta: NotificationCTA[];
+  close_button_visibility?: string;
+  layout?: unknown;
+  created_at: string;
+  expires_at?: string;
+  read: boolean;
+  trigger_type?: 'on_session_start' | 'on_screen_load' | 'on_custom_event' | null;
+  target_screens?: string[] | null;
+  target_events?: string[] | null;
+}
+
+export interface InboxResponse {
+  notifications: InboxNotification[];
+  next_cursor: string | null;
+  unread_count: number;
+}

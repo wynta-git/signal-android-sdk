@@ -10,7 +10,7 @@ import type {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-interface UsersState {
+export interface UsersState {
   items: SystemUser[];
   status: AsyncStatus;
   error: string | null;
@@ -110,7 +110,12 @@ const usersSlice = createSlice({
       .addCase(authenticateWithBridgeToken.rejected, (state, action) => {
         state.authStatus = "failed";
         state.authError = action.error.message ?? null;
-        state.authToken = null;
+        // Don't clobber an authToken already obtained from an earlier
+        // successful exchange (e.g. a stale/reused bridge token being
+        // rejected on a later, redundant exchange attempt).
+        if (!state.authToken) {
+          state.authToken = null;
+        }
       });
   },
 });
@@ -145,6 +150,10 @@ export const selectProjectId = (state: { users: UsersState }): string | null => 
 };
 export const selectSiteId = (state: { users: UsersState }) =>
   state.users.bridgeData?.site_id ?? null;
+export const selectBrand = (state: { users: UsersState }) =>
+  state.users.bridgeData?.brand ?? null;
+export const selectPage = (state: { users: UsersState }) =>
+  state.users.bridgeData?.page ?? null;
 export const selectIsAdmin = (state: { users: UsersState }) =>
   state.users.bridgeData?.is_admin ?? false;
 export const selectAllowed = (state: { users: UsersState }) =>

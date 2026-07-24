@@ -12,13 +12,39 @@ class SendJob(BaseModel):
     user_id: str
     brand_id: str | None = None
     channel: str
-    template_id: str
+    # Exactly one of template_id/inline_content is set. inline_content is
+    # for flow-authored, self-contained content with no real campaign or
+    # template behind it — rendered as if it were a template's `body` field
+    # (see handle_send_job in consumer.py).
+    template_id: str | None = None
+    inline_content: dict[str, Any] | None = None
     trigger_type: str | None = None
+    target_screens: list[str] | None = None
+    target_events: list[str] | None = None
     expires_in_hours: int | None = None
     context: dict[str, Any] = {}
     deliver_at: datetime
     auto_dismiss_seconds: int | None = None
     ignore_global_min_delay: bool = False
+
+
+class GroupedSendJob(BaseModel):
+    """Emitted by scheduler-service's run_campaign_grouped() for channels
+    whose provider batches many recipients into one API call (email now;
+    sms/whatsapp/telegram later). Same campaign/template/context shape as
+    SendJob, but user_ids instead of a single user_id — no profile data, no
+    personalization fields; those are resolved here in notifications-engine."""
+
+    send_id: str
+    project_id: str
+    campaign_id: str
+    campaign_run_id: str
+    user_ids: list[str]
+    brand_id: str | None = None
+    channel: str
+    template_id: str
+    context: dict[str, Any] = {}
+    deliver_at: datetime
 
 
 class DeliveryEvent(BaseModel):

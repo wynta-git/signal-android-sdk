@@ -10,6 +10,7 @@ Single source of truth for topic names, partitions, retention, keys, producers, 
 - `pam.bonus.raw.v1` — copy of raw events classified as bonus
 - `pam.events.invalid.v1` — DLQ for events that failed validation
 - `pam.campaigns.send.v1` — campaign send jobs for notifications-engine
+- `pam.campaigns.send.grouped.email.v1` — grouped (many-recipients-per-message) email send jobs
 - `pam.notifications.delivery.v1` — delivery status events back into analytics
 
 Always include `.v<n>` suffix. Bump version for breaking schema changes; run old + new in parallel during migration.
@@ -63,6 +64,23 @@ Send jobs emitted by `campaign-engine` for `notifications-engine`.
 | Key | `user_id` (one job per user per campaign trigger) |
 | Producer | `campaign-engine` |
 | Consumers | `notifications-engine` (group: `notif-sender`) |
+
+### `pam.campaigns.send.grouped.email.v1`
+Grouped email send jobs emitted by `scheduler-service`'s `run_campaign_grouped()` for
+segment/scheduled campaigns — each message carries a `user_ids: list[str]` (accumulated
+per campaign, up to the resolved batch size) instead of a single `user_id`. Consumed
+independently of `pam.campaigns.send.v1` so email traffic never affects push/in_app
+consumer latency or fetch-batch tuning. Event-triggered (single-user) email campaigns
+still use `pam.campaigns.send.v1` above, unchanged. Future batchable channels
+(sms/whatsapp/telegram) get their own equivalent topic, not this one.
+
+| Setting | Value |
+|---|---|
+| Partitions | 12 |
+| Retention | 3 days |
+| Key | `campaign_id` (a group has no single user_id to key by) |
+| Producer | `scheduler-service` |
+| Consumers | `notifications-engine` (group: `notif-sender-grouped-email`) |
 
 ### `pam.notifications.delivery.v1`
 Delivery results (sent / failed / opened / clicked) emitted by `notifications-engine`.

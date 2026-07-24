@@ -39,7 +39,9 @@ Defines how users describe segments. The `segmentation-engine` compiles this DSL
 ```
 
 Operators supported on event properties:
-- `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `contains`, `starts_with`, `exists`
+- `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `before`, `after`, `in`, `not_in`, `contains`, `starts_with`, `exists`
+- `before`/`after` are aliases for `lt`/`gt` intended for datetime-typed fields (friendlier label in the UI); they compile to the same comparison.
+- `between` and `within_last` are not supported — the DSL has no range/relative-window value shape yet.
 
 ### Trait filter
 "User has trait T with constraint."

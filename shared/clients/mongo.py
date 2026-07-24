@@ -119,6 +119,9 @@ async def create_campaign_indexes(db: AsyncIOMotorDatabase) -> None:
     )
     await db["custom_reports"].create_index([("user_id", 1), ("project_id", 1)])
     await db["custom_reports"].create_index([("report_id", 1)], unique=True)
+    await db["screen_catalog"].create_index(
+        [("project_id", 1), ("brand_id", 1), ("screen_name", 1)], unique=True
+    )
 
 
 async def insert_campaign(db: AsyncIOMotorDatabase, doc: dict[str, Any]) -> str:
@@ -213,6 +216,57 @@ async def get_due_oneoff_campaigns(
         {"_id": 0},
     )
     return await cursor.to_list(length=None)
+
+
+# ---------------------------------------------------------------------------
+# Screen catalog helpers (campaign-engine only)
+# ---------------------------------------------------------------------------
+
+
+async def list_screen_catalog(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> list[str]:
+    query: dict[str, Any] = {"project_id": project_id}
+    if brand_id:
+        # Brand-scoped screens for this brand + project-wide screens (brand_id null/missing)
+        query["$or"] = [{"brand_id": brand_id}, {"brand_id": None}]
+    else:
+        query["brand_id"] = None
+    cursor = db["screen_catalog"].find(query, {"_id": 0, "screen_name": 1})
+    docs = await cursor.to_list(length=None)
+    return sorted({d["screen_name"] for d in docs})
+
+
+async def list_screen_catalog_entries(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> list[dict[str, Any]]:
+    query: dict[str, Any] = {"project_id": project_id}
+    if brand_id:
+        query["$or"] = [{"brand_id": brand_id}, {"brand_id": None}]
+    else:
+        query["brand_id"] = None
+    cursor = db["screen_catalog"].find(query, {"_id": 0, "screen_name": 1, "brand_id": 1})
+    docs = await cursor.to_list(length=None)
+    return sorted(docs, key=lambda d: d["screen_name"])
+
+
+async def upsert_screen_catalog_entry(
+    db: AsyncIOMotorDatabase, project_id: str, screen_name: str, brand_id: str | None = None
+) -> None:
+    await db["screen_catalog"].update_one(
+        {"project_id": project_id, "brand_id": brand_id, "screen_name": screen_name},
+        {"$setOnInsert": {"project_id": project_id, "brand_id": brand_id, "screen_name": screen_name}},
+        upsert=True,
+    )
+
+
+async def delete_screen_catalog_entry(
+    db: AsyncIOMotorDatabase, project_id: str, screen_name: str, brand_id: str | None = None
+) -> bool:
+    result = await db["screen_catalog"].delete_one(
+        {"project_id": project_id, "brand_id": brand_id, "screen_name": screen_name}
+    )
+    return result.deleted_count > 0
 
 
 # ---------------------------------------------------------------------------
@@ -692,6 +746,170 @@ async def get_brand_fcm_settings(
     return await db["brand_settings"].find_one(
         {"project_id": project_id, "brand_id": brand_id},
         {"_id": 0, "fcm_service_account_json": 1},
+    )
+
+
+async def get_project_sendgrid_credential(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> dict[str, str] | None:
+    """Return {'api_key', 'from_email', 'from_name'} for a brand or project, or None if unconfigured."""
+    if brand_id:
+        brand_doc = await db["brand_settings"].find_one(
+            {"project_id": project_id, "brand_id": brand_id},
+            {"_id": 0, "sendgrid_api_key": 1, "sendgrid_from_email": 1, "sendgrid_from_name": 1},
+        )
+        if brand_doc and brand_doc.get("sendgrid_api_key") and brand_doc.get("sendgrid_from_email"):
+            return {
+                "api_key": brand_doc["sendgrid_api_key"],
+                "from_email": brand_doc["sendgrid_from_email"],
+                "from_name": brand_doc.get("sendgrid_from_name", ""),
+            }
+
+    doc = await db["projects"].find_one(
+        {"project_id": project_id},
+        {"_id": 0, "settings.sendgrid_api_key": 1, "settings.sendgrid_from_email": 1, "settings.sendgrid_from_name": 1},
+    )
+    settings_doc = (doc or {}).get("settings") or {}
+    if not settings_doc.get("sendgrid_api_key") or not settings_doc.get("sendgrid_from_email"):
+        return None
+    return {
+        "api_key": settings_doc["sendgrid_api_key"],
+        "from_email": settings_doc["sendgrid_from_email"],
+        "from_name": settings_doc.get("sendgrid_from_name", ""),
+    }
+
+
+async def upsert_brand_sendgrid_credential(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    brand_id: str,
+    api_key: str,
+    from_email: str,
+    from_name: str,
+    now: datetime,
+) -> None:
+    await db["brand_settings"].update_one(
+        {"project_id": project_id, "brand_id": brand_id},
+        {
+            "$set": {
+                "sendgrid_api_key": api_key,
+                "sendgrid_from_email": from_email,
+                "sendgrid_from_name": from_name,
+                "updated_at": now,
+            },
+            "$setOnInsert": {"created_at": now},
+        },
+        upsert=True,
+    )
+
+
+async def get_brand_sendgrid_settings(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str
+) -> dict[str, Any] | None:
+    return await db["brand_settings"].find_one(
+        {"project_id": project_id, "brand_id": brand_id},
+        {"_id": 0, "sendgrid_api_key": 1, "sendgrid_from_email": 1, "sendgrid_from_name": 1},
+    )
+
+
+async def get_project_email_provider_name(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> str:
+    """Which email provider a brand/project is configured to use. Brand-level
+    setting wins, falls back to project-level, defaults to 'sendgrid' when
+    neither is set — this keeps every brand configured before this field
+    existed working unchanged with zero data migration."""
+    if brand_id:
+        brand_doc = await db["brand_settings"].find_one(
+            {"project_id": project_id, "brand_id": brand_id},
+            {"_id": 0, "email_provider": 1},
+        )
+        if brand_doc and brand_doc.get("email_provider"):
+            return brand_doc["email_provider"]
+
+    doc = await db["projects"].find_one(
+        {"project_id": project_id},
+        {"_id": 0, "settings.email_provider": 1},
+    )
+    return (doc or {}).get("settings", {}).get("email_provider") or "sendgrid"
+
+
+async def get_project_mailgun_credential(
+    db: AsyncIOMotorDatabase, project_id: str, brand_id: str | None = None
+) -> dict[str, str] | None:
+    """Return {'api_key', 'domain', 'from_email', 'from_name'} for a brand or
+    project, or None if unconfigured. Mirrors get_project_sendgrid_credential's
+    brand->project fallback exactly — Mailgun's auth model is api_key + domain
+    rather than SendGrid's api_key + from_email, hence the different field."""
+    if brand_id:
+        brand_doc = await db["brand_settings"].find_one(
+            {"project_id": project_id, "brand_id": brand_id},
+            {
+                "_id": 0,
+                "mailgun_api_key": 1,
+                "mailgun_domain": 1,
+                "mailgun_from_email": 1,
+                "mailgun_from_name": 1,
+            },
+        )
+        if brand_doc and brand_doc.get("mailgun_api_key") and brand_doc.get("mailgun_domain"):
+            return {
+                "api_key": brand_doc["mailgun_api_key"],
+                "domain": brand_doc["mailgun_domain"],
+                "from_email": brand_doc.get("mailgun_from_email", ""),
+                "from_name": brand_doc.get("mailgun_from_name", ""),
+            }
+
+    doc = await db["projects"].find_one(
+        {"project_id": project_id},
+        {
+            "_id": 0,
+            "settings.mailgun_api_key": 1,
+            "settings.mailgun_domain": 1,
+            "settings.mailgun_from_email": 1,
+            "settings.mailgun_from_name": 1,
+        },
+    )
+    settings_doc = (doc or {}).get("settings") or {}
+    if not settings_doc.get("mailgun_api_key") or not settings_doc.get("mailgun_domain"):
+        return None
+    return {
+        "api_key": settings_doc["mailgun_api_key"],
+        "domain": settings_doc["mailgun_domain"],
+        "from_email": settings_doc.get("mailgun_from_email", ""),
+        "from_name": settings_doc.get("mailgun_from_name", ""),
+    }
+
+
+async def get_project_batch_size_overrides(
+    db: AsyncIOMotorDatabase, project_id: str
+) -> dict[str, int]:
+    """Per-channel batch-size overrides for a project, e.g. {'email': 300}. Empty dict if unset."""
+    doc = await db["projects"].find_one(
+        {"project_id": project_id},
+        {"_id": 0, "settings.batch_size_overrides": 1},
+    )
+    return (doc or {}).get("settings", {}).get("batch_size_overrides") or {}
+
+
+async def add_suppression(
+    db: AsyncIOMotorDatabase,
+    project_id: str,
+    user_id: str,
+    channel: str,
+    reason: str,
+    now: datetime,
+) -> None:
+    await db["suppressed_recipients"].update_one(
+        {"project_id": project_id, "user_id": user_id, "channel": channel},
+        {"$set": {"reason": reason, "created_at": now}},
+        upsert=True,
+    )
+
+
+async def create_suppression_indexes(db: AsyncIOMotorDatabase) -> None:
+    await db["suppressed_recipients"].create_index(
+        [("project_id", 1), ("user_id", 1), ("channel", 1)], unique=True
     )
 
 

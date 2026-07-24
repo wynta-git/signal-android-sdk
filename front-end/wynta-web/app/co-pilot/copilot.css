@@ -1,0 +1,245 @@
+:root {
+  /* Tokens needed by the embedded CopilotPanel component's own stylesheet
+     (wynta-react-common/components/copilot/CopilotPanel.tsx) — declared
+     locally so this page never imports wynta-bonus's or wynta-crm's CSS. */
+  --g50:  #f7f8fa;
+  --g100: #f0f2f5;
+  --g150: #e8eaee;
+  --g200: #dde1e8;
+  --g300: #c5ccd8;
+  --g400: #98a4b4;
+  --g500: #68788c;
+  --g600: #47566a;
+  --g700: #2d3a4a;
+  --g900: #111827;
+  --blue: #0091e0;
+  --bl:   #38b6ff;
+  --r:    6px;
+  --rl:   10px;
+  --rxl:  14px;
+  --shm:  0 6px 24px rgba(0,0,0,0.11);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+html, body {
+  height: 100%;
+}
+
+.copilot-embed {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* ============================================================
+   Embedded CopilotPanel (wynta-react-common) component styles,
+   overridden here to fill the whole viewport for iframe embedding
+   instead of the fixed slide-out side panel it normally is.
+   ============================================================ */
+.copilot-panel {
+  position: static;
+  width: 100%;
+  height: 100vh;
+  background: #fff;
+  border-left: none;
+  box-shadow: none;
+  transform: none;
+  z-index: auto;
+  display: flex; flex-direction: column;
+}
+
+.copilot-fab { display: none; }
+.copilot-header { display: none; }
+
+.copilot-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.copilot-welcome {
+  background: #f4f0fd;
+  border-radius: var(--rxl);
+  padding: 26px 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.copilot-welcome .spark { font-size: 20px; color: var(--g900); margin-bottom: 10px; }
+.copilot-welcome .title { font-size: 15px; font-weight: 700; color: #7c3aed; margin-bottom: 6px; }
+.copilot-welcome .sub { font-size: 13.5px; line-height: 1.5; color: var(--g600); }
+
+.copilot-suggestions { display: flex; flex-direction: column; gap: 10px; }
+.copilot-suggestion {
+  display: flex; align-items: flex-start; gap: 8px;
+  width: 100%;
+  padding: 11px 16px;
+  background: var(--g50);
+  border: 1px solid var(--g200);
+  border-radius: 22px;
+  font-size: 13.5px; color: var(--g900);
+  text-align: left; cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.copilot-suggestion:hover { background: #fff; border-color: var(--g300); }
+.copilot-suggestion .emoji { flex-shrink: 0; }
+
+.copilot-msgs { display: flex; flex-direction: column; gap: 10px; }
+.copilot-msg {
+  max-width: 85%;
+  padding: 9px 13px;
+  border-radius: var(--rl);
+  font-size: 13.5px; line-height: 1.5;
+  overflow-wrap: break-word;
+}
+.copilot-msg.user {
+  align-self: flex-end;
+  background: var(--blue); color: #fff;
+  border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
+}
+.copilot-msg.assistant {
+  align-self: flex-start;
+  background: var(--g100); color: var(--g900);
+  border-bottom-left-radius: 4px;
+}
+.copilot-msg.assistant > *:first-child { margin-top: 0; }
+.copilot-msg.assistant > *:last-child { margin-bottom: 0; }
+.copilot-msg.assistant p, .copilot-msg.assistant ul, .copilot-msg.assistant ol {
+  margin: 0 0 8px;
+}
+.copilot-msg.assistant h1, .copilot-msg.assistant h2, .copilot-msg.assistant h3,
+.copilot-msg.assistant h4, .copilot-msg.assistant h5, .copilot-msg.assistant h6 {
+  margin: 14px 0 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.copilot-msg.assistant ul, .copilot-msg.assistant ol { padding-left: 18px; }
+.copilot-msg.assistant li { margin: 4px 0; }
+.copilot-msg.assistant li > ul, .copilot-msg.assistant li > ol { margin: 4px 0 10px; padding-left: 16px; }
+.copilot-msg.assistant li:has(> ul), .copilot-msg.assistant li:has(> ol) { margin-bottom: 10px; }
+.copilot-msg.assistant code {
+  background: var(--g200); border-radius: 4px;
+  padding: 1px 5px; font-size: 12.5px;
+}
+.copilot-msg.assistant pre {
+  background: var(--g200); border-radius: 6px;
+  padding: 8px 10px; overflow-x: auto; margin: 0 0 8px;
+}
+.copilot-msg.assistant pre code { background: none; padding: 0; }
+.copilot-msg.assistant a { color: var(--blue); }
+
+.copilot-typing { display: flex; gap: 4px; padding: 13px; }
+.copilot-typing span {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--g400);
+  animation: copilot-bounce 1.2s infinite;
+}
+.copilot-typing span:nth-child(2) { animation-delay: 0.15s; }
+.copilot-typing span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes copilot-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+.copilot-inputbar {
+  display: flex; align-items: flex-end; gap: 8px;
+  margin: 12px 14px 14px;
+  padding: 7px 7px 7px 18px;
+  background: var(--g50);
+  border: 1px solid var(--g200);
+  border-radius: 24px;
+  flex-shrink: 0;
+}
+.copilot-inputbar textarea {
+  flex: 1;
+  border: none; background: none; outline: none; resize: none;
+  font-family: var(--font); font-size: 13.5px; line-height: 1.45;
+  color: var(--g900);
+  padding: 7px 0;
+  max-height: 120px;
+}
+.copilot-inputbar textarea::placeholder { color: var(--g400); }
+.copilot-send {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  border: none; border-radius: 50%;
+  background: var(--bl); color: #fff;
+  cursor: pointer; flex-shrink: 0;
+  transition: background 0.12s;
+}
+.copilot-send:hover:not(:disabled) { background: var(--blue); }
+.copilot-send:disabled { opacity: 0.5; cursor: default; }
+
+/* ============================================================
+   Manual bridge-data prompt, shown only when /co-pilot is opened
+   outside its usual iframe embed (see CopilotBridgeAuth.tsx).
+   ============================================================ */
+.cba-overlay {
+  position: fixed; inset: 0;
+  background: rgba(17, 24, 39, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+
+.cba-modal {
+  width: 100%; max-width: 380px;
+  max-height: 90vh; overflow-y: auto;
+  background: #fff;
+  border-radius: var(--rxl);
+  box-shadow: var(--shm);
+  padding: 22px 24px;
+  font-family: var(--font);
+}
+
+.cba-modal__title {
+  margin: 0 0 8px;
+  font-size: 15px; font-weight: 700;
+  color: var(--g900);
+}
+
+.cba-modal__subtitle {
+  margin: 0 0 18px;
+  font-size: 12.5px; line-height: 1.5;
+  color: var(--g600);
+}
+
+.cba-form-field {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-bottom: 14px;
+}
+
+.cba-form-label {
+  font-size: 12.5px; font-weight: 600;
+  color: var(--g700);
+}
+
+.cba-form-input {
+  font-family: var(--font); font-size: 13.5px;
+  color: var(--g900);
+  padding: 8px 10px;
+  border: 1px solid var(--g300);
+  border-radius: var(--r);
+  outline: none;
+}
+.cba-form-input:focus { border-color: var(--blue); }
+
+.cba-form-hint {
+  font-size: 11.5px;
+  color: var(--g500);
+}
+
+.cba-modal__actions {
+  margin-top: 6px;
+  display: flex; justify-content: flex-end;
+}
+
+.cba-btn {
+  font-family: var(--font); font-size: 13.5px; font-weight: 600;
+  color: #fff;
+  background: var(--blue);
+  border: none; border-radius: var(--r);
+  padding: 9px 18px;
+  cursor: pointer;
+}
+.cba-btn:disabled { opacity: 0.5; cursor: default; }

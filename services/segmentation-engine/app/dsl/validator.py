@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field, model_validator
 MAX_FILTERS = 10
 MAX_TIME_WINDOW_DAYS = 365
 
-PropertyOp = Literal["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "exists"]
-TraitOp = Literal["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "exists"]
+PropertyOp = Literal["eq", "neq", "gt", "gte", "lt", "lte", "before", "after", "in", "not_in", "contains", "starts_with", "exists"]
+TraitOp = Literal["eq", "neq", "gt", "gte", "lt", "lte", "before", "after", "in", "not_in", "contains", "starts_with", "exists"]
 
 
 class FrequencyClause(BaseModel):

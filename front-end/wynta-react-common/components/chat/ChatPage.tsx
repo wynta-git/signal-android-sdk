@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { getToken } from "../../services/tokenRegistry";
 import { selectUserSetting } from "../../store/slices/settingsSlice";
+import { selectSiteId } from "../../store/slices/usersSlice";
 
 const CHAT_URL =
   process.env.NEXT_PUBLIC_CHAT_URL || "https://qa-chat.fozilpartners.com/chat/";
@@ -13,6 +14,10 @@ export default function ChatPage() {
   const [token, setToken] = useState("");
   const [chatReady, setChatReady] = useState(false);
   const chatE2eeKey = useSelector(selectUserSetting("chat_e2ee_key"));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const selectedBrand = useSelector((s: any) => s.ui?.selectedBrand as number | null);
+  const bridgeSiteId = useSelector(selectSiteId);
+  const siteId = selectedBrand ?? bridgeSiteId;
 
   useEffect(() => {
     const existing = getToken();
@@ -42,12 +47,21 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!token || !chatReady || !chatE2eeKey) return;
+    if (!token || !chatReady || !chatE2eeKey || !siteId) {
+      const missing = [
+        !token && "token",
+        !chatReady && "chatReady",
+        !chatE2eeKey && "chatE2eeKey",
+        !siteId && "siteId",
+      ].filter(Boolean);
+      console.log("[ChatPage] waiting on:", missing.join(", "));
+      return;
+    }
     iframeRef.current?.contentWindow?.postMessage(
-      { type: "AUTH_TOKEN", token, chat_e2ee_key: chatE2eeKey },
+      { type: "AUTH_TOKEN", token, chat_e2ee_key: chatE2eeKey, site_id: siteId },
       CHAT_ORIGIN,
     );
-  }, [token, chatReady, chatE2eeKey]);
+  }, [token, chatReady, chatE2eeKey, siteId]);
 
   return (
     <div
@@ -91,6 +105,8 @@ export default function ChatPage() {
         ref={iframeRef}
         src={CHAT_URL}
         title="Chat"
+          allow="camera; microphone; fullscreen; display-capture"
+          allowFullScreen 
         style={{ flex: 1, border: "none", width: "100%" }}
       />
     </div>

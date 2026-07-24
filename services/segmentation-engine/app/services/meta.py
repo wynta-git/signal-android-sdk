@@ -26,10 +26,10 @@ _OPERATORS: dict[str, list[str]] = {
 }
 
 _OPERATORS_BY_TYPE: dict[str, list[str]] = {
-    "number":   ["eq", "neq", "gt", "gte", "lt", "lte", "between", "exists"],
+    "number":   ["eq", "neq", "gt", "gte", "lt", "lte", "exists"],
     "string":   ["eq", "neq", "contains", "starts_with", "in", "not_in", "exists"],
     "boolean":  ["eq", "exists"],
-    "datetime": ["before", "after", "between", "within_last", "exists"],
+    "datetime": ["before", "after", "exists"],
 }
 
 
