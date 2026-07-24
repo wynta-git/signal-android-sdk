@@ -68,7 +68,7 @@ class BonusHeadCreate(BaseModel):
     """Request payload for creating a new bonus_head row."""
 
     site_id: int = Field(..., ge=1, description="Site this bonus head belongs to")
-    name: str = Field(..., min_length=1, max_length=100, description="Unique name within the site")
+    name: str = Field(..., min_length=3, max_length=100, description="Unique name within the site")
     description: str | None = Field(None, max_length=500)
     active: bool = Field(True, description="Whether this head is active")
     owner: _OwnerStr = Field(..., description="Primary accountable person (username or email)")
@@ -173,7 +173,7 @@ OwnerRole = Literal["OPS_LEAD", "CAMPAIGN_MANAGER", "FINANCE_APPROVER", "ESCALAT
 class BonusHeadUpdate(BaseModel):
     """PATCH payload — all head fields optional; updated_by always required."""
 
-    name: str | None = Field(None, min_length=1, max_length=100)
+    name: str | None = Field(None, min_length=3, max_length=100)
     description: str | None = None
     active: bool | None = None
     owner: str | None = Field(None, min_length=1, max_length=100)

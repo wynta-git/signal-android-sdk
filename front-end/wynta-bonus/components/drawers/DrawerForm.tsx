@@ -17,14 +17,15 @@ interface DrawerFormProps {
   submitting: boolean;
   onCancel: () => void;
   onSubmit: (data: Record<string, unknown>) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export default function DrawerForm({ state, submitting, onCancel, onSubmit }: DrawerFormProps) {
+export default function DrawerForm({ state, submitting, onCancel, onSubmit, onDirtyChange }: DrawerFormProps) {
   switch (state.type) {
-    case 'NEW_HEAD':         return <HeadForm     mode="new"  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
-    case 'EDIT_HEAD':        return <HeadForm     mode="edit" state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
-    case 'NEW_SUBHEAD':      return <SubheadForm  mode="new"  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
-    case 'EDIT_SUBHEAD':     return <SubheadForm  mode="edit" state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
+    case 'NEW_HEAD':         return <HeadForm     mode="new"  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit} onDirtyChange={onDirtyChange}/>;
+    case 'EDIT_HEAD':        return <HeadForm     mode="edit" state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit} onDirtyChange={onDirtyChange}/>;
+    case 'NEW_SUBHEAD':      return <SubheadForm  mode="new"  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit} onDirtyChange={onDirtyChange}/>;
+    case 'EDIT_SUBHEAD':     return <SubheadForm  mode="edit" state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit} onDirtyChange={onDirtyChange}/>;
     case 'NEW_CONFIGURE':    return <ConfigureForm mode="new"  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'EDIT_CONFIGURE':   return <ConfigureForm mode="edit" state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;
     case 'NEW_PROMOCODE':    return <PromoCodeForm  state={state} submitting={submitting} onCancel={onCancel} onSubmit={onSubmit}/>;

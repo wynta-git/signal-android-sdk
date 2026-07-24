@@ -51,7 +51,7 @@ class BonusSubheadCreate(BaseModel):
 
     head_id: int = Field(..., ge=1, description="Parent bonus_head id")
     site_id: int = Field(..., ge=1, description="Site this subhead belongs to")
-    name: str = Field(..., min_length=1, max_length=100, description="Unique name within the head")
+    name: str = Field(..., min_length=3, max_length=100, description="Unique name within the head")
     description: str | None = Field(None, max_length=500)
     active: bool = Field(True)
     owner: str = Field(..., min_length=1, max_length=100)
@@ -121,7 +121,7 @@ class BonusSubheadResponse(BaseModel):
 class BonusSubheadUpdate(BaseModel):
     """PATCH payload — all subhead fields optional; updated_by always required."""
 
-    name: str | None = Field(None, min_length=1, max_length=100)
+    name: str | None = Field(None, min_length=3, max_length=100)
     description: str | None = None
     active: bool | None = None
     owner: str | None = Field(None, min_length=1, max_length=100)

@@ -137,14 +137,14 @@ async def test_update_db_error(cur: AsyncMock, patch_conn: MagicMock) -> None:
     cur.execute.side_effect = [None, RuntimeError("disk full")]
 
     with pytest.raises(DatabaseError):
-        await update_bonus_head(1, BonusHeadUpdate(name="X", updated_by="admin"))
+        await update_bonus_head(1, BonusHeadUpdate(name="XYZ", updated_by="admin"))
 
 
 async def test_update_row_hash_included_in_set(cur: AsyncMock, patch_conn: MagicMock) -> None:
     """row_hash is always included in the UPDATE SET clause."""
     cur.fetchone.side_effect = [_HEAD_ROW, _HEAD_ROW]
 
-    await update_bonus_head(1, BonusHeadUpdate(name="X", updated_by="admin"))
+    await update_bonus_head(1, BonusHeadUpdate(name="XYZ", updated_by="admin"))
 
     update_sql = cur.execute.await_args_list[1].args[0]
     assert "`row_hash`" in update_sql

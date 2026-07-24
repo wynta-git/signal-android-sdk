@@ -20,4 +20,5 @@ CORS_ORIGINS: list[str] = [
     "https://affiliates.taj.games",
     "http://tajrummystaging.wynta.com",
     "http://rajrummystaging.wynta.com",
+    "https://qa-app.fozilpartners.com",
 ]

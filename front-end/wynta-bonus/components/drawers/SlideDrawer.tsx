@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useAppSelector, useAppDispatch } from "../../store/hooks";
 import { closeDrawer } from "../../store/slices/uiSlice";
@@ -38,6 +38,22 @@ interface DrawerMeta {
   icon: string;
 }
 
+// createAsyncThunk's `.unwrap()` throws `action.error`, which for a plain
+// rejection (no rejectWithValue) is a plain object from RTK's
+// miniSerializeError — not an Error instance — even though it carries a
+// real `.message`. Checking `instanceof Error` alone drops that message.
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    typeof (err as { message?: unknown }).message === "string"
+  ) {
+    return (err as { message: string }).message;
+  }
+  return "Something went wrong";
+}
+
 const DRAWER_TITLES: Record<DrawerType, DrawerMeta> = {
   NEW_HEAD: { title: "Add Bonus Head", icon: "folder-plus" },
   EDIT_HEAD: { title: "Edit Bonus Head", icon: "pencil" },
@@ -67,7 +83,11 @@ export default function SlideDrawer() {
     (bridgeData?.user as { username?: string } | null)?.username ?? "system";
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Guards against a second submit landing before React re-renders the
+  // disabled button — state alone isn't fast enough for a rapid double-click.
+  const submittingRef = useRef(false);
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -100,8 +120,10 @@ export default function SlideDrawer() {
       .find((s) => s.id === drawerState?.parentId)?.name;
 
   useEffect(() => {
+    submittingRef.current = false;
     setSubmitting(false);
     setSubmitError(null);
+    setIsDirty(false);
   }, [drawerState]);
 
   useEffect(() => {
@@ -112,9 +134,19 @@ export default function SlideDrawer() {
     };
   }, [open]);
 
-  const onClose = () => dispatch(closeDrawer());
+  const onClose = () => {
+    if (
+      isDirty &&
+      !window.confirm("You have unsaved changes. Close without saving?")
+    ) {
+      return;
+    }
+    dispatch(closeDrawer());
+  };
 
   const doSubmit = async (data: Record<string, unknown>) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setSubmitError(null);
     // API identifier fields reject '@' — strip email domain for owner/actor values
@@ -131,6 +163,7 @@ export default function SlideDrawer() {
             created_by: actor,
           } as unknown as Parameters<typeof createHead>[0]),
         ).unwrap();
+        dispatch(closeDrawer());
       } else if (drawerState?.type === "EDIT_HEAD" && drawerState.id != null) {
         await dispatch(
           updateHead({
@@ -142,6 +175,7 @@ export default function SlideDrawer() {
             } as unknown as Partial<import("../../types").BonusHead>,
           }),
         ).unwrap();
+        dispatch(closeDrawer());
       } else if (
         drawerState?.type === "NEW_SUBHEAD" &&
         drawerState.parentId != null
@@ -162,6 +196,7 @@ export default function SlideDrawer() {
         ).unwrap();
         // Refresh parent head so its subheads list includes the new entry
         dispatch(fetchHead(drawerState.parentId));
+        dispatch(closeDrawer());
       } else if (
         drawerState?.type === "EDIT_SUBHEAD" &&
         drawerState.id != null
@@ -428,10 +463,9 @@ export default function SlideDrawer() {
         dispatch(closeDrawer());
       }
     } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : "Something went wrong",
-      );
+      setSubmitError(extractErrorMessage(err));
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -503,12 +537,18 @@ export default function SlideDrawer() {
                 <Icon name="x" size={18} />
               </button>
             </div>
-            {submitError && <div className="drawer-error">{submitError}</div>}
+            {submitError && (
+              <div className="drawer-error">
+                <Icon name="alert-circle" size={14} />
+                <span>{submitError}</span>
+              </div>
+            )}
             <DrawerForm
               state={drawerState}
               submitting={submitting}
               onCancel={onClose}
               onSubmit={doSubmit}
+              onDirtyChange={setIsDirty}
             />
           </>
         )}
