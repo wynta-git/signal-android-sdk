@@ -6,8 +6,8 @@ from pydantic import ValidationError
 from app.models.bonus_head import BonusHeadCreate, LimitsUpsertRequest
 from app.models.bonus_subhead import BonusSubheadCreate
 
-_SUBHEAD_BASE = dict(head_id=1, site_id=1, name="t", owner="vanessa", created_by="vanessa")
-_HEAD_BASE = dict(site_id=1, name="t", owner="vanessa", created_by="vanessa")
+_SUBHEAD_BASE = dict(head_id=1, site_id=1, name="tst", owner="vanessa", created_by="vanessa")
+_HEAD_BASE = dict(site_id=1, name="tst", owner="vanessa", created_by="vanessa")
 
 
 def _budget(daily: float | None, weekly: float | None, monthly: float | None) -> list[dict]:

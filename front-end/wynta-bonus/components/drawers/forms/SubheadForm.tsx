@@ -22,6 +22,7 @@ interface SubheadFormProps {
   submitting: boolean;
   onCancel: () => void;
   onSubmit: (data: Record<string, unknown>) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export default function SubheadForm({
@@ -30,6 +31,7 @@ export default function SubheadForm({
   submitting,
   onCancel,
   onSubmit,
+  onDirtyChange,
 }: SubheadFormProps) {
   const dispatch = useAppDispatch();
   const users = useAppSelector(selectAllUsers);
@@ -69,17 +71,44 @@ export default function SubheadForm({
   // Default the subhead limits to the parent head's limits, once, and only if
   // the user hasn't typed anything yet.
   const prefilled = useRef(false);
+  // Tracks the budget baseline for dirty-checking — starts blank, but is
+  // bumped to the autofilled values below so that prefill alone (with no
+  // further edits by the user) doesn't count as "dirty".
+  const initialBudgetRef = useRef({ daily: "", weekly: "", monthly: "" });
   useEffect(() => {
     if (mode !== "new" || prefilled.current) return;
     if (!parentHead || parentHead.budget.length === 0) return;
     prefilled.current = true;
     if (daily === "" && weekly === "" && monthly === "") {
-      setDaily(headLimits.DAILY != null ? String(headLimits.DAILY) : "");
-      setWeekly(headLimits.WEEKLY != null ? String(headLimits.WEEKLY) : "");
-      setMonthly(headLimits.MONTHLY != null ? String(headLimits.MONTHLY) : "");
+      const d = headLimits.DAILY != null ? String(headLimits.DAILY) : "";
+      const w = headLimits.WEEKLY != null ? String(headLimits.WEEKLY) : "";
+      const m = headLimits.MONTHLY != null ? String(headLimits.MONTHLY) : "";
+      setDaily(d);
+      setWeekly(w);
+      setMonthly(m);
+      initialBudgetRef.current = { daily: d, weekly: w, monthly: m };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, parentHead, headLimits]);
+
+  const initialRef = useRef({
+    name: sub?.name ?? "",
+    description: sub?.description ?? "",
+    owner: sub?.owner ?? "",
+    active: sub?.active ?? true,
+  });
+  const isDirty =
+    name !== initialRef.current.name ||
+    description !== initialRef.current.description ||
+    owner !== initialRef.current.owner ||
+    active !== initialRef.current.active ||
+    daily !== initialBudgetRef.current.daily ||
+    weekly !== initialBudgetRef.current.weekly ||
+    monthly !== initialBudgetRef.current.monthly;
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty]);
 
   const inputs = { daily, weekly, monthly };
   const errors = useMemo(
@@ -87,9 +116,27 @@ export default function SubheadForm({
     [daily, weekly, monthly, headLimits, mode], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  const DESCRIPTION_MAX = 250;
+  const NAME_MIN = 3;
+  const NAME_PATTERN = /^[A-Za-z0-9 _-]*$/;
+  const namePatternInvalid = name !== "" && !NAME_PATTERN.test(name);
+  const trimmedNameLen = name.trim().length;
+  const nameError = namePatternInvalid
+    ? "Only letters, numbers, spaces, - and _ are allowed."
+    : trimmedNameLen === 0
+      ? "This field is required."
+      : trimmedNameLen < NAME_MIN
+        ? `Must be at least ${NAME_MIN} characters.`
+        : null;
+  const nameVisibleError = namePatternInvalid || (nameError && showErrors) ? nameError : null;
+
+  const ownerError = !owner ? "This field is required." : null;
+  const ownerVisibleError = ownerError && showErrors ? ownerError : null;
+
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mode === "new" && Object.keys(errors).length > 0) {
+    const hasBudgetErrors = mode === "new" && Object.keys(errors).length > 0;
+    if (hasBudgetErrors || nameError || ownerError) {
       setShowErrors(true);
       return;
     }
@@ -133,7 +180,7 @@ export default function SubheadForm({
           step="any"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={cap != null ? `up to ₹${cap}` : "leave empty for ∞"}
+          placeholder={cap != null ? `up to ₹${cap}` : "leave empty for unlimited"}
           style={visibleError ? { borderColor: "#D64545" } : undefined}
         />
         {visibleError ? (
@@ -143,7 +190,7 @@ export default function SubheadForm({
         ) : (
           (parentHead?.budget?.length ?? 0) > 0 && (
             <div className="helper">
-              Head cap: {cap != null ? `₹${cap}` : "∞ (uncapped)"}
+              Head cap: {cap != null ? `₹${cap}` : "Uncapped"}
               {pct != null && (
                 <span
                   style={{
@@ -163,7 +210,7 @@ export default function SubheadForm({
   };
 
   return (
-    <form onSubmit={handle} style={{ display: "contents" }}>
+    <form onSubmit={handle} noValidate style={{ display: "contents" }}>
       <div className="drawer-body">
         {parentHead && (
           <div className="field-group">
@@ -179,23 +226,32 @@ export default function SubheadForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. First Deposit Match"
-            required
+            style={nameVisibleError ? { borderColor: "#D64545" } : undefined}
           />
+          {nameVisibleError && (
+            <div className="helper" style={{ color: "#D64545" }}>
+              {nameVisibleError}
+            </div>
+          )}
         </div>
         <div className="field-group">
           <label>Description</label>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => setDescription(e.target.value.slice(0, DESCRIPTION_MAX))}
             placeholder="Short summary"
+            maxLength={DESCRIPTION_MAX}
           />
+          <div className="helper">
+            {description.length}/{DESCRIPTION_MAX}
+          </div>
         </div>
         <div className="field-group">
           <label>Owner</label>
           <select
             value={owner}
             onChange={(e) => setOwner(e.target.value)}
-            required
+            style={ownerVisibleError ? { borderColor: "#D64545" } : undefined}
           >
             <option value="" disabled>
               Select owner…
@@ -206,6 +262,11 @@ export default function SubheadForm({
               </option>
             ))}
           </select>
+          {ownerVisibleError && (
+            <div className="helper" style={{ color: "#D64545" }}>
+              {ownerVisibleError}
+            </div>
+          )}
         </div>
         {mode === "new" && (
           <>

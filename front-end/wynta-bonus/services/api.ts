@@ -430,7 +430,12 @@ export const api = {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error("Failed to create bonus head");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to create bonus head",
+      );
+    }
     return res.json() as Promise<BonusHead>;
   },
   async updateHead(id: number, patch: Record<string, unknown>) {
@@ -439,7 +444,12 @@ export const api = {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(patch),
     });
-    if (!res.ok) throw new Error("Failed to update bonus head");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to update bonus head",
+      );
+    }
     return res.json() as Promise<BonusHead>;
   },
   async createSubhead(parentId: number, payload: Record<string, unknown>) {
@@ -448,7 +458,12 @@ export const api = {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ head_id: parentId, ...payload }),
     });
-    if (!res.ok) throw new Error("Failed to create subhead");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to create subhead",
+      );
+    }
     return res.json() as Promise<BonusSubhead>;
   },
   async updateSubhead(id: number, patch: Record<string, unknown>) {
@@ -457,7 +472,12 @@ export const api = {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(patch),
     });
-    if (!res.ok) throw new Error("Failed to update subhead");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        (body as { detail?: string }).detail ?? "Failed to update subhead",
+      );
+    }
     return res.json() as Promise<BonusSubhead>;
   },
   async createConfigure(parentId: number, payload: Record<string, unknown>) {
