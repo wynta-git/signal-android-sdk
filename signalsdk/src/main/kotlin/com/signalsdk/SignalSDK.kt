@@ -227,6 +227,10 @@ object SignalSDK {
         // Always merge fcm_token into traits so it reaches the backend
         fcmToken?.let { traitsMap["fcm_token"] = it }
 
+        // Always report the running platform and that this identity came from the client SDK
+        traitsMap["app_platform"] = "android"
+        traitsMap["apk_installed_from_client"] = true
+
         // Persist FCM token so it survives app restarts
         if (fcmToken != null) Storage.set(appContext, StorageKeys.FCM_TOKEN, fcmToken)
 
