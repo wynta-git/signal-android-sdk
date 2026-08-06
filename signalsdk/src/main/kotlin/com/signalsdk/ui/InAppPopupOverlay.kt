@@ -66,7 +66,13 @@ internal object InAppPopupOverlay {
 
         downloadImage(imageUrl) { bitmap ->
             if (activity.isFinishing || activity.isDestroyed) {
+                // Must still resolve via onInteraction — SignalSDK.kt's isInAppPopupVisible is
+                // only cleared on a "clicked"/"dismissed" callback. Without this, an Activity
+                // finishing mid-download would leave it stuck true forever, silently blocking
+                // every later in-app popup for the rest of the process lifetime.
+                Logger.log("InAppPopupOverlay.show: activity finished/destroyed before image finished loading for $notificationId")
                 popupShowing = false
+                onInteraction("dismissed", notificationId, campaignId, null)
                 return@downloadImage
             }
             if (bitmap != null) {
