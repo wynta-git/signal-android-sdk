@@ -11,12 +11,14 @@ import com.signalsdk.config.SignalConfig
 import com.signalsdk.models.IdentifyRequest
 import com.signalsdk.models.IdentityPayload
 import com.signalsdk.models.InboxNotification
+import com.signalsdk.models.PushNotificationPayload
 import com.signalsdk.models.SDKResponse
 import com.signalsdk.services.DeviceService
 import com.signalsdk.services.EventService
 import com.signalsdk.services.IdentityService
 import com.signalsdk.services.LifecycleService
 import com.signalsdk.services.NotificationInboxService
+import com.signalsdk.services.PushNotificationBuilder
 import com.signalsdk.services.SessionService
 import com.signalsdk.services.TriggerEngine
 import com.signalsdk.services.TriggerEvent
@@ -385,7 +387,10 @@ object SignalSDK {
         channel: String = "push",
         templateId: String? = null,
         actionId: String? = null,
-        deepLink: String? = null
+        deepLink: String? = null,
+        notificationTapType: String? = null,
+        notificationTapAction1: String? = null,
+        notificationTapAction2: String? = null
     ) {
         val current = state
         if (!current.initialized || current.userId.isNullOrBlank()) {
@@ -403,9 +408,45 @@ object SignalSDK {
         templateId?.let   { properties["template_id"]   = it }
         actionId?.let     { properties["action_id"]     = it }
         deepLink?.let     { properties["deep_link"]     = it }
+        notificationTapType?.let    { properties["notification_tap_type"]    = it }
+        notificationTapAction1?.let { properties["notification_tap_action_1"] = it }
+        notificationTapAction2?.let { properties["notification_tap_action_2"] = it }
 
         Logger.log("handleNotificationClick: $eventName | campaign=$campaignId")
         sendEvent(eventName, properties)
+    }
+
+    /**
+     * Call this from your `FirebaseMessagingService.onMessageReceived` with the raw FCM
+     * `RemoteMessage.getData()` map. Renders one of the SDK's push templates (`standard`,
+     * `branded`, `hero_banner` — see docs/push-templates.md) and shows it — the SDK owns
+     * building and posting the notification, not just reacting to one already shown.
+     *
+     * Silently no-ops if `data` doesn't look like a template push (missing `title`/`body`) —
+     * safe to call unconditionally from a `FirebaseMessagingService` that also routes other
+     * kinds of pushes (chat, MoEngage, etc.) through its own logic.
+     *
+     * Example:
+     * ```kotlin
+     * override fun onMessageReceived(message: RemoteMessage) {
+     *     SignalSDK.handleRemoteMessage(message.data)
+     * }
+     * ```
+     */
+    fun handleRemoteMessage(data: Map<String, String>) {
+        if (!this::appContext.isInitialized) {
+            Logger.log("handleRemoteMessage: SDK not initialized — skipping")
+            return
+        }
+        val payload = PushNotificationPayload.fromData(data)
+        if (payload == null) {
+            Logger.log("handleRemoteMessage: no title/body in payload — not a template push, skipping")
+            return
+        }
+
+        scope.launch(Dispatchers.IO) {
+            PushNotificationBuilder.show(appContext, payload)
+        }
     }
 
     // ── Internal ──────────────────────────────────────────────────────────────
