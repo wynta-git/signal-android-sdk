@@ -140,6 +140,12 @@ object SignalSDK {
 
         appContext = context.applicationContext
 
+        // Resolve the campaign-push small icon once: explicit config wins, else fall back to
+        // the "ic_notification_icon" naming convention already used for MoEngage in this app,
+        // else 0 (PushNotificationBuilder substitutes a generic system icon at render time).
+        val resolvedSmallIconResId = config.smallIconResId
+            ?: appContext.resources.getIdentifier("ic_notification_icon", "drawable", appContext.packageName)
+
         if (!activityCallbacksRegistered) {
             (appContext as? Application)?.registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
             activityCallbacksRegistered = true
@@ -167,7 +173,8 @@ object SignalSDK {
             userId         = null,
             fcmToken       = savedToken,
             appOpenTracked = false,
-            initialized    = true
+            initialized    = true,
+            smallIconResId = resolvedSmallIconResId
         )}
 
         if (savedToken != null) Logger.log("FCM token restored from storage")
@@ -444,8 +451,9 @@ object SignalSDK {
             return
         }
 
+        val smallIconResId = state.smallIconResId
         scope.launch(Dispatchers.IO) {
-            PushNotificationBuilder.show(appContext, payload)
+            PushNotificationBuilder.show(appContext, payload, smallIconResId)
         }
     }
 

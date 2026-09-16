@@ -25,13 +25,21 @@ internal object PushNotificationBuilder {
     // ceiling both platforms silently drop oversized push images at, per the template spec.
     private const val MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
-    fun show(context: Context, payload: PushNotificationPayload) {
+    fun show(context: Context, payload: PushNotificationPayload, smallIconResId: Int) {
         val notificationManager = NotificationManagerCompat.from(context)
+
+        // Never use context.applicationInfo.icon here — Android force-renders the small icon as
+        // a flat monochrome silhouette from its alpha channel, which mangles a full-color
+        // launcher icon into an unrecognizable blob. smallIconResId is resolved once in
+        // SignalSDK.initSDK from SignalConfig.smallIconResId or the "ic_notification_icon"
+        // naming convention; android.R.drawable.ic_dialog_info is the last-resort fallback if
+        // neither is available.
+        val icon = smallIconResId.takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
 
         val builder = NotificationCompat.Builder(context, SignalSDK.DEFAULT_CHANNEL_ID)
             .setContentTitle(payload.title)
             .setContentText(payload.body)
-            .setSmallIcon(context.applicationInfo.icon)
+            .setSmallIcon(icon)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
 

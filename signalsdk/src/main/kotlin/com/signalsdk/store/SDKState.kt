@@ -15,5 +15,9 @@ internal data class SDKState(
     val notificationCache: List<InboxNotification> = emptyList(),
     val isInAppPopupVisible: Boolean = false,
     val currentScreen: String? = null,
-    val previousScreen: String? = null
+    val previousScreen: String? = null,
+    // Resolved once in initSDK() — SignalConfig.smallIconResId if set, else a lookup for a
+    // drawable named "ic_notification_icon" in the host app, else 0 (PushNotificationBuilder
+    // falls back to a generic system icon when this is 0).
+    val smallIconResId: Int = 0
 )
