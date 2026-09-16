@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Build
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
@@ -28,6 +29,14 @@ internal object PushNotificationBuilder {
     // ceiling both platforms silently drop oversized push images at, per the template spec.
     private const val MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
+    // Assumed notification content width used only to convert a downloaded hero image's aspect
+    // ratio into a height — an approximation (real width varies by device/density and isn't
+    // queryable from RemoteViews), clamped so an extreme source aspect ratio can't produce a
+    // sliver-thin or absurdly tall notification.
+    private const val REFERENCE_WIDTH_DP = 340f
+    private const val MIN_HERO_HEIGHT_DP = 120f
+    private const val MAX_HERO_HEIGHT_DP = 220f
+
     fun show(context: Context, payload: PushNotificationPayload, smallIconResId: Int, defaultNotificationColor: Int?) {
         val notificationManager = NotificationManagerCompat.from(context)
 
@@ -48,7 +57,7 @@ internal object PushNotificationBuilder {
 
         val remoteViews = when (payload.template) {
             "standard" -> buildStandardView(context, payload)
-            "branded" -> buildBrandedView(context, payload, icon, resolvedColor)
+            "branded" -> buildBrandedView(context, payload, resolvedColor)
             "hero_banner" -> buildHeroBannerView(context, payload)
             else -> {
                 Logger.log(
@@ -69,11 +78,13 @@ internal object PushNotificationBuilder {
             .setCustomContentView(remoteViews)
             .setCustomBigContentView(remoteViews)
 
-        // "branded" builds its own header (icon/app-name/timestamp) inside its colored layout,
-        // since the composer mockup shows the accent color covering the whole card — Android's
-        // system-drawn DecoratedCustomViewStyle header can't be colored, so branded skips it
-        // entirely rather than getting an uncolored header sitting above a colored body.
-        // standard/hero_banner keep the system header, matching their own mockups.
+        // "branded" skips DecoratedCustomViewStyle so its colored root goes fully edge-to-edge,
+        // matching the composer mockup's full-bleed card — DecoratedCustomViewStyle insets custom
+        // content to match the system template's standard margins, which would eat into the
+        // colored area. The mandatory Android 12+ app-identity strip (icon/name/timestamp) still
+        // renders above the card regardless — that's a separate, always-on system layer with no
+        // opt-out, not something DecoratedCustomViewStyle controls. standard/hero_banner keep
+        // DecoratedCustomViewStyle since their mockups don't need edge-to-edge color.
         if (payload.template != "branded") {
             builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
         }
@@ -122,16 +133,8 @@ internal object PushNotificationBuilder {
         }
     }
 
-    private fun buildBrandedView(context: Context, payload: PushNotificationPayload, resolvedIcon: Int, resolvedColor: Int?): RemoteViews {
+    private fun buildBrandedView(context: Context, payload: PushNotificationPayload, resolvedColor: Int?): RemoteViews {
         return RemoteViews(context.packageName, R.layout.wynta_notification_branded).apply {
-            // Self-built header, since this layout isn't used with DecoratedCustomViewStyle —
-            // same small icon already resolved for the builder's setSmallIcon, the app's own
-            // display name, and a static "now" (RemoteViews has no live-updating relative-time
-            // widget short of a Chronometer, which is for stopwatches, not clock time — a
-            // static label matches what every other app's custom-header notification does here).
-            setImageViewResource(R.id.wynta_header_icon, resolvedIcon)
-            setTextViewText(R.id.wynta_header_app_name, context.applicationInfo.loadLabel(context.packageManager))
-
             setTextViewText(R.id.wynta_title, payload.title)
             setTextViewText(R.id.wynta_body, payload.body)
             // A real background fill — unlike the builder-level .color (icon badge/app-name
@@ -158,6 +161,19 @@ internal object PushNotificationBuilder {
             setTextViewText(R.id.wynta_title, payload.title)
             setTextViewText(R.id.wynta_body, payload.body)
             setImageViewBitmap(R.id.wynta_hero_image, bitmap)
+
+            // The XML's fixed 200dp height is a fallback for API < 31, where RemoteViews can't be
+            // resized at runtime. centerCrop scales to fill both dimensions and crops whatever
+            // overflows — a fixed height mismatched against a campaign image's real aspect ratio
+            // (e.g. a wide banner into a relatively-tall 200dp box) crops real content off the
+            // left/right edges. On API 31+ we size the container to the actual downloaded image's
+            // aspect ratio instead, so it displays uncropped (clamped to a sane range so an
+            // extreme aspect ratio doesn't produce a sliver or a wall of a notification).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val aspectRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+                val heightDp = (REFERENCE_WIDTH_DP / aspectRatio).coerceIn(MIN_HERO_HEIGHT_DP, MAX_HERO_HEIGHT_DP)
+                setViewLayoutHeight(R.id.wynta_root, heightDp, TypedValue.COMPLEX_UNIT_DIP)
+            }
         }
     }
 

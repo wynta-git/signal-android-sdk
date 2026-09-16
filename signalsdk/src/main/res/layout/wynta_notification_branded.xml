@@ -1,49 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- "branded" template — NOT used with DecoratedCustomViewStyle (unlike standard/hero_banner):
-     the composer mockup shows the accent color covering the entire card, including the header
-     row, and Android's system-drawn decorator header can't be colored. So this layout builds
-     its own header (small icon + app name + timestamp) so the whole thing — header and content
-     — sits inside one background-colored container. -->
+     the composer mockup shows the accent color covering the whole card, and DecoratedCustomViewStyle's
+     own header decoration can't be colored. This layout does NOT build its own icon/app-name/
+     timestamp row either — Android 12+ already draws a mandatory app-identity strip (icon, app
+     name, timestamp, expand chevron) above every notification's content area, custom or not,
+     with no API to suppress it. Adding our own copy of that here just duplicated it. So this
+     layout owns only the content area (title/body/large icon); the outer identity strip stays
+     system-drawn and uncolored — an accepted platform ceiling. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/wynta_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:paddingTop="8dp"
     android:paddingBottom="8dp"
     android:paddingStart="8dp"
     android:paddingEnd="8dp">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingTop="6dp"
-        android:paddingBottom="4dp">
-
-        <ImageView
-            android:id="@+id/wynta_header_icon"
-            android:layout_width="16dp"
-            android:layout_height="16dp" />
-
-        <TextView
-            android:id="@+id/wynta_header_app_name"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="12sp" />
-
-        <TextView
-            android:id="@+id/wynta_header_timestamp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="now"
-            android:textColor="?android:attr/textColorSecondary"
-            android:textSize="12sp" />
-
-    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
