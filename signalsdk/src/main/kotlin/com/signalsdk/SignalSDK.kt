@@ -153,6 +153,12 @@ object SignalSDK {
         val resolvedNotificationColor = config.notificationColorResId
             ?.let { ContextCompat.getColor(appContext, it) }
 
+        Logger.log(
+            "initSDK: push notification branding resolved | " +
+                "smallIconResId=$resolvedSmallIconResId (0 = not found, falls back to a generic system icon) | " +
+                "notificationColor=${resolvedNotificationColor?.let { "#%06X".format(0xFFFFFF and it) } ?: "not set"}"
+        )
+
         if (!activityCallbacksRegistered) {
             (appContext as? Application)?.registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
             activityCallbacksRegistered = true

@@ -44,10 +44,13 @@ internal object PushNotificationBuilder {
             .setAutoCancel(true)
 
         // Tints the small icon's badge/chip + app-name text (NOT the notification background —
-        // Android reserves setColorized(true) for MediaStyle/CallStyle only). A branded push's
-        // own accentColorHex wins; otherwise fall back to SignalConfig.notificationColorResId,
-        // applied to every template the same way MoEngage's notificationColorResource is.
-        resolveColor(payload.accentColorHex, defaultNotificationColor)?.let { color ->
+        // Android reserves setColorized(true) for MediaStyle/CallStyle only). accentColorHex is
+        // scoped to "branded" only, same as largeIconUrl/imageUrl are scoped to their own
+        // template — a "standard" push can't reach into another template's fields. The
+        // SignalConfig.notificationColorResId default, in contrast, is intentionally global
+        // (matches MoEngage's notificationColorResource, which applies to every notification).
+        val brandedAccentColorHex = payload.accentColorHex.takeIf { payload.template == "branded" }
+        resolveColor(brandedAccentColorHex, defaultNotificationColor)?.let { color ->
             builder.color = color
             builder.setColorized(false)
         }
