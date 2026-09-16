@@ -7,8 +7,11 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.os.Build
+import android.view.View
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.signalsdk.R
 import com.signalsdk.SignalSDK
 import com.signalsdk.models.PushNotificationPayload
 import com.signalsdk.utils.Logger
@@ -36,34 +39,47 @@ internal object PushNotificationBuilder {
         // neither is available.
         val icon = smallIconResId.takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
 
+        // accentColorHex is scoped to "branded" only, same as largeIconUrl/imageUrl are scoped
+        // to their own template — a "standard" push can't reach into another template's fields.
+        // The SignalConfig.notificationColorResId default, in contrast, is intentionally global
+        // (matches MoEngage's notificationColorResource, which applies to every notification).
+        val brandedAccentColorHex = payload.accentColorHex.takeIf { payload.template == "branded" }
+        val resolvedColor = resolveColor(brandedAccentColorHex, defaultNotificationColor)
+
+        val remoteViews = when (payload.template) {
+            "standard" -> buildStandardView(context, payload)
+            "branded" -> buildBrandedView(context, payload, resolvedColor)
+            "hero_banner" -> buildHeroBannerView(context, payload)
+            else -> {
+                Logger.log(
+                    "PushNotificationBuilder: unrecognized template '${payload.template}' — rendering as " +
+                        "standard (title/body only). Expected exactly \"standard\", \"branded\", or " +
+                        "\"hero_banner\" — check for typos/spacing (e.g. \"hero banner\" vs \"hero_banner\")."
+                )
+                buildStandardView(context, payload)
+            }
+        }
+
         val builder = NotificationCompat.Builder(context, SignalSDK.DEFAULT_CHANNEL_ID)
             .setContentTitle(payload.title)
             .setContentText(payload.body)
             .setSmallIcon(icon)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            // Custom layouts (RemoteViews) replace the body content area only —
+            // DecoratedCustomViewStyle keeps the standard system chrome (small icon badge, app
+            // name, timestamp, expand affordance) rendering normally above/around it.
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(remoteViews)
+            .setCustomBigContentView(remoteViews)
 
-        // Tints the small icon's badge/chip + app-name text (NOT the notification background —
-        // Android reserves setColorized(true) for MediaStyle/CallStyle only). accentColorHex is
-        // scoped to "branded" only, same as largeIconUrl/imageUrl are scoped to their own
-        // template — a "standard" push can't reach into another template's fields. The
-        // SignalConfig.notificationColorResId default, in contrast, is intentionally global
-        // (matches MoEngage's notificationColorResource, which applies to every notification).
-        val brandedAccentColorHex = payload.accentColorHex.takeIf { payload.template == "branded" }
-        resolveColor(brandedAccentColorHex, defaultNotificationColor)?.let { color ->
+        // Tints the small icon's badge/chip + app-name text in the standard chrome above the
+        // custom content (NOT the notification background — Android reserves setColorized(true)
+        // for MediaStyle/CallStyle only). The branded template's custom layout gets this same
+        // color as a real background fill separately, in buildBrandedView.
+        resolvedColor?.let { color ->
             builder.color = color
             builder.setColorized(false)
-        }
-
-        when (payload.template) {
-            "standard" -> Unit // title/body only, nothing else to apply
-            "branded" -> applyBranded(builder, payload)
-            "hero_banner" -> applyHeroBanner(builder, payload)
-            else -> Logger.log(
-                "PushNotificationBuilder: unrecognized template '${payload.template}' — rendering as " +
-                    "standard (title/body only). Expected exactly \"standard\", \"branded\", or " +
-                    "\"hero_banner\" — check for typos/spacing (e.g. \"hero banner\" vs \"hero_banner\")."
-            )
         }
 
         if (payload.notificationTapType == "dismiss") {
@@ -94,20 +110,42 @@ internal object PushNotificationBuilder {
         return defaultNotificationColor
     }
 
-    private fun applyBranded(builder: NotificationCompat.Builder, payload: PushNotificationPayload) {
-        payload.largeIconUrl?.let { url ->
-            downloadBitmap(url)?.let { builder.setLargeIcon(it) }
+    private fun buildStandardView(context: Context, payload: PushNotificationPayload): RemoteViews {
+        return RemoteViews(context.packageName, R.layout.wynta_notification_standard).apply {
+            setTextViewText(R.id.wynta_title, payload.title)
+            setTextViewText(R.id.wynta_body, payload.body)
         }
     }
 
-    private fun applyHeroBanner(builder: NotificationCompat.Builder, payload: PushNotificationPayload) {
-        val imageUrl = payload.imageUrl ?: return
-        val bitmap = downloadBitmap(imageUrl) ?: return // silent fallback to plain text, per spec
-        builder.setStyle(
-            NotificationCompat.BigPictureStyle()
-                .bigPicture(bitmap)
-                .bigLargeIcon(null as Bitmap?)
-        )
+    private fun buildBrandedView(context: Context, payload: PushNotificationPayload, resolvedColor: Int?): RemoteViews {
+        return RemoteViews(context.packageName, R.layout.wynta_notification_branded).apply {
+            setTextViewText(R.id.wynta_title, payload.title)
+            setTextViewText(R.id.wynta_body, payload.body)
+            // A real background fill — unlike the builder-level .color (icon badge/app-name
+            // tint only), this actually colors the card, since we own this layout's root view.
+            resolvedColor?.let { setInt(R.id.wynta_root, "setBackgroundColor", it) }
+            payload.largeIconUrl?.let { url ->
+                downloadBitmap(url)?.let { bitmap ->
+                    setImageViewBitmap(R.id.wynta_large_icon, bitmap)
+                    setViewVisibility(R.id.wynta_large_icon, View.VISIBLE)
+                }
+            }
+        }
+    }
+
+    // Image fills the card with title/body overlaid at the bottom on a gradient scrim, matching
+    // the composer's Hero Banner mockup. Falls back to the plain standard layout if the image
+    // can't be downloaded — an empty FrameLayout with white overlay text and nothing behind it
+    // would be unreadable, so this isn't a "hero_banner minus the image", it's a different layout.
+    private fun buildHeroBannerView(context: Context, payload: PushNotificationPayload): RemoteViews {
+        val bitmap = payload.imageUrl?.let { downloadBitmap(it) }
+            ?: return buildStandardView(context, payload) // silent fallback, per spec
+
+        return RemoteViews(context.packageName, R.layout.wynta_notification_hero_banner).apply {
+            setTextViewText(R.id.wynta_title, payload.title)
+            setTextViewText(R.id.wynta_body, payload.body)
+            setImageViewBitmap(R.id.wynta_hero_image, bitmap)
+        }
     }
 
     private fun buildContentIntent(context: Context, payload: PushNotificationPayload): PendingIntent? {

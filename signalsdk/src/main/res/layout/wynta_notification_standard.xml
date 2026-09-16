@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Custom content region for the "standard" template, used inside
+     NotificationCompat.DecoratedCustomViewStyle — the standard system chrome (small icon
+     badge, app name, timestamp) still renders above this via that style; this layout only
+     covers the title/body content area. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wynta_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="2dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/wynta_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:maxLines="2"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/wynta_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="13sp"
+        android:maxLines="4"
+        android:ellipsize="end" />
+
+</LinearLayout>
