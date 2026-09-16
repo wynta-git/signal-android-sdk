@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "branded" template's card background — rounded rect, matching the composer mockup.
+     The solid color here is only a placeholder default: on API 31+ it's retinted per-payload
+     via RemoteViews.setColorStateList("setBackgroundTintList", ...), which keeps the rounded
+     corners. On older APIs, RemoteViews has no drawable-tinting entry point, so the builder
+     replaces this background outright with a flat setBackgroundColor instead (sharp corners,
+     correct color) rather than showing this placeholder's fixed color. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="12dp" />
+    <solid android:color="#3A4CE0" />
+</shape>

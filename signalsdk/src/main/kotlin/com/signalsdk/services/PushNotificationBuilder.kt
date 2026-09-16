@@ -3,6 +3,7 @@ package com.signalsdk.services
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -139,7 +140,18 @@ internal object PushNotificationBuilder {
             setTextViewText(R.id.wynta_body, payload.body)
             // A real background fill — unlike the builder-level .color (icon badge/app-name
             // tint only), this actually colors the card, since we own this layout's root view.
-            resolvedColor?.let { setInt(R.id.wynta_root, "setBackgroundColor", it) }
+            // wynta_root's XML background is the rounded-rect wynta_branded_bg drawable; on
+            // API 31+ we retint it in place via setBackgroundTintList (keeps rounded corners).
+            // RemoteViews has no drawable-tint entry point pre-31, so older devices fall back
+            // to replacing the background outright with a flat color (correct color, square
+            // corners) rather than showing wynta_branded_bg's fixed placeholder color.
+            resolvedColor?.let { color ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setColorStateList(R.id.wynta_root, "setBackgroundTintList", ColorStateList.valueOf(color))
+                } else {
+                    setInt(R.id.wynta_root, "setBackgroundColor", color)
+                }
+            }
             payload.largeIconUrl?.let { url ->
                 downloadBitmap(url)?.let { bitmap ->
                     setImageViewBitmap(R.id.wynta_large_icon, bitmap)
