@@ -19,5 +19,9 @@ internal data class SDKState(
     // Resolved once in initSDK() — SignalConfig.smallIconResId if set, else a lookup for a
     // drawable named "ic_notification_icon" in the host app, else 0 (PushNotificationBuilder
     // falls back to a generic system icon when this is 0).
-    val smallIconResId: Int = 0
+    val smallIconResId: Int = 0,
+    // Resolved once in initSDK() from SignalConfig.notificationColorResId via
+    // ContextCompat.getColor — an actual ARGB color int, not a resource ID, ready to pass
+    // straight to NotificationCompat.Builder.color. Null when not configured.
+    val notificationColor: Int? = null
 )

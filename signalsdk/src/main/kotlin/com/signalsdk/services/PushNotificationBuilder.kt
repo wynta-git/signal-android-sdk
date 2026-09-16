@@ -25,7 +25,7 @@ internal object PushNotificationBuilder {
     // ceiling both platforms silently drop oversized push images at, per the template spec.
     private const val MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
-    fun show(context: Context, payload: PushNotificationPayload, smallIconResId: Int) {
+    fun show(context: Context, payload: PushNotificationPayload, smallIconResId: Int, defaultNotificationColor: Int?) {
         val notificationManager = NotificationManagerCompat.from(context)
 
         // Never use context.applicationInfo.icon here — Android force-renders the small icon as
@@ -42,6 +42,15 @@ internal object PushNotificationBuilder {
             .setSmallIcon(icon)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+
+        // Tints the small icon's badge/chip + app-name text (NOT the notification background —
+        // Android reserves setColorized(true) for MediaStyle/CallStyle only). A branded push's
+        // own accentColorHex wins; otherwise fall back to SignalConfig.notificationColorResId,
+        // applied to every template the same way MoEngage's notificationColorResource is.
+        resolveColor(payload.accentColorHex, defaultNotificationColor)?.let { color ->
+            builder.color = color
+            builder.setColorized(false)
+        }
 
         when (payload.template) {
             "branded" -> applyBranded(builder, payload)
@@ -64,15 +73,20 @@ internal object PushNotificationBuilder {
         }
     }
 
-    private fun applyBranded(builder: NotificationCompat.Builder, payload: PushNotificationPayload) {
-        payload.accentColorHex?.let { hex ->
+    // accentColorHex wins when present and valid; falls back to the configured default;
+    // null if neither is set (no color applied — system default).
+    private fun resolveColor(accentColorHex: String?, defaultNotificationColor: Int?): Int? {
+        accentColorHex?.let { hex ->
             try {
-                builder.color = Color.parseColor(hex)
-                builder.setColorized(false) // colorized requires a media/call-style notification; setColor alone tints the small icon/app name
+                return Color.parseColor(hex)
             } catch (e: IllegalArgumentException) {
                 Logger.error("PushNotificationBuilder: invalid accentColorHex '$hex'", e)
             }
         }
+        return defaultNotificationColor
+    }
+
+    private fun applyBranded(builder: NotificationCompat.Builder, payload: PushNotificationPayload) {
         payload.largeIconUrl?.let { url ->
             downloadBitmap(url)?.let { builder.setLargeIcon(it) }
         }

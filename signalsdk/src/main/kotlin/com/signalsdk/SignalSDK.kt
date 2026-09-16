@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import androidx.core.content.ContextCompat
 import com.signalsdk.config.SignalConfig
 import com.signalsdk.models.IdentifyRequest
 import com.signalsdk.models.IdentityPayload
@@ -146,6 +147,12 @@ object SignalSDK {
         val resolvedSmallIconResId = config.smallIconResId
             ?: appContext.resources.getIdentifier("ic_notification_icon", "drawable", appContext.packageName)
 
+        // Resolve the default notification tint (small icon's badge/chip color + app-name text)
+        // once, matching MoEngage's notificationColorResource. Null when not configured — a
+        // branded push's own accentColorHex still overrides this per-notification either way.
+        val resolvedNotificationColor = config.notificationColorResId
+            ?.let { ContextCompat.getColor(appContext, it) }
+
         if (!activityCallbacksRegistered) {
             (appContext as? Application)?.registerActivityLifecycleCallbacks(activityLifecycleCallbacks)
             activityCallbacksRegistered = true
@@ -174,7 +181,8 @@ object SignalSDK {
             fcmToken       = savedToken,
             appOpenTracked = false,
             initialized    = true,
-            smallIconResId = resolvedSmallIconResId
+            smallIconResId = resolvedSmallIconResId,
+            notificationColor = resolvedNotificationColor
         )}
 
         if (savedToken != null) Logger.log("FCM token restored from storage")
@@ -452,8 +460,9 @@ object SignalSDK {
         }
 
         val smallIconResId = state.smallIconResId
+        val notificationColor = state.notificationColor
         scope.launch(Dispatchers.IO) {
-            PushNotificationBuilder.show(appContext, payload, smallIconResId)
+            PushNotificationBuilder.show(appContext, payload, smallIconResId, notificationColor)
         }
     }
 
