@@ -15,7 +15,11 @@
         android:layout_height="match_parent"
         android:scaleType="centerCrop" />
 
-    <View
+    <!-- FrameLayout, not View — RemoteViews only supports a curated allowlist of widget
+         classes for remote inflation (FrameLayout/LinearLayout/TextView/ImageView/etc.); a
+         bare android.view.View isn't on it and fails to inflate in the system's SystemUI
+         process (silently, from the app's perspective — notify() still "succeeds"). -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="96dp"
         android:layout_gravity="bottom"
