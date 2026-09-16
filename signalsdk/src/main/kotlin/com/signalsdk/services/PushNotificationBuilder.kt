@@ -56,9 +56,14 @@ internal object PushNotificationBuilder {
         }
 
         when (payload.template) {
+            "standard" -> Unit // title/body only, nothing else to apply
             "branded" -> applyBranded(builder, payload)
             "hero_banner" -> applyHeroBanner(builder, payload)
-            else -> Unit // "standard" (and any unrecognized template) — title/body only
+            else -> Logger.log(
+                "PushNotificationBuilder: unrecognized template '${payload.template}' — rendering as " +
+                    "standard (title/body only). Expected exactly \"standard\", \"branded\", or " +
+                    "\"hero_banner\" — check for typos/spacing (e.g. \"hero banner\" vs \"hero_banner\")."
+            )
         }
 
         if (payload.notificationTapType == "dismiss") {
