@@ -1,52 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- "branded" template — a real colored background (set programmatically via
-     setInt(R.id.wynta_root, "setBackgroundColor", ...)), unlike setColorized(true) which
-     Android restricts to MediaStyle/CallStyle. Optional large icon shown at the trailing
-     edge when largeIconUrl is present. -->
+<!-- "branded" template — NOT used with DecoratedCustomViewStyle (unlike standard/hero_banner):
+     the composer mockup shows the accent color covering the entire card, including the header
+     row, and Android's system-drawn decorator header can't be colored. So this layout builds
+     its own header (small icon + app name + timestamp) so the whole thing — header and content
+     — sits inside one background-colored container. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/wynta_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
+    android:orientation="vertical"
     android:paddingBottom="8dp"
     android:paddingStart="8dp"
     android:paddingEnd="8dp">
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="6dp"
+        android:paddingBottom="4dp">
+
+        <ImageView
+            android:id="@+id/wynta_header_icon"
+            android:layout_width="16dp"
+            android:layout_height="16dp" />
 
         <TextView
-            android:id="@+id/wynta_title"
-            android:layout_width="match_parent"
+            android:id="@+id/wynta_header_app_name"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:textColor="?android:attr/textColorPrimary"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:maxLines="2"
-            android:ellipsize="end" />
-
-        <TextView
-            android:id="@+id/wynta_body"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
             android:textColor="?android:attr/textColorSecondary"
-            android:textSize="13sp"
-            android:maxLines="4"
-            android:ellipsize="end" />
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/wynta_header_timestamp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="now"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp" />
 
     </LinearLayout>
 
-    <ImageView
-        android:id="@+id/wynta_large_icon"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginStart="12dp"
-        android:scaleType="centerCrop"
-        android:visibility="gone" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/wynta_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/wynta_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textColor="?android:attr/textColorSecondary"
+                android:textSize="13sp"
+                android:maxLines="4"
+                android:ellipsize="end" />
+
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/wynta_large_icon"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="12dp"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
+
+    </LinearLayout>
 
 </LinearLayout>

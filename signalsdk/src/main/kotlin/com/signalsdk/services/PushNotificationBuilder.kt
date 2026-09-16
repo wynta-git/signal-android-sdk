@@ -48,7 +48,7 @@ internal object PushNotificationBuilder {
 
         val remoteViews = when (payload.template) {
             "standard" -> buildStandardView(context, payload)
-            "branded" -> buildBrandedView(context, payload, resolvedColor)
+            "branded" -> buildBrandedView(context, payload, icon, resolvedColor)
             "hero_banner" -> buildHeroBannerView(context, payload)
             else -> {
                 Logger.log(
@@ -66,12 +66,17 @@ internal object PushNotificationBuilder {
             .setSmallIcon(icon)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            // Custom layouts (RemoteViews) replace the body content area only —
-            // DecoratedCustomViewStyle keeps the standard system chrome (small icon badge, app
-            // name, timestamp, expand affordance) rendering normally above/around it.
-            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
             .setCustomContentView(remoteViews)
             .setCustomBigContentView(remoteViews)
+
+        // "branded" builds its own header (icon/app-name/timestamp) inside its colored layout,
+        // since the composer mockup shows the accent color covering the whole card — Android's
+        // system-drawn DecoratedCustomViewStyle header can't be colored, so branded skips it
+        // entirely rather than getting an uncolored header sitting above a colored body.
+        // standard/hero_banner keep the system header, matching their own mockups.
+        if (payload.template != "branded") {
+            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+        }
 
         // Tints the small icon's badge/chip + app-name text in the standard chrome above the
         // custom content (NOT the notification background — Android reserves setColorized(true)
@@ -117,8 +122,16 @@ internal object PushNotificationBuilder {
         }
     }
 
-    private fun buildBrandedView(context: Context, payload: PushNotificationPayload, resolvedColor: Int?): RemoteViews {
+    private fun buildBrandedView(context: Context, payload: PushNotificationPayload, resolvedIcon: Int, resolvedColor: Int?): RemoteViews {
         return RemoteViews(context.packageName, R.layout.wynta_notification_branded).apply {
+            // Self-built header, since this layout isn't used with DecoratedCustomViewStyle —
+            // same small icon already resolved for the builder's setSmallIcon, the app's own
+            // display name, and a static "now" (RemoteViews has no live-updating relative-time
+            // widget short of a Chronometer, which is for stopwatches, not clock time — a
+            // static label matches what every other app's custom-header notification does here).
+            setImageViewResource(R.id.wynta_header_icon, resolvedIcon)
+            setTextViewText(R.id.wynta_header_app_name, context.applicationInfo.loadLabel(context.packageManager))
+
             setTextViewText(R.id.wynta_title, payload.title)
             setTextViewText(R.id.wynta_body, payload.body)
             // A real background fill — unlike the builder-level .color (icon badge/app-name
