@@ -31,13 +31,15 @@ internal data class PushNotificationPayload(
             val body = data["body"].blankToNull() ?: return null
 
             return PushNotificationPayload(
-                template                = data["template"].blankToNull() ?: "standard",
+                // Lowercased once here so every downstream template == "branded" / "hero_banner"
+                // check works regardless of how the backend/composer capitalizes it in the payload.
+                template                = data["template"].blankToNull()?.lowercase() ?: "standard",
                 title                   = title,
                 body                    = body,
                 accentColorHex          = data["accentColorHex"].blankToNull(),
                 largeIconUrl            = data["largeIconUrl"].blankToNull(),
                 imageUrl                = data["imageUrl"].blankToNull(),
-                notificationTapType     = data["notification_tap_type"].blankToNull(),
+                notificationTapType     = data["notification_tap_type"].blankToNull()?.lowercase(),
                 notificationTapAction1  = data["notification_tap_action_1"].blankToNull(),
                 notificationTapAction2  = data["notification_tap_action_2"].blankToNull(),
                 campaignId              = data["campaign_id"].blankToNull(),
