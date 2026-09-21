@@ -17,7 +17,8 @@ This guide covers everything an Android application needs to integrate the Signa
 5. [Automatic Lifecycle Events](#5-automatic-lifecycle-events)
 6. [Full Lifecycle Example](#6-full-lifecycle-example)
 7. [API Reference](#7-api-reference)
-8. [ProGuard Rules](#8-proguard-rules)
+8. [Push Notification Templates](#8-push-notification-templates)
+9. [ProGuard Rules](#9-proguard-rules)
 
 ---
 
@@ -361,7 +362,70 @@ data class SDKResponse(
 
 ---
 
-## 8. ProGuard Rules
+## 8. Push Notification Templates
+
+The SDK renders campaign push notifications itself — the host app forwards the raw FCM payload to `handleRemoteMessage`, and the SDK parses it, builds the notification (with a custom, rounded-card layout for `branded` and `hero_banner`, not just plain `NotificationCompat` styles), and posts it. **The SDK does not own an FCM manifest entry** — host apps like this one typically already have their own `FirebaseMessagingService` (for MoEngage, Freshchat, etc.), and Android only allows one per app. Forward the raw data map with one line from your own service:
+
+```kotlin
+class MyFirebaseMessagingService : FirebaseMessagingService() {
+    override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        super.onMessageReceived(remoteMessage)
+        SignalSDK.handleRemoteMessage(remoteMessage.data)
+    }
+}
+```
+
+If `title`/`body` aren't present in the data map, `handleRemoteMessage` treats it as not a template push and does nothing — safe to call unconditionally on every message, including ones from other providers.
+
+### 8.1 Payload contract
+
+| Field | Scope | Description |
+|---|---|---|
+| `template` | all | `"standard"` \| `"branded"` \| `"hero_banner"` (case-insensitive; unrecognized values fall back to `standard`) |
+| `title` / `body` | all | Required — the notification text |
+| `accentColorHex` | `branded` only | e.g. `"#3A4CE0"` — fills the whole card (rounded corners on API 31+, flat fill pre-31), ignored for other templates |
+| `largeIconUrl` | `branded` only | Small icon shown at the trailing edge of the card, ignored for other templates |
+| `imageUrl` | `hero_banner` only | Full-bleed image with a bottom gradient scrim and overlaid title/body; on API 31+ the card is sized to the image's real aspect ratio so it isn't cropped. Falls back to the `standard` layout if the download fails or the field is absent |
+| `notification_tap_type` | all | `"dismiss"` \| `"deeplink"` \| `"share"` \| `"call"` \| `"track_event"` — see [8.3](#83-tap-handling--deep-links) |
+| `notification_tap_action_1` / `notification_tap_action_2` | all | Opaque strings the app interprets based on `notification_tap_type` (e.g. a deep-link screen name) |
+
+### 8.2 Icon and color configuration
+
+By default the small icon uses a drawable named `ic_notification_icon` if your app provides one (avoids Android's monochrome-silhouette rendering of full-color launcher icons), falling back to a system icon otherwise. Both the icon and a default accent color (used when a push doesn't set `accentColorHex`, and to tint the small icon/app-name chrome on every template) can be set explicitly at init:
+
+```kotlin
+SignalSDK.initSDK(
+    context = this,
+    config = SignalConfig(
+        clientId = "...",
+        clientSecret = "...",
+        smallIconResId = R.drawable.ic_my_notification_icon,   // optional, overrides the naming convention
+        notificationColorResId = R.color.brand_accent           // optional
+    )
+)
+```
+
+### 8.3 Tap handling & deep links
+
+The SDK only special-cases `notification_tap_type == "dismiss"` — the notification is posted with no content intent, so tapping it just clears it. **Every other value is opaque to the SDK.** For all of them, the SDK attaches `notification_tap_type`, `notification_tap_action_1`, and `notification_tap_action_2` as extras on the launch intent (alongside the existing `campaign_id`/`deep_link`/etc.), and the app is responsible for reading them and deciding what to do — the SDK does not navigate, open a dialer, or show a share sheet itself.
+
+A typical app has a single place where the target screen for a `"deeplink"` tap gets decided — e.g. in `MainActivity`:
+
+```kotlin
+override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    if (intent.getStringExtra("notification_tap_type")?.equals("deeplink", ignoreCase = true) == true) {
+        val screen = intent.getStringExtra("notification_tap_action_1")
+        // ...route to `screen`, however your app's navigation is structured
+    }
+}
+```
+
+`notification_tap_type`/`notification_tap_action_1`/`notification_tap_action_2` are also included automatically in the `notification_clicked`/`notification_opened` events fired by `handleNotificationClick`, so they're visible in analytics regardless of whether the app acts on them.
+
+---
+
+## 9. ProGuard Rules
 
 If you use R8/ProGuard, add these rules to your `proguard-rules.pro`:
 
