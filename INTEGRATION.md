@@ -382,16 +382,16 @@ If `title`/`body` aren't present in the data map, `handleRemoteMessage` treats i
 | Field | Scope | Description |
 |---|---|---|
 | `template` | all | `"standard"` \| `"branded"` \| `"hero_banner"` (case-insensitive; unrecognized values fall back to `standard`) |
-| `title` / `body` | all | Required — the notification text |
-| `accentColorHex` | `branded` only | e.g. `"#3A4CE0"` — fills the whole card (rounded corners on API 31+, flat fill pre-31), ignored for other templates |
-| `largeIconUrl` | `branded` only | Small icon shown at the trailing edge of the card, ignored for other templates |
-| `imageUrl` | `hero_banner` only | Full-bleed image with a bottom gradient scrim and overlaid title/body; on API 31+ the card is sized to the image's real aspect ratio so it isn't cropped. Falls back to the `standard` layout if the download fails or the field is absent |
+| `title` / `content` | all | Required — the notification text. `content` is the current field name for the body text; `body` is still accepted as a fallback for older campaigns |
+| `bg_color` | `branded` only | e.g. `"#3A4CE0"` — fills the whole card (rounded corners on API 31+, flat fill pre-31), ignored for other templates. `accentColorHex` is still accepted as a fallback |
+| `image_url` | `branded` only | Small icon shown at the trailing edge of the card, ignored for other templates. `largeIconUrl` is still accepted as a fallback |
+| `banner_url` | `hero_banner` only | Full-bleed image with a bottom gradient scrim and overlaid title/body; on API 31+ the card is sized to the image's real aspect ratio so it isn't cropped. Falls back to the `standard` layout if the download fails or the field is absent. `imageUrl` is still accepted as a fallback |
 | `notification_tap_type` | all | `"dismiss"` \| `"deeplink"` \| `"share"` \| `"call"` \| `"track_event"` — see [8.3](#83-tap-handling--deep-links) |
 | `notification_tap_action_1` / `notification_tap_action_2` | all | Opaque strings the app interprets based on `notification_tap_type` (e.g. a deep-link screen name) |
 
 ### 8.2 Icon and color configuration
 
-By default the small icon uses a drawable named `ic_notification_icon` if your app provides one (avoids Android's monochrome-silhouette rendering of full-color launcher icons), falling back to a system icon otherwise. Both the icon and a default accent color (used when a push doesn't set `accentColorHex`, and to tint the small icon/app-name chrome on every template) can be set explicitly at init:
+By default the small icon uses a drawable named `ic_notification_icon` if your app provides one (avoids Android's monochrome-silhouette rendering of full-color launcher icons), falling back to a system icon otherwise. Both the icon and a default accent color (used when a push doesn't set `bg_color`, and to tint the small icon/app-name chrome on every template) can be set explicitly at init:
 
 ```kotlin
 SignalSDK.initSDK(

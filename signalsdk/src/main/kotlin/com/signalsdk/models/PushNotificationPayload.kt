@@ -28,7 +28,10 @@ internal data class PushNotificationPayload(
 
         fun fromData(data: Map<String, String>): PushNotificationPayload? {
             val title = data["title"].blankToNull() ?: return null
-            val body = data["body"].blankToNull() ?: return null
+            // The composer sends the description text as "content", not "body" -- "body" is kept
+            // as a fallback for any already-scheduled campaigns/older backend versions still
+            // using the old key.
+            val body = (data["content"] ?: data["body"]).blankToNull() ?: return null
 
             return PushNotificationPayload(
                 // Lowercased once here so every downstream template == "branded" / "hero_banner"
@@ -36,9 +39,11 @@ internal data class PushNotificationPayload(
                 template                = data["template"].blankToNull()?.lowercase() ?: "standard",
                 title                   = title,
                 body                    = body,
-                accentColorHex          = data["accentColorHex"].blankToNull(),
-                largeIconUrl            = data["largeIconUrl"].blankToNull(),
-                imageUrl                = data["imageUrl"].blankToNull(),
+                // bg_color/image_url/banner_url are the current composer field names;
+                // accentColorHex/largeIconUrl/imageUrl kept as fallbacks for the same reason.
+                accentColorHex          = (data["bg_color"] ?: data["accentColorHex"]).blankToNull(),
+                largeIconUrl            = (data["image_url"] ?: data["largeIconUrl"]).blankToNull(),
+                imageUrl                = (data["banner_url"] ?: data["imageUrl"]).blankToNull(),
                 notificationTapType     = data["notification_tap_type"].blankToNull()?.lowercase(),
                 notificationTapAction1  = data["notification_tap_action_1"].blankToNull(),
                 notificationTapAction2  = data["notification_tap_action_2"].blankToNull(),
