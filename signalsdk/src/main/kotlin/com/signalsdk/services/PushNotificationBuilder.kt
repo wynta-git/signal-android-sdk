@@ -70,6 +70,19 @@ internal object PushNotificationBuilder {
             }
         }
 
+        // Unlike accentColorHex/largeIconUrl/imageUrl (scoped to one template), textColor applies
+        // to the title/body on all three — wynta_title/wynta_body are the same view IDs across all
+        // three layout XMLs, so this is applied once here rather than duplicated per builder.
+        payload.textColor?.let { hex ->
+            try {
+                val color = Color.parseColor(hex)
+                remoteViews.setTextColor(R.id.wynta_title, color)
+                remoteViews.setTextColor(R.id.wynta_body, color)
+            } catch (e: IllegalArgumentException) {
+                Logger.error("PushNotificationBuilder: invalid textColor '$hex'", e)
+            }
+        }
+
         val builder = NotificationCompat.Builder(context, SignalSDK.DEFAULT_CHANNEL_ID)
             .setContentTitle(payload.title)
             .setContentText(payload.body)

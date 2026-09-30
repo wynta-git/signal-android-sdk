@@ -10,6 +10,9 @@ internal data class PushNotificationPayload(
     val accentColorHex: String?,
     val largeIconUrl: String?,
     val imageUrl: String?,
+    // Overrides the title/body text color on all three templates — unlike accentColorHex/
+    // largeIconUrl/imageUrl, not scoped to a single template.
+    val textColor: String?,
     val notificationTapType: String?,
     val notificationTapAction1: String?,
     val notificationTapAction2: String?,
@@ -44,6 +47,7 @@ internal data class PushNotificationPayload(
                 accentColorHex          = (data["bg_color"] ?: data["accentColorHex"]).blankToNull(),
                 largeIconUrl            = (data["image_url"] ?: data["largeIconUrl"]).blankToNull(),
                 imageUrl                = (data["banner_url"] ?: data["imageUrl"]).blankToNull(),
+                textColor               = data["text_color"].blankToNull(),
                 notificationTapType     = data["notification_tap_type"].blankToNull()?.lowercase(),
                 notificationTapAction1  = data["notification_tap_action_1"].blankToNull(),
                 notificationTapAction2  = data["notification_tap_action_2"].blankToNull(),

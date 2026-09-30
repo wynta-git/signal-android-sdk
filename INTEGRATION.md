@@ -386,6 +386,7 @@ If `title`/`body` aren't present in the data map, `handleRemoteMessage` treats i
 | `bg_color` | `branded` only | e.g. `"#3A4CE0"` — fills the whole card (rounded corners on API 31+, flat fill pre-31), ignored for other templates. `accentColorHex` is still accepted as a fallback |
 | `image_url` | `branded` only | Small icon shown at the trailing edge of the card, ignored for other templates. `largeIconUrl` is still accepted as a fallback |
 | `banner_url` | `hero_banner` only | Full-bleed image with a bottom gradient scrim and overlaid title/body; on API 31+ the card is sized to the image's real aspect ratio so it isn't cropped. Falls back to the `standard` layout if the download fails or the field is absent. `imageUrl` is still accepted as a fallback |
+| `text_color` | all | e.g. `"#FFFFFF"` — overrides the title/body text color on all three templates (unlike `bg_color`/`image_url`/`banner_url`, not scoped to one template). Ignored if invalid/absent, in which case each template's default text color applies |
 | `notification_tap_type` | all | `"dismiss"` \| `"deeplink"` \| `"share"` \| `"call"` \| `"track_event"` — see [8.3](#83-tap-handling--deep-links) |
 | `notification_tap_action_1` / `notification_tap_action_2` | all | Opaque strings the app interprets based on `notification_tap_type` (e.g. a deep-link screen name) |
 
