@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- "hero_banner" template — matches the composer mockup: the image fills the whole card,
-     title/body are overlaid at the bottom on a dark gradient scrim (wynta_hero_scrim) so
-     white text stays legible over any photo. Text color is fixed white here (not the usual
-     ?android:attr/textColorPrimary) since it always sits on a dark scrim, not the system's
-     light/dark notification background. -->
+     title/body are overlaid at the bottom. Text color is fixed white here (not the usual
+     ?android:attr/textColorPrimary) since it always sits on top of a photo, not the system's
+     light/dark notification background; text_color in the payload overrides this per-push. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/wynta_root"
     android:layout_width="match_parent"
@@ -14,16 +13,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop" />
-
-    <!-- FrameLayout, not View — RemoteViews only supports a curated allowlist of widget
-         classes for remote inflation (FrameLayout/LinearLayout/TextView/ImageView/etc.); a
-         bare android.view.View isn't on it and fails to inflate in the system's SystemUI
-         process (silently, from the app's perspective — notify() still "succeeds"). -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="96dp"
-        android:layout_gravity="bottom"
-        android:background="@drawable/wynta_hero_scrim" />
 
     <LinearLayout
         android:layout_width="match_parent"

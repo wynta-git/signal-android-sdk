@@ -174,8 +174,8 @@ internal object PushNotificationBuilder {
         }
     }
 
-    // Image fills the card with title/body overlaid at the bottom on a gradient scrim, matching
-    // the composer's Hero Banner mockup. Falls back to the plain standard layout if the image
+    // Image fills the card with title/body overlaid directly at the bottom, matching the
+    // composer's Hero Banner mockup. Falls back to the plain standard layout if the image
     // can't be downloaded — an empty FrameLayout with white overlay text and nothing behind it
     // would be unreadable, so this isn't a "hero_banner minus the image", it's a different layout.
     private fun buildHeroBannerView(context: Context, payload: PushNotificationPayload): RemoteViews {
