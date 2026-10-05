@@ -118,8 +118,20 @@ internal class NotificationInboxService {
         return InboxNotification(
             notification_id = getString("notification_id"),
             campaign_id = getString("campaign_id"),
-            media = mediaObj?.let { NotificationMedia(image_url = it.optNullableString("image_url")) },
+            variant_id = optNullableString("variant_id"),
+            template_type = optNullableString("template_type")?.lowercase(),
+            render_engine = optNullableString("render_engine")?.lowercase(),
+            title = optNullableString("title"),
+            body = optNullableString("body"),
+            media = mediaObj?.let {
+                NotificationMedia(
+                    image_url = it.optNullableString("image_url"),
+                    background_color = it.optNullableString("background_color"),
+                    background_opacity = it.optNullableString("background_opacity")
+                )
+            },
             cta = ctaArray?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it).toNotificationCta() } },
+            close_button_visibility = optNullableString("close_button_visibility"),
             expires_at = optNullableString("expires_at"),
             trigger_type = optNullableString("trigger_type"),
             target_screens = targetScreensArray?.let { arr -> (0 until arr.length()).map { arr.getString(it) } },
@@ -131,6 +143,7 @@ internal class NotificationInboxService {
         role = optNullableString("role"),
         label = optNullableString("label"),
         action = optString("action", "dismiss"),
+        cta_background_color = optNullableString("cta_background_color"),
         value = optNullableString("value")
     )
 }

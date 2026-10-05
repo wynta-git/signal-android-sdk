@@ -35,12 +35,20 @@ internal object TriggerEngine {
         val match = notifications.firstOrNull { notification ->
             notification.notification_id !in handledNotificationIds &&
                 !isExpired(notification.expires_at) &&
-                !notification.media?.image_url.isNullOrEmpty() &&
+                hasRenderableContent(notification) &&
                 matchesTrigger(notification, event)
         }
         Logger.log("TriggerEngine.findEligibleNotification($event) → ${match?.notification_id ?: "none"}")
         return match
     }
+
+    // Originally required an image unconditionally (the only layout was an image card). Now
+    // that templates can be title/body-driven (e.g. choice_prompt, quick_rating), a notification
+    // is eligible with an image OR text — only one with neither has nothing to actually show.
+    private fun hasRenderableContent(notification: InboxNotification): Boolean =
+        !notification.media?.image_url.isNullOrEmpty() ||
+            !notification.title.isNullOrEmpty() ||
+            !notification.body.isNullOrEmpty()
 
     private fun isExpired(expiresAt: String?): Boolean {
         if (expiresAt.isNullOrEmpty()) return false

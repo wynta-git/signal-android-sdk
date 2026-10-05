@@ -92,6 +92,16 @@ object SignalSDK {
     // resumed yet). Flushed as soon as the next Activity resumes.
     @Volatile private var pendingNotification: InboxNotification? = null
 
+    // Registered by the host app to receive in-app message CTA taps whose action is
+    // "deep_link" — see InAppActionListener's doc comment for why this is a direct callback
+    // rather than an Intent-based hand-off like push's notification_tap_action_1.
+    @Volatile private var inAppActionListener: InAppActionListener? = null
+
+    /** Call once (e.g. from Application.onCreate()) to receive in-app "deep_link" CTA taps. */
+    fun setInAppActionListener(listener: InAppActionListener?) {
+        inAppActionListener = listener
+    }
+
     private val activityLifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityResumed(activity: Activity) {
             currentActivityRef = WeakReference(activity)
@@ -555,8 +565,16 @@ object SignalSDK {
     }
 
     // Reported back by InAppPopupOverlay for shown/clicked/dismissed. `shown` also marks the
-    // notification read; `clicked`/`dismissed` clear the popup-visible guard.
-    private fun onInAppInteraction(type: String, notificationId: String, campaignId: String, ctaLabel: String?) {
+    // notification read; `clicked`/`dismissed` clear the popup-visible guard. ctaAction/ctaValue
+    // are only non-null for "clicked" — used to hand "deep_link" taps to inAppActionListener.
+    private fun onInAppInteraction(
+        type: String,
+        notificationId: String,
+        campaignId: String,
+        ctaLabel: String?,
+        ctaAction: String? = null,
+        ctaValue: String? = null
+    ) {
         val current = state
         val userId = current.userId
         if (userId.isNullOrBlank() || current.clientId == null || current.clientSecret == null) return
@@ -589,6 +607,9 @@ object SignalSDK {
                         mapOf("notification_id" to notificationId, "campaign_id" to campaignId, "cta_label" to ctaLabel),
                         userId
                     )
+                }
+                if (ctaAction == "deep_link") {
+                    inAppActionListener?.onInAppAction(ctaAction, ctaValue, ctaLabel, notificationId, campaignId)
                 }
                 updateState { copy(isInAppPopupVisible = false) }
             }
