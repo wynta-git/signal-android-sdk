@@ -141,10 +141,12 @@ internal object InAppPopupOverlay {
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), activity.resources.displayMetrics).toInt()
 
     private fun parseColorOrNull(hex: String?): Int? =
-        hex?.let {
+        hex?.takeIf { it.isNotEmpty() }?.let {
             try {
                 Color.parseColor(it)
-            } catch (e: IllegalArgumentException) {
+            } catch (e: Exception) {
+                // Color.parseColor throws StringIndexOutOfBoundsException (not
+                // IllegalArgumentException) for some malformed input, e.g. "#" alone.
                 null
             }
         }
@@ -233,7 +235,7 @@ internal object InAppPopupOverlay {
         orientation = LinearLayout.VERTICAL
         val buttonHeight = dpToPx(activity, 44)
         val radiusPx = dpToPx(activity, 8).toFloat()
-        ctaList.forEachIndexed { index, cta ->
+        ctaList.filter { !it.label.isNullOrEmpty() }.forEachIndexed { index, cta ->
             val button = TextView(activity).apply {
                 text = cta.label.orEmpty()
                 setTextColor(Color.WHITE)

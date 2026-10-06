@@ -418,8 +418,8 @@ object SignalSDK {
         closeButtonVisibility: String? = null,
     ) {
         val cta = buildList {
-            if (ctaLabel != null) add(NotificationCta(role = "primary", label = ctaLabel, action = ctaAction, value = ctaValue, cta_background_color = ctaBackgroundColor))
-            if (secondCtaLabel != null) add(NotificationCta(role = "secondary", label = secondCtaLabel, action = secondCtaAction, value = secondCtaValue, cta_background_color = secondCtaBackgroundColor))
+            if (!ctaLabel.isNullOrEmpty()) add(NotificationCta(role = "primary", label = ctaLabel, action = ctaAction, value = ctaValue, cta_background_color = ctaBackgroundColor))
+            if (!secondCtaLabel.isNullOrEmpty()) add(NotificationCta(role = "secondary", label = secondCtaLabel, action = secondCtaAction, value = secondCtaValue, cta_background_color = secondCtaBackgroundColor))
         }.ifEmpty { null }
         val notification = InboxNotification(
             notification_id = "test_${System.currentTimeMillis()}",
