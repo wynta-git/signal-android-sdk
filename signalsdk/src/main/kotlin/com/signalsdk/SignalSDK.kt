@@ -377,7 +377,10 @@ object SignalSDK {
      *     ctaLabel = "Claim Now",
      *     ctaAction = "deep_link",
      *     ctaValue = "wallet",
-     *     ctaBackgroundColor = "#2F6BFF"
+     *     ctaBackgroundColor = "#2F6BFF",
+     *     // Omit secondCtaLabel to disable the second button entirely (the default).
+     *     secondCtaLabel = "No thanks",
+     *     secondCtaAction = "dismiss"
      * )
      * ```
      */
@@ -390,13 +393,17 @@ object SignalSDK {
         ctaAction: String = "dismiss", // "deep_link" | "external_url" | "dismiss"
         ctaValue: String? = null,
         ctaBackgroundColor: String? = null,
+        // Second (secondary) button — disabled by default; pass secondCtaLabel to enable it.
+        secondCtaLabel: String? = null,
+        secondCtaAction: String = "dismiss",
+        secondCtaValue: String? = null,
+        secondCtaBackgroundColor: String? = null,
         closeButtonVisibility: String? = null,
     ) {
-        val cta = if (ctaLabel != null) {
-            listOf(NotificationCta(role = "primary", label = ctaLabel, action = ctaAction, value = ctaValue, cta_background_color = ctaBackgroundColor))
-        } else {
-            null
-        }
+        val cta = buildList {
+            if (ctaLabel != null) add(NotificationCta(role = "primary", label = ctaLabel, action = ctaAction, value = ctaValue, cta_background_color = ctaBackgroundColor))
+            if (secondCtaLabel != null) add(NotificationCta(role = "secondary", label = secondCtaLabel, action = secondCtaAction, value = secondCtaValue, cta_background_color = secondCtaBackgroundColor))
+        }.ifEmpty { null }
         val notification = InboxNotification(
             notification_id = "test_${System.currentTimeMillis()}",
             campaign_id = "test_campaign",
