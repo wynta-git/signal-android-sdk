@@ -383,7 +383,24 @@ object SignalSDK {
      *     secondCtaAction = "dismiss"
      * )
      * ```
+     *
+     * From Java (e.g. TajRummy), call positionally via `SignalSDK.INSTANCE`; `@JvmOverloads`
+     * generates an overload for every prefix of this parameter list, so you only need to pass
+     * arguments up through the last one you care about:
+     * ```java
+     * SignalSDK.INSTANCE.showTestInAppMessage(
+     *     "pop_ups",
+     *     "Welcome back!",
+     *     "Here's a little something for you.",
+     *     "https://example.com/banner.jpg",
+     *     "Claim Now",
+     *     "deep_link",
+     *     "wallet",
+     *     "#2F6BFF"
+     * );
+     * ```
      */
+    @JvmOverloads
     fun showTestInAppMessage(
         templateType: String, // "full_screen" | "pop_ups" | "bubble" | null for the legacy layout
         title: String? = null,
