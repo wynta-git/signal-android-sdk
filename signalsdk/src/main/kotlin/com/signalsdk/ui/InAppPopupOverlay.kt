@@ -220,7 +220,7 @@ internal object InAppPopupOverlay {
     private fun buildBodyText(activity: Activity, text: String): TextView = TextView(activity).apply {
         this.text = text
         setTextColor(Color.parseColor("#6B6B6B"))
-        textSize = 14f
+        textSize = 15f
         gravity = Gravity.CENTER
         maxLines = 4
     }
@@ -330,7 +330,7 @@ internal object InAppPopupOverlay {
         }
 
         if (bitmap != null) {
-            val imageHeight = (activity.resources.displayMetrics.heightPixels * 0.45).toInt()
+            val imageHeight = (activity.resources.displayMetrics.heightPixels * 0.35).toInt()
             content.addView(
                 buildImageView(activity, bitmap, cornerRadiusDp = 0),
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, imageHeight).apply {
@@ -340,12 +340,12 @@ internal object InAppPopupOverlay {
         }
         notification.title?.takeIf { it.isNotEmpty() }?.let {
             content.addView(buildTitleText(activity, it), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dpToPx(activity, 8)
+                bottomMargin = dpToPx(activity, 12)
             })
         }
         notification.body?.takeIf { it.isNotEmpty() }?.let {
             content.addView(buildBodyText(activity, it), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dpToPx(activity, 20)
+                bottomMargin = dpToPx(activity, 28)
             })
         }
         val ctaList = notification.cta.orEmpty()
@@ -353,8 +353,16 @@ internal object InAppPopupOverlay {
             content.addView(buildCtaRow(activity, ctaList, resolver), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
 
+        // With an image, the 45%-height image anchors the block near the top and centering the
+        // whole thing reads as balanced. Without one, centering leaves a large empty gap above
+        // the title — anchor to the top (clearing the close button) instead in that case.
         root.addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            gravity = Gravity.CENTER
+            if (bitmap != null) {
+                gravity = Gravity.CENTER
+            } else {
+                gravity = Gravity.TOP
+                topMargin = dpToPx(activity, 96)
+            }
         })
 
         if (showCloseButtonFor(notification)) {
@@ -430,12 +438,12 @@ internal object InAppPopupOverlay {
         }
         notification.title?.takeIf { it.isNotEmpty() }?.let {
             content.addView(buildTitleText(activity, it), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dpToPx(activity, 6)
+                bottomMargin = dpToPx(activity, 10)
             })
         }
         notification.body?.takeIf { it.isNotEmpty() }?.let {
             content.addView(buildBodyText(activity, it), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dpToPx(activity, 12)
+                bottomMargin = dpToPx(activity, 18)
             })
         }
         val ctaList = notification.cta.orEmpty()
