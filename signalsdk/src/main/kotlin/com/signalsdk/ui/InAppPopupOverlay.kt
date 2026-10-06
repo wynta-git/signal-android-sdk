@@ -213,7 +213,7 @@ internal object InAppPopupOverlay {
     private fun buildTitleText(activity: Activity, text: String): TextView = TextView(activity).apply {
         this.text = text
         setTextColor(Color.parseColor("#1A1A1A"))
-        textSize = 17f
+        textSize = 21f
         setTypeface(typeface, android.graphics.Typeface.BOLD)
         gravity = Gravity.CENTER
         maxLines = 3
@@ -222,7 +222,7 @@ internal object InAppPopupOverlay {
     private fun buildBodyText(activity: Activity, text: String): TextView = TextView(activity).apply {
         this.text = text
         setTextColor(Color.parseColor("#6B6B6B"))
-        textSize = 15f
+        textSize = 18f
         gravity = Gravity.CENTER
         maxLines = 4
     }
@@ -342,12 +342,12 @@ internal object InAppPopupOverlay {
         }
         notification.title?.takeIf { it.isNotEmpty() }?.let {
             content.addView(buildTitleText(activity, it), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dpToPx(activity, 12)
+                bottomMargin = dpToPx(activity, 32)
             })
         }
         notification.body?.takeIf { it.isNotEmpty() }?.let {
             content.addView(buildBodyText(activity, it), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dpToPx(activity, 28)
+                bottomMargin = dpToPx(activity, 48)
             })
         }
         val ctaList = notification.cta.orEmpty()
@@ -440,12 +440,12 @@ internal object InAppPopupOverlay {
         }
         notification.title?.takeIf { it.isNotEmpty() }?.let {
             content.addView(buildTitleText(activity, it), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dpToPx(activity, 10)
+                bottomMargin = dpToPx(activity, 30)
             })
         }
         notification.body?.takeIf { it.isNotEmpty() }?.let {
             content.addView(buildBodyText(activity, it), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                bottomMargin = dpToPx(activity, 18)
+                bottomMargin = dpToPx(activity, 38)
             })
         }
         val ctaList = notification.cta.orEmpty()
@@ -468,13 +468,27 @@ internal object InAppPopupOverlay {
 
         // The root is attached to android.R.id.content, which on edge-to-edge-enforced targets
         // can extend behind the system nav/gesture bar — add its inset so the bubble visibly
-        // floats above it rather than sitting flush against (or under) it.
-        val navBarInset = activity.window.decorView.rootWindowInsets?.systemWindowInsetBottom ?: 0
+        // floats above it rather than sitting flush against (or under) it. rootWindowInsets can
+        // be null if this runs before the Activity's first layout pass, silently zeroing the
+        // inset — so re-read it once the card is actually attached (guaranteed non-null by
+        // then) and correct the margin if it was wrong.
+        val initialNavBarInset = activity.window.decorView.rootWindowInsets?.systemWindowInsetBottom ?: 0
         val cardParams = FrameLayout.LayoutParams(cardWidth, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             gravity = if (bubble) Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL else Gravity.CENTER
-            if (bubble) bottomMargin = dpToPx(activity, 28) + navBarInset
+            if (bubble) bottomMargin = dpToPx(activity, 28) + initialNavBarInset
         }
         root.addView(card, cardParams)
+        if (bubble) {
+            card.post {
+                val freshInset = card.rootWindowInsets?.systemWindowInsetBottom ?: initialNavBarInset
+                val target = dpToPx(activity, 28) + freshInset
+                val params = card.layoutParams as FrameLayout.LayoutParams
+                if (params.bottomMargin != target) {
+                    params.bottomMargin = target
+                    card.layoutParams = params
+                }
+            }
+        }
         attachAndAnimate(activity, root, card)
 
         attachBackPress(activity, resolver)
