@@ -92,17 +92,6 @@ object SignalSDK {
     // resumed yet). Flushed as soon as the next Activity resumes.
     @Volatile private var pendingNotification: InboxNotification? = null
 
-    // An on_session_start match that's been found but not yet displayed — deferred until the
-    // host app's next trackScreen() call. on_session_start fires as soon as identity is set
-    // (or on app_foreground), which on a typical app is still the splash screen; the host app
-    // then immediately navigates to its lobby/home screen, and on Android that's commonly a
-    // new Activity (destroying the splash Activity's content view, and with it any popup
-    // attached to it) — so showing immediately is liable to get torn down moments later by
-    // the app's own normal startup navigation, before the user ever sees it. trackScreen() is
-    // the same signal the SDK already requires host apps to call for on_screen_load triggers,
-    // so waiting for it needs no new integration step.
-    @Volatile private var pendingSessionStartNotification: InboxNotification? = null
-
     // Registered by the host app to receive in-app message CTA taps whose action is
     // "deep_link" — see InAppActionListener's doc comment for why this is a direct callback
     // rather than an Intent-based hand-off like push's notification_tap_action_1.
@@ -399,17 +388,6 @@ object SignalSDK {
 
         if (current.isInAppPopupVisible) return // don't stack a popup on rapid navigation
 
-        // A deferred on_session_start match takes priority over this call's own on_screen_load
-        // check — this screen becoming visible is exactly the "the app has settled" signal it
-        // was waiting for. Skip on_screen_load for this call so the two don't stack; the next
-        // trackScreen() call still evaluates on_screen_load normally.
-        val deferred = pendingSessionStartNotification
-        if (deferred != null) {
-            pendingSessionStartNotification = null
-            displayNotification(deferred)
-            return
-        }
-
         val notification = TriggerEngine.findEligibleNotification(
             current.notificationCache,
             TriggerEvent.ScreenLoad(screenName),
@@ -543,17 +521,13 @@ object SignalSDK {
             updateState { copy(notificationCache = inbox.notifications) }
 
             if (state.isInAppPopupVisible) return // don't stack a popup on top of one already shown
-            if (pendingSessionStartNotification != null) return // already waiting on trackScreen()
 
             val notification = TriggerEngine.findEligibleNotification(
                 inbox.notifications,
                 TriggerEvent.SessionStart,
                 state.handledInAppNotificationIds
             )
-            if (notification != null) {
-                Logger.log("checkInbox: on_session_start matched ${notification.notification_id} — deferring display until next trackScreen()")
-                pendingSessionStartNotification = notification
-            }
+            if (notification != null) displayNotification(notification)
         } catch (e: Exception) {
             Logger.error("checkInbox failed", e)
         }
