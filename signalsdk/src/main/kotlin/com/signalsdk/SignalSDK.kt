@@ -12,6 +12,8 @@ import com.signalsdk.config.SignalConfig
 import com.signalsdk.models.IdentifyRequest
 import com.signalsdk.models.IdentityPayload
 import com.signalsdk.models.InboxNotification
+import com.signalsdk.models.NotificationCta
+import com.signalsdk.models.NotificationMedia
 import com.signalsdk.models.PushNotificationPayload
 import com.signalsdk.models.SDKResponse
 import com.signalsdk.services.DeviceService
@@ -358,6 +360,61 @@ object SignalSDK {
     }
 
     // ── Screens & In-App Notifications ───────────────────────────────────────
+
+    /**
+     * TEMPORARY — for testing in-app templates (full_screen/pop_ups/bubble) before the backend
+     * supports the new payload fields. Renders a test in-app message directly on the current
+     * Activity, bypassing inbox fetch/trigger matching entirely. Remove once real campaigns can
+     * be scheduled with these fields.
+     *
+     * Example (hardcode a call to this somewhere reachable, e.g. a debug button):
+     * ```kotlin
+     * SignalSDK.showTestInAppMessage(
+     *     templateType = "pop_ups",
+     *     title = "Welcome back!",
+     *     body = "Here's a little something for you.",
+     *     imageUrl = "https://example.com/banner.jpg",
+     *     ctaLabel = "Claim Now",
+     *     ctaAction = "deep_link",
+     *     ctaValue = "wallet",
+     *     ctaBackgroundColor = "#2F6BFF"
+     * )
+     * ```
+     */
+    fun showTestInAppMessage(
+        templateType: String, // "full_screen" | "pop_ups" | "bubble" | null for the legacy layout
+        title: String? = null,
+        body: String? = null,
+        imageUrl: String? = null,
+        ctaLabel: String? = null,
+        ctaAction: String = "dismiss", // "deep_link" | "external_url" | "dismiss"
+        ctaValue: String? = null,
+        ctaBackgroundColor: String? = null,
+        closeButtonVisibility: String? = null,
+    ) {
+        val cta = if (ctaLabel != null) {
+            listOf(NotificationCta(role = "primary", label = ctaLabel, action = ctaAction, value = ctaValue, cta_background_color = ctaBackgroundColor))
+        } else {
+            null
+        }
+        val notification = InboxNotification(
+            notification_id = "test_${System.currentTimeMillis()}",
+            campaign_id = "test_campaign",
+            variant_id = null,
+            template_type = templateType,
+            render_engine = "native",
+            title = title,
+            body = body,
+            media = imageUrl?.let { NotificationMedia(image_url = it, background_color = null, background_opacity = null) },
+            cta = cta,
+            close_button_visibility = closeButtonVisibility,
+            expires_at = null,
+            trigger_type = null,
+            target_screens = null,
+            target_events = null
+        )
+        displayNotification(notification)
+    }
 
     /**
      * Call this whenever a screen becomes visible to the user. The SDK stores the current
