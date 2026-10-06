@@ -433,7 +433,7 @@ internal object InAppPopupOverlay {
         if (bitmap != null) {
             content.addView(
                 buildImageView(activity, bitmap, cornerRadiusDp = 10),
-                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(activity, if (bubble) 100 else 140)).apply {
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dpToPx(activity, if (bubble) 120 else 140)).apply {
                     bottomMargin = dpToPx(activity, 12)
                 }
             )
@@ -466,9 +466,13 @@ internal object InAppPopupOverlay {
             })
         }
 
+        // The root is attached to android.R.id.content, which on edge-to-edge-enforced targets
+        // can extend behind the system nav/gesture bar — add its inset so the bubble visibly
+        // floats above it rather than sitting flush against (or under) it.
+        val navBarInset = activity.window.decorView.rootWindowInsets?.systemWindowInsetBottom ?: 0
         val cardParams = FrameLayout.LayoutParams(cardWidth, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             gravity = if (bubble) Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL else Gravity.CENTER
-            if (bubble) bottomMargin = dpToPx(activity, 24)
+            if (bubble) bottomMargin = dpToPx(activity, 28) + navBarInset
         }
         root.addView(card, cardParams)
         attachAndAnimate(activity, root, card)
