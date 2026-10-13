@@ -30,7 +30,7 @@ Add to your app-level `build.gradle` or `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.github.wynta-git:signal-android-sdk:1.6.2")
+    implementation("io.github.wynta-git:signal-android-sdk:1.6.3")
 }
 ```
 
@@ -413,9 +413,9 @@ If `title`/`body` aren't present in the data map, `handleRemoteMessage` treats i
 | `template` | all | `"standard"` \| `"branded"` \| `"hero_banner"` (case-insensitive; unrecognized values fall back to `standard`) |
 | `title` / `content` | all | Required — the notification text. `content` is the current field name for the body text; `body` is still accepted as a fallback for older campaigns |
 | `bg_color` | `branded` only | e.g. `"#3A4CE0"` — fills the whole card (rounded corners on API 31+, flat fill pre-31), ignored for other templates. `accentColorHex` is still accepted as a fallback |
-| `image_url` | `branded` only | Small icon shown at the trailing edge of the card, ignored for other templates. `largeIconUrl` is still accepted as a fallback |
+| `image_url` | `standard`, `branded` | "Add a rich image": shown full width above the title/body in the expanded notification (the collapsed view stays text-only). If absent or the download fails, the push shows without an image. Branded no longer shows an icon beside the text |
 | `banner_url` | `hero_banner` only | Full-bleed image with title/body overlaid directly at the bottom; on API 31+ the card is sized to the image's real aspect ratio so it isn't cropped. Falls back to the `standard` layout if the download fails or the field is absent. `imageUrl` is still accepted as a fallback |
-| `text_color` | all | e.g. `"#FFFFFF"` — overrides the title/body text color on all three templates (unlike `bg_color`/`image_url`/`banner_url`, not scoped to one template). Ignored if invalid/absent, in which case each template's default text color applies |
+| `text_color` | all | e.g. `"#FFFFFF"` — overrides the title/body text color on all three templates (unlike `bg_color`/`banner_url`/the rich image, not scoped to one template). Ignored if invalid/absent, in which case each template's default text color applies |
 | `notification_tap_type` | all | `"dismiss"` \| `"deeplink"` \| `"share"` \| `"call"` \| `"track_event"` — see [8.3](#83-tap-handling--deep-links) |
 | `notification_tap_action_1` / `notification_tap_action_2` | all | Opaque strings the app interprets based on `notification_tap_type` (e.g. a deep-link screen name) |
 

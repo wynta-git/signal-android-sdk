@@ -6,7 +6,12 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapShader
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Shader
 import android.os.Build
 import android.util.TypedValue
 import android.view.View
@@ -38,6 +43,12 @@ internal object PushNotificationBuilder {
     private const val MIN_HERO_HEIGHT_DP = 120f
     private const val MAX_HERO_HEIGHT_DP = 220f
 
+    // Rich images are downscaled to this width before going into the RemoteViews (a full-size
+    // photo can exceed the notification's binder transaction limit), then given rounded corners
+    // to match the composer preview's card.
+    private const val MAX_RICH_IMAGE_WIDTH_PX = 1080
+    private const val RICH_IMAGE_CORNER_DP = 8f
+
     fun show(context: Context, payload: PushNotificationPayload, smallIconResId: Int, defaultNotificationColor: Int?) {
         val notificationManager = NotificationManagerCompat.from(context)
 
@@ -49,39 +60,57 @@ internal object PushNotificationBuilder {
         // neither is available.
         val icon = smallIconResId.takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
 
-        // accentColorHex is scoped to "branded" only, same as largeIconUrl/imageUrl are scoped
+        // accentColorHex is scoped to "branded" only, same as imageUrl/richImageUrl are scoped
         // to their own template — a "standard" push can't reach into another template's fields.
         // The SignalConfig.notificationColorResId default, in contrast, is intentionally global
         // (matches MoEngage's notificationColorResource, which applies to every notification).
         val brandedAccentColorHex = payload.accentColorHex.takeIf { payload.template == "branded" }
         val resolvedColor = resolveColor(brandedAccentColorHex, defaultNotificationColor)
 
-        val remoteViews = when (payload.template) {
-            "standard" -> buildStandardView(context, payload)
-            "branded" -> buildBrandedView(context, payload, resolvedColor)
-            "hero_banner" -> buildHeroBannerView(context, payload)
+        val template = when (payload.template) {
+            "standard", "branded", "hero_banner" -> payload.template
             else -> {
                 Logger.log(
                     "PushNotificationBuilder: unrecognized template '${payload.template}' — rendering as " +
                         "standard (title/body only). Expected exactly \"standard\", \"branded\", or " +
                         "\"hero_banner\" — check for typos/spacing (e.g. \"hero banner\" vs \"hero_banner\")."
                 )
-                buildStandardView(context, payload)
+                "standard"
             }
         }
 
-        // Unlike accentColorHex/largeIconUrl/imageUrl (scoped to one template), textColor applies
-        // to the title/body on all three — wynta_title/wynta_body are the same view IDs across all
-        // three layout XMLs, so this is applied once here rather than duplicated per builder.
-        payload.textColor?.let { hex ->
-            try {
-                val color = Color.parseColor(hex)
-                remoteViews.setTextColor(R.id.wynta_title, color)
-                remoteViews.setTextColor(R.id.wynta_body, color)
-            } catch (e: IllegalArgumentException) {
-                Logger.error("PushNotificationBuilder: invalid textColor '$hex'", e)
+        // The rich image is "standard"/"branded" only, and only in the expanded view: the
+        // collapsed view is capped at ~64dp, so it gets the same layout without the image.
+        // Downloaded once here so both views don't fetch it. A failed download just means no image.
+        val richImage = payload.richImageUrl
+            ?.takeIf { template == "standard" || template == "branded" }
+            ?.let { downloadBitmap(it) }
+            ?.let { prepareRichImage(context, it) }
+
+        fun buildView(withRichImage: Boolean): RemoteViews {
+            val image = richImage.takeIf { withRichImage }
+            val views = when (template) {
+                "branded" -> buildBrandedView(context, payload, resolvedColor, image)
+                "hero_banner" -> buildHeroBannerView(context, payload)
+                else -> buildStandardView(context, payload, image)
             }
+            // Unlike accentColorHex/imageUrl/richImageUrl (scoped to their templates), textColor
+            // applies to the title/body on all three — wynta_title/wynta_body are the same view
+            // IDs across all three layout XMLs, so this is applied here rather than per builder.
+            payload.textColor?.let { hex ->
+                try {
+                    val color = Color.parseColor(hex)
+                    views.setTextColor(R.id.wynta_title, color)
+                    views.setTextColor(R.id.wynta_body, color)
+                } catch (e: IllegalArgumentException) {
+                    Logger.error("PushNotificationBuilder: invalid textColor '$hex'", e)
+                }
+            }
+            return views
         }
+
+        val expandedView = buildView(withRichImage = true)
+        val collapsedView = if (richImage != null) buildView(withRichImage = false) else expandedView
 
         val builder = NotificationCompat.Builder(context, SignalSDK.DEFAULT_CHANNEL_ID)
             .setContentTitle(payload.title)
@@ -89,8 +118,8 @@ internal object PushNotificationBuilder {
             .setSmallIcon(icon)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .setCustomContentView(remoteViews)
-            .setCustomBigContentView(remoteViews)
+            .setCustomContentView(collapsedView)
+            .setCustomBigContentView(expandedView)
 
         // "branded" skips DecoratedCustomViewStyle so its colored root goes fully edge-to-edge,
         // matching the composer mockup's full-bleed card — DecoratedCustomViewStyle insets custom
@@ -99,7 +128,7 @@ internal object PushNotificationBuilder {
         // renders above the card regardless — that's a separate, always-on system layer with no
         // opt-out, not something DecoratedCustomViewStyle controls. standard/hero_banner keep
         // DecoratedCustomViewStyle since their mockups don't need edge-to-edge color.
-        if (payload.template != "branded") {
+        if (template != "branded") {
             builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
         }
 
@@ -140,14 +169,20 @@ internal object PushNotificationBuilder {
         return defaultNotificationColor
     }
 
-    private fun buildStandardView(context: Context, payload: PushNotificationPayload): RemoteViews {
+    private fun buildStandardView(context: Context, payload: PushNotificationPayload, richImage: Bitmap?): RemoteViews {
         return RemoteViews(context.packageName, R.layout.wynta_notification_standard).apply {
             setTextViewText(R.id.wynta_title, payload.title)
             setTextViewText(R.id.wynta_body, payload.body)
+            setRichImage(richImage)
         }
     }
 
-    private fun buildBrandedView(context: Context, payload: PushNotificationPayload, resolvedColor: Int?): RemoteViews {
+    private fun buildBrandedView(
+        context: Context,
+        payload: PushNotificationPayload,
+        resolvedColor: Int?,
+        richImage: Bitmap?
+    ): RemoteViews {
         return RemoteViews(context.packageName, R.layout.wynta_notification_branded).apply {
             setTextViewText(R.id.wynta_title, payload.title)
             setTextViewText(R.id.wynta_body, payload.body)
@@ -165,13 +200,36 @@ internal object PushNotificationBuilder {
                     setInt(R.id.wynta_root, "setBackgroundColor", color)
                 }
             }
-            payload.largeIconUrl?.let { url ->
-                downloadBitmap(url)?.let { bitmap ->
-                    setImageViewBitmap(R.id.wynta_large_icon, bitmap)
-                    setViewVisibility(R.id.wynta_large_icon, View.VISIBLE)
-                }
-            }
+            setRichImage(richImage)
         }
+    }
+
+    // wynta_rich_image is gone in the XML; shown only when there's an image for this view.
+    private fun RemoteViews.setRichImage(bitmap: Bitmap?) {
+        bitmap ?: return
+        setImageViewBitmap(R.id.wynta_rich_image, bitmap)
+        setViewVisibility(R.id.wynta_rich_image, View.VISIBLE)
+    }
+
+    // Downscales to MAX_RICH_IMAGE_WIDTH_PX and rounds the corners (RemoteViews can't clip an
+    // ImageView to a shape, so the corners are baked into the bitmap).
+    private fun prepareRichImage(context: Context, source: Bitmap): Bitmap {
+        val scaled = if (source.width > MAX_RICH_IMAGE_WIDTH_PX) {
+            val height = (source.height * MAX_RICH_IMAGE_WIDTH_PX.toFloat() / source.width).toInt().coerceAtLeast(1)
+            Bitmap.createScaledBitmap(source, MAX_RICH_IMAGE_WIDTH_PX, height, true)
+        } else source
+
+        // Radius is relative to the bitmap, which is drawn at roughly notification width — scale
+        // the dp radius by how much wider the bitmap is than that, so corners look ~8dp on screen.
+        val density = context.resources.displayMetrics.density
+        val radius = RICH_IMAGE_CORNER_DP * scaled.width / (REFERENCE_WIDTH_DP * density)
+
+        val rounded = Bitmap.createBitmap(scaled.width, scaled.height, Bitmap.Config.ARGB_8888)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = BitmapShader(scaled, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        }
+        Canvas(rounded).drawRoundRect(RectF(0f, 0f, scaled.width.toFloat(), scaled.height.toFloat()), radius, radius, paint)
+        return rounded
     }
 
     // Image fills the card with title/body overlaid directly at the bottom, matching the
@@ -180,7 +238,7 @@ internal object PushNotificationBuilder {
     // would be unreadable, so this isn't a "hero_banner minus the image", it's a different layout.
     private fun buildHeroBannerView(context: Context, payload: PushNotificationPayload): RemoteViews {
         val bitmap = payload.imageUrl?.let { downloadBitmap(it) }
-            ?: return buildStandardView(context, payload) // silent fallback, per spec
+            ?: return buildStandardView(context, payload, null) // silent fallback, per spec
 
         return RemoteViews(context.packageName, R.layout.wynta_notification_hero_banner).apply {
             setTextViewText(R.id.wynta_title, payload.title)

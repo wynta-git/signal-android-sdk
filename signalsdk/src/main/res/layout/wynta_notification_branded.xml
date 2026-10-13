@@ -5,7 +5,7 @@
      timestamp row either — Android 12+ already draws a mandatory app-identity strip (icon, app
      name, timestamp, expand chevron) above every notification's content area, custom or not,
      with no API to suppress it. Adding our own copy of that here just duplicated it. So this
-     layout owns only the content area (title/body/large icon); the outer identity strip stays
+     layout owns only the content area (optional rich image, title, body); the outer identity strip stays
      system-drawn and uncolored — an accepted platform ceiling. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/wynta_root"
@@ -18,48 +18,38 @@
     android:paddingStart="8dp"
     android:paddingEnd="8dp">
 
-    <LinearLayout
+    <!-- Optional "rich image" (image_url), shown full width above the text in
+         the expanded notification only — PushNotificationBuilder leaves it gone in the collapsed
+         view, which Android caps at ~64dp. Height follows the image's aspect ratio
+         (adjustViewBounds), capped so title/body still fit in the expanded height limit. -->
+    <ImageView
+        android:id="@+id/wynta_rich_image"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_marginBottom="8dp"
+        android:adjustViewBounds="true"
+        android:maxHeight="160dp"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+    <TextView
+        android:id="@+id/wynta_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="?android:attr/textColorPrimary"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:maxLines="2"
+        android:ellipsize="end" />
 
-            <TextView
-                android:id="@+id/wynta_title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:maxLines="2"
-                android:ellipsize="end" />
-
-            <TextView
-                android:id="@+id/wynta_body"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="?android:attr/textColorSecondary"
-                android:textSize="13sp"
-                android:maxLines="4"
-                android:ellipsize="end" />
-
-        </LinearLayout>
-
-        <ImageView
-            android:id="@+id/wynta_large_icon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="12dp"
-            android:scaleType="centerCrop"
-            android:visibility="gone" />
-
-    </LinearLayout>
+    <TextView
+        android:id="@+id/wynta_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="?android:attr/textColorSecondary"
+        android:textSize="13sp"
+        android:maxLines="4"
+        android:ellipsize="end" />
 
 </LinearLayout>

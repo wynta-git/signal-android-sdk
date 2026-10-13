@@ -2,7 +2,11 @@
 <!-- Custom content region for the "standard" template, used inside
      NotificationCompat.DecoratedCustomViewStyle — the standard system chrome (small icon
      badge, app name, timestamp) still renders above this via that style; this layout only
-     covers the title/body content area. -->
+     covers the title/body content area.
+     Text colors come from the platform notification text appearances (not
+     ?android:attr/textColorPrimary, which resolves against the HOST APP's theme — black for a
+     light-only app theme even when the shade is dark). These follow the phone's light/dark
+     mode: dark text in light mode, light text in dark mode. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/wynta_root"
     android:layout_width="match_parent"
@@ -10,11 +14,25 @@
     android:orientation="vertical"
     android:paddingBottom="8dp">
 
+    <!-- Optional "rich image" (image_url), shown full width above the text in
+         the expanded notification only — PushNotificationBuilder leaves it gone in the collapsed
+         view, which Android caps at ~64dp. Height follows the image's aspect ratio
+         (adjustViewBounds), capped so title/body still fit in the expanded height limit. -->
+    <ImageView
+        android:id="@+id/wynta_rich_image"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        android:adjustViewBounds="true"
+        android:maxHeight="160dp"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/wynta_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="?android:attr/textColorPrimary"
+        android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
         android:textSize="14sp"
         android:textStyle="bold"
         android:maxLines="2"
@@ -25,7 +43,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:textColor="?android:attr/textColorSecondary"
+        android:textAppearance="@style/TextAppearance.Compat.Notification"
         android:textSize="13sp"
         android:maxLines="4"
         android:ellipsize="end" />
