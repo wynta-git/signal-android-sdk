@@ -30,7 +30,7 @@ Add to your app-level `build.gradle` or `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.github.wynta-git:signal-android-sdk:1.0.0")
+    implementation("io.github.wynta-git:signal-android-sdk:1.6.2")
 }
 ```
 
@@ -67,9 +67,35 @@ class MyApplication : Application() {
             config  = SignalConfig(
                 clientId     = "YOUR_CLIENT_ID",
                 clientSecret = "YOUR_CLIENT_SECRET",
-                debug        = BuildConfig.DEBUG  // prints logs in debug builds only
+                debug        = BuildConfig.DEBUG,  // prints logs in debug builds only
+                // Optional (1.4.2+) — push notification icon and accent color, see §8.2.
+                smallIconResId         = R.drawable.ic_notification_icon,
+                notificationColorResId = R.color.notification_accent
             )
         )
+    }
+}
+```
+
+**Java:** `SignalConfig` is a Kotlin class, so Java must pass every argument positionally in this order — `clientId, clientSecret, debug, onApiLog, smallIconResId, notificationColorResId`. Pass `null` for the ones you don't use. `onApiLog` is a Kotlin function type, so a Java lambda must `return null;`.
+
+```java
+// MyApplication.java
+public class MyApplication extends Application {
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        int smallIcon = getResources().getIdentifier("ic_notification_icon", "drawable", getPackageName());
+        SignalSDK.INSTANCE.initSDK(this, new SignalConfig(
+                "YOUR_CLIENT_ID",
+                "YOUR_CLIENT_SECRET",
+                BuildConfig.DEBUG,                 // debug
+                apiLogEntry -> {                   // onApiLog (or null)
+                    return null;
+                },
+                smallIcon != 0 ? smallIcon : null, // smallIconResId (or null)
+                R.color.notification_accent        // notificationColorResId (or null)
+        ));
     }
 }
 ```
@@ -297,6 +323,9 @@ fun onLogout() {
 | `config.clientId` | `String` | Yes | Your Signal client ID |
 | `config.clientSecret` | `String` | Yes | Your Signal client secret |
 | `config.debug` | `Boolean` | No | Enable console logging (default: `false`) |
+| `config.onApiLog` | `(ApiLogEntry) -> Unit` | No | Callback after every outbound API request — for debugging/monitoring (default: `null`) |
+| `config.smallIconResId` | `Int` (drawable res ID) | No | Status-bar icon for push notifications (1.4.2+). Default: a drawable named `ic_notification_icon` if the app has one, else a system icon. See §8.2 |
+| `config.notificationColorResId` | `Int` (color res ID) | No | Default accent color for push notifications — used when a push doesn't set `bg_color`, and to tint the small icon/app name (1.4.2+). See §8.2 |
 
 ---
 
@@ -405,6 +434,21 @@ SignalSDK.initSDK(
     )
 )
 ```
+
+**Providing `ic_notification_icon` (the default, no code needed):** add a drawable with exactly this name to the **app** module:
+
+```
+app/src/main/res/drawable/ic_notification_icon.xml        ← vector drawable (recommended), or PNGs:
+app/src/main/res/drawable-mdpi/ic_notification_icon.png    (24×24)
+app/src/main/res/drawable-hdpi/ic_notification_icon.png    (36×36)
+app/src/main/res/drawable-xhdpi/ic_notification_icon.png   (48×48)
+app/src/main/res/drawable-xxhdpi/ic_notification_icon.png  (72×72)
+app/src/main/res/drawable-xxxhdpi/ic_notification_icon.png (96×96)
+```
+
+- It must be in a `drawable*` folder (not `mipmap`) and be a **white shape on a transparent background** — Android renders the status-bar icon from the alpha channel only, so a full-color launcher icon becomes a blob.
+- Without it (and without `smallIconResId`), notifications still work but show a generic system icon.
+- `notificationColorResId` is a normal color resource, e.g. `<color name="notification_accent">#2F6BFF</color>` in `res/values/colors.xml`.
 
 ### 8.3 Tap handling & deep links
 
