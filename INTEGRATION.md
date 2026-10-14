@@ -30,7 +30,7 @@ Add to your app-level `build.gradle` or `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.github.wynta-git:signal-android-sdk:1.6.3")
+    implementation("io.github.wynta-git:signal-android-sdk:1.6.4")
 }
 ```
 
