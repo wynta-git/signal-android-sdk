@@ -132,6 +132,7 @@ internal class NotificationInboxService {
             },
             cta = ctaArray?.let { arr -> (0 until arr.length()).map { arr.getJSONObject(it).toNotificationCta() } },
             close_button_visibility = optNullableString("close_button_visibility"),
+            blocking = optBoolean("blocking", false),
             expires_at = optNullableString("expires_at"),
             trigger_type = optNullableString("trigger_type"),
             target_screens = targetScreensArray?.let { arr -> (0 until arr.length()).map { arr.getString(it) } },

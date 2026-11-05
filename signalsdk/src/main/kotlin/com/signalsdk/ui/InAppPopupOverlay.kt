@@ -159,15 +159,15 @@ internal object InAppPopupOverlay {
         private val activity: Activity,
         private val notificationId: String,
         private val campaignId: String,
+        private val blocking: Boolean,
         private val onInteraction: (String, String, String, String?, String?, String?) -> Unit
     ) {
         private var resolved = false
 
         fun click(cta: NotificationCta) {
-            if (resolved) return
-            resolved = true
-            Logger.log("InAppPopupOverlay: clicked $notificationId (action=${cta.action})")
-            onInteraction("clicked", notificationId, campaignId, cta.label, cta.action, cta.value)
+            // Runs on every tap, even after the first resolution — a blocking (force-update)
+            // popup never dismisses, so the CTA (e.g. "Update now") must keep opening the store
+            // every time it's tapped. Visiting the store isn't the same as having updated.
             if (cta.action == "external_url" && !cta.value.isNullOrEmpty()) {
                 try {
                     activity.startActivity(Intent(activity, InAppWebViewActivity::class.java).apply {
@@ -177,12 +177,21 @@ internal object InAppPopupOverlay {
                     Logger.error("InAppPopupOverlay: failed to open CTA url", e)
                 }
             }
+            if (resolved) return
+            resolved = true
+            Logger.log("InAppPopupOverlay: clicked $notificationId (action=${cta.action})")
+            onInteraction("clicked", notificationId, campaignId, cta.label, cta.action, cta.value)
             // "deep_link" is handed to the host app's InAppActionListener by SignalSDK.kt's
             // onInAppInteraction — nothing further to do here.
-            dismiss()
+            if (!blocking) dismiss()
         }
 
         fun dismissByUser() {
+            // Defense in depth: in practice this is unreachable for a blocking notification —
+            // showCloseButtonFor() already hides the close button and attachBackPress() already
+            // skips calling this — but guard it directly too in case another dismiss path is
+            // ever added.
+            if (blocking) return
             if (resolved) return
             resolved = true
             Logger.log("InAppPopupOverlay: dismissed $notificationId")
@@ -279,11 +288,14 @@ internal object InAppPopupOverlay {
         }
     }
 
-    private fun attachBackPress(activity: Activity, resolver: InteractionResolver) {
+    private fun attachBackPress(activity: Activity, resolver: InteractionResolver, blocking: Boolean) {
         (activity as? ComponentActivity)?.let { componentActivity ->
             val callback = object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    resolver.dismissByUser()
+                    // Still registered (so the press is consumed, not left to fall through to
+                    // whatever's behind this Activity) — it just does nothing for a blocking
+                    // (force-update) popup.
+                    if (!blocking) resolver.dismissByUser()
                 }
             }
             componentActivity.onBackPressedDispatcher.addCallback(callback)
@@ -307,7 +319,7 @@ internal object InAppPopupOverlay {
     }
 
     private fun showCloseButtonFor(notification: InboxNotification): Boolean =
-        notification.close_button_visibility != "never"
+        notification.close_button_visibility != "never" && !notification.blocking
 
     // ── Template: full_screen ────────────────────────────────────────────────────────────
 
@@ -317,7 +329,7 @@ internal object InAppPopupOverlay {
         notification: InboxNotification,
         onInteraction: (String, String, String, String?, String?, String?) -> Unit
     ) {
-        val resolver = InteractionResolver(activity, notification.notification_id, notification.campaign_id, onInteraction)
+        val resolver = InteractionResolver(activity, notification.notification_id, notification.campaign_id, notification.blocking, onInteraction)
 
         val root = FrameLayout(activity).apply {
             setBackgroundColor(parseColorOrNull(notification.media?.background_color) ?: Color.WHITE)
@@ -376,7 +388,7 @@ internal object InAppPopupOverlay {
             })
         }
 
-        attachBackPress(activity, resolver)
+        attachBackPress(activity, resolver, notification.blocking)
         attachAndAnimate(activity, root)
 
         Logger.log("InAppPopupOverlay: shown ${notification.notification_id} (full_screen)")
@@ -392,7 +404,7 @@ internal object InAppPopupOverlay {
         onInteraction: (String, String, String, String?, String?, String?) -> Unit,
         bubble: Boolean
     ) {
-        val resolver = InteractionResolver(activity, notification.notification_id, notification.campaign_id, onInteraction)
+        val resolver = InteractionResolver(activity, notification.notification_id, notification.campaign_id, notification.blocking, onInteraction)
 
         val root = FrameLayout(activity).apply {
             // pop_ups dims the app behind the card; bubble leaves it visible/interactive —
@@ -491,7 +503,7 @@ internal object InAppPopupOverlay {
         }
         attachAndAnimate(activity, root, card)
 
-        attachBackPress(activity, resolver)
+        attachBackPress(activity, resolver, notification.blocking)
 
         Logger.log("InAppPopupOverlay: shown ${notification.notification_id} (${if (bubble) "bubble" else "pop_ups"})")
         onInteraction("shown", notification.notification_id, notification.campaign_id, null, null, null)
@@ -512,7 +524,7 @@ internal object InAppPopupOverlay {
             return
         }
 
-        val resolver = InteractionResolver(activity, notification.notification_id, notification.campaign_id, onInteraction)
+        val resolver = InteractionResolver(activity, notification.notification_id, notification.campaign_id, notification.blocking, onInteraction)
         val cornerRadiusPx = dpToPx(activity, 16).toFloat()
 
         val root = FrameLayout(activity).apply {
@@ -578,7 +590,7 @@ internal object InAppPopupOverlay {
             attachAndAnimate(activity, root, card)
         }
 
-        attachBackPress(activity, resolver)
+        attachBackPress(activity, resolver, notification.blocking)
 
         Logger.log("InAppPopupOverlay: shown ${notification.notification_id} (legacy)")
         onInteraction("shown", notification.notification_id, notification.campaign_id, null, null, null)

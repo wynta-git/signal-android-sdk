@@ -32,6 +32,11 @@ internal data class InboxNotification(
     val cta: List<NotificationCta>?,
     // Any value other than "never" shows the close button (default "always").
     val close_button_visibility: String?,
+    // Force-update gate: when true, InAppPopupOverlay renders no close button and neither the
+    // back button nor a CTA tap dismisses the popup (a CTA tap still fires its action every
+    // time — visiting the store isn't the same as having actually updated). Defaults to false
+    // for every existing notification that predates this field.
+    val blocking: Boolean,
     val expires_at: String?,
     // "on_session_start" | "on_screen_load" | "on_custom_event"
     val trigger_type: String?,

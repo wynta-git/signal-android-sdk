@@ -129,11 +129,14 @@ internal class InAppWebViewActivity : Activity() {
     private fun dpToPx(dp: Int): Int =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), resources.displayMetrics).toInt()
 
+    // Always closes, never navigates the WebView's own history — this is a one-off CTA
+    // destination (e.g. a force-update landing page), not general browsing, and the page
+    // itself may carry a redirect that leaves it with back-navigable history on first load.
+    // Letting back step through that history (the previous behavior) meant the system back
+    // button could silently do nothing visible on the first press — exactly the "it never
+    // came back" confusion a blocking popup's CTA shouldn't risk: back and the explicit
+    // close button must behave identically.
     override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            finish()
-        }
+        finish()
     }
 }

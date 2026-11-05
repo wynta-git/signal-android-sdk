@@ -94,10 +94,34 @@ object SignalSDK {
     // resumed yet). Flushed as soon as the next Activity resumes.
     @Volatile private var pendingNotification: InboxNotification? = null
 
+    // Set in displayNotification() for whichever notification is currently shown/pending —
+    // onInAppInteraction() reads it on "clicked" to decide whether a blocking (force-update)
+    // popup's isInAppPopupVisible guard should stay true even after the CTA tap is reported.
+    @Volatile private var currentNotificationBlocking = false
+
     // Registered by the host app to receive in-app message CTA taps whose action is
     // "deep_link" — see InAppActionListener's doc comment for why this is a direct callback
     // rather than an Intent-based hand-off like push's notification_tap_action_1.
     @Volatile private var inAppActionListener: InAppActionListener? = null
+
+    // A custom event that missed its first on_custom_event check (sendEvent, below) gets
+    // rechecked every time notificationCache next refreshes (replayPendingCustomEvents, called
+    // from checkInbox), until it matches or this TTL elapses. A miss at the moment sendEvent()
+    // runs doesn't mean no campaign targets it — a host app's own event (e.g. a "lobby_loaded"-
+    // style first-screen-loaded event) commonly resolves its own data fetch and calls sendEvent
+    // faster than this SDK's setIdentity -> checkInbox -> fetchInbox round trip populates
+    // notificationCache. Worse, setIdentity's own flow genuinely refreshes the cache TWICE in
+    // quick succession for a fresh login (the anonymous pre-login identity's always-empty inbox,
+    // then the real identity's real one) — a "retry exactly once" design would consume (and
+    // lose) the buffered event against the first, empty refresh, before the real data it
+    // actually needed ever arrived. Only a TTL expiry or a successful match ever removes an
+    // entry. Mirrors reactnativesignalsdk's identical fix in thunks.ts.
+    private data class PendingCustomEvent(val eventName: String, val firedAt: Long)
+    private const val PENDING_CUSTOM_EVENT_TTL_MS = 15_000L
+    // Guarded by `synchronized(this)` (same lock updateState uses) — sendEvent() can be called
+    // from any thread the host app chooses, not just the Main-dispatcher coroutine checkInbox()
+    // runs on.
+    @Volatile private var pendingCustomEvents: List<PendingCustomEvent> = emptyList()
 
     /** Call once (e.g. from Application.onCreate()) to receive in-app "deep_link" CTA taps. */
     fun setInAppActionListener(listener: InAppActionListener?) {
@@ -341,14 +365,11 @@ object SignalSDK {
         require(eventName.isNotBlank()) { "eventName must not be blank" }
 
         // on_custom_event evaluation — purely local, no network dependency, so it runs
-        // regardless of whether the /events/track call below succeeds.
-        if (!current.isInAppPopupVisible) {
-            val notification = TriggerEngine.findEligibleNotification(
-                current.notificationCache,
-                TriggerEvent.CustomEvent(eventName),
-                current.handledInAppNotificationIds
-            )
-            if (notification != null) displayNotification(notification)
+        // regardless of whether the /events/track call below succeeds. A miss here is buffered
+        // (see PENDING_CUSTOM_EVENT_TTL_MS's doc comment above) rather than dropped, since it
+        // may just mean notificationCache hasn't been populated yet.
+        if (!tryMatchCustomEvent(eventName)) {
+            bufferPendingCustomEvent(eventName)
         }
 
         scope.launch {
@@ -522,6 +543,11 @@ object SignalSDK {
             Logger.log("checkInbox → ${inbox.notifications.size} notification(s)")
             updateState { copy(notificationCache = inbox.notifications) }
 
+            // Give any custom event that fired (and missed) before this cache was ready one
+            // retroactive chance now that it's current. See PendingCustomEvent's doc comment
+            // above for the full race this closes.
+            replayPendingCustomEvents()
+
             if (state.isInAppPopupVisible) return // don't stack a popup on top of one already shown
 
             val notification = TriggerEngine.findEligibleNotification(
@@ -535,6 +561,58 @@ object SignalSDK {
         }
     }
 
+    // Checks notificationCache for an on_custom_event campaign matching eventName and, if
+    // found, requests the native in-app popup. Returns whether it matched — used by sendEvent()
+    // to decide whether to buffer a miss, and by replayPendingCustomEvents() to recheck a
+    // buffered miss without re-buffering a second miss itself.
+    private fun tryMatchCustomEvent(eventName: String): Boolean {
+        val current = state
+        if (current.isInAppPopupVisible) return false // don't stack a popup on top of one already shown
+        val notification = TriggerEngine.findEligibleNotification(
+            current.notificationCache,
+            TriggerEvent.CustomEvent(eventName),
+            current.handledInAppNotificationIds
+        )
+        if (notification == null) return false
+        displayNotification(notification)
+        return true
+    }
+
+    private fun bufferPendingCustomEvent(eventName: String) {
+        synchronized(this) {
+            pendingCustomEvents = pendingCustomEvents.filterNot { it.eventName == eventName } +
+                PendingCustomEvent(eventName, System.currentTimeMillis())
+        }
+    }
+
+    // Called right after notificationCache is refreshed (checkInbox) — rechecks every buffered
+    // event against the now-current cache, oldest-first. A hit consumes the entry and displays
+    // the popup, same as a normal first-time match. A miss keeps the entry buffered (within
+    // TTL) rather than discarding it — see PendingCustomEvent's own doc comment for why a
+    // single retry isn't enough for this SDK's own login flow.
+    private fun replayPendingCustomEvents() {
+        val now = System.currentTimeMillis()
+        val toProcess: List<PendingCustomEvent>
+        synchronized(this) {
+            if (pendingCustomEvents.isEmpty()) return
+            toProcess = pendingCustomEvents
+            pendingCustomEvents = emptyList()
+        }
+
+        val stillPending = mutableListOf<PendingCustomEvent>()
+        for (pending in toProcess) {
+            if (now - pending.firedAt > PENDING_CUSTOM_EVENT_TTL_MS) continue // expired — drop it
+            val matched = tryMatchCustomEvent(pending.eventName)
+            Logger.log("replaying buffered custom event '${pending.eventName}' — match=$matched")
+            if (!matched) stillPending.add(pending)
+        }
+        if (stillPending.isNotEmpty()) {
+            // Merge back rather than overwrite — a new miss could have been buffered by a
+            // concurrent sendEvent() call while this loop was running.
+            synchronized(this) { pendingCustomEvents = pendingCustomEvents + stillPending }
+        }
+    }
+
     // Shared by the session-start path (checkInbox) and the screen-load/custom-event paths
     // (trackScreen, sendEvent) — marks the notification handled, guards further popups until
     // this one is dismissed, and hands off to the native renderer.
@@ -545,6 +623,7 @@ object SignalSDK {
                 isInAppPopupVisible = true
             )
         }
+        currentNotificationBlocking = notification.blocking
 
         val activity = currentActivityRef?.get()
         if (activity == null || activity.isFinishing || activity.isDestroyed) {
@@ -592,13 +671,21 @@ object SignalSDK {
                         userId
                     )
                 }
-                scope.launch {
-                    try {
-                        notificationInboxService.markNotificationsRead(
-                            listOf(notificationId), userId, current.clientId, current.clientSecret, current.baseUrl
-                        )
-                    } catch (e: Exception) {
-                        Logger.error("markNotificationsRead failed", e)
+                // A blocking (force-update) popup is never marked read just for having been
+                // shown — the user hasn't done anything yet, and since it can't be dismissed,
+                // marking it read here would make it vanish from the inbox (unread_only=true)
+                // on the very next fetch despite the user never having actually updated. It only
+                // stops being eligible once the backend's own campaign targeting excludes the
+                // now-updated version.
+                if (!currentNotificationBlocking) {
+                    scope.launch {
+                        try {
+                            notificationInboxService.markNotificationsRead(
+                                listOf(notificationId), userId, current.clientId, current.clientSecret, current.baseUrl
+                            )
+                        } catch (e: Exception) {
+                            Logger.error("markNotificationsRead failed", e)
+                        }
                     }
                 }
             }
@@ -613,7 +700,11 @@ object SignalSDK {
                 if (ctaAction == "deep_link") {
                     inAppActionListener?.onInAppAction(ctaAction, ctaValue, ctaLabel, notificationId, campaignId)
                 }
-                updateState { copy(isInAppPopupVisible = false) }
+                // A blocking (force-update) popup's "clicked" report doesn't mean it went away —
+                // InAppPopupOverlay skips its own dismiss() in that case — so isInAppPopupVisible
+                // must stay true too, or trackScreen()/sendEvent()/checkInbox() would think it's
+                // safe to show a different notification stacked on top of it.
+                if (!currentNotificationBlocking) updateState { copy(isInAppPopupVisible = false) }
             }
             "dismissed" -> {
                 scope.launch {
