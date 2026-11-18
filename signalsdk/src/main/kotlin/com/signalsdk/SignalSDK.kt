@@ -290,6 +290,18 @@ object SignalSDK {
         traitsMap["app_platform"] = "android"
         traitsMap["apk_installed_from_client"] = true
 
+        // CRM targeting traits, filled from the device unless the app passed its own value or
+        // is unsetting the key (the backend rejects a key in both traits and unset_traits).
+        //  - timezone: IANA name (e.g. Asia/Kolkata), never an offset — local-time delivery.
+        //  - device_platform: APK / IOS — push & test campaign target platforms.
+        val unset = payload.unsetTraits.orEmpty()
+        if ("timezone" !in traitsMap && "timezone" !in unset) {
+            traitsMap["timezone"] = TimeZone.getDefault().id
+        }
+        if ("device_platform" !in traitsMap && "device_platform" !in unset) {
+            traitsMap["device_platform"] = "APK"
+        }
+
         // Persist FCM token so it survives app restarts
         if (fcmToken != null) Storage.set(appContext, StorageKeys.FCM_TOKEN, fcmToken)
 

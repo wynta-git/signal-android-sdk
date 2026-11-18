@@ -30,7 +30,7 @@ Add to your app-level `build.gradle` or `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.github.wynta-git:signal-android-sdk:1.6.4")
+    implementation("io.github.wynta-git:signal-android-sdk:1.6.5")
 }
 ```
 
@@ -359,6 +359,17 @@ fun onLogout() {
 | `registrationDate` | `String?` | ISO-8601 datetime |
 | `brandId` | `String?` | Brand/operator identifier |
 | `custom` | `Map<String, Any?>` | Any additional key-value pairs |
+
+**`country` is not auto-detected — pass it from your player profile.** Country-based campaign scheduling only reaches players whose app sent it.
+
+**Added automatically on every `setIdentity`** (no code needed):
+
+| Trait | Value | Used for |
+|---|---|---|
+| `timezone` | Device IANA name, e.g. `Asia/Kolkata` (`TimeZone.getDefault().id`) | Local-time campaign delivery |
+| `device_platform` | `APK` | Push / test campaign target platforms |
+
+To override either, put the key in `custom`; to remove it, list it in `unsetTraits` (the SDK then doesn't send it).
 
 ---
 
