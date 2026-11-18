@@ -302,6 +302,18 @@ object SignalSDK {
             traitsMap["device_platform"] = "APK"
         }
 
+        //  - country: ISO alpha-2 from the phone's region setting (e.g. en-IN → IN), for
+        //    country-based scheduling. This is the region picked in Settings, not where the user
+        //    actually is. Left out when the locale has no region. An app-passed value wins.
+        if ("country" in traitsMap) {
+            if ("country_source" !in traitsMap) traitsMap["country_source"] = "app"
+        } else if ("country" !in unset && "country_source" !in unset) {
+            deviceRegionCountry()?.let {
+                traitsMap["country"] = it
+                traitsMap["country_source"] = "device_locale"
+            }
+        }
+
         // Persist FCM token so it survives app restarts
         if (fcmToken != null) Storage.set(appContext, StorageKeys.FCM_TOKEN, fcmToken)
 
@@ -339,6 +351,21 @@ object SignalSDK {
 
             callback?.invoke(result)
         }
+    }
+
+    /**
+     * ISO 3166-1 alpha-2 region of the phone's system locale (Settings → Language/Region),
+     * e.g. en-IN → "IN". Uses the system locale rather than the app's own (an app may override
+     * its language). Null when the locale has no country part or it isn't two letters.
+     */
+    private fun deviceRegionCountry(): String? {
+        val locale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            android.content.res.Resources.getSystem().configuration.locales.get(0)
+        } else {
+            @Suppress("DEPRECATION")
+            android.content.res.Resources.getSystem().configuration.locale
+        } ?: java.util.Locale.getDefault()
+        return locale.country?.uppercase()?.takeIf { it.length == 2 && it.all { c -> c in 'A'..'Z' } }
     }
 
     /**

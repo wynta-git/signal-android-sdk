@@ -30,7 +30,7 @@ Add to your app-level `build.gradle` or `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("io.github.wynta-git:signal-android-sdk:1.6.5")
+    implementation("io.github.wynta-git:signal-android-sdk:1.6.6")
 }
 ```
 
@@ -360,16 +360,15 @@ fun onLogout() {
 | `brandId` | `String?` | Brand/operator identifier |
 | `custom` | `Map<String, Any?>` | Any additional key-value pairs |
 
-**`country` is not auto-detected — pass it from your player profile.** Country-based campaign scheduling only reaches players whose app sent it.
-
 **Added automatically on every `setIdentity`** (no code needed):
 
 | Trait | Value | Used for |
 |---|---|---|
 | `timezone` | Device IANA name, e.g. `Asia/Kolkata` (`TimeZone.getDefault().id`) | Local-time campaign delivery |
 | `device_platform` | `APK` | Push / test campaign target platforms |
+| `country` | ISO alpha-2 from the phone's region setting, e.g. `en-IN` → `IN` (system locale); left out if the locale has no region. Sent with `country_source: "device_locale"` | Country-based scheduling |
 
-To override either, put the key in `custom`; to remove it, list it in `unsetTraits` (the SDK then doesn't send it).
+To override any of them, put the key in `custom`; to remove it, list it in `unsetTraits` (the SDK then doesn't send it). `country` is the region picked in phone settings, not where the player actually is — an Indian player with the phone set to English (US) is sent as `US`. Pass the real (e.g. KYC) country if you have it; it wins and is sent with `country_source: "app"`.
 
 ---
 
